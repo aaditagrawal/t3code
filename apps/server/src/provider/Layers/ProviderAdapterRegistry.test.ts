@@ -1,16 +1,18 @@
-import type { ProviderKind } from "@t3tools/contracts";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it, assert, vi } from "@effect/vitest";
 import { assertFailure } from "@effect/vitest/utils";
-
+import type { ProviderKind } from "@t3tools/contracts";
 import { Effect, Layer, Stream } from "effect";
 
-import { ClaudeCodeAdapter, ClaudeCodeAdapterShape } from "../Services/ClaudeCodeAdapter.ts";
-import { CodexAdapter, CodexAdapterShape } from "../Services/CodexAdapter.ts";
-import { CursorAdapter, CursorAdapterShape } from "../Services/CursorAdapter.ts";
+import { ProviderUnsupportedError } from "../Errors.ts";
+import {
+  ClaudeCodeAdapter,
+  type ClaudeCodeAdapterShape,
+} from "../Services/ClaudeCodeAdapter.ts";
+import { CodexAdapter, type CodexAdapterShape } from "../Services/CodexAdapter.ts";
+import { CursorAdapter, type CursorAdapterShape } from "../Services/CursorAdapter.ts";
 import { ProviderAdapterRegistry } from "../Services/ProviderAdapterRegistry.ts";
 import { ProviderAdapterRegistryLive } from "./ProviderAdapterRegistry.ts";
-import { ProviderUnsupportedError } from "../Errors.ts";
-import * as NodeServices from "@effect/platform-node/NodeServices";
 
 const fakeCodexAdapter: CodexAdapterShape = {
   provider: "codex",
@@ -78,12 +80,13 @@ const layer = it.layer(
 );
 
 layer("ProviderAdapterRegistryLive", (it) => {
-  it.effect("resolves a registered provider adapter", () =>
+  it.effect("resolves registered provider adapters", () =>
     Effect.gen(function* () {
       const registry = yield* ProviderAdapterRegistry;
       const codex = yield* registry.getByProvider("codex");
       const claude = yield* registry.getByProvider("claudeCode");
       const cursor = yield* registry.getByProvider("cursor");
+
       assert.equal(codex, fakeCodexAdapter);
       assert.equal(claude, fakeClaudeAdapter);
       assert.equal(cursor, fakeCursorAdapter);
