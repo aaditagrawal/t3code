@@ -640,13 +640,18 @@ describe("deriveActiveWorkStartedAt", () => {
 });
 
 describe("PROVIDER_OPTIONS", () => {
-  it("advertises codex and cursor on the cursor branch while keeping Claude Code as coming soon", () => {
+  it("advertises all currently integrated providers", () => {
     const claude = PROVIDER_OPTIONS.find((option) => option.value === "claudeCode");
     const cursor = PROVIDER_OPTIONS.find((option) => option.value === "cursor");
+    expect(PROVIDER_OPTIONS).toEqual([
+      { value: "codex", label: "Codex", available: true },
+      { value: "claudeCode", label: "Claude Code", available: true },
+      { value: "cursor", label: "Cursor Agent", available: true },
+    ]);
     expect(claude).toEqual({
       value: "claudeCode",
       label: "Claude Code",
-      available: false,
+      available: true,
     });
     expect(cursor).toEqual({
       value: "cursor",
