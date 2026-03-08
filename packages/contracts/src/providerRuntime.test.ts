@@ -56,7 +56,7 @@ describe("ProviderRuntimeEvent", () => {
     const parsed = decodeRuntimeEvent({
       type: "user-input.requested",
       eventId: "event-2",
-      provider: "claudeCode",
+      provider: "codex",
       sessionId: "runtime-session-2",
       createdAt: "2026-02-28T00:00:01.000Z",
       threadId: "thread-2",
@@ -94,7 +94,7 @@ describe("ProviderRuntimeEvent", () => {
     const parsed = decodeRuntimeEvent({
       type: "user-input.resolved",
       eventId: "event-3",
-      provider: "claudeCode",
+      provider: "codex",
       sessionId: "runtime-session-2",
       createdAt: "2026-02-28T00:00:02.000Z",
       threadId: "thread-2",

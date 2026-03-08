@@ -546,14 +546,19 @@ describe("ClaudeCodeAdapterLive", () => {
         provider: "claudeCode",
         runtimeMode: "full-access",
       });
-      assert.equal(session.threadId, undefined);
+      assert.equal(session.threadId, THREAD_ID);
+      assert.equal(
+        "resume" in (session.resumeCursor as Record<string, unknown>),
+        false,
+        "resumeCursor should not have a fabricated 'resume' (SDK session_id) before stream provides one",
+      );
 
       const turn = yield* adapter.sendTurn({
         threadId: session.threadId,
         input: "hello",
         attachments: [],
       });
-      assert.equal(turn.threadId, undefined);
+      assert.equal(turn.threadId, THREAD_ID);
 
       harness.query.emit({
         type: "stream_event",
@@ -592,13 +597,23 @@ describe("ClaudeCodeAdapterLive", () => {
       const sessionStarted = runtimeEvents[0];
       assert.equal(sessionStarted?.type, "session.started");
       if (sessionStarted?.type === "session.started") {
-        assert.equal("threadId" in sessionStarted, false);
+        assert.equal(sessionStarted.threadId, THREAD_ID);
+        assert.equal(
+          (sessionStarted.providerRefs as Record<string, unknown> | undefined)?.providerThreadId,
+          undefined,
+          "providerRefs should not contain a fabricated providerThreadId before stream provides one",
+        );
       }
 
       const threadStarted = runtimeEvents[4];
       assert.equal(threadStarted?.type, "thread.started");
       if (threadStarted?.type === "thread.started") {
-        assert.equal(threadStarted.threadId, "sdk-thread-real");
+        assert.equal(threadStarted.threadId, THREAD_ID);
+        assert.equal(
+          threadStarted.payload.providerThreadId,
+          "sdk-thread-real",
+          "thread.started should carry the real SDK session_id in payload.providerThreadId",
+        );
       }
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),

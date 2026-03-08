@@ -16,8 +16,13 @@ import {
   type ProviderAdapterRegistryShape,
 } from "../Services/ProviderAdapterRegistry.ts";
 import { ClaudeCodeAdapter } from "../Services/ClaudeCodeAdapter.ts";
+import { CopilotAdapter } from "../Services/CopilotAdapter.ts";
 import { CodexAdapter } from "../Services/CodexAdapter.ts";
 import { CursorAdapter } from "../Services/CursorAdapter.ts";
+import { GeminiCliAdapter } from "../Services/GeminiCliAdapter.ts";
+import { OpenCodeAdapter } from "../Services/OpenCodeAdapter.ts";
+import { AmpAdapter } from "../Services/AmpAdapter.ts";
+import { KiloAdapter } from "../Services/KiloAdapter.ts";
 
 export interface ProviderAdapterRegistryLiveOptions {
   readonly adapters?: ReadonlyArray<ProviderAdapterShape<ProviderAdapterError>>;
@@ -28,7 +33,16 @@ const makeProviderAdapterRegistry = (options?: ProviderAdapterRegistryLiveOption
     const adapters =
       options?.adapters !== undefined
         ? options.adapters
-        : [yield* CodexAdapter, yield* ClaudeCodeAdapter, yield* CursorAdapter];
+        : [
+            yield* CodexAdapter,
+            yield* CopilotAdapter,
+            yield* ClaudeCodeAdapter,
+            yield* CursorAdapter,
+            yield* OpenCodeAdapter,
+            yield* GeminiCliAdapter,
+            yield* AmpAdapter,
+            yield* KiloAdapter,
+          ];
     const byProvider = new Map(adapters.map((adapter) => [adapter.provider, adapter]));
 
     const getByProvider: ProviderAdapterRegistryShape["getByProvider"] = (provider) => {

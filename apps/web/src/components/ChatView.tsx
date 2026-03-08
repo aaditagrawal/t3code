@@ -55,6 +55,7 @@ import {
 } from "@tanstack/react-virtual";
 import { gitBranchesQueryOptions, gitCreateWorktreeMutationOptions } from "~/lib/gitReactQuery";
 import { projectSearchEntriesQueryOptions } from "~/lib/projectReactQuery";
+import { providerListModelsQueryOptions } from "~/lib/providerReactQuery";
 import { serverConfigQueryOptions, serverQueryKeys } from "~/lib/serverReactQuery";
 
 import { isElectron } from "../env";
@@ -170,9 +171,12 @@ import {
   ClaudeAI,
   CursorIcon,
   Gemini,
+  GitHubIcon,
   Icon,
   OpenAI,
   OpenCodeIcon,
+  AmpIcon,
+  KiloIcon,
   VisualStudioCode,
   Zed,
 } from "./Icons";
@@ -807,10 +811,24 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const customModelsByProvider = useMemo(
     () => ({
       codex: settings.customCodexModels,
+      copilot: settings.customCopilotModels,
       claudeCode: settings.customClaudeModels,
       cursor: settings.customCursorModels,
+      opencode: settings.customOpencodeModels,
+      geminiCli: settings.customGeminiCliModels,
+      amp: settings.customAmpModels ?? [],
+      kilo: settings.customKiloModels ?? [],
     }),
-    [settings.customClaudeModels, settings.customCodexModels, settings.customCursorModels],
+    [
+      settings.customClaudeModels,
+      settings.customCodexModels,
+      settings.customCopilotModels,
+      settings.customCursorModels,
+      settings.customOpencodeModels,
+      settings.customGeminiCliModels,
+      settings.customAmpModels,
+      settings.customKiloModels,
+    ],
   );
   const cursorModelSelectionLockedReason =
     hasThreadStarted && selectedProvider === "cursor"
@@ -838,14 +856,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const selectedCodexFastModeEnabled =
     selectedProvider === "codex" ? composerDraft.codexFastMode : false;
   const selectedModelOptionsForDispatch = useMemo(() => {
-    if (selectedProvider !== "codex") {
-      return undefined;
+    if (selectedProvider === "codex") {
+      const codexOptions = {
+        ...(supportsReasoningEffort && selectedEffort ? { reasoningEffort: selectedEffort } : {}),
+        ...(selectedCodexFastModeEnabled ? { fastMode: true } : {}),
+      };
+      return Object.keys(codexOptions).length > 0 ? { codex: codexOptions } : undefined;
     }
-    const codexOptions = {
-      ...(supportsReasoningEffort && selectedEffort ? { reasoningEffort: selectedEffort } : {}),
-      ...(selectedCodexFastModeEnabled ? { fastMode: true } : {}),
-    };
-    return Object.keys(codexOptions).length > 0 ? { codex: codexOptions } : undefined;
+    return undefined;
   }, [selectedCodexFastModeEnabled, selectedEffort, selectedProvider, supportsReasoningEffort]);
   const selectedCursorModel = useMemo(
     () => (selectedProvider === "cursor" ? parseCursorModelSelection(selectedModel) : null),
@@ -865,9 +883,17 @@ export default function ChatView({ threadId }: ChatViewProps) {
     selectedProvider === "cursor" && selectedCursorModel
       ? selectedCursorModel.family
       : selectedModel;
+  const copilotModelsQuery = useQuery(providerListModelsQueryOptions("copilot"));
+  const opencodeModelsQuery = useQuery(providerListModelsQueryOptions("opencode"));
+  const kiloModelsQuery = useQuery(providerListModelsQueryOptions("kilo"));
   const modelOptionsByProvider = useMemo(
-    () => getCustomModelOptionsByProvider(settings),
-    [settings],
+    () =>
+      mergeDiscoveredModels(getCustomModelOptionsByProvider(settings), {
+        copilot: copilotModelsQuery.data,
+        opencode: opencodeModelsQuery.data,
+        kilo: kiloModelsQuery.data,
+      }),
+    [settings, copilotModelsQuery.data, opencodeModelsQuery.data, kiloModelsQuery.data],
   );
   const selectedModelForPickerWithCustomFallback = useMemo(() => {
     if (selectedProvider !== "cursor") {
@@ -888,11 +914,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
         (option) =>
           option.available && (lockedProvider === null || option.value === lockedProvider),
       ).flatMap((option) =>
-        modelOptionsByProvider[option.value].map(({ slug, name }) => ({
+        modelOptionsByProvider[option.value].map(({ slug, name, pricingTier }) => ({
           provider: option.value,
           providerLabel: option.label,
           slug,
           name,
+          pricingTier,
           searchSlug: slug.toLowerCase(),
           searchName: name.toLowerCase(),
           searchProvider: option.label.toLowerCase(),
@@ -1173,10 +1200,43 @@ export default function ChatView({ threadId }: ChatViewProps) {
     if (!latestTurnHasToolActivity) return null;
 
     const elapsed = formatElapsed(activeLatestTurn.startedAt, activeLatestTurn.completedAt);
-    return elapsed ? `Worked for ${elapsed}` : null;
+    const parts: string[] = [];
+    if (elapsed) parts.push(`Worked for ${elapsed}`);
+
+    const usage = activeLatestTurn.usage as
+      | { input_tokens?: number; output_tokens?: number; cached_tokens?: number }
+      | undefined;
+    if (usage) {
+      const tokenParts: string[] = [];
+      if (typeof usage.input_tokens === "number") {
+        const formatted =
+          usage.input_tokens >= 1000
+            ? `${(usage.input_tokens / 1000).toFixed(1)}k`
+            : String(usage.input_tokens);
+        tokenParts.push(`${formatted} in`);
+      }
+      if (typeof usage.output_tokens === "number") {
+        const formatted =
+          usage.output_tokens >= 1000
+            ? `${(usage.output_tokens / 1000).toFixed(1)}k`
+            : String(usage.output_tokens);
+        tokenParts.push(`${formatted} out`);
+      }
+      if (typeof usage.cached_tokens === "number" && usage.cached_tokens > 0) {
+        const formatted =
+          usage.cached_tokens >= 1000
+            ? `${(usage.cached_tokens / 1000).toFixed(1)}k`
+            : String(usage.cached_tokens);
+        tokenParts.push(`${formatted} cached`);
+      }
+      if (tokenParts.length > 0) parts.push(tokenParts.join(" · "));
+    }
+
+    return parts.length > 0 ? parts.join(" · ") : null;
   }, [
     activeLatestTurn?.completedAt,
     activeLatestTurn?.startedAt,
+    activeLatestTurn?.usage,
     latestTurnHasToolActivity,
     latestTurnSettled,
   ]);
@@ -1286,12 +1346,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
           searchSlug.includes(query) || searchName.includes(query) || searchProvider.includes(query)
         );
       })
-      .map(({ provider, providerLabel, slug, name }) => ({
+      .map(({ provider, providerLabel, slug, name, pricingTier }) => ({
         id: `model:${provider}:${slug}`,
         type: "model",
         provider,
         model: slug,
-        label: name,
+        label: pricingTier ? `${name}  ${formatPricingTier(pricingTier)}` : name,
         description: `${providerLabel} · ${slug}`,
         showFastBadge:
           provider === "codex" && shouldShowFastTierIcon(slug, selectedServiceTierSetting),
@@ -5279,7 +5339,8 @@ const MessagesTimeline = memo(function MessagesTimeline({
       {row.kind === "message" &&
         row.message.role === "assistant" &&
         (() => {
-          const messageText = row.message.text || (row.message.streaming ? "" : "(empty response)");
+          if (!row.message.text && !row.message.streaming) return null;
+          const messageText = row.message.text || "";
           return (
             <>
               {row.showCompletionDivider && (
@@ -5442,19 +5503,22 @@ const MessagesTimeline = memo(function MessagesTimeline({
 
 const AVAILABLE_PROVIDER_OPTIONS = PROVIDER_OPTIONS.filter((option) => option.available);
 const UNAVAILABLE_PROVIDER_OPTIONS = PROVIDER_OPTIONS.filter((option) => !option.available);
-const COMING_SOON_PROVIDER_OPTIONS = [
-  { id: "opencode", label: "OpenCode", icon: OpenCodeIcon },
-  { id: "gemini", label: "Gemini", icon: Gemini },
-] as const;
+const COMING_SOON_PROVIDER_OPTIONS: ReadonlyArray<{ id: string; label: string; icon: Icon }> = [];
 
 function getCustomModelOptionsByProvider(settings: {
   customCodexModels: readonly string[];
+  customCopilotModels: readonly string[];
   customClaudeModels: readonly string[];
   customCursorModels: readonly string[];
-}): Record<ProviderKind, ReadonlyArray<{ slug: string; name: string }>> {
+  customOpencodeModels: readonly string[];
+  customGeminiCliModels: readonly string[];
+  customAmpModels: readonly string[];
+  customKiloModels: readonly string[];
+}): Record<ProviderKind, ReadonlyArray<ModelOptionEntry>> {
   const cursorFamilyOptions = getCursorModelFamilyOptions();
   return {
     codex: getAppModelOptions("codex", settings.customCodexModels),
+    copilot: getAppModelOptions("copilot", settings.customCopilotModels),
     claudeCode: getAppModelOptions("claudeCode", settings.customClaudeModels),
     cursor: [
       ...cursorFamilyOptions,
@@ -5463,13 +5527,101 @@ function getCustomModelOptionsByProvider(settings: {
           option.isCustom && !cursorFamilyOptions.some((family) => family.slug === option.slug),
       ),
     ],
+    opencode: getAppModelOptions("opencode", settings.customOpencodeModels),
+    geminiCli: getAppModelOptions("geminiCli", settings.customGeminiCliModels),
+    amp: getAppModelOptions("amp", settings.customAmpModels),
+    kilo: getAppModelOptions("kilo", settings.customKiloModels),
   };
+}
+
+type ModelOptionEntry = { slug: string; name: string; pricingTier?: string };
+
+function mergeDiscoveredModels(
+  base: Record<ProviderKind, ReadonlyArray<ModelOptionEntry>>,
+  discovered: Partial<Record<ProviderKind, ReadonlyArray<ModelOptionEntry> | undefined>>,
+): Record<ProviderKind, ReadonlyArray<ModelOptionEntry>> {
+  const result = { ...base };
+  for (const [provider, models] of Object.entries(discovered) as Array<
+    [ProviderKind, ReadonlyArray<ModelOptionEntry> | undefined]
+  >) {
+    if (!models || models.length === 0) continue;
+    const existing = new Set(base[provider]?.map((m) => m.slug));
+    // For copilot, discovered models replace the static list but inherit
+    // pricingTier from the static entries when the SDK doesn't provide it.
+    if (provider === "copilot") {
+      const baseTiers = new Map(
+        (base[provider] ?? []).map((m) => [m.slug, m.pricingTier]),
+      );
+      const enriched = models.map((m) => {
+        if (m.pricingTier) return m;
+        const tier = baseTiers.get(m.slug);
+        return tier ? { ...m, pricingTier: tier } : m;
+      });
+      const customOnly = (base[provider] ?? []).filter(
+        (m) => !models.some((d) => d.slug === m.slug),
+      );
+      result[provider] = [...enriched, ...customOnly];
+      continue;
+    }
+    const additions = models.filter((m) => !existing.has(m.slug));
+    if (additions.length > 0) {
+      result[provider] = [...additions, ...(base[provider] ?? [])];
+    }
+  }
+  return result;
+}
+
+type GroupedModelEntry = {
+  readonly subProvider: string;
+  readonly models: ReadonlyArray<ModelOptionEntry>;
+};
+
+function groupModelsBySubProvider(
+  models: ReadonlyArray<ModelOptionEntry>,
+): ReadonlyArray<GroupedModelEntry> {
+  const groupOrder: string[] = [];
+  const groupMap = new Map<string, { displayName: string; models: ModelOptionEntry[] }>();
+  const ungrouped: ModelOptionEntry[] = [];
+
+  for (const model of models) {
+    const slashIndex = model.slug.indexOf("/");
+    if (slashIndex > 0) {
+      const subProviderId = model.slug.slice(0, slashIndex);
+      const nameSlashIndex = model.name.indexOf(" / ");
+      const subProviderName = nameSlashIndex > 0 ? model.name.slice(0, nameSlashIndex) : subProviderId;
+      const modelName = nameSlashIndex > 0 ? model.name.slice(nameSlashIndex + 3) : model.name;
+
+      let group = groupMap.get(subProviderId);
+      if (!group) {
+        group = { displayName: subProviderName, models: [] };
+        groupMap.set(subProviderId, group);
+        groupOrder.push(subProviderId);
+      }
+      group.models.push({ slug: model.slug, name: modelName });
+    } else {
+      ungrouped.push(model);
+    }
+  }
+
+  const result: GroupedModelEntry[] = groupOrder.map((id) => {
+    const group = groupMap.get(id)!;
+    return { subProvider: group.displayName, models: group.models };
+  });
+  if (ungrouped.length > 0) {
+    result.push({ subProvider: "Other", models: ungrouped });
+  }
+  return result;
 }
 
 const PROVIDER_ICON_BY_PROVIDER: Record<ProviderKind, Icon> = {
   codex: OpenAI,
+  copilot: GitHubIcon,
   claudeCode: ClaudeAI,
   cursor: CursorIcon,
+  opencode: OpenCodeIcon,
+  geminiCli: Gemini,
+  amp: AmpIcon,
+  kilo: KiloIcon,
 };
 
 function resolveModelForProviderPicker(
@@ -5509,19 +5661,26 @@ function resolveModelForProviderPicker(
   return null;
 }
 
+function formatPricingTier(tier: string): string {
+  // Normalize to uppercase X suffix: "1x" → "1X", "0.3x" → "0.3X"
+  return tier.replace(/x$/i, "X");
+}
+
+
 const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   provider: ProviderKind;
   model: ModelSlug;
   lockedProvider: ProviderKind | null;
-  modelOptionsByProvider: Record<ProviderKind, ReadonlyArray<{ slug: string; name: string }>>;
+  modelOptionsByProvider: Record<ProviderKind, ReadonlyArray<ModelOptionEntry>>;
   serviceTierSetting: AppServiceTier;
   disabled?: boolean;
   onProviderModelChange: (provider: ProviderKind, model: ModelSlug) => void;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const selectedProviderOptions = props.modelOptionsByProvider[props.provider];
-  const selectedModelLabel =
-    selectedProviderOptions.find((option) => option.slug === props.model)?.name ?? props.model;
+  const selectedModelOption = selectedProviderOptions.find((option) => option.slug === props.model);
+  const selectedModelLabel = selectedModelOption?.name ?? props.model;
+  const selectedPricingTier = selectedModelOption?.pricingTier;
   const ProviderIcon = PROVIDER_ICON_BY_PROVIDER[props.provider];
 
   return (
@@ -5558,6 +5717,11 @@ const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             <ZapIcon className="size-3.5 shrink-0 text-amber-500" />
           ) : null}
           <span className="truncate">{selectedModelLabel}</span>
+          {selectedPricingTier ? (
+            <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+              {formatPricingTier(selectedPricingTier)}
+            </span>
+          ) : null}
           <ChevronDownIcon aria-hidden="true" className="size-3 opacity-60" />
         </span>
       </MenuTrigger>
@@ -5566,6 +5730,64 @@ const ProviderModelPicker = memo(function ProviderModelPicker(props: {
           const OptionIcon = PROVIDER_ICON_BY_PROVIDER[option.value];
           const isDisabledByProviderLock =
             props.lockedProvider !== null && props.lockedProvider !== option.value;
+          const providerModels = props.modelOptionsByProvider[option.value];
+          const onModelSelect = (value: string) => {
+            if (props.disabled) return;
+            if (isDisabledByProviderLock) return;
+            if (!value) return;
+            const resolvedModel = resolveModelForProviderPicker(option.value, value, providerModels);
+            if (!resolvedModel) return;
+            props.onProviderModelChange(option.value, resolvedModel);
+            setIsMenuOpen(false);
+          };
+
+          // OpenCode / Kilo: two-tiered picker grouped by sub-provider
+          if (option.value === "opencode" || option.value === "kilo") {
+            const groups = groupModelsBySubProvider(providerModels);
+            return (
+              <MenuSub key={option.value}>
+                <MenuSubTrigger disabled={isDisabledByProviderLock}>
+                  <OptionIcon
+                    aria-hidden="true"
+                    className="size-4 shrink-0 text-muted-foreground/85"
+                  />
+                  {option.label}
+                </MenuSubTrigger>
+                <MenuSubPopup className="[--available-height:min(24rem,70vh)]">
+                  {groups.length === 0 ? (
+                    <MenuItem disabled>
+                      <span className="text-muted-foreground/60 text-xs">No models discovered</span>
+                    </MenuItem>
+                  ) : (
+                    groups.map((group) => (
+                      <MenuSub key={group.subProvider}>
+                        <MenuSubTrigger>{group.subProvider}</MenuSubTrigger>
+                        <MenuSubPopup className="[--available-height:min(24rem,70vh)]">
+                          <MenuGroup>
+                            <MenuRadioGroup
+                              value={props.provider === option.value ? props.model : ""}
+                              onValueChange={onModelSelect}
+                            >
+                              {group.models.map((modelOption) => (
+                                <MenuRadioItem
+                                  key={modelOption.slug}
+                                  value={modelOption.slug}
+                                  onClick={() => setIsMenuOpen(false)}
+                                >
+                                  {modelOption.name}
+                                </MenuRadioItem>
+                              ))}
+                            </MenuRadioGroup>
+                          </MenuGroup>
+                        </MenuSubPopup>
+                      </MenuSub>
+                    ))
+                  )}
+                </MenuSubPopup>
+              </MenuSub>
+            );
+          }
+
           return (
             <MenuSub key={option.value}>
               <MenuSubTrigger disabled={isDisabledByProviderLock}>
@@ -5579,21 +5801,9 @@ const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                 <MenuGroup>
                   <MenuRadioGroup
                     value={props.provider === option.value ? props.model : ""}
-                    onValueChange={(value) => {
-                      if (props.disabled) return;
-                      if (isDisabledByProviderLock) return;
-                      if (!value) return;
-                      const resolvedModel = resolveModelForProviderPicker(
-                        option.value,
-                        value,
-                        props.modelOptionsByProvider[option.value],
-                      );
-                      if (!resolvedModel) return;
-                      props.onProviderModelChange(option.value, resolvedModel);
-                      setIsMenuOpen(false);
-                    }}
+                    onValueChange={onModelSelect}
                   >
-                    {props.modelOptionsByProvider[option.value].map((modelOption) => (
+                    {providerModels.map((modelOption) => (
                       <MenuRadioItem
                         key={`${option.value}:${modelOption.slug}`}
                         value={modelOption.slug}
@@ -5603,7 +5813,14 @@ const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                         shouldShowFastTierIcon(modelOption.slug, props.serviceTierSetting) ? (
                           <ZapIcon className="size-3.5 shrink-0 text-amber-500" />
                         ) : null}
-                        {modelOption.name}
+                        <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                          <span className="truncate">{modelOption.name}</span>
+                          {modelOption.pricingTier ? (
+                            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                              {formatPricingTier(modelOption.pricingTier)}
+                            </span>
+                          ) : null}
+                        </span>
                       </MenuRadioItem>
                     ))}
                   </MenuRadioGroup>
