@@ -447,7 +447,7 @@ function ProviderUsageBar({
         </div>
       )}
       {quota.resetDate && (
-        <p className="mt-1 text-[10px] text-muted-foreground/40 opacity-0 transition-opacity group-hover/bar:opacity-100">
+        <p className="mt-1 text-[10px] text-muted-foreground/40">
           Resets {formatUsageResetLabel(quota.resetDate)}
         </p>
       )}
@@ -526,7 +526,7 @@ function ProviderUsageGroup({
                 </div>
               )}
               {quota.resetDate && (
-                <p className="mt-1 text-[10px] text-muted-foreground/40 opacity-0 transition-opacity group-hover/group:opacity-100">
+                <p className="mt-1 text-[10px] text-muted-foreground/40">
                   Resets {formatUsageResetLabel(quota.resetDate)}
                 </p>
               )}
