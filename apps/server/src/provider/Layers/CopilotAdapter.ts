@@ -99,6 +99,7 @@ interface ActiveCopilotSession extends CopilotTurnTrackingState {
   configDir: string | undefined;
   model: string | undefined;
   reasoningEffort: CodexReasoningEffort | undefined;
+  interactionMode: "default" | "plan" | undefined;
   updatedAt: string;
   lastError: string | undefined;
   toolTitlesByCallId: Map<string, string>;
@@ -109,6 +110,20 @@ interface ActiveCopilotSession extends CopilotTurnTrackingState {
 
 interface CopilotSessionHandle {
   readonly sessionId: string;
+  readonly rpc: {
+    readonly mode: {
+      set(input: { mode: "interactive" | "plan" | "autopilot" }): Promise<{
+        mode: "interactive" | "plan" | "autopilot";
+      }>;
+    };
+    readonly plan: {
+      read(): Promise<{
+        exists: boolean;
+        content: string | null;
+        path: string | null;
+      }>;
+    };
+  };
   destroy(): Promise<void>;
   on(handler: (event: SessionEvent) => void): () => void;
   send(options: { prompt: string; attachments?: unknown; mode?: string }): Promise<string>;
@@ -197,6 +212,18 @@ function extractResumeSessionId(resumeCursor: unknown): string | undefined {
   const record = asRecord(resumeCursor);
   const sessionId = normalizeString(record?.sessionId);
   return sessionId;
+}
+
+function toCopilotSessionMode(
+  interactionMode: "default" | "plan",
+): "interactive" | "plan" {
+  return interactionMode === "plan" ? "plan" : "interactive";
+}
+
+function toInteractionMode(
+  mode: string,
+): "default" | "plan" {
+  return mode === "plan" ? "plan" : "default";
 }
 
 function approvalDecisionToPermissionResult(
@@ -398,6 +425,7 @@ function createSessionRecord(input: {
     configDir: input.configDir,
     model: input.model,
     reasoningEffort: input.reasoningEffort,
+    interactionMode: undefined,
     updatedAt: new Date().toISOString(),
     lastError: undefined,
     currentTurnId: undefined,
@@ -427,6 +455,63 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
       if (!nativeEventLogger) return Promise.resolve();
       return Effect.runPromise(nativeEventLogger.write(event, threadId)).catch(() => undefined);
     };
+
+    const currentSyntheticTurnId = (record: ActiveCopilotSession) =>
+      completionTurnRefs(record).turnId ?? record.currentTurnId;
+
+    const syncInteractionMode = (
+      record: ActiveCopilotSession,
+      interactionMode: "default" | "plan",
+    ) => {
+      if (record.interactionMode === interactionMode) {
+        return Effect.void;
+      }
+      return Effect.tryPromise({
+        try: async () => {
+          await record.session.rpc.mode.set({
+            mode: toCopilotSessionMode(interactionMode),
+          });
+          record.interactionMode = interactionMode;
+        },
+        catch: (cause) =>
+          new ProviderAdapterRequestError({
+            provider: PROVIDER,
+            method: "session.mode.set",
+            detail: toMessage(cause, "Failed to switch GitHub Copilot interaction mode."),
+            cause,
+          }),
+      });
+    };
+
+    const emitLatestProposedPlan = (record: ActiveCopilotSession) =>
+      Effect.tryPromise({
+        try: () => record.session.rpc.plan.read(),
+        catch: (cause) =>
+          new ProviderAdapterRequestError({
+            provider: PROVIDER,
+            method: "session.plan.read",
+            detail: toMessage(cause, "Failed to read the GitHub Copilot plan."),
+            cause,
+          }),
+      }).pipe(
+        Effect.flatMap((plan) => {
+          const planMarkdown = trimToUndefined(plan.content ?? undefined);
+          if (!plan.exists || !planMarkdown) {
+            return Effect.void;
+          }
+          return Queue.offer(
+            runtimeEventQueue,
+            makeSyntheticEvent(
+              record.threadId,
+              "turn.proposed.completed",
+              {
+                planMarkdown,
+              },
+              { turnId: currentSyntheticTurnId(record) },
+            ),
+          ).pipe(Effect.asVoid);
+        }),
+      );
 
     const mapSessionEvent = (
       record: ActiveCopilotSession,
@@ -534,7 +619,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
                     ...base(idleCompletionRefs),
                     type: "turn.completed",
                     payload: {
-                      state: record.lastError ? "failed" : "completed",
+                      state: "completed",
                       ...assistantUsageFields(record.pendingTurnUsage),
                     },
                   } satisfies ProviderRuntimeEvent,
@@ -1041,6 +1126,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
           });
 
           record.session = nextSession;
+          record.interactionMode = undefined;
           record.model = input.model;
           record.reasoningEffort = input.reasoningEffort;
           record.updatedAt = new Date().toISOString();
@@ -1071,17 +1157,32 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
       if (event.type === "session.model_change") {
         record.model = event.data.newModel;
       }
-      if (event.type === "tool.execution_start") {
-        const toolName = trimToUndefined(event.data.toolName);
-        if (toolName) {
-          record.toolTitlesByCallId.set(event.data.toolCallId, toolName);
-        }
+      if (event.type === "session.mode_changed") {
+        record.interactionMode = toInteractionMode(event.data.newMode);
+      }
+      if (event.type === "tool.execution_start" && trimToUndefined(event.data.toolName)) {
+        record.toolTitlesByCallId.set(event.data.toolCallId, trimToUndefined(event.data.toolName)!);
       }
 
       void writeNativeEvent(record.threadId, event);
       const runtimeEvents = mapSessionEvent(record, event);
       if (runtimeEvents.length > 0) {
         void emitRuntimeEvents(runtimeEvents);
+      }
+      if (event.type === "session.plan_changed" && event.data.operation !== "delete") {
+        void Effect.runPromise(emitLatestProposedPlan(record)).catch((cause) => {
+          void emitRuntimeEvents([
+            makeSyntheticEvent(
+              record.threadId,
+              "runtime.warning",
+              {
+                message: "Failed to read GitHub Copilot plan.",
+                detail: toMessage(cause, "Failed to read GitHub Copilot plan."),
+              },
+              { turnId: currentSyntheticTurnId(record) },
+            ),
+          ]);
+        });
       }
       if (event.type === "tool.execution_complete") {
         record.toolTitlesByCallId.delete(event.data.toolCallId);
@@ -1091,9 +1192,6 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
       }
       if (event.type === "abort" || event.type === "session.idle") {
         clearTurnTracking(record);
-        if (event.type === "session.idle") {
-          record.lastError = undefined;
-        }
       }
     };
 
@@ -1284,15 +1382,6 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
     const sendTurn: CopilotAdapterShape["sendTurn"] = (input) =>
       Effect.gen(function* () {
         const record = yield* getSessionRecord(input.threadId);
-
-        if (record.currentTurnId || record.pendingTurnIds.length > 0) {
-          return yield* new ProviderAdapterValidationError({
-            provider: PROVIDER,
-            operation: "sendTurn",
-            issue: `Thread '${input.threadId}' already has an active turn '${record.currentTurnId ?? record.pendingTurnIds[0]}'.`,
-          });
-        }
-
         const explicitReasoningEffort = getCopilotReasoningEffort(input.modelOptions);
         const nextModel = input.model ?? record.model;
         const nextReasoningEffort =
@@ -1335,6 +1424,9 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
             reasoningEffort: nextReasoningEffort,
           });
         }
+
+        const interactionMode = input.interactionMode ?? record.interactionMode ?? "default";
+        yield* syncInteractionMode(record, interactionMode);
 
         const turnId = TurnId.makeUnsafe(`copilot-turn-${randomUUID()}`);
         record.pendingTurnIds.push(turnId);
@@ -1601,7 +1693,7 @@ export async function fetchCopilotModels(): Promise<
 export async function fetchCopilotUsage(): Promise<{
   provider: string;
   quotas?: ReadonlyArray<{
-    key: string;
+    plan: string;
     limit: number;
     used: number;
     remaining: number;
@@ -1634,7 +1726,7 @@ export async function fetchCopilotUsage(): Promise<{
           }
         >,
       ).map(([key, snap]) => ({
-        key,
+        plan: key,
         limit: Math.max(0, Math.trunc(snap.entitlementRequests)),
         used: Math.max(0, Math.trunc(snap.usedRequests)),
         remaining: Math.max(0, Math.trunc(snap.entitlementRequests) - Math.trunc(snap.usedRequests)),

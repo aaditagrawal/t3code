@@ -240,6 +240,34 @@ describe("store read model sync", () => {
     expect(next.threads[0]?.session?.provider).toBe("cursor");
   });
 
+  it("preserves the previous provider when a thread session closes", () => {
+    const initialState = makeState(
+      makeThread({
+        provider: "claudeCode",
+        model: "claude-sonnet-4-6",
+        session: {
+          provider: "claudeCode",
+          status: "ready",
+          orchestrationStatus: "ready",
+          createdAt: "2026-02-27T00:00:00.000Z",
+          updatedAt: "2026-02-27T00:00:00.000Z",
+        },
+      }),
+    );
+    const readModel = makeReadModel(
+      makeReadModelThread({
+        model: "claude-sonnet-4-6",
+        session: null,
+      }),
+    );
+
+    const next = syncServerReadModel(initialState, readModel);
+
+    expect(next.threads[0]?.provider).toBe("claudeCode");
+    expect(next.threads[0]?.model).toBe("claude-sonnet-4-6");
+    expect(next.threads[0]?.session).toBeNull();
+  });
+
   it("preserves locally reordered projects across read model syncs", () => {
     const initialState: AppState = {
       projects: [makeProject("project-2", "Project 2"), makeProject("project-1", "Project 1")],

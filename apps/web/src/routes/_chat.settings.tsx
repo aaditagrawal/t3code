@@ -405,6 +405,40 @@ function SettingsRouteView() {
                     </Button>
                   ) : null}
                 </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Grayscale provider logos</p>
+                    <p className="text-xs text-muted-foreground">
+                      Desaturate provider logos in the thread list while keeping the default layout.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.grayscaleProviderLogos}
+                    onCheckedChange={(checked) =>
+                      updateSettings({
+                        grayscaleProviderLogos: Boolean(checked),
+                      })
+                    }
+                    aria-label="Use grayscale provider logos"
+                  />
+                </div>
+
+                {settings.grayscaleProviderLogos !== defaults.grayscaleProviderLogos ? (
+                  <div className="flex justify-end">
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() =>
+                        updateSettings({
+                          grayscaleProviderLogos: defaults.grayscaleProviderLogos,
+                        })
+                      }
+                    >
+                      Restore default
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             </section>
 

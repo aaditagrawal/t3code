@@ -29,6 +29,7 @@ import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { useAppSettings } from "../appSettings";
 import { isElectron } from "../env";
 import { APP_STAGE_LABEL } from "../branding";
+import { resolveThreadProvider } from "../lib/threadProvider";
 import { newCommandId, newProjectId } from "../lib/utils";
 import { useStore } from "../store";
 import { isChatNewLocalShortcut, isChatNewShortcut, shortcutLabelForCommand } from "../keybindings";
@@ -75,6 +76,28 @@ import {
 } from "./ui/sidebar";
 import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "../worktreeCleanup";
 import { isNonEmpty as isNonEmptyString } from "effect/String";
+import {
+  type Icon,
+  OpenAI,
+  GitHubIcon,
+  ClaudeAI,
+  CursorIcon,
+  OpenCodeIcon,
+  Gemini,
+  AmpIcon,
+  KiloIcon,
+} from "./Icons";
+
+const PROVIDER_ICON_BY_PROVIDER: Record<ProviderKind, Icon> = {
+  codex: OpenAI,
+  copilot: GitHubIcon,
+  claudeCode: ClaudeAI,
+  cursor: CursorIcon,
+  opencode: OpenCodeIcon,
+  geminiCli: Gemini,
+  amp: AmpIcon,
+  kilo: KiloIcon,
+};
 
 const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
 const THREAD_PREVIEW_LIMIT = 6;
@@ -344,24 +367,63 @@ function formatUsagePercentLabel(quota: ProviderUsageQuota, percentUsed: number)
   return `${Math.round(percentUsed)}%`;
 }
 
+const COPILOT_QUOTA_PRIORITY = ["premium_interactions", "chat", "completions"] as const;
+
+function compareCopilotQuotaPriority(leftPlan?: string, rightPlan?: string): number {
+  const leftPriority = leftPlan ? COPILOT_QUOTA_PRIORITY.indexOf(leftPlan as (typeof COPILOT_QUOTA_PRIORITY)[number]) : -1;
+  const rightPriority = rightPlan
+    ? COPILOT_QUOTA_PRIORITY.indexOf(rightPlan as (typeof COPILOT_QUOTA_PRIORITY)[number])
+    : -1;
+  const normalizedLeftPriority = leftPriority === -1 ? Number.POSITIVE_INFINITY : leftPriority;
+  const normalizedRightPriority = rightPriority === -1 ? Number.POSITIVE_INFINITY : rightPriority;
+  return normalizedLeftPriority - normalizedRightPriority;
+}
+
+function selectVisibleQuotas(
+  provider: ProviderKind,
+  quotas: ReadonlyArray<ProviderUsageQuota>,
+): ReadonlyArray<ProviderUsageQuota> {
+  const visibleQuotas = quotas.filter((q) => q.percentUsed != null || q.used != null);
+  if (provider !== "copilot" || visibleQuotas.length <= 1) {
+    return visibleQuotas;
+  }
+
+  const primaryQuota = visibleQuotas.toSorted((left, right) => {
+    const priorityOrder = compareCopilotQuotaPriority(left.plan, right.plan);
+    if (priorityOrder !== 0) return priorityOrder;
+    return (left.plan ?? "").localeCompare(right.plan ?? "");
+  })[0];
+
+  return primaryQuota ? [primaryQuota] : [];
+}
+
+function formatUsageCountLabel(quota: ProviderUsageQuota, showCount?: boolean): string {
+  if (!showCount || quota.used == null || quota.limit == null) {
+    return "";
+  }
+
+  return ` (${quota.used}/${quota.limit})`;
+}
+
 function ProviderUsageBar({
   label,
   quota,
   showCount,
   accentColor,
+  hidePlanLabel,
+  hidePercentLabel,
 }: {
   label: string;
   quota: ProviderUsageQuota;
   showCount?: boolean;
   accentColor?: string;
+  hidePlanLabel?: boolean;
+  hidePercentLabel?: boolean;
 }) {
   const percentUsed =
     quota.percentUsed ??
     (quota.used != null && quota.limit ? Math.round((quota.used / quota.limit) * 100) : null);
-  const remaining = quota.used != null && quota.limit != null ? quota.limit - quota.used : null;
-
-  const countSuffix =
-    showCount && remaining != null && quota.limit != null ? ` (${remaining}/${quota.limit})` : "";
+  const countSuffix = formatUsageCountLabel(quota, showCount);
 
   const barColor =
     percentUsed != null && percentUsed > 90
@@ -377,23 +439,29 @@ function ProviderUsageBar({
         ? "bg-amber-500"
         : accentColor
           ? ""
-          : "bg-primary";
+          : "bg-ring/50";
 
   return (
-    <div className="rounded-md border border-border bg-background px-2.5 py-1.5">
+    <div className="group/bar rounded-lg border border-border/50 px-2.5 py-1.5">
       <div className="flex items-center justify-between text-[11px]">
-        <span className="font-medium text-foreground">
+        <span className="font-medium text-muted-foreground/70">
           {label}
-          {quota.plan ? <span className="ml-1 text-muted-foreground/60">{quota.plan}</span> : null}
+          {!hidePlanLabel && quota.plan ? (
+            <span className="ml-1 text-muted-foreground/50">{quota.plan}</span>
+          ) : null}
         </span>
-        <span className="tabular-nums text-muted-foreground">
-          {percentUsed != null ? `${formatUsagePercentLabel(quota, percentUsed)}${countSuffix}` : "?"}
+        <span className="tabular-nums text-muted-foreground/50">
+          {hidePercentLabel
+            ? countSuffix.trim() || "?"
+            : percentUsed != null
+              ? `${formatUsagePercentLabel(quota, percentUsed)}${countSuffix}`
+              : countSuffix.trim() || "?"}
         </span>
       </div>
       {percentUsed != null && (
-        <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
+        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-border/40">
           <div
-            className={`h-full rounded-full transition-all ${barClassName}`}
+            className={`h-full rounded-full transition-all duration-500 ${barClassName}`}
             style={{
               width: `${Math.min(100, percentUsed)}%`,
               ...(barColor ? { backgroundColor: barColor } : {}),
@@ -402,10 +470,93 @@ function ProviderUsageBar({
         </div>
       )}
       {quota.resetDate && (
-        <p className="mt-1 text-[10px] text-muted-foreground/60">
+        <p className="mt-1 text-[10px] text-muted-foreground/40">
           Resets {formatUsageResetLabel(quota.resetDate)}
         </p>
       )}
+    </div>
+  );
+}
+
+function ProviderUsageGroup({
+  label,
+  quotas,
+  showCount,
+  accentColor,
+}: {
+  label: string;
+  quotas: ReadonlyArray<ProviderUsageQuota>;
+  showCount?: boolean;
+  accentColor?: string;
+}) {
+  return (
+    <div className="group/group rounded-lg border border-border/50 px-2.5 py-1.5">
+      <div className="space-y-2">
+        <div className="text-[11px] font-medium text-muted-foreground/70">{label}</div>
+        {quotas.map((quota, index) => {
+          const percentUsed =
+            quota.percentUsed ??
+            (quota.used != null && quota.limit
+              ? Math.round((quota.used / quota.limit) * 100)
+              : null);
+          const remaining =
+            quota.used != null && quota.limit != null ? quota.limit - quota.used : null;
+          const countSuffix =
+            showCount && remaining != null && quota.limit != null
+              ? ` (${remaining}/${quota.limit})`
+              : "";
+          const barColor =
+            percentUsed != null && percentUsed > 90
+              ? undefined
+              : percentUsed != null && percentUsed > 70
+                ? undefined
+                : accentColor;
+          const barClassName =
+            percentUsed != null && percentUsed > 90
+              ? "bg-destructive"
+              : percentUsed != null && percentUsed > 70
+                ? "bg-amber-500"
+                : accentColor
+                  ? ""
+                  : "bg-ring/50";
+
+          return (
+            <div
+              key={`${label}:${quota.plan ?? quota.resetDate ?? quota.percentUsed ?? "usage"}`}
+              className={
+                index > 0 ? "border-border/30 border-t pt-2" : "first:pt-0"
+              }
+            >
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground/60">
+                  {quota.plan ?? "Usage"}
+                </span>
+                <span className="tabular-nums text-muted-foreground/50">
+                  {percentUsed != null
+                    ? `${formatUsagePercentLabel(quota, percentUsed)}${countSuffix}`
+                    : "?"}
+                </span>
+              </div>
+              {percentUsed != null && (
+                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-border/40">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${barClassName}`}
+                    style={{
+                      width: `${Math.min(100, percentUsed)}%`,
+                      ...(barColor ? { backgroundColor: barColor } : {}),
+                    }}
+                  />
+                </div>
+              )}
+              {quota.resetDate && (
+                <p className="mt-1 text-[10px] text-muted-foreground/40">
+                  Resets {formatUsageResetLabel(quota.resetDate)}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -430,10 +581,10 @@ function ProviderSessionUsageBar({
   if (parts.length === 0) return null;
 
   return (
-    <div className="rounded-md border border-border bg-background px-2.5 py-1.5">
+    <div className="rounded-lg border border-border/50 px-2.5 py-1.5">
       <div className="flex items-center justify-between text-[11px]">
-        <span className="font-medium text-foreground">{label}</span>
-        <span className="tabular-nums text-muted-foreground">{parts.join(" · ")}</span>
+        <span className="font-medium text-muted-foreground/70">{label}</span>
+        <span className="tabular-nums text-muted-foreground/50">{parts.join(" · ")}</span>
       </div>
     </div>
   );
@@ -491,29 +642,55 @@ function ProviderUsageSection() {
   for (const { provider, label } of USAGE_PROVIDERS) {
     const data = usageByProvider[provider];
     const showCount = provider === "copilot";
+    const hidePlanLabel = provider === "copilot";
+    const hidePercentLabel = false;
     const providerColor = usageSettings.providerAccentColors[provider] || null;
     const colorProp = providerColor ? { accentColor: providerColor } : {};
     // Multiple quotas (e.g. Codex session + weekly)
     if (data?.quotas && data.quotas.length > 0) {
-      for (const q of data.quotas) {
-        if (q.percentUsed == null && q.used == null) continue;
-        const sublabel = q.plan ? `${label}` : label;
+      const visibleQuotas = selectVisibleQuotas(provider, data.quotas);
+      if (visibleQuotas.length === 0) {
+        // noop
+      } else if (provider === "codex") {
         entries.push(
-          <ProviderUsageBar
-            key={`${provider}:${q.plan ?? "default"}`}
-            label={sublabel}
-            quota={q}
+          <ProviderUsageGroup
+            key={provider}
+            label={label}
+            quotas={visibleQuotas}
             showCount={showCount}
             {...colorProp}
           />,
         );
+      } else {
+        for (const q of visibleQuotas) {
+          const sublabel = q.plan ? `${label}` : label;
+          entries.push(
+            <ProviderUsageBar
+              key={`${provider}:${q.plan ?? "default"}`}
+              label={sublabel}
+              quota={q}
+              showCount={showCount}
+              hidePlanLabel={hidePlanLabel}
+              hidePercentLabel={hidePercentLabel}
+              {...colorProp}
+            />,
+          );
+        }
       }
     } else if (
       data?.quota &&
       (data.quota.used != null || data.quota.limit != null || data.quota.percentUsed != null)
     ) {
       entries.push(
-        <ProviderUsageBar key={provider} label={label} quota={data.quota} showCount={showCount} {...colorProp} />,
+        <ProviderUsageBar
+          key={provider}
+          label={label}
+          quota={data.quota}
+          showCount={showCount}
+          hidePlanLabel={hidePlanLabel}
+          hidePercentLabel={hidePercentLabel}
+          {...colorProp}
+        />,
       );
     }
     // Session usage (no quota) — show token/cost summary
@@ -1601,6 +1778,8 @@ export default function Sidebar() {
                             selectThreadTerminalState(terminalStateByThreadId, thread.id)
                               .runningTerminalIds,
                           );
+                          const provider = thread.provider ?? resolveThreadProvider(thread);
+                          const ProviderIcon = PROVIDER_ICON_BY_PROVIDER[provider];
 
                           return (
                             <SidebarMenuSubItem key={thread.id} className="w-full">
@@ -1724,6 +1903,22 @@ export default function Sidebar() {
                                   >
                                     {formatRelativeTime(thread.createdAt)}
                                   </span>
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <span
+                                          className={`inline-flex shrink-0 items-center justify-center ${
+                                            isActive
+                                              ? "text-foreground/55"
+                                              : "text-muted-foreground/50"
+                                          } ${appSettings.grayscaleProviderLogos ? "grayscale" : ""}`}
+                                        >
+                                          <ProviderIcon className="size-3" />
+                                        </span>
+                                      }
+                                    />
+                                    <TooltipPopup side="top">{provider}</TooltipPopup>
+                                  </Tooltip>
                                 </div>
                               </SidebarMenuSubButton>
                             </SidebarMenuSubItem>

@@ -6,13 +6,9 @@ import {
   type OrchestrationReadModel,
   type OrchestrationSessionStatus,
 } from "@t3tools/contracts";
-import {
-  getModelOptions,
-  normalizeModelSlug,
-  resolveModelSlug,
-  resolveModelSlugForProvider,
-} from "@t3tools/shared/model";
+import { resolveModelSlug, resolveModelSlugForProvider } from "@t3tools/shared/model";
 import { create } from "zustand";
+import { inferProviderForThreadModel, toProviderKind } from "./lib/threadProvider";
 import { type ChatMessage, type Project, type Thread } from "./types";
 
 // ── State ────────────────────────────────────────────────────────────
@@ -175,93 +171,7 @@ function toLegacySessionStatus(
 }
 
 function toLegacyProvider(providerName: string | null): ProviderKind {
-  if (
-    providerName === "codex" ||
-    providerName === "copilot" ||
-    providerName === "claudeCode" ||
-    providerName === "cursor" ||
-    providerName === "opencode" ||
-    providerName === "geminiCli" ||
-    providerName === "amp" ||
-    providerName === "kilo"
-  ) {
-    return providerName;
-  }
-  return "codex";
-}
-
-const CODEX_MODEL_SLUGS = new Set<string>(getModelOptions("codex").map((option) => option.slug));
-const COPILOT_MODEL_SLUGS = new Set<string>(getModelOptions("copilot").map((option) => option.slug));
-const CLAUDE_MODEL_SLUGS = new Set<string>(getModelOptions("claudeCode").map((option) => option.slug));
-const CURSOR_MODEL_SLUGS = new Set<string>(getModelOptions("cursor").map((option) => option.slug));
-const OPENCODE_MODEL_SLUGS = new Set<string>(getModelOptions("opencode").map((option) => option.slug));
-const GEMINI_CLI_MODEL_SLUGS = new Set<string>(getModelOptions("geminiCli").map((option) => option.slug));
-const _AMP_MODEL_SLUGS = new Set<string>(getModelOptions("amp").map((option) => option.slug));
-const KILO_MODEL_SLUGS = new Set<string>(getModelOptions("kilo").map((option) => option.slug));
-const CURSOR_DISTINCT_MODEL_SLUGS = new Set(
-  [...CURSOR_MODEL_SLUGS].filter(
-    (slug) =>
-      !CODEX_MODEL_SLUGS.has(slug) &&
-      !COPILOT_MODEL_SLUGS.has(slug) &&
-      !CLAUDE_MODEL_SLUGS.has(slug) &&
-      !OPENCODE_MODEL_SLUGS.has(slug),
-  ),
-);
-
-function inferProviderForThreadModel(input: {
-  readonly model: string;
-  readonly sessionProviderName: string | null;
-}): ProviderKind {
-  if (
-    input.sessionProviderName === "codex" ||
-    input.sessionProviderName === "copilot" ||
-    input.sessionProviderName === "claudeCode" ||
-    input.sessionProviderName === "cursor" ||
-    input.sessionProviderName === "opencode" ||
-    input.sessionProviderName === "geminiCli" ||
-    input.sessionProviderName === "amp" ||
-    input.sessionProviderName === "kilo"
-  ) {
-    return input.sessionProviderName;
-  }
-  const normalizedCopilot = normalizeModelSlug(input.model, "copilot");
-  if (normalizedCopilot && COPILOT_MODEL_SLUGS.has(normalizedCopilot)) {
-    return "copilot";
-  }
-  const normalizedGeminiCli = normalizeModelSlug(input.model, "geminiCli");
-  if (normalizedGeminiCli && GEMINI_CLI_MODEL_SLUGS.has(normalizedGeminiCli)) {
-    return "geminiCli";
-  }
-  const normalizedCursor = normalizeModelSlug(input.model, "cursor");
-  if (normalizedCursor && CURSOR_DISTINCT_MODEL_SLUGS.has(normalizedCursor)) {
-    return "cursor";
-  }
-  const normalizedClaude = normalizeModelSlug(input.model, "claudeCode");
-  if (normalizedClaude && CLAUDE_MODEL_SLUGS.has(normalizedClaude)) {
-    return "claudeCode";
-  }
-  const normalizedCodex = normalizeModelSlug(input.model, "codex");
-  if (normalizedCodex && CODEX_MODEL_SLUGS.has(normalizedCodex)) {
-    return "codex";
-  }
-  const normalizedOpencode = normalizeModelSlug(input.model, "opencode");
-  if (normalizedOpencode && OPENCODE_MODEL_SLUGS.has(normalizedOpencode)) {
-    return "opencode";
-  }
-  const normalizedKilo = normalizeModelSlug(input.model, "kilo");
-  if (normalizedKilo && KILO_MODEL_SLUGS.has(normalizedKilo)) {
-    return "kilo";
-  }
-  if (input.model.includes("/")) {
-    return "opencode";
-  }
-  if (
-    input.model.trim().startsWith("composer-") ||
-    input.model.trim().endsWith("-thinking")
-  ) {
-    return "cursor";
-  }
-  return input.model.trim().startsWith("claude-") ? "claudeCode" : "codex";
+  return toProviderKind(providerName) ?? "codex";
 }
 
 function resolveWsHttpOrigin(): string {
@@ -308,18 +218,18 @@ export function syncServerReadModel(state: AppState, readModel: OrchestrationRea
     .filter((thread) => thread.deletedAt === null)
     .map((thread) => {
       const existing = existingThreadById.get(thread.id);
+      const provider = inferProviderForThreadModel({
+        model: thread.model,
+        sessionProviderName:
+          thread.session?.providerName ?? existing?.provider ?? existing?.session?.provider ?? null,
+      });
       return {
         id: thread.id,
         codexThreadId: null,
         projectId: thread.projectId,
         title: thread.title,
-        model: resolveModelSlugForProvider(
-          inferProviderForThreadModel({
-            model: thread.model,
-            sessionProviderName: thread.session?.providerName ?? null,
-          }),
-          thread.model,
-        ),
+        provider,
+        model: resolveModelSlugForProvider(provider, thread.model),
         runtimeMode: thread.runtimeMode,
         interactionMode: thread.interactionMode,
         session: thread.session

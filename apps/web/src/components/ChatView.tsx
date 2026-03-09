@@ -64,6 +64,7 @@ import { serverConfigQueryOptions, serverQueryKeys } from "~/lib/serverReactQuer
 
 import { isElectron } from "../env";
 import { parseDiffRouteSearch, stripDiffSearchParams } from "../diffRouteSearch";
+import { inferProviderForThreadModel } from "../lib/threadProvider";
 import {
   type ComposerSlashCommand,
   type ComposerTrigger,
@@ -468,6 +469,10 @@ function buildLocalDraftThread(
     codexThreadId: null,
     projectId: draftThread.projectId,
     title: "New thread",
+    provider: inferProviderForThreadModel({
+      model: fallbackModel,
+      sessionProviderName: null,
+    }),
     model: fallbackModel,
     runtimeMode: draftThread.runtimeMode,
     interactionMode: draftThread.interactionMode,

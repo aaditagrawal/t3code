@@ -70,5 +70,5 @@ export function assistantUsageFields(
 }
 
 export function isCopilotTurnTerminalEvent(event: SessionEvent): boolean {
-  return event.type === "abort" || event.type === "session.idle" || event.type === "assistant.turn_end";
+  return event.type === "abort" || event.type === "session.idle";
 }

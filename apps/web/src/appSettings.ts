@@ -80,6 +80,9 @@ const AppSettingsSchema = Schema.Struct({
   customKiloModels: Schema.Array(Schema.String).pipe(
     Schema.withConstructorDefault(() => Option.some([])),
   ),
+  grayscaleProviderLogos: Schema.Boolean.pipe(
+    Schema.withConstructorDefault(() => Option.some(false)),
+  ),
   accentColor: Schema.String.check(Schema.isMaxLength(16)).pipe(
     Schema.withConstructorDefault(() => Option.some(DEFAULT_ACCENT_COLOR)),
   ),

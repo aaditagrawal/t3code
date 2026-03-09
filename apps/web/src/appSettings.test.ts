@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  getAppSettingsSnapshot,
   getAppModelOptions,
   getSlashModelOptions,
   normalizeCustomModelSlugs,
@@ -8,6 +9,60 @@ import {
   shouldShowFastTierIcon,
   resolveAppModelSelection,
 } from "./appSettings";
+
+const APP_SETTINGS_STORAGE_KEY = "t3code:app-settings:v1";
+
+const originalWindow = globalThis.window;
+const originalLocalStorage = globalThis.localStorage;
+
+function createLocalStorageMock(): Storage {
+  const store = new Map<string, string>();
+  return {
+    get length() {
+      return store.size;
+    },
+    clear() {
+      store.clear();
+    },
+    getItem(key) {
+      return store.get(key) ?? null;
+    },
+    key(index) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    removeItem(key) {
+      store.delete(key);
+    },
+    setItem(key, value) {
+      store.set(key, String(value));
+    },
+  };
+}
+
+beforeEach(() => {
+  const localStorage = createLocalStorageMock();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: localStorage,
+  });
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      localStorage,
+    },
+  });
+});
+
+afterEach(() => {
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: originalWindow,
+  });
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: originalLocalStorage,
+  });
+});
 
 describe("normalizeCustomModelSlugs", () => {
   it("normalizes aliases, removes built-ins, and deduplicates values", () => {
@@ -120,6 +175,25 @@ describe("resolveAppServiceTier", () => {
   it("preserves explicit service tier overrides", () => {
     expect(resolveAppServiceTier("fast")).toBe("fast");
     expect(resolveAppServiceTier("flex")).toBe("flex");
+  });
+});
+
+describe("getAppSettingsSnapshot", () => {
+  it("defaults provider logos to color", () => {
+    expect(getAppSettingsSnapshot().grayscaleProviderLogos).toBe(false);
+  });
+
+  it("hydrates a persisted grayscale provider logo preference", () => {
+    const persistedSettings = {
+      ...getAppSettingsSnapshot(),
+      grayscaleProviderLogos: true,
+    };
+    localStorage.setItem(
+      APP_SETTINGS_STORAGE_KEY,
+      JSON.stringify(persistedSettings),
+    );
+
+    expect(getAppSettingsSnapshot().grayscaleProviderLogos).toBe(true);
   });
 });
 

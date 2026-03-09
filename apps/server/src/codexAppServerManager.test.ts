@@ -94,6 +94,35 @@ function createThreadControlHarness() {
   return { manager, context, requireSession, sendRequest, updateSession };
 }
 
+function createRateLimitHarness() {
+  const manager = new CodexAppServerManager();
+  const context = {
+    session: {
+      provider: "codex",
+      status: "ready",
+      threadId: "thread_1",
+      runtimeMode: "full-access",
+      model: "gpt-5.3-codex",
+      resumeCursor: { threadId: "thread_1" },
+      createdAt: "2026-02-10T00:00:00.000Z",
+      updatedAt: "2026-02-10T00:00:00.000Z",
+    },
+  };
+
+  (
+    manager as unknown as {
+      sessions: Map<string, unknown>;
+    }
+  ).sessions = new Map([["thread_1", context]]);
+
+  const sendRequest = vi.spyOn(
+    manager as unknown as { sendRequest: (...args: unknown[]) => Promise<unknown> },
+    "sendRequest",
+  );
+
+  return { manager, context, sendRequest };
+}
+
 function createPendingUserInputHarness() {
   const manager = new CodexAppServerManager();
   const context = {
@@ -544,6 +573,40 @@ describe("sendTurn", () => {
         threadId: asThreadId("thread_1"),
       }),
     ).rejects.toThrow("Turn input must include text or attachments.");
+  });
+});
+
+describe("readRateLimits", () => {
+  it("maps Codex secondary limits into weekly usage", async () => {
+    const { manager, context, sendRequest } = createRateLimitHarness();
+    sendRequest.mockResolvedValueOnce({
+      rateLimits: {
+        primary: {
+          usedPercent: 4,
+          windowDurationMins: 300,
+          resetsAt: 1_773_075_410,
+        },
+        secondary: {
+          usedPercent: 44,
+          windowDurationMins: 10_080,
+          resetsAt: 1_773_532_873,
+        },
+      },
+    });
+
+    await expect(manager.readRateLimits()).resolves.toEqual({
+      primary: {
+        usedPercent: 4,
+        windowDurationMins: 300,
+        resetsAt: 1_773_075_410,
+      },
+      weekly: {
+        usedPercent: 44,
+        windowDurationMins: 10_080,
+        resetsAt: 1_773_532_873,
+      },
+    });
+    expect(sendRequest).toHaveBeenCalledWith(context, "account/rateLimits/read", {}, 8_000);
   });
 });
 

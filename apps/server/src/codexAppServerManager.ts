@@ -1014,6 +1014,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
   /**
    * Query `account/rateLimits/read` from the first active Codex session.
    * Returns both primary (session) and weekly rate limit buckets.
+   * Newer Codex CLIs report the weekly bucket as `secondary`.
    */
   async readRateLimits(): Promise<{
     primary?: { usedPercent?: number; windowDurationMins?: number; resetsAt?: number };
@@ -1035,9 +1036,23 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
               windowDurationMins?: number;
               resetsAt?: number;
             };
+            secondary?: {
+              usedPercent?: number;
+              windowDurationMins?: number;
+              resetsAt?: number;
+            };
           };
         }>(context, "account/rateLimits/read", {}, 8_000);
-        return response?.rateLimits ?? null;
+        const rateLimits = response?.rateLimits;
+        if (!rateLimits) {
+          return null;
+        }
+        return {
+          ...(rateLimits.primary ? { primary: rateLimits.primary } : {}),
+          ...(rateLimits.weekly ?? rateLimits.secondary
+            ? { weekly: rateLimits.weekly ?? rateLimits.secondary }
+            : {}),
+        };
       } catch {
         return null;
       }

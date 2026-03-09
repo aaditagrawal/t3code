@@ -25,7 +25,7 @@ import { ServerConfig } from "../../config.ts";
 import { ProviderAdapterValidationError } from "../Errors.ts";
 import { CodexAdapter } from "../Services/CodexAdapter.ts";
 import { ProviderSessionDirectory } from "../Services/ProviderSessionDirectory.ts";
-import { makeCodexAdapterLive } from "./CodexAdapter.ts";
+import { fetchCodexUsage, makeCodexAdapterLive } from "./CodexAdapter.ts";
 
 const asThreadId = (value: string): ThreadId => ThreadId.makeUnsafe(value);
 const asTurnId = (value: string): TurnId => TurnId.makeUnsafe(value);
@@ -86,6 +86,12 @@ class FakeCodexManager extends CodexAppServerManager {
   );
 
   public stopAllImpl = vi.fn(() => undefined);
+  public readRateLimitsImpl = vi.fn<
+    () => Promise<{
+      primary?: { usedPercent?: number; windowDurationMins?: number; resetsAt?: number };
+      weekly?: { usedPercent?: number; windowDurationMins?: number; resetsAt?: number };
+    } | null>
+  >(async () => null);
 
   override startSession(input: CodexAppServerStartSessionInput): Promise<ProviderSession> {
     return this.startSessionImpl(input);
@@ -135,6 +141,10 @@ class FakeCodexManager extends CodexAppServerManager {
 
   override stopAll(): void {
     this.stopAllImpl();
+  }
+
+  override readRateLimits() {
+    return this.readRateLimitsImpl();
   }
 }
 
@@ -205,6 +215,40 @@ validationLayer("CodexAdapterLive validation", (it) => {
         serviceTier: "fast",
         runtimeMode: "full-access",
       });
+    }),
+  );
+
+  it.effect("maps Codex secondary rate limit bucket into weekly usage", () =>
+    Effect.gen(function* () {
+      validationManager.readRateLimitsImpl.mockResolvedValueOnce({
+        primary: {
+          usedPercent: 4,
+          windowDurationMins: 300,
+          resetsAt: 1_773_075_410,
+        },
+        weekly: {
+          usedPercent: 44,
+          windowDurationMins: 10_080,
+          resetsAt: 1_773_532_873,
+        },
+      });
+
+      const usage = yield* Effect.promise(() => fetchCodexUsage());
+
+      assert.equal(usage.provider, "codex");
+      assert.deepStrictEqual(usage.quotas, [
+        {
+          plan: "Session (5 hrs)",
+          percentUsed: 4,
+          resetDate: "2026-03-09T16:56:50.000Z",
+        },
+        {
+          plan: "Weekly",
+          percentUsed: 44,
+          resetDate: "2026-03-15T00:01:13.000Z",
+        },
+      ]);
+      assert.deepStrictEqual(usage.quota, usage.quotas?.[0]);
     }),
   );
 });

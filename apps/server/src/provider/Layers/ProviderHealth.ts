@@ -468,54 +468,97 @@ export function mapCopilotQuotaSnapshots(
     });
 }
 
-export const checkCopilotProviderStatus: Effect.Effect<ServerProviderStatus, never> = Effect.gen(function* () {
-  const checkedAt = new Date().toISOString();
-  const cliPath = resolveBundledCopilotCliPath();
+export const checkCopilotProviderStatus: Effect.Effect<ServerProviderStatus> = Effect.gen(
+  function* () {
+    const checkedAt = new Date().toISOString();
+    const probe = yield* Effect.tryPromise({
+      try: async () => {
+        const cliPath = resolveBundledCopilotCliPath();
+        const client = new CopilotClient({
+          ...(cliPath ? { cliPath } : {}),
+          logLevel: "error",
+        });
+        try {
+          await client.start();
+          const [status, authStatus] = await Promise.all([
+            (client as unknown as { getStatus(): Promise<{ version?: string }> }).getStatus().catch(() => undefined),
+            (client as unknown as { getAuthStatus(): Promise<{ isAuthenticated?: boolean; statusMessage?: string }> }).getAuthStatus().catch(() => undefined),
+          ]);
+          const [models, quota] =
+            authStatus?.isAuthenticated === true
+              ? await Promise.all([
+                  client.listModels().catch(() => undefined),
+                  (client as unknown as { rpc: { account: { getQuota: () => Promise<{ quotaSnapshots?: unknown }> } } }).rpc.account.getQuota().catch(() => undefined),
+                ])
+              : [undefined, undefined];
+          return { status, authStatus, models, quota };
+        } finally {
+          await client.stop().catch(() => []);
+        }
+      },
+      catch: (cause) =>
+        ({
+          _tag: "CopilotHealthProbeError",
+          cause,
+        }) satisfies CopilotHealthProbeError,
+    }).pipe(Effect.timeoutOption(DEFAULT_TIMEOUT_MS), Effect.result);
 
-  const probeResult = yield* Effect.tryPromise({
-    try: async () => {
-      const client = new CopilotClient({
-        ...(cliPath ? { cliPath } : {}),
-        logLevel: "error",
-      });
-      try {
-        await client.start();
-        const models = await client.listModels();
-        const quota = await (client as unknown as { rpc: { account: { getQuota: () => Promise<{ quotaSnapshots?: unknown }> } } }).rpc.account.getQuota().catch(() => undefined);
-        const quotaSnapshots = quota?.quotaSnapshots as Record<string, CopilotQuotaSnapshotInfo> | undefined;
-        return { models, quotaSnapshots } as {
-          models: ModelInfo[];
-          quotaSnapshots: Record<string, CopilotQuotaSnapshotInfo> | undefined;
-        };
-      } finally {
-        await client.stop().catch(() => undefined);
-      }
-    },
-    catch: (cause): CopilotHealthProbeError => ({ _tag: "CopilotHealthProbeError", cause }),
-  }).pipe(Effect.timeout(10_000), Effect.option);
+    if (Result.isFailure(probe)) {
+      const error = probe.failure.cause;
+      return {
+        provider: COPILOT_PROVIDER,
+        status: "error" as const,
+        available: false,
+        authStatus: "unknown" as const,
+        checkedAt,
+        message:
+          error instanceof Error
+            ? `Failed to start GitHub Copilot CLI health check: ${error.message}.`
+            : "Failed to start GitHub Copilot CLI health check.",
+      };
+    }
 
-  if (Option.isNone(probeResult)) {
+    if (Option.isNone(probe.success)) {
+      return {
+        provider: COPILOT_PROVIDER,
+        status: "error" as const,
+        available: false,
+        authStatus: "unknown" as const,
+        checkedAt,
+        message: "GitHub Copilot CLI health check timed out while starting the SDK client.",
+      };
+    }
+
+    const authStatus: ServerProviderAuthStatus =
+      probe.success.value.authStatus?.isAuthenticated === true
+        ? "authenticated"
+        : probe.success.value.authStatus?.isAuthenticated === false
+          ? "unauthenticated"
+          : "unknown";
+    const status: ServerProviderStatusState =
+      authStatus === "unauthenticated" ? "error" : authStatus === "unknown" ? "warning" : "ready";
+    const quotaSnapshots = mapCopilotQuotaSnapshots(
+      probe.success.value.quota?.quotaSnapshots as Record<string, CopilotQuotaSnapshotInfo> | undefined,
+    );
+
     return {
       provider: COPILOT_PROVIDER,
-      status: "warning" as const,
+      status,
       available: true,
-      authStatus: "unknown" as const,
+      authStatus,
       checkedAt,
-      message: "GitHub Copilot health probe timed out or failed.",
-    };
-  }
-
-  const { models, quotaSnapshots } = probeResult.value;
-  return {
-    provider: COPILOT_PROVIDER,
-    status: "ready" as const,
-    available: true,
-    authStatus: "authenticated" as const,
-    checkedAt,
-    models: models.map(mapCopilotModel),
-    quotaSnapshots: mapCopilotQuotaSnapshots(quotaSnapshots),
-  };
-});
+      ...(probe.success.value.models && probe.success.value.models.length > 0
+        ? { models: probe.success.value.models.map(mapCopilotModel) }
+        : {}),
+      ...(quotaSnapshots.length > 0 ? { quotaSnapshots } : {}),
+      ...(probe.success.value.authStatus?.statusMessage
+        ? { message: probe.success.value.authStatus.statusMessage }
+        : probe.success.value.status?.version
+          ? { message: `GitHub Copilot CLI ${probe.success.value.status.version}` }
+          : {}),
+    } satisfies ServerProviderStatus;
+  },
+);
 
 // ── Layer ───────────────────────────────────────────────────────────
 

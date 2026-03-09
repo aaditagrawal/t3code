@@ -1,5 +1,14 @@
 # AGENTS.md
 
+## Git & GitHub Policy (CRITICAL — DO NOT VIOLATE)
+
+- This is a FORK of `pingdotgg/t3code`. The upstream remote is READ-ONLY for us.
+- **NEVER create PRs, push branches, post comments, or perform ANY write operation against `pingdotgg/t3code` or any upstream/third-party repo.**
+- **NEVER run `gh pr create` without `--repo aaditagrawal/t3code`.** Always explicitly target the fork.
+- **NEVER run `gh` write commands (pr create, issue create, pr comment, pr close, pr merge) against any repo other than `aaditagrawal/t3code`.**
+- The ONLY interaction with upstream is `git fetch upstream` to pull changes. Everything else targets `origin` (the fork).
+- When merging upstream changes, create a PR on `aaditagrawal/t3code` targeting the fork's `main` branch.
+
 ## Task Completion Requirements
 
 - Both `bun lint` and `bun typecheck` must pass before considering tasks completed.
