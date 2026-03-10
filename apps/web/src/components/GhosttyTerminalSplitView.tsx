@@ -41,6 +41,7 @@ import {
   normalizeAccentColor,
   resolveAccentColorRgba,
 } from "../accentColor";
+import { resolveTerminalFontFamily } from "../lib/terminalFont";
 
 // ─── Ghostty WASM Initialization ────────────────────────────────────────────
 // ghostty-web requires a one-time async init to load the WASM module.
@@ -207,8 +208,7 @@ function GhosttyPane({
           cursorBlink: true,
           fontSize: 12,
           scrollback: 5_000,
-          fontFamily:
-            '"Geist Mono", "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+          fontFamily: resolveTerminalFontFamily(),
           theme: ghosttyThemeFromApp(),
         });
 

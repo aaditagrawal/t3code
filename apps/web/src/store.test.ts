@@ -1,7 +1,7 @@
-import { ProjectId, ThreadId, TurnId, type OrchestrationReadModel } from "@t3tools/contracts";
+import { DEFAULT_MODEL_BY_PROVIDER, ProjectId, ThreadId, TurnId, type OrchestrationReadModel } from "@t3tools/contracts";
 import { describe, expect, it } from "vitest";
 
-import { markThreadUnread, moveProject, syncServerReadModel, type AppState } from "./store";
+import { markThreadUnread, reorderProjects, syncServerReadModel, type AppState } from "./store";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE, type Thread } from "./types";
 
 function makeThread(overrides: Partial<Thread> = {}): Thread {
@@ -10,7 +10,7 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     codexThreadId: null,
     projectId: ProjectId.makeUnsafe("project-1"),
     title: "Thread",
-    model: "gpt-5-codex",
+    model: "gpt-5.3-codex",
     runtimeMode: DEFAULT_RUNTIME_MODE,
     interactionMode: DEFAULT_INTERACTION_MODE,
     session: null,
@@ -19,7 +19,7 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     activities: [],
     proposedPlans: [],
     error: null,
-    createdAt: "2026-02-13T00:00:00.000Z",
+    createdAt: "2026-02-27T00:00:00.000Z",
     latestTurn: null,
     branch: null,
     worktreePath: null,
@@ -98,6 +98,22 @@ function makeReadModel(thread: OrchestrationReadModel["threads"][number]): Orche
   };
 }
 
+function makeReadModelProject(
+  overrides: Partial<OrchestrationReadModel["projects"][number]>,
+): OrchestrationReadModel["projects"][number] {
+  return {
+    id: ProjectId.makeUnsafe("project-1"),
+    title: "Project",
+    workspaceRoot: "/tmp/project",
+    defaultModel: "gpt-5.3-codex",
+    createdAt: "2026-02-27T00:00:00.000Z",
+    updatedAt: "2026-02-27T00:00:00.000Z",
+    deletedAt: null,
+    scripts: [],
+    ...overrides,
+  };
+}
+
 describe("store pure functions", () => {
   it("markThreadUnread moves lastVisitedAt before completion for a completed thread", () => {
     const latestTurnCompletedAt = "2026-02-25T12:30:00.000Z";
@@ -138,46 +154,44 @@ describe("store pure functions", () => {
     expect(next).toEqual(initialState);
   });
 
-  it("moveProject inserts a project before the drop target", () => {
-    const initialState: AppState = {
-      projects: [makeProject("project-1"), makeProject("project-2"), makeProject("project-3")],
+  it("reorderProjects moves a project to a target index", () => {
+    const project1 = ProjectId.makeUnsafe("project-1");
+    const project2 = ProjectId.makeUnsafe("project-2");
+    const project3 = ProjectId.makeUnsafe("project-3");
+    const state: AppState = {
+      projects: [
+        {
+          id: project1,
+          name: "Project 1",
+          cwd: "/tmp/project-1",
+          model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          expanded: true,
+          scripts: [],
+        },
+        {
+          id: project2,
+          name: "Project 2",
+          cwd: "/tmp/project-2",
+          model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          expanded: true,
+          scripts: [],
+        },
+        {
+          id: project3,
+          name: "Project 3",
+          cwd: "/tmp/project-3",
+          model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          expanded: true,
+          scripts: [],
+        },
+      ],
       threads: [],
       threadsHydrated: true,
     };
 
-    const next = moveProject(
-      initialState,
-      ProjectId.makeUnsafe("project-3"),
-      ProjectId.makeUnsafe("project-1"),
-      "before",
-    );
+    const next = reorderProjects(state, project1, project3);
 
-    expect(next.projects.map((project) => project.id)).toEqual([
-      ProjectId.makeUnsafe("project-3"),
-      ProjectId.makeUnsafe("project-1"),
-      ProjectId.makeUnsafe("project-2"),
-    ]);
-  });
-
-  it("moveProject inserts a project after the drop target", () => {
-    const initialState: AppState = {
-      projects: [makeProject("project-1"), makeProject("project-2"), makeProject("project-3")],
-      threads: [],
-      threadsHydrated: true,
-    };
-
-    const next = moveProject(
-      initialState,
-      ProjectId.makeUnsafe("project-1"),
-      ProjectId.makeUnsafe("project-2"),
-      "after",
-    );
-
-    expect(next.projects.map((project) => project.id)).toEqual([
-      ProjectId.makeUnsafe("project-2"),
-      ProjectId.makeUnsafe("project-1"),
-      ProjectId.makeUnsafe("project-3"),
-    ]);
+    expect(next.projects.map((project) => project.id)).toEqual([project2, project3, project1]);
   });
 });
 
@@ -308,5 +322,85 @@ describe("store read model sync", () => {
       ProjectId.makeUnsafe("project-2"),
       ProjectId.makeUnsafe("project-1"),
     ]);
+  });
+
+  it("reuses unchanged project and thread references across identical snapshots", () => {
+    const initialThread = makeThread({
+      model: "gpt-5.3-codex",
+      provider: "codex",
+      lastVisitedAt: "2026-02-27T00:00:00.000Z",
+      session: {
+        provider: "codex",
+        status: "ready",
+        orchestrationStatus: "ready",
+        createdAt: "2026-02-27T00:00:00.000Z",
+        updatedAt: "2026-02-27T00:00:00.000Z",
+      },
+      messages: [
+        {
+          id: "message-1" as Thread["messages"][number]["id"],
+          role: "assistant",
+          text: "hello",
+          createdAt: "2026-02-27T00:00:00.000Z",
+          completedAt: "2026-02-27T00:00:01.000Z",
+          streaming: false,
+        },
+      ],
+      activities: [
+        {
+          id: "activity-1" as Thread["activities"][number]["id"],
+          kind: "provider.status",
+          tone: "info",
+          summary: "ready",
+          payload: { ok: true },
+          turnId: null,
+          createdAt: "2026-02-27T00:00:00.000Z",
+        },
+      ],
+    });
+    const initialState = makeState(initialThread);
+    const readModel = makeReadModel(
+      makeReadModelThread({
+        session: {
+          threadId: ThreadId.makeUnsafe("thread-1"),
+          status: "ready",
+          providerName: "codex",
+          runtimeMode: "full-access",
+          activeTurnId: null,
+          lastError: null,
+          updatedAt: "2026-02-27T00:00:00.000Z",
+        },
+        messages: [
+          {
+            id: "message-1" as Thread["messages"][number]["id"],
+            role: "assistant",
+            text: "hello",
+            turnId: null,
+            streaming: false,
+            createdAt: "2026-02-27T00:00:00.000Z",
+            updatedAt: "2026-02-27T00:00:01.000Z",
+          },
+        ],
+        activities: [
+          {
+            id: "activity-1" as Thread["activities"][number]["id"],
+            kind: "provider.status",
+            tone: "info",
+            summary: "ready",
+            payload: { ok: true },
+            turnId: null,
+            createdAt: "2026-02-27T00:00:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    const next = syncServerReadModel(initialState, readModel);
+
+    expect(next.projects).toBe(initialState.projects);
+    expect(next.threads).toBe(initialState.threads);
+    expect(next.threads[0]).toBe(initialState.threads[0]);
+    expect(next.threads[0]?.messages).toBe(initialState.threads[0]?.messages);
+    expect(next.threads[0]?.activities).toBe(initialState.threads[0]?.activities);
   });
 });

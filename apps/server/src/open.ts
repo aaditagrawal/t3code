@@ -9,7 +9,7 @@
 import { spawn } from "node:child_process";
 import { accessSync, constants, existsSync, statSync } from "node:fs";
 import os from "node:os";
-import { extname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 
 import { EDITORS, type EditorId } from "@t3tools/contracts";
 import { ServiceMap, Schema, Effect, Layer } from "effect";
@@ -49,6 +49,24 @@ function shouldUseGotoFlag(editorId: EditorId, target: string): boolean {
 
 /** Editors that are terminals requiring --working-directory instead of a positional path arg. */
 const WORKING_DIRECTORY_EDITORS = new Set<EditorId>(["ghostty"]);
+
+function stripLineColumnSuffix(target: string): string {
+  return target.replace(LINE_COLUMN_SUFFIX_PATTERN, "");
+}
+
+function resolveWorkingDirectoryTarget(target: string): string {
+  const normalizedTarget = stripLineColumnSuffix(target);
+
+  try {
+    const stats = statSync(normalizedTarget);
+    return stats.isDirectory() ? normalizedTarget : dirname(normalizedTarget);
+  } catch {
+    if (normalizedTarget !== target) {
+      return dirname(normalizedTarget);
+    }
+    return normalizedTarget;
+  }
+}
 
 /**
  * Map of editor IDs to their macOS application names.
@@ -262,19 +280,21 @@ export const resolveEditorLaunch = Effect.fnUntraced(function* (
       return { command: editorDef.command, args: ["--goto", input.cwd] };
     }
     if (WORKING_DIRECTORY_EDITORS.has(editorDef.id)) {
-      // On macOS, use `open -a <App>` so the running .app instance receives
-      // the new-window request properly (the bare CLI spawned detached often
-      // fails to communicate with the single-instance app).
+      const workingDirectory = resolveWorkingDirectoryTarget(input.cwd);
+      // On macOS, use `open -na <App>` so the running .app instance opens a
+      // new window/tab with the given working directory.  The `-n` flag is
+      // required: without it `open -a` merely activates the existing instance
+      // and the `--args` are silently ignored.
       if (platform === "darwin") {
         const macApp = MAC_APP_NAMES[editorDef.id];
         if (macApp) {
           return {
             command: "open",
-            args: ["-a", macApp, "--args", `--working-directory=${input.cwd}`],
+            args: ["-na", macApp, "--args", `--working-directory=${workingDirectory}`],
           };
         }
       }
-      return { command: editorDef.command, args: [`--working-directory=${input.cwd}`] };
+      return { command: editorDef.command, args: [`--working-directory=${workingDirectory}`] };
     }
     // On macOS, fall back to `open -a <App>` when the CLI tool is not in
     // PATH but the .app bundle is installed (e.g. app installed via DMG
@@ -311,9 +331,7 @@ export const launchDetached = (launch: EditorLaunch) =>
         });
       } catch (error) {
         return resume(
-          Effect.fail(
-            new OpenError({ message: "failed to spawn detached process", cause: error }),
-          ),
+          Effect.fail(new OpenError({ message: "failed to spawn detached process", cause: error })),
         );
       }
 

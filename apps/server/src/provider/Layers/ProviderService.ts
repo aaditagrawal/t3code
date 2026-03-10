@@ -155,7 +155,11 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
       Effect.succeed(event).pipe(
         Effect.tap((canonicalEvent) =>
           canonicalEventLogger
-            ? canonicalEventLogger.write(canonicalEvent, null)
+            ? canonicalEventLogger.write(canonicalEvent, null).pipe(
+                Effect.catchCause((cause) =>
+                  Effect.logWarning("failed to write canonical provider event", { cause }),
+                ),
+              )
             : Effect.void,
         ),
         Effect.flatMap((canonicalEvent) => PubSub.publish(runtimeEventPubSub, canonicalEvent)),
@@ -206,7 +210,9 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
         const hasActiveSession = yield* adapter.hasSession(input.binding.threadId);
         if (hasActiveSession) {
           const activeSessions = yield* adapter.listSessions();
-          const existing = activeSessions.find((session) => session.threadId === input.binding.threadId);
+          const existing = activeSessions.find(
+            (session) => session.threadId === input.binding.threadId,
+          );
           if (existing) {
             const existingProviderOptions = readPersistedProviderOptions(input.binding.runtimePayload);
             yield* upsertSessionBinding(
@@ -313,11 +319,11 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           );
         }
 
-        yield* upsertSessionBinding(
-          session,
-          threadId,
-          parsed.providerOptions !== undefined ? { providerOptions: parsed.providerOptions } : undefined,
-        );
+        yield* upsertSessionBinding(session, threadId, {
+          ...(input.providerOptions !== undefined
+            ? { providerOptions: input.providerOptions }
+            : {}),
+        });
         yield* analytics.record("provider.session.started", {
           provider: session.provider,
           runtimeMode: input.runtimeMode,
@@ -458,23 +464,27 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
 
     const listSessions: ProviderServiceShape["listSessions"] = () =>
       Effect.gen(function* () {
-        const sessionsByProvider = yield* Effect.forEach(adapters, (adapter) => adapter.listSessions());
+        const sessionsByProvider = yield* Effect.forEach(adapters, (adapter) =>
+          adapter.listSessions(),
+        );
         const activeSessions = sessionsByProvider.flatMap((sessions) => sessions);
-        const persistedBindings = yield* directory
-          .listThreadIds()
-          .pipe(
-            Effect.flatMap((threadIds) =>
-              Effect.forEach(
-                threadIds,
-                (threadId) =>
-                  directory.getBinding(threadId).pipe(
-                    Effect.orElseSucceed(() => Option.none<ProviderRuntimeBinding>()),
-                  ),
-                { concurrency: "unbounded" },
-              ),
+        const persistedBindings = yield* directory.listThreadIds().pipe(
+          Effect.flatMap((threadIds) =>
+            Effect.forEach(
+              threadIds,
+              (threadId) =>
+                directory
+                  .getBinding(threadId)
+                  .pipe(Effect.orElseSucceed(() => Option.none<ProviderRuntimeBinding>())),
+              { concurrency: "unbounded" },
             ),
-            Effect.orElseSucceed(() => [] as Array<Option.Option<ProviderRuntimeBinding>>),
-          );
+          ),
+          Effect.catchCause((cause) => {
+            return Effect.logWarning("failed to list persisted thread bindings", { cause }).pipe(
+              Effect.map(() => [] as Array<Option.Option<ProviderRuntimeBinding>>),
+            );
+          }),
+        );
         const bindingsByThreadId = new Map<ThreadId, ProviderRuntimeBinding>();
         for (const bindingOption of persistedBindings) {
           const binding = Option.getOrUndefined(bindingOption);

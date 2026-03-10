@@ -5,8 +5,6 @@ import {
   getAppModelOptions,
   getSlashModelOptions,
   normalizeCustomModelSlugs,
-  resolveAppServiceTier,
-  shouldShowFastTierIcon,
   resolveAppModelSelection,
 } from "./appSettings";
 
@@ -137,23 +135,13 @@ describe("resolveAppModelSelection", () => {
 
 describe("getSlashModelOptions", () => {
   it("includes saved custom model slugs for /model command suggestions", () => {
-    const options = getSlashModelOptions(
-      "codex",
-      ["custom/internal-model"],
-      "",
-      "gpt-5.3-codex",
-    );
+    const options = getSlashModelOptions("codex", ["custom/internal-model"], "", "gpt-5.3-codex");
 
     expect(options.some((option) => option.slug === "custom/internal-model")).toBe(true);
   });
 
   it("filters slash-model suggestions across built-in and custom model names", () => {
-    const options = getSlashModelOptions(
-      "codex",
-      ["openai/gpt-oss-120b"],
-      "oss",
-      "gpt-5.3-codex",
-    );
+    const options = getSlashModelOptions("codex", ["openai/gpt-oss-120b"], "oss", "gpt-5.3-codex");
 
     expect(options.map((option) => option.slug)).toEqual(["openai/gpt-oss-120b"]);
   });
@@ -167,40 +155,32 @@ describe("getSlashModelOptions", () => {
   });
 });
 
-describe("resolveAppServiceTier", () => {
-  it("maps automatic to no override", () => {
-    expect(resolveAppServiceTier("auto")).toBeNull();
-  });
-
-  it("preserves explicit service tier overrides", () => {
-    expect(resolveAppServiceTier("fast")).toBe("fast");
-    expect(resolveAppServiceTier("flex")).toBe("flex");
-  });
-});
-
 describe("getAppSettingsSnapshot", () => {
   it("defaults provider logos to color", () => {
-    expect(getAppSettingsSnapshot().grayscaleProviderLogos).toBe(false);
+    expect(getAppSettingsSnapshot().providerLogoAppearance).toBe("original");
   });
 
-  it("hydrates a persisted grayscale provider logo preference", () => {
+  it("hydrates a persisted provider logo appearance preference", () => {
     const persistedSettings = {
       ...getAppSettingsSnapshot(),
-      grayscaleProviderLogos: true,
+      providerLogoAppearance: "accent",
     };
     localStorage.setItem(
       APP_SETTINGS_STORAGE_KEY,
       JSON.stringify(persistedSettings),
     );
 
-    expect(getAppSettingsSnapshot().grayscaleProviderLogos).toBe(true);
+    expect(getAppSettingsSnapshot().providerLogoAppearance).toBe("accent");
   });
-});
 
-describe("shouldShowFastTierIcon", () => {
-  it("shows the fast-tier icon only for gpt-5.4 on fast tier", () => {
-    expect(shouldShowFastTierIcon("gpt-5.4", "fast")).toBe(true);
-    expect(shouldShowFastTierIcon("gpt-5.4", "auto")).toBe(false);
-    expect(shouldShowFastTierIcon("gpt-5.3-codex", "fast")).toBe(false);
+  it("migrates the legacy grayscale provider logo preference", () => {
+    localStorage.setItem(
+      APP_SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        grayscaleProviderLogos: true,
+      }),
+    );
+
+    expect(getAppSettingsSnapshot().providerLogoAppearance).toBe("grayscale");
   });
 });

@@ -118,8 +118,25 @@
     --info-foreground: color-mix(in srgb, var(--accent-color) 78%, var(--color-white));
     --success: var(--color-emerald-500);
     --success-foreground: var(--color-emerald-400);
-    --warning: var(--color-amber-500);
-    --warning-foreground: var(--color-amber-400);
+  --warning: var(--color-amber-500);
+  --warning-foreground: var(--color-amber-400);
+  --terminal-font-family:
+    "Symbols Nerd Font Mono",
+    "Symbols Nerd Font",
+    "JetBrainsMono Nerd Font Mono",
+    "JetBrainsMonoNL Nerd Font Mono",
+    "Hack Nerd Font Mono",
+    "SauceCodePro Nerd Font Mono",
+    "FiraCode Nerd Font Mono",
+    "MesloLGS NF",
+    "CaskaydiaMono Nerd Font Mono",
+    "Geist Mono",
+    "SF Mono",
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    Menlo,
+    monospace;
   }
 }
 

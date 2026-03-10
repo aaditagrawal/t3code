@@ -101,7 +101,7 @@ describe("resolveEditorLaunch", () => {
     }),
   );
 
-  it.effect("uses open -a on macOS for terminal editors like Ghostty", () =>
+  it.effect("uses open -na on macOS for terminal editors like Ghostty", () =>
     Effect.gen(function* () {
       const ghosttyMac = yield* resolveEditorLaunch(
         { cwd: "/tmp/workspace", editor: "ghostty" },
@@ -109,7 +109,7 @@ describe("resolveEditorLaunch", () => {
       );
       assert.deepEqual(ghosttyMac, {
         command: "open",
-        args: ["-a", "Ghostty", "--args", "--working-directory=/tmp/workspace"],
+        args: ["-na", "Ghostty", "--args", "--working-directory=/tmp/workspace"],
       });
 
       const ghosttyLinux = yield* resolveEditorLaunch(
@@ -119,6 +119,25 @@ describe("resolveEditorLaunch", () => {
       assert.deepEqual(ghosttyLinux, {
         command: "ghostty",
         args: ["--working-directory=/tmp/workspace"],
+      });
+    }),
+  );
+
+  it.effect("uses the containing directory when terminal editors receive a file path", () =>
+    Effect.gen(function* () {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "t3-open-ghostty-"));
+      const filePath = path.join(tempDir, "nested", "AGENTS.md");
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, "# test\n", "utf8");
+
+      const ghosttyFileTarget = yield* resolveEditorLaunch(
+        { cwd: `${filePath}:48`, editor: "ghostty" },
+        "linux",
+      );
+
+      assert.deepEqual(ghosttyFileTarget, {
+        command: "ghostty",
+        args: [`--working-directory=${path.dirname(filePath)}`],
       });
     }),
   );

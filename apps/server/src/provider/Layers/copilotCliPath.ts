@@ -7,6 +7,12 @@ const require = createRequire(import.meta.url);
 const CURRENT_DIR = dirname(fileURLToPath(import.meta.url));
 const GITHUB_SCOPE_DIR = "@github";
 const COPILOT_PATHLESS_COMMAND_PATTERN = /^copilot(?:\.(?:exe|cmd|bat))?$/i;
+const COPILOT_DESKTOP_ENV_BLOCKLIST = [
+  "ELECTRON_RUN_AS_NODE",
+  "ELECTRON_RENDERER_PORT",
+  "CLAUDECODE",
+] as const;
+let copilotDesktopEnvChain: Promise<unknown> = Promise.resolve();
 
 function dedupePaths(paths: ReadonlyArray<string | undefined>): string[] {
   const resolved: string[] = [];
@@ -49,6 +55,40 @@ export function normalizeCopilotCliPathOverride(value: string | null | undefined
   return trimmed;
 }
 
+function isDesktopRuntime(): boolean {
+  return process.env.T3CODE_MODE === "desktop";
+}
+
+export async function withSanitizedCopilotDesktopEnv<T>(operation: () => Promise<T>): Promise<T> {
+  if (!isDesktopRuntime()) {
+    return operation();
+  }
+
+  const run = async () => {
+    const previousValues = new Map<string, string | undefined>();
+    for (const key of COPILOT_DESKTOP_ENV_BLOCKLIST) {
+      previousValues.set(key, process.env[key]);
+      delete process.env[key];
+    }
+
+    try {
+      return await operation();
+    } finally {
+      for (const [key, value] of previousValues) {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+    }
+  };
+
+  const result = copilotDesktopEnvChain.then(run, run);
+  copilotDesktopEnvChain = result.then(() => undefined, () => undefined);
+  return result;
+}
+
 function resolveGithubScopeDirFromSdkEntrypoint(sdkEntrypoint: string | undefined): string | undefined {
   if (!sdkEntrypoint) return undefined;
   return join(dirname(dirname(sdkEntrypoint)), "..");
@@ -63,6 +103,8 @@ function resolveNodeModulesRoots(input: {
   return dedupePaths([
     input.resourcesPath ? join(input.resourcesPath, "app.asar.unpacked/node_modules") : undefined,
     input.resourcesPath ? join(input.resourcesPath, "node_modules") : undefined,
+    join(input.currentDir, "../../../../../app.asar.unpacked/node_modules"),
+    join(input.currentDir, "../../../../../../app.asar.unpacked/node_modules"),
     join(input.currentDir, "../../../node_modules"),
     join(input.currentDir, "../../../../../node_modules"),
     githubScopeDir ? join(githubScopeDir, "..") : undefined,
@@ -128,15 +170,6 @@ export function resolveBundledCopilotCliPathFrom(input: {
     }
   }
 
-  const npmLoaderCandidates = dedupePaths(
-    nodeModulesRoots.map((root) => join(root, GITHUB_SCOPE_DIR, "copilot", "npm-loader.js")),
-  );
-  for (const candidate of npmLoaderCandidates) {
-    if (exists(candidate)) {
-      return candidate;
-    }
-  }
-
   const githubScopeDir = resolveGithubScopeDirFromSdkEntrypoint(sdkEntrypoint);
   if (!githubScopeDir) {
     return undefined;
@@ -151,8 +184,7 @@ export function resolveBundledCopilotCliPathFrom(input: {
     }
   }
 
-  const sdkSiblingLoaderPath = join(githubScopeDir, "copilot", "npm-loader.js");
-  return exists(sdkSiblingLoaderPath) ? sdkSiblingLoaderPath : undefined;
+  return undefined;
 }
 
 export function resolveBundledCopilotCliPath(): string | undefined {

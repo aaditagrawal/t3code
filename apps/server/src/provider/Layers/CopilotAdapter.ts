@@ -44,7 +44,11 @@ import {
   recordTurnUsage,
   type CopilotTurnTrackingState,
 } from "./copilotTurnTracking.ts";
-import { normalizeCopilotCliPathOverride, resolveBundledCopilotCliPath } from "./copilotCliPath.ts";
+import {
+  normalizeCopilotCliPathOverride,
+  resolveBundledCopilotCliPath,
+  withSanitizedCopilotDesktopEnv,
+} from "./copilotCliPath.ts";
 import { CopilotAdapter, type CopilotAdapterShape } from "../Services/CopilotAdapter.ts";
 import { toMessage } from "../toMessage.ts";
 import type {
@@ -1027,7 +1031,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
         }
 
         yield* Effect.tryPromise({
-          try: () => input.client.start(),
+          try: () => withSanitizedCopilotDesktopEnv(() => input.client.start()),
           catch: (cause) =>
             new ProviderAdapterProcessError({
               provider: PROVIDER,
@@ -1039,7 +1043,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
 
         const supportedModels = mapSupportedModelsById(
           yield* Effect.tryPromise({
-            try: () => input.client.listModels(),
+            try: () => withSanitizedCopilotDesktopEnv(() => input.client.listModels()),
             catch: (cause) =>
               new ProviderAdapterProcessError({
                 provider: PROVIDER,
@@ -1116,14 +1120,16 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
             record.pendingApprovalResolvers,
             record.pendingUserInputResolvers,
           );
-          const nextSession = await record.client.resumeSession(sessionId, {
-            ...handlers,
-            ...(input.model ? { model: input.model } : {}),
-            ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
-            ...(record.cwd ? { workingDirectory: record.cwd } : {}),
-            ...(record.configDir ? { configDir: record.configDir } : {}),
-            streaming: true,
-          });
+          const nextSession = await withSanitizedCopilotDesktopEnv(() =>
+            record.client.resumeSession(sessionId, {
+              ...handlers,
+              ...(input.model ? { model: input.model } : {}),
+              ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
+              ...(record.cwd ? { workingDirectory: record.cwd } : {}),
+              ...(record.configDir ? { configDir: record.configDir } : {}),
+              streaming: true,
+            }),
+          );
 
           record.session = nextSession;
           record.interactionMode = undefined;
@@ -1291,23 +1297,27 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
         const session = yield* Effect.tryPromise({
           try: async () => {
             if (resumeSessionId) {
-              return client.resumeSession(resumeSessionId, {
+              return withSanitizedCopilotDesktopEnv(() =>
+                client.resumeSession(resumeSessionId, {
+                  ...handlers,
+                  ...(input.model ? { model: input.model } : {}),
+                  ...(reasoningEffort ? { reasoningEffort } : {}),
+                  ...(input.cwd ? { workingDirectory: input.cwd } : {}),
+                  ...(configDir ? { configDir } : {}),
+                  streaming: true,
+                }),
+              );
+            }
+            return withSanitizedCopilotDesktopEnv(() =>
+              client.createSession({
                 ...handlers,
                 ...(input.model ? { model: input.model } : {}),
                 ...(reasoningEffort ? { reasoningEffort } : {}),
                 ...(input.cwd ? { workingDirectory: input.cwd } : {}),
                 ...(configDir ? { configDir } : {}),
                 streaming: true,
-              });
-            }
-            return client.createSession({
-              ...handlers,
-              ...(input.model ? { model: input.model } : {}),
-              ...(reasoningEffort ? { reasoningEffort } : {}),
-              ...(input.cwd ? { workingDirectory: input.cwd } : {}),
-              ...(configDir ? { configDir } : {}),
-              streaming: true,
-            });
+              }),
+            );
           },
           catch: (cause) =>
             new ProviderAdapterProcessError({
@@ -1675,8 +1685,10 @@ export async function fetchCopilotModels(): Promise<
       logLevel: "error",
     });
     try {
-      await client.start();
-      const models = await client.listModels().catch(() => undefined);
+      await withSanitizedCopilotDesktopEnv(() => client.start());
+      const models = await withSanitizedCopilotDesktopEnv(() =>
+        client.listModels().catch(() => undefined),
+      );
       if (!models || models.length === 0) return null;
       return models.map((m: { id: string; name: string }) => ({
         slug: m.id,
@@ -1711,8 +1723,10 @@ export async function fetchCopilotUsage(): Promise<{
       logLevel: "error",
     });
     try {
-      await client.start();
-      const quota = await (client as unknown as { rpc: { account: { getQuota: () => Promise<{ quotaSnapshots?: unknown }> } } }).rpc.account.getQuota().catch(() => undefined);
+      await withSanitizedCopilotDesktopEnv(() => client.start());
+      const quota = await withSanitizedCopilotDesktopEnv(() =>
+        (client as unknown as { rpc: { account: { getQuota: () => Promise<{ quotaSnapshots?: unknown }> } } }).rpc.account.getQuota().catch(() => undefined),
+      );
       if (!quota?.quotaSnapshots) return { provider: "copilot" };
       const quotas = Object.entries(
         quota.quotaSnapshots as Record<

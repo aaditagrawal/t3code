@@ -31,6 +31,7 @@ import {
   resolveAccentColorRgba,
 } from "../accentColor";
 import { readNativeApi } from "~/nativeApi";
+import { resolveTerminalFontFamily } from "../lib/terminalFont";
 
 const MIN_DRAWER_HEIGHT = 180;
 const MAX_DRAWER_HEIGHT_RATIO = 0.75;
@@ -185,7 +186,7 @@ function TerminalViewport({
       lineHeight: 1.2,
       fontSize: 12,
       scrollback: 5_000,
-      fontFamily: '"Geist Mono", "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+      fontFamily: resolveTerminalFontFamily(),
       theme: terminalThemeFromApp(),
     });
     terminal.loadAddon(fitAddon);

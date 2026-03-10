@@ -215,6 +215,7 @@ interface ClaudeSessionContext {
   }>;
   readonly inFlightTools: Map<number, ToolInFlight>;
   turnState: ClaudeTurnState | undefined;
+  lastTurnId: TurnId | undefined;
   lastAssistantUuid: string | undefined;
   lastThreadStartedId: string | undefined;
   stopped: boolean;
@@ -823,12 +824,14 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
         const turnState = context.turnState;
         if (!turnState) {
           const stamp = yield* makeEventStamp();
+          const fallbackTurnId = context.lastTurnId;
           yield* offerRuntimeEvent({
             type: "turn.completed",
             eventId: stamp.eventId,
             provider: PROVIDER,
             createdAt: stamp.createdAt,
             threadId: context.session.threadId,
+            ...(fallbackTurnId ? { turnId: fallbackTurnId } : {}),
             payload: {
               state: status,
               ...(result?.stop_reason !== undefined ? { stopReason: result.stop_reason } : {}),
@@ -841,8 +844,20 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
                 : {}),
               ...(errorMessage ? { errorMessage } : {}),
             },
-            providerRefs: {},
+            providerRefs: {
+              ...(fallbackTurnId ? { providerTurnId: String(fallbackTurnId) } : {}),
+            },
           });
+
+          const updatedAt = yield* nowIso;
+          context.session = {
+            ...context.session,
+            status: "ready",
+            activeTurnId: undefined,
+            updatedAt,
+            lastError: status === "failed" && errorMessage ? errorMessage : undefined,
+          };
+          yield* updateResumeCursor(context);
           return;
         }
 
@@ -1490,7 +1505,8 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
 
         yield* Queue.shutdown(context.promptQueue);
 
-        context.query.close();
+        // The SDK may throw if internal session files were already cleaned up
+        yield* Effect.sync(() => context.query.close()).pipe(Effect.ignore);
 
         const updatedAt = yield* nowIso;
         context.session = {
@@ -1805,6 +1821,7 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
           turns: [],
           inFlightTools,
           turnState: undefined,
+          lastTurnId: undefined,
           lastAssistantUuid: resumeState?.resumeSessionAt,
           lastThreadStartedId: undefined,
           stopped: false,
@@ -1899,6 +1916,7 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
 
         const updatedAt = yield* nowIso;
         context.turnState = turnState;
+        context.lastTurnId = turnId;
         context.session = {
           ...context.session,
           status: "running",

@@ -16,10 +16,10 @@ import type {
   ServerProviderStatusState,
 } from "@t3tools/contracts";
 import { CopilotClient, type ModelInfo } from "@github/copilot-sdk";
-import { Effect, Layer, Option, Result, Stream } from "effect";
+import { Array, Effect, Fiber, Layer, Option, Result, Stream } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
-import { resolveBundledCopilotCliPath } from "./copilotCliPath.ts";
+import { resolveBundledCopilotCliPath, withSanitizedCopilotDesktopEnv } from "./copilotCliPath.ts";
 
 import {
   formatCodexCliUpgradeMessage,
@@ -479,17 +479,21 @@ export const checkCopilotProviderStatus: Effect.Effect<ServerProviderStatus> = E
           logLevel: "error",
         });
         try {
-          await client.start();
-          const [status, authStatus] = await Promise.all([
-            (client as unknown as { getStatus(): Promise<{ version?: string }> }).getStatus().catch(() => undefined),
-            (client as unknown as { getAuthStatus(): Promise<{ isAuthenticated?: boolean; statusMessage?: string }> }).getAuthStatus().catch(() => undefined),
-          ]);
+          await withSanitizedCopilotDesktopEnv(() => client.start());
+          const [status, authStatus] = await withSanitizedCopilotDesktopEnv(() =>
+            Promise.all([
+              (client as unknown as { getStatus(): Promise<{ version?: string }> }).getStatus().catch(() => undefined),
+              (client as unknown as { getAuthStatus(): Promise<{ isAuthenticated?: boolean; statusMessage?: string }> }).getAuthStatus().catch(() => undefined),
+            ]),
+          );
           const [models, quota] =
             authStatus?.isAuthenticated === true
-              ? await Promise.all([
-                  client.listModels().catch(() => undefined),
-                  (client as unknown as { rpc: { account: { getQuota: () => Promise<{ quotaSnapshots?: unknown }> } } }).rpc.account.getQuota().catch(() => undefined),
-                ])
+              ? await withSanitizedCopilotDesktopEnv(() =>
+                  Promise.all([
+                    client.listModels().catch(() => undefined),
+                    (client as unknown as { rpc: { account: { getQuota: () => Promise<{ quotaSnapshots?: unknown }> } } }).rpc.account.getQuota().catch(() => undefined),
+                  ]),
+                )
               : [undefined, undefined];
           return { status, authStatus, models, quota };
         } finally {
@@ -565,12 +569,13 @@ export const checkCopilotProviderStatus: Effect.Effect<ServerProviderStatus> = E
 export const ProviderHealthLive = Layer.effect(
   ProviderHealth,
   Effect.gen(function* () {
-    const [codexStatus, geminiCliStatus, copilotStatus] = yield* Effect.all(
+    const healthCheckFiber = yield* Effect.all(
       [checkCodexProviderStatus, checkGeminiCliProviderStatus, checkCopilotProviderStatus],
       { concurrency: "unbounded" },
-    );
+    ).pipe(Effect.forkScoped);
+
     return {
-      getStatuses: Effect.succeed([codexStatus, geminiCliStatus, copilotStatus]),
+      getStatuses: Fiber.join(healthCheckFiber),
     } satisfies ProviderHealthShape;
   }),
 );
