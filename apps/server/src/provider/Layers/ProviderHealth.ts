@@ -212,17 +212,12 @@ export const readCodexConfigModelProvider = Effect.gen(function* () {
   // We need to find `model_provider = "..."` at the top level of the
   // TOML file (i.e. before any `[section]` header). Lines inside
   // `[profiles.*]`, `[model_providers.*]`, etc. are ignored.
-  let inTopLevel = true;
   for (const line of content.split("\n")) {
     const trimmed = line.trim();
     // Skip comments and empty lines.
     if (!trimmed || trimmed.startsWith("#")) continue;
     // Detect section headers — once we leave the top level, stop.
-    if (trimmed.startsWith("[")) {
-      inTopLevel = false;
-      continue;
-    }
-    if (!inTopLevel) continue;
+    if (trimmed.startsWith("[")) break;
 
     const match = trimmed.match(/^model_provider\s*=\s*["']([^"']+)["']/);
     if (match) return match[1];
