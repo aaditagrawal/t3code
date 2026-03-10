@@ -1922,7 +1922,7 @@ export default function Sidebar() {
           >
             <SidebarMenu>
               <SortableContext
-                items={projects.map((project) => project.id)}
+                items={hasActiveThreadSearch ? [] : projects.map((project) => project.id)}
                 strategy={verticalListSortingStrategy}
               >
                 {projects.map((project) => {
@@ -1943,6 +1943,7 @@ export default function Sidebar() {
                     return null;
                   }
                   const isThreadSearchFiltering = hasActiveThreadSearch;
+                  const isProjectOpen = project.expanded || isThreadSearchFiltering;
                   const isThreadListExpanded =
                     isThreadSearchFiltering || expandedThreadListsByProject.has(project.id);
                   const hasHiddenThreads =
@@ -1956,7 +1957,7 @@ export default function Sidebar() {
                   return (
                     <SortableProjectItem key={project.id} projectId={project.id}>
                       {(dragHandleProps) => (
-                        <Collapsible className="group/collapsible" open={project.expanded || isThreadSearchFiltering}>
+                        <Collapsible className="group/collapsible" open={isProjectOpen}>
                           <div className="group/project-header relative">
                             <SidebarMenuButton
                               size="sm"
@@ -1976,7 +1977,7 @@ export default function Sidebar() {
                             >
                               <ChevronRightIcon
                                 className={`-ml-0.5 size-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-150 ${
-                                  project.expanded ? "rotate-90" : ""
+                                  isProjectOpen ? "rotate-90" : ""
                                 }`}
                               />
                               <ProjectFavicon cwd={project.cwd} />

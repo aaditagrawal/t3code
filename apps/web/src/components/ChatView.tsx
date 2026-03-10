@@ -2433,17 +2433,17 @@ export default function ChatView({ threadId }: ChatViewProps) {
   }, [composerCursor]);
 
   useEffect(() => {
+    // Always reset pending sync when the thread changes so stale debounce
+    // timeouts from the previous thread cannot overwrite the new thread's draft.
+    promptSyncPendingRef.current = false;
+
     if (persistedPrompt === promptRef.current) {
-      promptSyncPendingRef.current = false;
-      return;
-    }
-    if (promptSyncPendingRef.current) {
       return;
     }
     promptRef.current = persistedPrompt;
     setPromptState(persistedPrompt);
     setHasPromptText(persistedPrompt.trim().length > 0);
-  }, [persistedPrompt]);
+  }, [persistedPrompt, threadId]);
 
   useEffect(() => {
     if (prompt === persistedPrompt) {
