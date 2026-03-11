@@ -17,6 +17,7 @@ import { ProviderCommandReactorLive } from "./orchestration/Layers/ProviderComma
 import { OrchestrationProjectionPipelineLive } from "./orchestration/Layers/ProjectionPipeline";
 import { OrchestrationProjectionSnapshotQueryLive } from "./orchestration/Layers/ProjectionSnapshotQuery";
 import { ProviderRuntimeIngestionLive } from "./orchestration/Layers/ProviderRuntimeIngestion";
+import { RuntimeReceiptBusLive } from "./orchestration/Layers/RuntimeReceiptBus";
 import { ProviderUnsupportedError } from "./provider/Errors";
 import { makeClaudeCodeAdapterLive } from "./provider/Layers/ClaudeCodeAdapter";
 import { makeCopilotAdapterLive } from "./provider/Layers/CopilotAdapter";
@@ -116,6 +117,7 @@ export function makeServerRuntimeServicesLayer() {
     OrchestrationProjectionSnapshotQueryLive,
     CheckpointStoreLive,
     checkpointDiffQueryLayer,
+    RuntimeReceiptBusLive,
   );
   const runtimeIngestionLayer = ProviderRuntimeIngestionLive.pipe(
     Layer.provideMerge(runtimeServicesLayer),

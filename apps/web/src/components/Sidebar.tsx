@@ -2002,6 +2002,7 @@ export default function Sidebar() {
                                       <button
                                         type="button"
                                         aria-label={`Create new thread in ${project.name}`}
+                                        data-testid="new-thread-button"
                                       />
                                     }
                                     showOnHover

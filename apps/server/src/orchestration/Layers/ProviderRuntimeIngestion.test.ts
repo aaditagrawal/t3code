@@ -159,7 +159,7 @@ describe("ProviderRuntimeIngestion", () => {
     const ingestion = await runtime.runPromise(Effect.service(ProviderRuntimeIngestionService));
     scope = await Effect.runPromise(Scope.make("sequential"));
     await Effect.runPromise(ingestion.start.pipe(Scope.provide(scope)));
-    await Effect.runPromise(Effect.sleep("10 millis"));
+    const drain = () => Effect.runPromise(ingestion.drain);
 
     const createdAt = new Date().toISOString();
     await Effect.runPromise(
@@ -209,6 +209,7 @@ describe("ProviderRuntimeIngestion", () => {
     return {
       engine,
       emit: provider.emit,
+      drain,
     };
   }
 
@@ -377,7 +378,7 @@ describe("ProviderRuntimeIngestion", () => {
       threadId: asThreadId("thread-1"),
     });
 
-    await Effect.runPromise(Effect.sleep("40 millis"));
+    await harness.drain();
     const midReadModel = await Effect.runPromise(harness.engine.getReadModel());
     const midThread = midReadModel.threads.find(
       (entry) => entry.id === ThreadId.makeUnsafe("thread-1"),
@@ -506,7 +507,7 @@ describe("ProviderRuntimeIngestion", () => {
       status: "completed",
     });
 
-    await Effect.runPromise(Effect.sleep("40 millis"));
+    await harness.drain();
     const midReadModel = await Effect.runPromise(harness.engine.getReadModel());
     const midThread = midReadModel.threads.find(
       (entry) => entry.id === ThreadId.makeUnsafe("thread-1"),
@@ -560,7 +561,7 @@ describe("ProviderRuntimeIngestion", () => {
       status: "completed",
     });
 
-    await Effect.runPromise(Effect.sleep("40 millis"));
+    await harness.drain();
     const midReadModel = await Effect.runPromise(harness.engine.getReadModel());
     const midThread = midReadModel.threads.find(
       (entry) => entry.id === ThreadId.makeUnsafe("thread-1"),
@@ -801,7 +802,7 @@ describe("ProviderRuntimeIngestion", () => {
       },
     });
 
-    await Effect.runPromise(Effect.sleep("30 millis"));
+    await harness.drain();
     const midReadModel = await Effect.runPromise(harness.engine.getReadModel());
     const midThread = midReadModel.threads.find(
       (entry) => entry.id === ThreadId.makeUnsafe("thread-1"),
@@ -860,7 +861,7 @@ describe("ProviderRuntimeIngestion", () => {
         createdAt: now,
       }),
     );
-    await Effect.runPromise(Effect.sleep("30 millis"));
+    await harness.drain();
 
     harness.emit({
       type: "turn.started",

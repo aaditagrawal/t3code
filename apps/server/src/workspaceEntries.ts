@@ -394,6 +394,9 @@ async function getWorkspaceIndex(cwd: string): Promise<WorkspaceIndex> {
 
   const nextPromise = buildWorkspaceIndex(cwd)
     .then((next) => {
+      if (inFlightWorkspaceIndexBuilds.get(cwd) !== nextPromise) {
+        return next;
+      }
       workspaceIndexCache.set(cwd, next);
       while (workspaceIndexCache.size > WORKSPACE_CACHE_MAX_KEYS) {
         const oldestKey = workspaceIndexCache.keys().next().value;
@@ -403,10 +406,17 @@ async function getWorkspaceIndex(cwd: string): Promise<WorkspaceIndex> {
       return next;
     })
     .finally(() => {
-      inFlightWorkspaceIndexBuilds.delete(cwd);
+      if (inFlightWorkspaceIndexBuilds.get(cwd) === nextPromise) {
+        inFlightWorkspaceIndexBuilds.delete(cwd);
+      }
     });
   inFlightWorkspaceIndexBuilds.set(cwd, nextPromise);
   return nextPromise;
+}
+
+export function clearWorkspaceIndexCache(cwd: string): void {
+  workspaceIndexCache.delete(cwd);
+  inFlightWorkspaceIndexBuilds.delete(cwd);
 }
 
 export async function searchWorkspaceEntries(

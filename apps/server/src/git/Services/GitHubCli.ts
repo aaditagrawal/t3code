@@ -47,7 +47,7 @@ export interface GitHubCliShape {
    */
   readonly listOpenPullRequests: (input: {
     readonly cwd: string;
-    readonly headBranch: string;
+    readonly headSelector: string;
     readonly limit?: number;
   }) => Effect.Effect<ReadonlyArray<GitHubPullRequestSummary>, GitHubCliError>;
 
@@ -73,9 +73,10 @@ export interface GitHubCliShape {
   readonly createPullRequest: (input: {
     readonly cwd: string;
     readonly baseBranch: string;
-    readonly headBranch: string;
+    readonly headSelector: string;
     readonly title: string;
     readonly bodyFile: string;
+    readonly repository?: string;
   }) => Effect.Effect<void, GitHubCliError>;
 
   /**

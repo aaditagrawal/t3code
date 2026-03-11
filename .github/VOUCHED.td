@@ -13,6 +13,7 @@ github:adityavardhansharma
 github:binbandit
 github:chuks-qua
 github:cursoragent
+github:eggfriedrice24
 github:gbarros-dev
 github:github-actions[bot]
 github:hwanseoc
