@@ -157,8 +157,9 @@ detect_os() {
   fi
 
   log_ok "Detected OS: ${BOLD}${OS}${RESET} (${ARCH})"
-  [[ -n "$DISTRO" ]]  && log_info "Linux distro family: ${BOLD}${DISTRO}${RESET}"
-  $IS_WSL             && log_info "Running inside ${BOLD}WSL${RESET}"
+  [[ -n "$DISTRO" ]] && log_info "Linux distro family: ${BOLD}${DISTRO}${RESET}"
+  $IS_WSL            && log_info "Running inside ${BOLD}WSL${RESET}"
+  return 0
 }
 
 # ── Resolve a binary from multiple candidate paths ───────────────────────────
