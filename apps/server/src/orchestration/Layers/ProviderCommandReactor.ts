@@ -274,6 +274,18 @@ const make = Effect.gen(function* () {
       const providerChanged =
         options?.provider !== undefined && options.provider !== currentProvider;
       const activeSession = yield* resolveActiveSession(existingSessionThreadId);
+
+      // If the read model thinks a session is active but the provider has no
+      // live session (e.g. after a direct stopSession call), fall through to
+      // start a fresh session rather than returning stale state.
+      if (activeSession === undefined) {
+        const startedSession = yield* startProviderSession(
+          options?.provider !== undefined ? { provider: options.provider } : undefined,
+        );
+        yield* bindSessionToThread(startedSession);
+        return startedSession.threadId;
+      }
+
       const sessionModelSwitch =
         currentProvider === undefined
           ? "in-session"
@@ -562,7 +574,6 @@ const make = Effect.gen(function* () {
             if (Cause.hasInterruptsOnly(cause)) {
               return yield* Effect.failCause(cause);
             }
-            if (isUnknownPendingApprovalRequestError(cause)) return;
             yield* appendProviderFailureActivity({
               threadId: event.payload.threadId,
               kind: "provider.approval.respond.failed",

@@ -957,39 +957,34 @@ export const makeGitManager = Effect.gen(function* () {
           "This PR branch is already checked out in the main repo. Use Local, or switch the main repo off that branch before creating a worktree thread.",
         );
       }
-      if (existingBranchBeforeFetch && !existingBranchBeforeFetch.worktreePath) {
-        return yield* gitManagerError(
-          "preparePullRequestThread",
-          "A local branch with this name already exists. Delete it or check it out in a worktree before creating a PR thread.",
+      if (!existingBranchBeforeFetch) {
+        yield* materializePullRequestHeadBranch(
+          input.cwd,
+          pullRequestWithRemoteInfo,
+          localPullRequestBranch,
         );
-      }
 
-      yield* materializePullRequestHeadBranch(
-        input.cwd,
-        pullRequestWithRemoteInfo,
-        localPullRequestBranch,
-      );
-
-      const existingBranchAfterFetch = yield* findLocalHeadBranch(input.cwd);
-      const existingBranchAfterFetchPath = existingBranchAfterFetch?.worktreePath
-        ? canonicalizeExistingPath(existingBranchAfterFetch.worktreePath)
-        : null;
-      if (
-        existingBranchAfterFetch?.worktreePath &&
-        existingBranchAfterFetchPath !== rootWorktreePath
-      ) {
-        yield* ensureExistingWorktreeUpstream(existingBranchAfterFetch.worktreePath);
-        return {
-          pullRequest,
-          branch: existingBranchAfterFetch.name,
-          worktreePath: existingBranchAfterFetch.worktreePath,
-        };
-      }
-      if (existingBranchAfterFetchPath === rootWorktreePath) {
-        return yield* gitManagerError(
-          "preparePullRequestThread",
-          "This PR branch is already checked out in the main repo. Use Local, or switch the main repo off that branch before creating a worktree thread.",
-        );
+        const existingBranchAfterFetch = yield* findLocalHeadBranch(input.cwd);
+        const existingBranchAfterFetchPath = existingBranchAfterFetch?.worktreePath
+          ? canonicalizeExistingPath(existingBranchAfterFetch.worktreePath)
+          : null;
+        if (
+          existingBranchAfterFetch?.worktreePath &&
+          existingBranchAfterFetchPath !== rootWorktreePath
+        ) {
+          yield* ensureExistingWorktreeUpstream(existingBranchAfterFetch.worktreePath);
+          return {
+            pullRequest,
+            branch: existingBranchAfterFetch.name,
+            worktreePath: existingBranchAfterFetch.worktreePath,
+          };
+        }
+        if (existingBranchAfterFetchPath === rootWorktreePath) {
+          return yield* gitManagerError(
+            "preparePullRequestThread",
+            "This PR branch is already checked out in the main repo. Use Local, or switch the main repo off that branch before creating a worktree thread.",
+          );
+        }
       }
 
       const worktree = yield* gitCore.createWorktree({

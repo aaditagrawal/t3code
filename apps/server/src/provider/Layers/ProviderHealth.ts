@@ -359,12 +359,11 @@ export const checkCodexProviderStatus: Effect.Effect<
   if (yield* hasCustomModelProvider) {
     return {
       provider: CODEX_PROVIDER,
-      status: "warning" as const,
+      status: "ready" as const,
       available: true,
       authStatus: "unknown" as const,
       checkedAt,
-      message:
-        "Using a custom Codex model provider; OpenAI login check skipped. External provider credentials were not verified.",
+      message: "Using a custom Codex model provider; OpenAI login check skipped.",
     } satisfies ServerProviderStatus;
   }
 
