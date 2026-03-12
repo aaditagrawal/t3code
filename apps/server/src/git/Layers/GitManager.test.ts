@@ -451,7 +451,15 @@ function runStackedAction(
     action: "commit" | "commit_push" | "commit_push_pr";
     commitMessage?: string;
     featureBranch?: boolean;
-    provider?: "codex" | "copilot" | "claudeCode" | "cursor" | "opencode" | "geminiCli" | "amp" | "kilo";
+    provider?:
+      | "codex"
+      | "copilot"
+      | "claudeCode"
+      | "cursor"
+      | "opencode"
+      | "geminiCli"
+      | "amp"
+      | "kilo";
     model?: string;
   },
 ) {

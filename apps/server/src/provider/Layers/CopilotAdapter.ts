@@ -138,14 +138,15 @@ interface CopilotSessionHandle {
 interface CopilotClientHandle {
   start(): Promise<void>;
   listModels(): Promise<ModelInfo[]>;
-  createSession(config: Parameters<CopilotClient["createSession"]>[0]): Promise<CopilotSessionHandle>;
+  createSession(
+    config: Parameters<CopilotClient["createSession"]>[0],
+  ): Promise<CopilotSessionHandle>;
   resumeSession(
     sessionId: string,
     config: Parameters<CopilotClient["resumeSession"]>[1],
   ): Promise<CopilotSessionHandle>;
   stop(): Promise<Error[]>;
 }
-
 
 function makeEventId(prefix: string) {
   return EventId.makeUnsafe(`${prefix}-${randomUUID()}`);
@@ -195,9 +196,7 @@ function mapSupportedModelsById(models: ReadonlyArray<ModelInfo>) {
   return new Map(models.map((model) => [model.id, model]));
 }
 
-function getCopilotReasoningEffort(
-  modelOptions: unknown,
-) {
+function getCopilotReasoningEffort(modelOptions: unknown) {
   const record = asRecord(modelOptions);
   const copilot = asRecord(record?.copilot);
   const reasoningEffort = normalizeString(copilot?.reasoningEffort);
@@ -218,15 +217,11 @@ function extractResumeSessionId(resumeCursor: unknown): string | undefined {
   return sessionId;
 }
 
-function toCopilotSessionMode(
-  interactionMode: "default" | "plan",
-): "interactive" | "plan" {
+function toCopilotSessionMode(interactionMode: "default" | "plan"): "interactive" | "plan" {
   return interactionMode === "plan" ? "plan" : "interactive";
 }
 
-function toInteractionMode(
-  mode: string,
-): "default" | "plan" {
+function toInteractionMode(mode: string): "default" | "plan" {
   return mode === "plan" ? "plan" : "default";
 }
 
@@ -332,7 +327,10 @@ function withRefs(input: {
   };
 }
 
-function mapHistoryToTurns(threadId: ThreadId, events: ReadonlyArray<SessionEvent>): ProviderThreadSnapshot {
+function mapHistoryToTurns(
+  threadId: ThreadId,
+  events: ReadonlyArray<SessionEvent>,
+): ProviderThreadSnapshot {
   const turns: Array<ProviderThreadTurnSnapshot> = [];
   let current: { id: TurnId; items: Array<unknown> } | undefined;
 
@@ -453,7 +451,9 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
     const sessions = new Map<ThreadId, ActiveCopilotSession>();
 
     const emitRuntimeEvents = (events: ReadonlyArray<ProviderRuntimeEvent>) =>
-      Effect.runPromise(Queue.offerAll(runtimeEventQueue, events).pipe(Effect.asVoid)).catch(() => undefined);
+      Effect.runPromise(Queue.offerAll(runtimeEventQueue, events).pipe(Effect.asVoid)).catch(
+        () => undefined,
+      );
 
     const writeNativeEvent = (threadId: ThreadId, event: SessionEvent) => {
       if (!nativeEventLogger) return Promise.resolve();
@@ -523,7 +523,9 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
     ): ReadonlyArray<ProviderRuntimeEvent> => {
       const currentTurnId = record.currentTurnId;
       const currentProviderTurnId = record.currentProviderTurnId;
-      const resolveOrchestrationTurnId = (providerTurnId: TurnId | undefined): TurnId | undefined => {
+      const resolveOrchestrationTurnId = (
+        providerTurnId: TurnId | undefined,
+      ): TurnId | undefined => {
         if (providerTurnId && currentProviderTurnId && providerTurnId === currentProviderTurnId) {
           return currentTurnId ?? providerTurnId;
         }
@@ -724,7 +726,8 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
               ...base(),
               type: "task.completed",
               payload: {
-                taskId: toRuntimeTaskId(record.threadId) ?? RuntimeTaskId.makeUnsafe(record.threadId),
+                taskId:
+                  toRuntimeTaskId(record.threadId) ?? RuntimeTaskId.makeUnsafe(record.threadId),
                 status: "completed",
                 ...(trimToUndefined(event.data.summary) ? { summary: event.data.summary } : {}),
               },
@@ -815,7 +818,9 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
         case "abort": {
           const abortedTurnRefs = completionTurnRefs(record);
           const abortedBase =
-            abortedTurnRefs.turnId || abortedTurnRefs.providerTurnId ? base(abortedTurnRefs) : base();
+            abortedTurnRefs.turnId || abortedTurnRefs.providerTurnId
+              ? base(abortedTurnRefs)
+              : base();
           return [
             {
               ...abortedBase,
@@ -835,7 +840,9 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
                 itemType: itemTypeFromToolEvent(event),
                 status: "inProgress",
                 title: event.data.toolName ?? "Tool call",
-                ...(toolDetailFromEvent(event.data) ? { detail: toolDetailFromEvent(event.data) } : {}),
+                ...(toolDetailFromEvent(event.data)
+                  ? { detail: toolDetailFromEvent(event.data) }
+                  : {}),
                 data: event.data,
               },
             },
@@ -868,12 +875,16 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
               ...base({ itemId: event.data.toolCallId }),
               type: "item.completed",
               payload: {
-                itemType: event.data.result?.contents?.some((content: { type: string }) => content.type === "terminal")
+                itemType: event.data.result?.contents?.some(
+                  (content: { type: string }) => content.type === "terminal",
+                )
                   ? "command_execution"
                   : "dynamic_tool_call",
                 status: event.data.success ? "completed" : "failed",
                 title: record.toolTitlesByCallId.get(event.data.toolCallId) ?? "Tool call",
-                ...(trimToUndefined(event.data.result?.content) ? { detail: event.data.result?.content } : {}),
+                ...(trimToUndefined(event.data.result?.content)
+                  ? { detail: event.data.result?.content }
+                  : {}),
                 data: event.data,
               },
             },
@@ -896,7 +907,8 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
               ...base(),
               type: "task.progress",
               payload: {
-                taskId: toRuntimeTaskId(event.data.name) ?? RuntimeTaskId.makeUnsafe(event.data.name),
+                taskId:
+                  toRuntimeTaskId(event.data.name) ?? RuntimeTaskId.makeUnsafe(event.data.name),
                 description: `Invoked skill ${event.data.name}`,
               },
             },
@@ -908,7 +920,8 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
               type: "task.started",
               payload: {
                 taskId:
-                  toRuntimeTaskId(event.data.toolCallId) ?? RuntimeTaskId.makeUnsafe(event.data.toolCallId),
+                  toRuntimeTaskId(event.data.toolCallId) ??
+                  RuntimeTaskId.makeUnsafe(event.data.toolCallId),
                 description: trimToUndefined(event.data.agentDescription),
                 taskType: "subagent",
               },
@@ -921,7 +934,8 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
               type: "task.completed",
               payload: {
                 taskId:
-                  toRuntimeTaskId(event.data.toolCallId) ?? RuntimeTaskId.makeUnsafe(event.data.toolCallId),
+                  toRuntimeTaskId(event.data.toolCallId) ??
+                  RuntimeTaskId.makeUnsafe(event.data.toolCallId),
                 status: "completed",
                 ...(trimToUndefined(event.data.agentDisplayName)
                   ? { summary: event.data.agentDisplayName }
@@ -936,7 +950,8 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
               type: "task.completed",
               payload: {
                 taskId:
-                  toRuntimeTaskId(event.data.toolCallId) ?? RuntimeTaskId.makeUnsafe(event.data.toolCallId),
+                  toRuntimeTaskId(event.data.toolCallId) ??
+                  RuntimeTaskId.makeUnsafe(event.data.toolCallId),
                 status: "failed",
                 ...(trimToUndefined(event.data.error) ? { summary: event.data.error } : {}),
               },
@@ -957,30 +972,29 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
       const onPermissionRequest = (request: PermissionRequest) =>
         getRuntimeMode() === "full-access"
           ? Promise.resolve<PermissionRequestResult>({ kind: "approved" })
-          :
-        new Promise<PermissionRequestResult>((resolve) => {
-          const requestId = `copilot-approval-${randomUUID()}`;
-          const turnId = getCurrentTurnId();
-          pendingApprovalResolvers.set(requestId, {
-            requestType: requestTypeFromPermissionRequest(request),
-            turnId,
-            resolve,
-          });
-          void emitRuntimeEvents([
-            makeSyntheticEvent(
-              threadId,
-              "request.opened",
-              {
+          : new Promise<PermissionRequestResult>((resolve) => {
+              const requestId = `copilot-approval-${randomUUID()}`;
+              const turnId = getCurrentTurnId();
+              pendingApprovalResolvers.set(requestId, {
                 requestType: requestTypeFromPermissionRequest(request),
-                ...(requestDetailFromPermissionRequest(request)
-                  ? { detail: requestDetailFromPermissionRequest(request) }
-                  : {}),
-                args: request,
-                },
-                { requestId, turnId },
-              ),
-            ]);
-        });
+                turnId,
+                resolve,
+              });
+              void emitRuntimeEvents([
+                makeSyntheticEvent(
+                  threadId,
+                  "request.opened",
+                  {
+                    requestType: requestTypeFromPermissionRequest(request),
+                    ...(requestDetailFromPermissionRequest(request)
+                      ? { detail: requestDetailFromPermissionRequest(request) }
+                      : {}),
+                    args: request,
+                  },
+                  { requestId, turnId },
+                ),
+              ]);
+            });
 
       const onUserInputRequest = (request: CopilotUserInputRequest) =>
         new Promise<CopilotUserInputResponse>((resolve) => {
@@ -1071,7 +1085,8 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
           return yield* new ProviderAdapterValidationError({
             provider: PROVIDER,
             operation: "session.reasoningEffort",
-            issue: "GitHub Copilot reasoning effort requires an explicit supported model selection.",
+            issue:
+              "GitHub Copilot reasoning effort requires an explicit supported model selection.",
           });
         }
 
@@ -1204,7 +1219,9 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
     const getSessionRecord = (threadId: ThreadId) => {
       const record = sessions.get(threadId);
       if (!record) {
-        return Effect.fail(new ProviderAdapterSessionNotFoundError({ provider: PROVIDER, threadId }));
+        return Effect.fail(
+          new ProviderAdapterSessionNotFoundError({ provider: PROVIDER, threadId }),
+        );
       }
       return Effect.succeed(record);
     };
@@ -1326,11 +1343,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
               detail: toMessage(cause, "Failed to start GitHub Copilot session."),
               cause,
             }),
-        }).pipe(
-          Effect.tapError(() =>
-            Effect.promise(() => client.stop().catch(() => undefined)),
-          ),
-        );
+        }).pipe(Effect.tapError(() => Effect.promise(() => client.stop().catch(() => undefined))));
 
         const record = createSessionRecord({
           threadId: input.threadId,
@@ -1460,7 +1473,9 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
         }).pipe(
           Effect.tapError(() =>
             Effect.sync(() => {
-              record.pendingTurnIds = record.pendingTurnIds.filter((candidate) => candidate !== turnId);
+              record.pendingTurnIds = record.pendingTurnIds.filter(
+                (candidate) => candidate !== turnId,
+              );
               if (record.currentTurnId === turnId) {
                 record.currentTurnId = undefined;
               }
@@ -1511,18 +1526,18 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
         pending.resolve(approvalDecisionToPermissionResult(decision));
         yield* Queue.offer(
           runtimeEventQueue,
-            makeSyntheticEvent(
-              threadId,
-              "request.resolved",
-              {
-                requestType: pending.requestType,
-                decision,
-                resolution: approvalDecisionToPermissionResult(decision),
-              },
-              { requestId, turnId: pending.turnId },
-            ),
-          );
-        });
+          makeSyntheticEvent(
+            threadId,
+            "request.resolved",
+            {
+              requestType: pending.requestType,
+              decision,
+              resolution: approvalDecisionToPermissionResult(decision),
+            },
+            { requestId, turnId: pending.turnId },
+          ),
+        );
+      });
 
     const respondToUserInput: CopilotAdapterShape["respondToUserInput"] = (
       threadId,
@@ -1543,16 +1558,16 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
         pending.resolve(resolveUserInputAnswer(pending, answers));
         yield* Queue.offer(
           runtimeEventQueue,
-            makeSyntheticEvent(
-              threadId,
-              "user-input.resolved",
-              {
-                answers,
-              },
-              { requestId, turnId: pending.turnId },
-            ),
-          );
-        });
+          makeSyntheticEvent(
+            threadId,
+            "user-input.resolved",
+            {
+              answers,
+            },
+            { requestId, turnId: pending.turnId },
+          ),
+        );
+      });
 
     const stopSession: CopilotAdapterShape["stopSession"] = (threadId) =>
       Effect.gen(function* () {
@@ -1639,8 +1654,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
     yield* Effect.addFinalizer(() =>
       Effect.forEach(
         sessions,
-        ([, record]) =>
-          Effect.promise(() => stopRecord(record).catch(() => undefined)),
+        ([, record]) => Effect.promise(() => stopRecord(record).catch(() => undefined)),
         { discard: true },
       ).pipe(Effect.tap(() => Queue.shutdown(runtimeEventQueue))),
     );
@@ -1673,9 +1687,11 @@ export function makeCopilotAdapterLive(options?: CopilotAdapterLiveOptions) {
 
 // ── Dynamic model discovery & usage (consumed by wsServer) ─────────
 
-export async function fetchCopilotModels(): Promise<
-  ReadonlyArray<{ slug: string; name: string; pricingTier?: string }> | null
-> {
+export async function fetchCopilotModels(): Promise<ReadonlyArray<{
+  slug: string;
+  name: string;
+  pricingTier?: string;
+}> | null> {
   try {
     const { CopilotClient } = await import("@github/copilot-sdk");
     const { resolveBundledCopilotCliPath } = await import("./copilotCliPath.ts");
@@ -1725,7 +1741,13 @@ export async function fetchCopilotUsage(): Promise<{
     try {
       await withSanitizedCopilotDesktopEnv(() => client.start());
       const quota = await withSanitizedCopilotDesktopEnv(() =>
-        (client as unknown as { rpc: { account: { getQuota: () => Promise<{ quotaSnapshots?: unknown }> } } }).rpc.account.getQuota().catch(() => undefined),
+        (
+          client as unknown as {
+            rpc: { account: { getQuota: () => Promise<{ quotaSnapshots?: unknown }> } };
+          }
+        ).rpc.account
+          .getQuota()
+          .catch(() => undefined),
       );
       if (!quota?.quotaSnapshots) return { provider: "copilot" };
       const quotas = Object.entries(
@@ -1743,7 +1765,10 @@ export async function fetchCopilotUsage(): Promise<{
         plan: key,
         limit: Math.max(0, Math.trunc(snap.entitlementRequests)),
         used: Math.max(0, Math.trunc(snap.usedRequests)),
-        remaining: Math.max(0, Math.trunc(snap.entitlementRequests) - Math.trunc(snap.usedRequests)),
+        remaining: Math.max(
+          0,
+          Math.trunc(snap.entitlementRequests) - Math.trunc(snap.usedRequests),
+        ),
         percentageRemaining: snap.remainingPercentage,
         overage: Math.max(0, Math.trunc(snap.overage)),
         ...(snap.resetDate ? { resetDate: snap.resetDate } : {}),

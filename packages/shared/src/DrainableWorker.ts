@@ -115,9 +115,7 @@ export const makeDrainableWorker = <A, E, R>(
       });
 
     const drain: DrainableWorker<A>["drain"] = Ref.get(state).pipe(
-      Effect.flatMap(({ idle, closed }) =>
-        closed ? Effect.void : Deferred.await(idle),
-      ),
+      Effect.flatMap(({ idle, closed }) => (closed ? Effect.void : Deferred.await(idle))),
     );
 
     return { enqueue, drain } satisfies DrainableWorker<A>;

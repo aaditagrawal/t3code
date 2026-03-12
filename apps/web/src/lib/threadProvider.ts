@@ -16,11 +16,19 @@ const PROVIDER_KINDS = [
 const PROVIDER_KIND_SET = new Set<ProviderKind>(PROVIDER_KINDS);
 
 const CODEX_MODEL_SLUGS = new Set<string>(getModelOptions("codex").map((option) => option.slug));
-const COPILOT_MODEL_SLUGS = new Set<string>(getModelOptions("copilot").map((option) => option.slug));
-const CLAUDE_MODEL_SLUGS = new Set<string>(getModelOptions("claudeCode").map((option) => option.slug));
+const COPILOT_MODEL_SLUGS = new Set<string>(
+  getModelOptions("copilot").map((option) => option.slug),
+);
+const CLAUDE_MODEL_SLUGS = new Set<string>(
+  getModelOptions("claudeCode").map((option) => option.slug),
+);
 const CURSOR_MODEL_SLUGS = new Set<string>(getModelOptions("cursor").map((option) => option.slug));
-const OPENCODE_MODEL_SLUGS = new Set<string>(getModelOptions("opencode").map((option) => option.slug));
-const GEMINI_CLI_MODEL_SLUGS = new Set<string>(getModelOptions("geminiCli").map((option) => option.slug));
+const OPENCODE_MODEL_SLUGS = new Set<string>(
+  getModelOptions("opencode").map((option) => option.slug),
+);
+const GEMINI_CLI_MODEL_SLUGS = new Set<string>(
+  getModelOptions("geminiCli").map((option) => option.slug),
+);
 const AMP_MODEL_SLUGS = new Set<string>(getModelOptions("amp").map((option) => option.slug));
 const KILO_MODEL_SLUGS = new Set<string>(getModelOptions("kilo").map((option) => option.slug));
 const CURSOR_DISTINCT_MODEL_SLUGS = new Set(
@@ -47,7 +55,9 @@ const AMP_DISTINCT_MODEL_SLUGS = new Set(
 
 export function toProviderKind(providerName: string | null | undefined): ProviderKind | null {
   if (!providerName) return null;
-  return PROVIDER_KIND_SET.has(providerName as ProviderKind) ? (providerName as ProviderKind) : null;
+  return PROVIDER_KIND_SET.has(providerName as ProviderKind)
+    ? (providerName as ProviderKind)
+    : null;
 }
 
 export function inferProviderForThreadModel(input: {
@@ -103,10 +113,7 @@ export function inferProviderForThreadModel(input: {
     return "opencode";
   }
 
-  if (
-    input.model.trim().startsWith("composer-") ||
-    input.model.trim().endsWith("-thinking")
-  ) {
+  if (input.model.trim().startsWith("composer-") || input.model.trim().endsWith("-thinking")) {
     return "cursor";
   }
 

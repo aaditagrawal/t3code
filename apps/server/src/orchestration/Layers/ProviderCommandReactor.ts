@@ -244,7 +244,9 @@ const make = Effect.gen(function* () {
         ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
         ...(desiredModel ? { model: desiredModel } : {}),
         ...(options?.modelOptions !== undefined ? { modelOptions: options.modelOptions } : {}),
-        ...(effectiveProviderOptions !== undefined ? { providerOptions: effectiveProviderOptions } : {}),
+        ...(effectiveProviderOptions !== undefined
+          ? { providerOptions: effectiveProviderOptions }
+          : {}),
         ...(input?.resumeCursor !== undefined ? { resumeCursor: input.resumeCursor } : {}),
         runtimeMode: desiredRuntimeMode,
       });
@@ -509,25 +511,23 @@ const make = Effect.gen(function* () {
     }
 
     // Orchestration turn ids are not provider turn ids, so interrupt by session.
-    yield* providerService
-      .interruptTurn({ threadId: event.payload.threadId })
-      .pipe(
-        Effect.catchCause((cause) =>
-          Effect.gen(function* () {
-            if (Cause.hasInterruptsOnly(cause)) {
-              return yield* Effect.failCause(cause);
-            }
-            yield* appendProviderFailureActivity({
-              threadId: event.payload.threadId,
-              kind: "provider.turn.interrupt.failed",
-              summary: "Provider turn interrupt failed",
-              detail: Cause.pretty(cause),
-              turnId: event.payload.turnId ?? null,
-              createdAt: event.payload.createdAt,
-            });
-          }),
-        ),
-      );
+    yield* providerService.interruptTurn({ threadId: event.payload.threadId }).pipe(
+      Effect.catchCause((cause) =>
+        Effect.gen(function* () {
+          if (Cause.hasInterruptsOnly(cause)) {
+            return yield* Effect.failCause(cause);
+          }
+          yield* appendProviderFailureActivity({
+            threadId: event.payload.threadId,
+            kind: "provider.turn.interrupt.failed",
+            summary: "Provider turn interrupt failed",
+            detail: Cause.pretty(cause),
+            turnId: event.payload.turnId ?? null,
+            createdAt: event.payload.createdAt,
+          });
+        }),
+      ),
+    );
   });
 
   const processApprovalResponseRequested = Effect.fnUntraced(function* (
@@ -633,29 +633,27 @@ const make = Effect.gen(function* () {
 
     const now = event.payload.createdAt;
     if (thread.session && thread.session.status !== "stopped") {
-      const stopFailed = yield* providerService
-        .stopSession({ threadId: thread.id })
-        .pipe(
-          Effect.as(false),
-          Effect.catchCause((cause) =>
-            Effect.gen(function* () {
-              if (Cause.hasInterruptsOnly(cause)) {
-                return yield* Effect.failCause(cause);
-              }
-              yield* appendProviderFailureActivity({
-                threadId: event.payload.threadId,
-                kind: "provider.session.stop.failed",
-                summary: "Provider session stop failed",
-                detail: Cause.pretty(cause),
-                turnId: null,
-                createdAt: event.payload.createdAt,
-              });
-              // Signal that the stop failed so we don't clear thread state
-              // while the provider may still be running.
-              return true;
-            }),
-          ),
-        );
+      const stopFailed = yield* providerService.stopSession({ threadId: thread.id }).pipe(
+        Effect.as(false),
+        Effect.catchCause((cause) =>
+          Effect.gen(function* () {
+            if (Cause.hasInterruptsOnly(cause)) {
+              return yield* Effect.failCause(cause);
+            }
+            yield* appendProviderFailureActivity({
+              threadId: event.payload.threadId,
+              kind: "provider.session.stop.failed",
+              summary: "Provider session stop failed",
+              detail: Cause.pretty(cause),
+              turnId: null,
+              createdAt: event.payload.createdAt,
+            });
+            // Signal that the stop failed so we don't clear thread state
+            // while the provider may still be running.
+            return true;
+          }),
+        ),
+      );
       if (stopFailed) {
         return;
       }

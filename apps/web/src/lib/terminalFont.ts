@@ -28,4 +28,3 @@ export function resolveTerminalFontFamily(): string {
 
   return configured.length > 0 ? configured : DEFAULT_TERMINAL_FONT_FAMILY;
 }
-

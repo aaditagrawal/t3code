@@ -89,11 +89,7 @@ function decodeJsonResponse<S extends Schema.Top>(
     const parsed = yield* Effect.try({
       try: () => JSON.parse(jsonText) as unknown,
       catch: (cause) =>
-        normalizeProviderTextGenerationError(
-          operation,
-          cause,
-          "Provider returned invalid JSON",
-        ),
+        normalizeProviderTextGenerationError(operation, cause, "Provider returned invalid JSON"),
     });
 
     return yield* Schema.decodeUnknownEffect(schema)(parsed).pipe(
@@ -154,15 +150,11 @@ const makeSessionTextGeneration = Effect.gen(function* () {
         return Queue.offer(eventQueue, event).pipe(Effect.asVoid);
       }).pipe(Effect.forkScoped);
 
-      const cleanup = providerService
-        .stopSession({ threadId })
-        .pipe(
-          Effect.tapError((e) =>
-            Effect.logWarning("Failed to stop text generation session", e),
-          ),
-          Effect.orElseSucceed(() => undefined),
-          Effect.asVoid,
-        );
+      const cleanup = providerService.stopSession({ threadId }).pipe(
+        Effect.tapError((e) => Effect.logWarning("Failed to stop text generation session", e)),
+        Effect.orElseSucceed(() => undefined),
+        Effect.asVoid,
+      );
 
       return yield* Effect.gen(function* () {
         yield* providerService.startSession(threadId, {
@@ -190,10 +182,7 @@ const makeSessionTextGeneration = Effect.gen(function* () {
             continue;
           }
 
-          if (
-            event.type === "content.delta" &&
-            event.payload.streamKind === "assistant_text"
-          ) {
+          if (event.type === "content.delta" && event.payload.streamKind === "assistant_text") {
             assistantText += event.payload.delta;
             continue;
           }

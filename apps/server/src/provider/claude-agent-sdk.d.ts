@@ -1,10 +1,5 @@
 declare module "@anthropic-ai/claude-agent-sdk" {
-  export type PermissionMode =
-    | "default"
-    | "acceptEdits"
-    | "bypassPermissions"
-    | "plan"
-    | "dontAsk";
+  export type PermissionMode = "default" | "acceptEdits" | "bypassPermissions" | "plan" | "dontAsk";
 
   export interface PermissionUpdate {
     readonly [key: string]: unknown;

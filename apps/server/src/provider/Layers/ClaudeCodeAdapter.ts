@@ -119,10 +119,14 @@ function rateLimitBucket(
   prefix: string,
   label: string,
 ): ProviderUsageQuota | undefined {
-  const limit = typeof rl[`${prefix}_limit`] === "number" ? (rl[`${prefix}_limit`] as number) : undefined;
+  const limit =
+    typeof rl[`${prefix}_limit`] === "number" ? (rl[`${prefix}_limit`] as number) : undefined;
   const remaining =
-    typeof rl[`${prefix}_remaining`] === "number" ? (rl[`${prefix}_remaining`] as number) : undefined;
-  const reset = typeof rl[`${prefix}_reset`] === "string" ? (rl[`${prefix}_reset`] as string) : undefined;
+    typeof rl[`${prefix}_remaining`] === "number"
+      ? (rl[`${prefix}_remaining`] as number)
+      : undefined;
+  const reset =
+    typeof rl[`${prefix}_reset`] === "string" ? (rl[`${prefix}_reset`] as string) : undefined;
   if (limit === undefined || remaining === undefined) return undefined;
   const used = limit - remaining;
   return {
@@ -246,20 +250,23 @@ function isSyntheticClaudeThreadId(value: string): boolean {
   return value.startsWith("claude-thread-");
 }
 
-
 function toStringOrUndefined(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function toUnknownRecord(value: unknown): Record<string, unknown> | undefined {
-  return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 function isDesktopRuntime(): boolean {
   return process.env.T3CODE_MODE === "desktop";
 }
 
-function diagnosticEnvKeys(env: Readonly<Record<string, string | undefined>>): ReadonlyArray<string> {
+function diagnosticEnvKeys(
+  env: Readonly<Record<string, string | undefined>>,
+): ReadonlyArray<string> {
   return Object.keys(env)
     .filter((key) => DESKTOP_DIAGNOSTIC_ENV_PREFIXES.some((prefix) => key.startsWith(prefix)))
     .sort();
@@ -464,7 +471,10 @@ function turnStatusFromResult(result: SDKResultMessage): ProviderRuntimeTurnStat
     return "completed";
   }
 
-  const errors = (result.errors ?? []).map((error) => String(error)).join(" ").toLowerCase();
+  const errors = (result.errors ?? [])
+    .map((error) => String(error))
+    .join(" ")
+    .toLowerCase();
   if (errors.includes("interrupt")) {
     return "interrupted";
   }
@@ -534,11 +544,7 @@ function toSessionError(
   return undefined;
 }
 
-function toRequestError(
-  threadId: ThreadId,
-  method: string,
-  cause: unknown,
-): ProviderAdapterError {
+function toRequestError(threadId: ThreadId, method: string, cause: unknown): ProviderAdapterError {
   const sessionError = toSessionError(threadId, cause);
   if (sessionError) {
     return sessionError;
@@ -651,43 +657,43 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
         const observedAt = new Date().toISOString();
         const itemId = sdkNativeItemId(message);
 
-        yield* nativeEventLogger
-          .write(
-            {
-              observedAt,
-              event: {
-                id:
-                  "uuid" in message && typeof message.uuid === "string"
-                    ? message.uuid
-                    : crypto.randomUUID(),
-                kind: "notification",
-                provider: PROVIDER,
-                createdAt: observedAt,
-                method: sdkNativeMethod(message),
-                ...(context.session.threadId
-                  ? { threadId: context.session.threadId }
-                  : {}),
-                ...(typeof message.session_id === "string"
-                  ? { providerThreadId: message.session_id }
-                  : {}),
-                ...(context.turnState ? { turnId: context.turnState.turnId } : {}),
-                ...(itemId ? { itemId: ProviderItemId.makeUnsafe(itemId) } : {}),
-                payload: message,
-              },
+        yield* nativeEventLogger.write(
+          {
+            observedAt,
+            event: {
+              id:
+                "uuid" in message && typeof message.uuid === "string"
+                  ? message.uuid
+                  : crypto.randomUUID(),
+              kind: "notification",
+              provider: PROVIDER,
+              createdAt: observedAt,
+              method: sdkNativeMethod(message),
+              ...(context.session.threadId ? { threadId: context.session.threadId } : {}),
+              ...(typeof message.session_id === "string"
+                ? { providerThreadId: message.session_id }
+                : {}),
+              ...(context.turnState ? { turnId: context.turnState.turnId } : {}),
+              ...(itemId ? { itemId: ProviderItemId.makeUnsafe(itemId) } : {}),
+              payload: message,
             },
-            null,
-          );
+          },
+          null,
+        );
       });
 
     const snapshotThread = (
       context: ClaudeSessionContext,
-    ): Effect.Effect<{
-      threadId: ThreadId;
-      turns: ReadonlyArray<{
-        id: TurnId;
-        items: ReadonlyArray<unknown>;
-      }>;
-    }, ProviderAdapterValidationError> =>
+    ): Effect.Effect<
+      {
+        threadId: ThreadId;
+        turns: ReadonlyArray<{
+          id: TurnId;
+          items: ReadonlyArray<unknown>;
+        }>;
+      },
+      ProviderAdapterValidationError
+    > =>
       Effect.gen(function* () {
         const threadId = context.session.threadId;
         if (!threadId) {
@@ -836,9 +842,7 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
               state: status,
               ...(result?.stop_reason !== undefined ? { stopReason: result.stop_reason } : {}),
               ...(result?.usage ? { usage: result.usage } : {}),
-              ...(result?.modelUsage
-                ? { modelUsage: toUnknownRecord(result.modelUsage) }
-                : {}),
+              ...(result?.modelUsage ? { modelUsage: toUnknownRecord(result.modelUsage) } : {}),
               ...(typeof result?.total_cost_usd === "number"
                 ? { totalCostUsd: result.total_cost_usd }
                 : {}),
@@ -1636,7 +1640,9 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
                 },
                 providerRefs: {
                   ...providerThreadRef(context),
-                  ...(context.turnState ? { providerTurnId: String(context.turnState.turnId) } : {}),
+                  ...(context.turnState
+                    ? { providerTurnId: String(context.turnState.turnId) }
+                    : {}),
                   providerRequestId: requestId,
                 },
                 raw: {
@@ -1681,7 +1687,9 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
                 },
                 providerRefs: {
                   ...providerThreadRef(context),
-                  ...(context.turnState ? { providerTurnId: String(context.turnState.turnId) } : {}),
+                  ...(context.turnState
+                    ? { providerTurnId: String(context.turnState.turnId) }
+                    : {}),
                   providerRequestId: requestId,
                 },
                 raw: {

@@ -10,9 +10,7 @@ import { ApprovalRequestId, ThreadId } from "@t3tools/contracts";
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Fiber, Random, Stream } from "effect";
 
-import {
-  ProviderAdapterValidationError,
-} from "../Errors.ts";
+import { ProviderAdapterValidationError } from "../Errors.ts";
 import { ClaudeCodeAdapter } from "../Services/ClaudeCodeAdapter.ts";
 import {
   makeClaudeCodeAdapterLive,
@@ -161,7 +159,6 @@ function makeDeterministicRandomService(seed = 0x1234_5678): {
     nextDoubleUnsafe: () => nextIntUnsafe() / 0x1_0000_0000,
   };
 }
-
 
 const THREAD_ID = ThreadId.makeUnsafe("thread-claude-1");
 const RESUME_THREAD_ID = ThreadId.makeUnsafe("thread-claude-resume");
@@ -433,94 +430,99 @@ describe("ClaudeCodeAdapterLive", () => {
     );
   });
 
-  it.effect("emits completion only after turn result when assistant frames arrive before deltas", () => {
-    const harness = makeHarness();
-    return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+  it.effect(
+    "emits completion only after turn result when assistant frames arrive before deltas",
+    () => {
+      const harness = makeHarness();
+      return Effect.gen(function* () {
+        const adapter = yield* ClaudeCodeAdapter;
 
-      const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 9).pipe(
-        Stream.runCollect,
-        Effect.forkChild,
-      );
+        const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 9).pipe(
+          Stream.runCollect,
+          Effect.forkChild,
+        );
 
-      const session = yield* adapter.startSession({
-        threadId: THREAD_ID,
-        provider: "claudeCode",
-        runtimeMode: "full-access",
-      });
+        const session = yield* adapter.startSession({
+          threadId: THREAD_ID,
+          provider: "claudeCode",
+          runtimeMode: "full-access",
+        });
 
-      const turn = yield* adapter.sendTurn({
-        threadId: session.threadId,
-        input: "hello",
-        attachments: [],
-      });
+        const turn = yield* adapter.sendTurn({
+          threadId: session.threadId,
+          input: "hello",
+          attachments: [],
+        });
 
-      harness.query.emit({
-        type: "assistant",
-        session_id: "sdk-session-early-assistant",
-        uuid: "assistant-early",
-        parent_tool_use_id: null,
-        message: {
-          id: "assistant-message-early",
-          content: [{ type: "tool_use", id: "tool-early", name: "Read", input: { path: "a.ts" } }],
-        },
-      } as unknown as SDKMessage);
-
-      harness.query.emit({
-        type: "stream_event",
-        session_id: "sdk-session-early-assistant",
-        uuid: "stream-early",
-        parent_tool_use_id: null,
-        event: {
-          type: "content_block_delta",
-          index: 0,
-          delta: {
-            type: "text_delta",
-            text: "Late text",
+        harness.query.emit({
+          type: "assistant",
+          session_id: "sdk-session-early-assistant",
+          uuid: "assistant-early",
+          parent_tool_use_id: null,
+          message: {
+            id: "assistant-message-early",
+            content: [
+              { type: "tool_use", id: "tool-early", name: "Read", input: { path: "a.ts" } },
+            ],
           },
-        },
-      } as unknown as SDKMessage);
+        } as unknown as SDKMessage);
 
-      harness.query.emit({
-        type: "result",
-        subtype: "success",
-        is_error: false,
-        errors: [],
-        session_id: "sdk-session-early-assistant",
-        uuid: "result-early",
-      } as unknown as SDKMessage);
+        harness.query.emit({
+          type: "stream_event",
+          session_id: "sdk-session-early-assistant",
+          uuid: "stream-early",
+          parent_tool_use_id: null,
+          event: {
+            type: "content_block_delta",
+            index: 0,
+            delta: {
+              type: "text_delta",
+              text: "Late text",
+            },
+          },
+        } as unknown as SDKMessage);
 
-      const runtimeEvents = Array.from(yield* Fiber.join(runtimeEventsFiber));
-      assert.deepEqual(
-        runtimeEvents.map((event) => event.type),
-        [
-          "session.started",
-          "session.configured",
-          "session.state.changed",
-          "turn.started",
-          "thread.started",
-          "item.updated",
-          "content.delta",
-          "item.completed",
-          "turn.completed",
-        ],
+        harness.query.emit({
+          type: "result",
+          subtype: "success",
+          is_error: false,
+          errors: [],
+          session_id: "sdk-session-early-assistant",
+          uuid: "result-early",
+        } as unknown as SDKMessage);
+
+        const runtimeEvents = Array.from(yield* Fiber.join(runtimeEventsFiber));
+        assert.deepEqual(
+          runtimeEvents.map((event) => event.type),
+          [
+            "session.started",
+            "session.configured",
+            "session.state.changed",
+            "turn.started",
+            "thread.started",
+            "item.updated",
+            "content.delta",
+            "item.completed",
+            "turn.completed",
+          ],
+        );
+
+        const deltaIndex = runtimeEvents.findIndex((event) => event.type === "content.delta");
+        const completedIndex = runtimeEvents.findIndex((event) => event.type === "item.completed");
+        assert.equal(deltaIndex >= 0 && completedIndex >= 0 && deltaIndex < completedIndex, true);
+
+        const deltaEvent = runtimeEvents[deltaIndex];
+        assert.equal(deltaEvent?.type, "content.delta");
+        if (deltaEvent?.type === "content.delta") {
+          assert.equal(deltaEvent.payload.delta, "Late text");
+          assert.equal(String(deltaEvent.turnId), String(turn.turnId));
+        }
+      }).pipe(
+        Effect.provideService(Random.Random, makeDeterministicRandomService()),
+        Effect.provide(harness.layer),
       );
-
-      const deltaIndex = runtimeEvents.findIndex((event) => event.type === "content.delta");
-      const completedIndex = runtimeEvents.findIndex((event) => event.type === "item.completed");
-      assert.equal(deltaIndex >= 0 && completedIndex >= 0 && deltaIndex < completedIndex, true);
-
-      const deltaEvent = runtimeEvents[deltaIndex];
-      assert.equal(deltaEvent?.type, "content.delta");
-      if (deltaEvent?.type === "content.delta") {
-        assert.equal(deltaEvent.payload.delta, "Late text");
-        assert.equal(String(deltaEvent.turnId), String(turn.turnId));
-      }
-    }).pipe(
-      Effect.provideService(Random.Random, makeDeterministicRandomService()),
-      Effect.provide(harness.layer),
-    );
-  });
+    },
+  );
 
   it.effect("falls back to assistant payload text when stream deltas are absent", () => {
     const harness = makeHarness();
@@ -804,10 +806,7 @@ describe("ClaudeCodeAdapterLive", () => {
         runtimeMode: "full-access",
       });
 
-      assert.equal(
-        "resume" in (session.resumeCursor as Record<string, unknown>),
-        false,
-      );
+      assert.equal("resume" in (session.resumeCursor as Record<string, unknown>), false);
 
       const createInput = harness.getLastCreateQueryInput();
       assert.equal(createInput?.options.resume, undefined);
@@ -817,28 +816,31 @@ describe("ClaudeCodeAdapterLive", () => {
     );
   });
 
-  it.effect("rollbackThread returns ProviderAdapterRequestError because Claude Code does not support rewinding", () => {
-    const harness = makeHarness();
-    return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+  it.effect(
+    "rollbackThread returns ProviderAdapterRequestError because Claude Code does not support rewinding",
+    () => {
+      const harness = makeHarness();
+      return Effect.gen(function* () {
+        const adapter = yield* ClaudeCodeAdapter;
 
-      const session = yield* adapter.startSession({
-        threadId: THREAD_ID,
-        provider: "claudeCode",
-        runtimeMode: "full-access",
-      });
+        const session = yield* adapter.startSession({
+          threadId: THREAD_ID,
+          provider: "claudeCode",
+          runtimeMode: "full-access",
+        });
 
-      const result = yield* adapter.rollbackThread(session.threadId, 1).pipe(Effect.flip);
-      assert.equal(result._tag, "ProviderAdapterRequestError");
-      if (result._tag === "ProviderAdapterRequestError") {
-        assert.equal(result.method, "thread.rollback");
-        assert.ok(result.detail?.includes("not supported"));
-      }
-    }).pipe(
-      Effect.provideService(Random.Random, makeDeterministicRandomService()),
-      Effect.provide(harness.layer),
-    );
-  });
+        const result = yield* adapter.rollbackThread(session.threadId, 1).pipe(Effect.flip);
+        assert.equal(result._tag, "ProviderAdapterRequestError");
+        if (result._tag === "ProviderAdapterRequestError") {
+          assert.equal(result.method, "thread.rollback");
+          assert.ok(result.detail?.includes("not supported"));
+        }
+      }).pipe(
+        Effect.provideService(Random.Random, makeDeterministicRandomService()),
+        Effect.provide(harness.layer),
+      );
+    },
+  );
 
   it.effect("updates model on sendTurn when model override is provided", () => {
     const harness = makeHarness();
@@ -930,8 +932,14 @@ describe("ClaudeCodeAdapterLive", () => {
       assert.equal(turnCompleted._tag, "Some");
 
       assert.equal(nativeEvents.length > 0, true);
-      assert.equal(nativeEvents.some((record) => record.event?.provider === "claudeCode"), true);
-      assert.equal(nativeEvents.some((record) => String(record.event?.threadId) === String(session.threadId)), true);
+      assert.equal(
+        nativeEvents.some((record) => record.event?.provider === "claudeCode"),
+        true,
+      );
+      assert.equal(
+        nativeEvents.some((record) => String(record.event?.threadId) === String(session.threadId)),
+        true,
+      );
       assert.equal(
         nativeEvents.some((record) => String(record.event?.turnId) === String(turn.turnId)),
         true,

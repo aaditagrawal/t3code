@@ -83,7 +83,10 @@ function terminalThemeFromApp(): ITheme {
   // Brighten the accent (mix toward white) then ensure it still has
   // sufficient contrast against the terminal background.
   const brightMix = isDark ? 0.3 : 0.18;
-  const terminalBrightBlue = contrastSafeTerminalColor(mixHexWithWhite(accentColor, brightMix), bgHex);
+  const terminalBrightBlue = contrastSafeTerminalColor(
+    mixHexWithWhite(accentColor, brightMix),
+    bgHex,
+  );
   const selectionBackground = resolveAccentColorRgba(accentColor, isDark ? 0.3 : 0.22);
 
   if (isDark) {

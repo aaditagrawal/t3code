@@ -88,10 +88,9 @@ const AppSettingsSchema = Schema.Struct({
   accentColor: Schema.String.check(Schema.isMaxLength(16)).pipe(
     Schema.withConstructorDefault(() => Option.some(DEFAULT_ACCENT_COLOR)),
   ),
-  providerAccentColors: Schema.Record(
-    Schema.String,
-    Schema.String,
-  ).pipe(Schema.withConstructorDefault(() => Option.some({} as Record<string, string>))),
+  providerAccentColors: Schema.Record(Schema.String, Schema.String).pipe(
+    Schema.withConstructorDefault(() => Option.some({} as Record<string, string>)),
+  ),
 });
 export type AppSettings = typeof AppSettingsSchema.Type;
 export interface AppModelOption {

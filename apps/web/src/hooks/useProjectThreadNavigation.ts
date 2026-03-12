@@ -29,11 +29,15 @@ function latestThreadIdForProject(
 export function useProjectThreadNavigation(routeThreadId: ThreadId | null) {
   const threads = useStore((store) => store.threads);
   const navigate = useNavigate();
-  const getDraftThreadByProjectId = useComposerDraftStore((store) => store.getDraftThreadByProjectId);
+  const getDraftThreadByProjectId = useComposerDraftStore(
+    (store) => store.getDraftThreadByProjectId,
+  );
   const getDraftThread = useComposerDraftStore((store) => store.getDraftThread);
   const setProjectDraftThreadId = useComposerDraftStore((store) => store.setProjectDraftThreadId);
   const setDraftThreadContext = useComposerDraftStore((store) => store.setDraftThreadContext);
-  const clearProjectDraftThreadId = useComposerDraftStore((store) => store.clearProjectDraftThreadId);
+  const clearProjectDraftThreadId = useComposerDraftStore(
+    (store) => store.clearProjectDraftThreadId,
+  );
 
   const navigateToThread = useCallback(
     async (threadId: ThreadId) => {
@@ -120,7 +124,13 @@ export function useProjectThreadNavigation(routeThreadId: ThreadId | null) {
 
       await openOrCreateThread(projectId);
     },
-    [getDraftThreadByProjectId, navigateToThread, openOrCreateThread, setProjectDraftThreadId, threads],
+    [
+      getDraftThreadByProjectId,
+      navigateToThread,
+      openOrCreateThread,
+      setProjectDraftThreadId,
+      threads,
+    ],
   );
 
   return {

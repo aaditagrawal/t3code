@@ -11,7 +11,6 @@ import { create } from "zustand";
 import { inferProviderForThreadModel, toProviderKind } from "./lib/threadProvider";
 import { type ChatMessage, type Project, type Thread } from "./types";
 
-
 // ── State ────────────────────────────────────────────────────────────
 
 export interface AppState {
@@ -95,7 +94,6 @@ function persistState(state: AppState): void {
   }
 }
 
-
 // ── Pure helpers ──────────────────────────────────────────────────────
 
 function updateThread(
@@ -165,7 +163,9 @@ function normalizeProjectScript(script: Project["scripts"][number]): Project["sc
 function areUnknownValuesEqual(left: unknown, right: unknown): boolean {
   if (Object.is(left, right)) return true;
   const leftIsStructured =
-    typeof left === "object" && left !== null && (Array.isArray(left) || left.constructor === Object);
+    typeof left === "object" &&
+    left !== null &&
+    (Array.isArray(left) || left.constructor === Object);
   const rightIsStructured =
     typeof right === "object" &&
     right !== null &&
@@ -251,8 +251,8 @@ function normalizeMessage(
     existingAttachments === undefined && normalizedAttachments === undefined
       ? true
       : existingAttachments !== undefined &&
-          normalizedAttachments !== undefined &&
-          areAttachmentsEqual(existingAttachments, normalizedAttachments);
+        normalizedAttachments !== undefined &&
+        areAttachmentsEqual(existingAttachments, normalizedAttachments);
   if (
     existing &&
     existing.id === normalizedMessage.id &&
@@ -517,9 +517,7 @@ function mapProjectsFromReadModel(
     return mappedProjects;
   }
 
-  const projectOrderByCwd = new Map(
-    projectOrderCwds.map((cwd, index) => [cwd, index] as const),
-  );
+  const projectOrderByCwd = new Map(projectOrderCwds.map((cwd, index) => [cwd, index] as const));
 
   const orderedProjects = mappedProjects.toSorted((left, right) => {
     const leftIndex = projectOrderByCwd.get(left.cwd);
@@ -662,11 +660,7 @@ export function syncServerReadModel(state: AppState, readModel: OrchestrationRea
     });
   const nextThreads = arraysShallowEqual(threads, state.threads) ? state.threads : threads;
   const nextProjects = arraysShallowEqual(projects, state.projects) ? state.projects : projects;
-  if (
-    nextProjects === state.projects &&
-    nextThreads === state.threads &&
-    state.threadsHydrated
-  ) {
+  if (nextProjects === state.projects && nextThreads === state.threads && state.threadsHydrated) {
     return state;
   }
   return {

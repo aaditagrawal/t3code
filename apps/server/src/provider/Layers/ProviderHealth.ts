@@ -17,7 +17,17 @@ import type {
   ServerProviderStatusState,
 } from "@t3tools/contracts";
 import { CopilotClient, type ModelInfo } from "@github/copilot-sdk";
-import { Effect, Fiber, FileSystem, Layer, Option, Path, PlatformError, Result, Stream } from "effect";
+import {
+  Effect,
+  Fiber,
+  FileSystem,
+  Layer,
+  Option,
+  Path,
+  PlatformError,
+  Result,
+  Stream,
+} from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import { resolveBundledCopilotCliPath, withSanitizedCopilotDesktopEnv } from "./copilotCliPath.ts";
@@ -202,18 +212,16 @@ export const readCodexConfigModelProvider = Effect.gen(function* () {
   const codexHome = process.env.CODEX_HOME || path.join(OS.homedir(), ".codex");
   const configPath = path.join(codexHome, "config.toml");
 
-  const content = yield* fileSystem
-    .readFileString(configPath)
-    .pipe(
-      Effect.catchTag("PlatformError", (e) =>
-        e.reason instanceof PlatformError.SystemError && e.reason._tag === "NotFound"
-          ? Effect.succeed(undefined)
-          : Effect.gen(function* () {
-              yield* Effect.logWarning(`Failed to read Codex config at ${configPath}: ${e.message}`);
-              return undefined;
-            }),
-      ),
-    );
+  const content = yield* fileSystem.readFileString(configPath).pipe(
+    Effect.catchTag("PlatformError", (e) =>
+      e.reason instanceof PlatformError.SystemError && e.reason._tag === "NotFound"
+        ? Effect.succeed(undefined)
+        : Effect.gen(function* () {
+            yield* Effect.logWarning(`Failed to read Codex config at ${configPath}: ${e.message}`);
+            return undefined;
+          }),
+    ),
+  );
   if (content === undefined) {
     return undefined;
   }
@@ -441,9 +449,7 @@ export const checkGeminiCliProviderStatus: Effect.Effect<
     const error = versionProbe.failure;
     const lower = error instanceof Error ? error.message.toLowerCase() : "";
     const isMissing =
-      lower.includes("enoent") ||
-      lower.includes("notfound") ||
-      lower.includes("command not found");
+      lower.includes("enoent") || lower.includes("notfound") || lower.includes("command not found");
     return {
       provider: GEMINI_CLI_PROVIDER,
       status: "error" as const,
@@ -508,7 +514,9 @@ export function mapCopilotModel(model: ModelInfo): ServerProviderModel {
     ...(model.supportedReasoningEfforts && model.supportedReasoningEfforts.length > 0
       ? { supportedReasoningEfforts: [...model.supportedReasoningEfforts] }
       : {}),
-    ...(model.defaultReasoningEffort ? { defaultReasoningEffort: model.defaultReasoningEffort } : {}),
+    ...(model.defaultReasoningEffort
+      ? { defaultReasoningEffort: model.defaultReasoningEffort }
+      : {}),
     ...(typeof model.billing?.multiplier === "number"
       ? { billingMultiplier: model.billing.multiplier }
       : {}),
@@ -525,8 +533,12 @@ interface CopilotQuotaSnapshotInfo {
 }
 
 function compareCopilotQuotaKeys(left: string, right: string): number {
-  const leftPriority = COPILOT_QUOTA_PRIORITY.indexOf(left as (typeof COPILOT_QUOTA_PRIORITY)[number]);
-  const rightPriority = COPILOT_QUOTA_PRIORITY.indexOf(right as (typeof COPILOT_QUOTA_PRIORITY)[number]);
+  const leftPriority = COPILOT_QUOTA_PRIORITY.indexOf(
+    left as (typeof COPILOT_QUOTA_PRIORITY)[number],
+  );
+  const rightPriority = COPILOT_QUOTA_PRIORITY.indexOf(
+    right as (typeof COPILOT_QUOTA_PRIORITY)[number],
+  );
   const normalizedLeftPriority = leftPriority === -1 ? Number.POSITIVE_INFINITY : leftPriority;
   const normalizedRightPriority = rightPriority === -1 ? Number.POSITIVE_INFINITY : rightPriority;
   return normalizedLeftPriority - normalizedRightPriority || left.localeCompare(right);
@@ -550,9 +562,9 @@ export function mapCopilotQuotaSnapshots(
         overage: Math.max(0, Math.trunc(snapshot.overage)),
         overageAllowedWithExhaustedQuota: snapshot.overageAllowedWithExhaustedQuota,
       };
-      return (snapshot.resetDate
-        ? Object.assign(base, { resetDate: snapshot.resetDate })
-        : base) satisfies ServerProviderQuotaSnapshot;
+      return (
+        snapshot.resetDate ? Object.assign(base, { resetDate: snapshot.resetDate }) : base
+      ) satisfies ServerProviderQuotaSnapshot;
     });
 }
 
@@ -570,8 +582,16 @@ export const checkCopilotProviderStatus: Effect.Effect<ServerProviderStatus> = E
           await withSanitizedCopilotDesktopEnv(() => client.start());
           const [status, authStatus] = await withSanitizedCopilotDesktopEnv(() =>
             Promise.all([
-              (client as unknown as { getStatus(): Promise<{ version?: string }> }).getStatus().catch(() => undefined),
-              (client as unknown as { getAuthStatus(): Promise<{ isAuthenticated?: boolean; statusMessage?: string }> }).getAuthStatus().catch(() => undefined),
+              (client as unknown as { getStatus(): Promise<{ version?: string }> })
+                .getStatus()
+                .catch(() => undefined),
+              (
+                client as unknown as {
+                  getAuthStatus(): Promise<{ isAuthenticated?: boolean; statusMessage?: string }>;
+                }
+              )
+                .getAuthStatus()
+                .catch(() => undefined),
             ]),
           );
           const [models, quota] =
@@ -579,7 +599,13 @@ export const checkCopilotProviderStatus: Effect.Effect<ServerProviderStatus> = E
               ? await withSanitizedCopilotDesktopEnv(() =>
                   Promise.all([
                     client.listModels().catch(() => undefined),
-                    (client as unknown as { rpc: { account: { getQuota: () => Promise<{ quotaSnapshots?: unknown }> } } }).rpc.account.getQuota().catch(() => undefined),
+                    (
+                      client as unknown as {
+                        rpc: { account: { getQuota: () => Promise<{ quotaSnapshots?: unknown }> } };
+                      }
+                    ).rpc.account
+                      .getQuota()
+                      .catch(() => undefined),
                   ]),
                 )
               : [undefined, undefined];
@@ -630,7 +656,9 @@ export const checkCopilotProviderStatus: Effect.Effect<ServerProviderStatus> = E
     const status: ServerProviderStatusState =
       authStatus === "unauthenticated" ? "error" : authStatus === "unknown" ? "warning" : "ready";
     const quotaSnapshots = mapCopilotQuotaSnapshots(
-      probe.success.value.quota?.quotaSnapshots as Record<string, CopilotQuotaSnapshotInfo> | undefined,
+      probe.success.value.quota?.quotaSnapshots as
+        | Record<string, CopilotQuotaSnapshotInfo>
+        | undefined,
     );
 
     return {

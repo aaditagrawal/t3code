@@ -259,8 +259,14 @@ function shouldRemoveDraft(draft: ComposerThreadDraftState): boolean {
 }
 
 function normalizeProviderKind(value: unknown): ProviderKind | null {
-  return value === "codex" || value === "copilot" || value === "claudeCode" || value === "cursor"
-    || value === "opencode" || value === "geminiCli" || value === "amp" || value === "kilo"
+  return value === "codex" ||
+    value === "copilot" ||
+    value === "claudeCode" ||
+    value === "cursor" ||
+    value === "opencode" ||
+    value === "geminiCli" ||
+    value === "amp" ||
+    value === "kilo"
     ? value
     : null;
 }
@@ -446,7 +452,8 @@ function normalizePersistedComposerDraftState(value: unknown): PersistedComposer
     const claudeCodeEffortCandidate =
       typeof draftCandidate.claudeCodeEffort === "string" ? draftCandidate.claudeCodeEffort : null;
     const claudeCodeEffort =
-      claudeCodeEffortCandidate && CLAUDE_CODE_EFFORT_VALUES.has(claudeCodeEffortCandidate as ClaudeCodeEffort)
+      claudeCodeEffortCandidate &&
+      CLAUDE_CODE_EFFORT_VALUES.has(claudeCodeEffortCandidate as ClaudeCodeEffort)
         ? (claudeCodeEffortCandidate as ClaudeCodeEffort)
         : null;
     if (

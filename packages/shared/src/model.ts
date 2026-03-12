@@ -351,7 +351,9 @@ export function resolveCursorPickerModelSlug(
   const selection = parseCursorModelSelection(model);
   const capability = CURSOR_MODEL_CAPABILITY_BY_FAMILY[selection.family];
   const normalized = resolveModelSlugForProvider("cursor", model) as CursorModelSlug;
-  return capability.supportsReasoning || capability.supportsThinking ? selection.family : normalized;
+  return capability.supportsReasoning || capability.supportsThinking
+    ? selection.family
+    : normalized;
 }
 
 export function resolveCursorModelFromSelection(input: {

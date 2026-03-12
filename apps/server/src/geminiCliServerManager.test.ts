@@ -136,9 +136,8 @@ describe("GeminiCliServerManager", () => {
 
       // Directly mark the session as closed without removing it from the map,
       // so we exercise the "closed session" branch (not the "unknown session" branch).
-      const sessions = (
-        manager as unknown as { sessions: Map<string, { status: string }> }
-      ).sessions;
+      const sessions = (manager as unknown as { sessions: Map<string, { status: string }> })
+        .sessions;
       const session = sessions.get("thread-1");
       expect(session).toBeDefined();
       session!.status = "closed";
@@ -160,9 +159,8 @@ describe("GeminiCliServerManager", () => {
       });
 
       // Mark the session as running to simulate an in-progress turn.
-      const sessions = (
-        manager as unknown as { sessions: Map<string, { status: string }> }
-      ).sessions;
+      const sessions = (manager as unknown as { sessions: Map<string, { status: string }> })
+        .sessions;
       const session = sessions.get("thread-1");
       expect(session).toBeDefined();
       session!.status = "running";
@@ -326,7 +324,8 @@ describe("GeminiCliServerManager JSON event mapping", () => {
     expect(events).toHaveLength(0);
 
     // Verify the session_id was actually stored for --resume on subsequent turns.
-    const sessions = (manager as unknown as { sessions: Map<string, { geminiSessionId?: string }> }).sessions;
+    const sessions = (manager as unknown as { sessions: Map<string, { geminiSessionId?: string }> })
+      .sessions;
     expect(sessions.get("thread-json")?.geminiSessionId).toBe("gemini-sess-abc");
   });
 
@@ -574,13 +573,13 @@ describe("GeminiCliServerManager JSON event mapping", () => {
     //   + 1 turn.completed = 8
     expect(events).toHaveLength(8);
     expect(events.map((e) => e.type)).toEqual([
-      "content.delta",       // "Hi there!" (segment 1)
-      "content.delta",       // " How can I help?" (segment 1)
-      "item.completed",      // assistant_message finalized (segment 1)
-      "item.started",        // tool_use list_directory
-      "item.completed",      // tool_result list_directory
-      "content.delta",       // "Found 3 items." (segment 2)
-      "item.completed",      // assistant_message finalized (segment 2)
+      "content.delta", // "Hi there!" (segment 1)
+      "content.delta", // " How can I help?" (segment 1)
+      "item.completed", // assistant_message finalized (segment 1)
+      "item.started", // tool_use list_directory
+      "item.completed", // tool_result list_directory
+      "content.delta", // "Found 3 items." (segment 2)
+      "item.completed", // assistant_message finalized (segment 2)
       "turn.completed",
     ]);
 
@@ -621,56 +620,50 @@ const hasGemini = await (async () => {
 describe.skipIf(!hasGemini || process.env.RUN_GEMINI_LIVE_TESTS !== "1")(
   "GeminiCliServerManager live integration",
   () => {
-    it(
-      "sends a prompt and receives streaming events ending with turn.completed",
-      async () => {
-        const manager = new GeminiCliServerManager();
-        const events: ProviderRuntimeEvent[] = [];
-        manager.on("event", (event) => events.push(event));
+    it("sends a prompt and receives streaming events ending with turn.completed", async () => {
+      const manager = new GeminiCliServerManager();
+      const events: ProviderRuntimeEvent[] = [];
+      manager.on("event", (event) => events.push(event));
 
-        try {
-          await manager.startSession({
-            threadId: asThreadId("live-thread"),
-            provider: "geminiCli",
-            runtimeMode: "full-access",
-            model: "gemini-2.5-flash",
-          });
+      try {
+        await manager.startSession({
+          threadId: asThreadId("live-thread"),
+          provider: "geminiCli",
+          runtimeMode: "full-access",
+          model: "gemini-2.5-flash",
+        });
 
-          const result = await manager.sendTurn({
-            threadId: asThreadId("live-thread"),
-            input: "Reply with exactly the word PONG",
-          });
+        const result = await manager.sendTurn({
+          threadId: asThreadId("live-thread"),
+          input: "Reply with exactly the word PONG",
+        });
 
-          expect(result.threadId).toBe("live-thread");
-          expect(result.turnId).toBeTruthy();
+        expect(result.threadId).toBe("live-thread");
+        expect(result.turnId).toBeTruthy();
 
-          // Wait for the turn to complete.
-          await vi.waitFor(
-            () => {
-              const completed = events.find((e) => e.type === "turn.completed");
-              expect(completed).toBeDefined();
-            },
-            { timeout: 30_000, interval: 500 },
-          );
+        // Wait for the turn to complete.
+        await vi.waitFor(
+          () => {
+            const completed = events.find((e) => e.type === "turn.completed");
+            expect(completed).toBeDefined();
+          },
+          { timeout: 30_000, interval: 500 },
+        );
 
-          // Should have received content deltas.
-          const deltas = events.filter((e) => e.type === "content.delta");
-          expect(deltas.length).toBeGreaterThan(0);
+        // Should have received content deltas.
+        const deltas = events.filter((e) => e.type === "content.delta");
+        expect(deltas.length).toBeGreaterThan(0);
 
-          // The text should contain "PONG" somewhere.
-          const fullText = deltas
-            .map((e) => (e.payload as { delta: string }).delta)
-            .join("");
-          expect(fullText.toLowerCase()).toContain("pong");
+        // The text should contain "PONG" somewhere.
+        const fullText = deltas.map((e) => (e.payload as { delta: string }).delta).join("");
+        expect(fullText.toLowerCase()).toContain("pong");
 
-          // Turn should be completed successfully.
-          const completed = events.find((e) => e.type === "turn.completed");
-          expect((completed?.payload as { state: string }).state).toBe("completed");
-        } finally {
-          manager.stopAll();
-        }
-      },
-      60_000,
-    );
+        // Turn should be completed successfully.
+        const completed = events.find((e) => e.type === "turn.completed");
+        expect((completed?.payload as { state: string }).state).toBe("completed");
+      } finally {
+        manager.stopAll();
+      }
+    }, 60_000);
   },
 );

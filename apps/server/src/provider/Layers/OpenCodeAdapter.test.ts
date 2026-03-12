@@ -39,10 +39,12 @@ class FakeOpenCodeManager extends OpenCodeServerManager {
     } as unknown as ProviderSession;
   });
 
-  public sendTurnImpl = vi.fn(async (threadId: ThreadId): Promise<ProviderTurnStartResult> => ({
-    threadId,
-    turnId: asTurnId(`turn-${threadId}`),
-  }));
+  public sendTurnImpl = vi.fn(
+    async (threadId: ThreadId): Promise<ProviderTurnStartResult> => ({
+      threadId,
+      turnId: asTurnId(`turn-${threadId}`),
+    }),
+  );
 
   public interruptTurnImpl = vi.fn(async (): Promise<void> => undefined);
   public respondToRequestImpl = vi.fn(async (): Promise<void> => undefined);

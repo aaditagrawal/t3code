@@ -137,8 +137,12 @@ function main() {
       console.log("  none");
     }
 
-    console.log(`Merge base with ${integrationBranch}: ${integrationSummary.mergeBase ?? "(missing)"}`);
-    console.log(`Pending commits vs ${integrationBranch}: ${integrationSummary.uniqueCommits.length}`);
+    console.log(
+      `Merge base with ${integrationBranch}: ${integrationSummary.mergeBase ?? "(missing)"}`,
+    );
+    console.log(
+      `Pending commits vs ${integrationBranch}: ${integrationSummary.uniqueCommits.length}`,
+    );
     if (integrationSummary.uniqueCommits.length > 0) {
       for (const line of integrationSummary.uniqueCommits) {
         console.log(`  ${line}`);

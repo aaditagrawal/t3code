@@ -12,7 +12,15 @@ import {
   TriangleAlertIcon,
   XIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type MouseEvent,
+} from "react";
 import {
   DndContext,
   type DragCancelEvent,
@@ -311,7 +319,9 @@ function formatUsagePercentLabel(quota: ProviderUsageQuota, percentUsed: number)
 const COPILOT_QUOTA_PRIORITY = ["premium_interactions", "chat", "completions"] as const;
 
 function compareCopilotQuotaPriority(leftPlan?: string, rightPlan?: string): number {
-  const leftPriority = leftPlan ? COPILOT_QUOTA_PRIORITY.indexOf(leftPlan as (typeof COPILOT_QUOTA_PRIORITY)[number]) : -1;
+  const leftPriority = leftPlan
+    ? COPILOT_QUOTA_PRIORITY.indexOf(leftPlan as (typeof COPILOT_QUOTA_PRIORITY)[number])
+    : -1;
   const rightPriority = rightPlan
     ? COPILOT_QUOTA_PRIORITY.indexOf(rightPlan as (typeof COPILOT_QUOTA_PRIORITY)[number])
     : -1;
@@ -464,14 +474,10 @@ function ProviderUsageGroup({
           return (
             <div
               key={`${label}:${quota.plan ?? quota.resetDate ?? quota.percentUsed ?? "usage"}`}
-              className={
-                index > 0 ? "border-border/30 border-t pt-2" : "first:pt-0"
-              }
+              className={index > 0 ? "border-border/30 border-t pt-2" : "first:pt-0"}
             >
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground/60">
-                  {quota.plan ?? "Usage"}
-                </span>
+                <span className="text-muted-foreground/60">{quota.plan ?? "Usage"}</span>
                 <span className="tabular-nums text-muted-foreground/50">
                   {percentUsed != null
                     ? `${formatUsagePercentLabel(quota, percentUsed)}${countSuffix}`
@@ -502,13 +508,7 @@ function ProviderUsageGroup({
   );
 }
 
-function ProviderSessionUsageBar({
-  label,
-  usage,
-}: {
-  label: string;
-  usage: ProviderSessionUsage;
-}) {
+function ProviderSessionUsageBar({ label, usage }: { label: string; usage: ProviderSessionUsage }) {
   const parts: string[] = [];
   if (typeof usage.totalCostUsd === "number" && usage.totalCostUsd > 0) {
     parts.push(`$${usage.totalCostUsd.toFixed(2)}`);
@@ -641,7 +641,11 @@ function ProviderUsageSection() {
       (data.sessionUsage.totalTokens || data.sessionUsage.totalCostUsd)
     ) {
       entries.push(
-        <ProviderSessionUsageBar key={`${provider}:session`} label={label} usage={data.sessionUsage} />,
+        <ProviderSessionUsageBar
+          key={`${provider}:session`}
+          label={label}
+          usage={data.sessionUsage}
+        />,
       );
     }
   }
@@ -663,7 +667,6 @@ function ProviderUsageSection() {
       {!collapsed && <div className="space-y-1.5">{entries}</div>}
     </div>
   );
-
 }
 
 type SortableProjectHandleProps = Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
@@ -1606,7 +1609,8 @@ export default function Sidebar() {
   const hasActiveThreadSearch = normalizedThreadSearchQuery.length > 0;
   const matchingThreadCount = useMemo(() => {
     if (!hasActiveThreadSearch) return 0;
-    return threads.filter((thread) => threadTitleMatchesSearch(thread, normalizedThreadSearchQuery)).length;
+    return threads.filter((thread) => threadTitleMatchesSearch(thread, normalizedThreadSearchQuery))
+      .length;
   }, [hasActiveThreadSearch, normalizedThreadSearchQuery, threads]);
 
   const handleDesktopUpdateButtonClick = useCallback(() => {
@@ -1903,7 +1907,9 @@ export default function Sidebar() {
             </div>
             {hasActiveThreadSearch && (
               <p className="px-1 pt-1 text-[10px] text-muted-foreground/60">
-                {matchingThreadCount === 1 ? "1 matching thread" : `${matchingThreadCount} matching threads`}
+                {matchingThreadCount === 1
+                  ? "1 matching thread"
+                  : `${matchingThreadCount} matching threads`}
               </p>
             )}
           </div>
@@ -1942,7 +1948,8 @@ export default function Sidebar() {
                   const isThreadListExpanded =
                     isThreadSearchFiltering || expandedThreadListsByProject.has(project.id);
                   const hasHiddenThreads =
-                    !isThreadSearchFiltering && filteredProjectThreads.length > THREAD_PREVIEW_LIMIT;
+                    !isThreadSearchFiltering &&
+                    filteredProjectThreads.length > THREAD_PREVIEW_LIMIT;
                   const visibleThreads =
                     hasHiddenThreads && !isThreadListExpanded
                       ? filteredProjectThreads.slice(0, THREAD_PREVIEW_LIMIT)
@@ -2032,7 +2039,6 @@ export default function Sidebar() {
                                     .runningTerminalIds,
                                 );
                                 const provider = thread.provider ?? resolveThreadProvider(thread);
-
 
                                 return (
                                   <SidebarMenuSubItem
@@ -2204,7 +2210,10 @@ export default function Sidebar() {
                                                     : "text-muted-foreground/50"
                                                 } ${appSettings.grayscaleProviderLogos ? "grayscale" : ""}`}
                                               >
-                                                <ProviderLogo provider={provider} className="size-3" />
+                                                <ProviderLogo
+                                                  provider={provider}
+                                                  className="size-3"
+                                                />
                                               </span>
                                             }
                                           />

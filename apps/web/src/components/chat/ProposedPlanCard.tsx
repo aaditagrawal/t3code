@@ -136,7 +136,10 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
           </MenuTrigger>
           <MenuPopup align="end">
             <MenuItem onClick={handleDownload}>Download as markdown</MenuItem>
-            <MenuItem onClick={openSaveDialog} disabled={!canSaveToWorkspace() || isSavingToWorkspace}>
+            <MenuItem
+              onClick={openSaveDialog}
+              disabled={!canSaveToWorkspace() || isSavingToWorkspace}
+            >
               Save to workspace
             </MenuItem>
           </MenuPopup>

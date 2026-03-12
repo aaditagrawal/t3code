@@ -503,11 +503,23 @@ function parseOpencodeModel(model: string | undefined):
   };
 }
 
-const PREFERRED_VARIANT_ORDER = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+const PREFERRED_VARIANT_ORDER = [
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const;
 
 function compareKiloVariantNames(left: string, right: string): number {
-  const leftIndex = PREFERRED_VARIANT_ORDER.indexOf(left as (typeof PREFERRED_VARIANT_ORDER)[number]);
-  const rightIndex = PREFERRED_VARIANT_ORDER.indexOf(right as (typeof PREFERRED_VARIANT_ORDER)[number]);
+  const leftIndex = PREFERRED_VARIANT_ORDER.indexOf(
+    left as (typeof PREFERRED_VARIANT_ORDER)[number],
+  );
+  const rightIndex = PREFERRED_VARIANT_ORDER.indexOf(
+    right as (typeof PREFERRED_VARIANT_ORDER)[number],
+  );
   if (leftIndex >= 0 || rightIndex >= 0) {
     if (leftIndex < 0) return 1;
     if (rightIndex < 0) return -1;
@@ -526,8 +538,8 @@ function modelOptionsFromProvider(
     .toSorted(compareKiloVariantNames);
   return [
     {
-    slug: `${providerId}/${model.id}`,
-    name: `${providerName} / ${model.name}`,
+      slug: `${providerId}/${model.id}`,
+      name: `${providerName} / ${model.name}`,
       ...(variantNames.length > 0 ? { variants: variantNames } : {}),
     },
   ];
@@ -651,7 +663,9 @@ function toPlanStepStatus(status: KiloTodo["status"]): "pending" | "inProgress" 
   }
 }
 
-function toToolItemType(toolName: string | undefined):
+function toToolItemType(
+  toolName: string | undefined,
+):
   | "command_execution"
   | "file_change"
   | "web_search"
@@ -827,9 +841,7 @@ export class KiloServerManager extends EventEmitter<KiloManagerEvents> {
       threadId: kiloInput.threadId,
       createdAt,
       payload: {
-        message: resumedSession
-          ? "Reattached to existing Kilo session"
-          : "Started Kilo session",
+        message: resumedSession ? "Reattached to existing Kilo session" : "Started Kilo session",
         resume: initialSession.resumeCursor,
       },
       providerRefs: {
@@ -1519,7 +1531,10 @@ export class KiloServerManager extends EventEmitter<KiloManagerEvents> {
     });
   }
 
-  private handlePermissionAskedEvent(context: KiloSessionContext, event: EventPermissionAsked): void {
+  private handlePermissionAskedEvent(
+    context: KiloSessionContext,
+    event: EventPermissionAsked,
+  ): void {
     const { id: requestIdValue, sessionID: sessionId, permission } = event.properties;
     if (sessionId !== context.providerSessionId) {
       return;
@@ -1537,8 +1552,8 @@ export class KiloServerManager extends EventEmitter<KiloManagerEvents> {
       requestId: RuntimeRequestId.makeUnsafe(requestId),
       payload: {
         requestType,
-          detail: permission,
-          args: event.properties,
+        detail: permission,
+        args: event.properties,
       },
       raw: {
         source: "kilo.server.permission",
@@ -1580,7 +1595,11 @@ export class KiloServerManager extends EventEmitter<KiloManagerEvents> {
   }
 
   private handleQuestionAskedEvent(context: KiloSessionContext, event: EventQuestionAsked): void {
-    const { id: requestIdValue, sessionID: sessionId, questions: askedQuestions } = event.properties;
+    const {
+      id: requestIdValue,
+      sessionID: sessionId,
+      questions: askedQuestions,
+    } = event.properties;
     if (sessionId !== context.providerSessionId) {
       return;
     }
@@ -1630,7 +1649,11 @@ export class KiloServerManager extends EventEmitter<KiloManagerEvents> {
     context: KiloSessionContext,
     event: EventQuestionReplied,
   ): void {
-    const { requestID: requestIdValue, sessionID: sessionId, answers: answerArrays } = event.properties;
+    const {
+      requestID: requestIdValue,
+      sessionID: sessionId,
+      answers: answerArrays,
+    } = event.properties;
     if (sessionId !== context.providerSessionId) {
       return;
     }
@@ -1727,7 +1750,7 @@ export class KiloServerManager extends EventEmitter<KiloManagerEvents> {
     context.partStreamById.set(part.id, { kind: "tool" });
     this.emitRuntimeEvent({
       type: lifecycleType,
-      eventId: eventId(`kilo-tool-${lifecycleType.replace('.', '-')}`),
+      eventId: eventId(`kilo-tool-${lifecycleType.replace(".", "-")}`),
       provider: PROVIDER,
       threadId: context.threadId,
       createdAt: nowIso(),

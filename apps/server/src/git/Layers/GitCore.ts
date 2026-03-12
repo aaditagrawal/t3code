@@ -344,17 +344,18 @@ const makeGitCore = Effect.gen(function* () {
         true,
       ).pipe(Effect.map((stdout) => stdout.trim()));
 
-      const remoteName = branch.length > 0
-        ? yield* runGitStdout(
-            "GitCore.resolveCurrentUpstream.remote",
-            cwd,
-            ["config", "--get", `branch.${branch}.remote`],
-            true,
-          ).pipe(
-            Effect.map((stdout) => stdout.trim()),
-            Effect.catch(() => Effect.succeed("")),
-          )
-        : "";
+      const remoteName =
+        branch.length > 0
+          ? yield* runGitStdout(
+              "GitCore.resolveCurrentUpstream.remote",
+              cwd,
+              ["config", "--get", `branch.${branch}.remote`],
+              true,
+            ).pipe(
+              Effect.map((stdout) => stdout.trim()),
+              Effect.catch(() => Effect.succeed("")),
+            )
+          : "";
 
       if (remoteName.length > 0 && upstreamRef.startsWith(`${remoteName}/`)) {
         const upstreamBranch = upstreamRef.slice(remoteName.length + 1);

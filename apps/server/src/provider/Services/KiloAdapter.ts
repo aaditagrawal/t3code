@@ -3,8 +3,10 @@ import { ServiceMap } from "effect";
 import type { ProviderAdapterError } from "../Errors.ts";
 import type { ProviderAdapterShape } from "./ProviderAdapter.ts";
 
-export interface KiloAdapterShape
-  extends Omit<ProviderAdapterShape<ProviderAdapterError>, "provider"> {
+export interface KiloAdapterShape extends Omit<
+  ProviderAdapterShape<ProviderAdapterError>,
+  "provider"
+> {
   readonly provider: "kilo";
 }
 

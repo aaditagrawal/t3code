@@ -9,11 +9,7 @@ import {
   MAX_CUSTOM_MODEL_LENGTH,
   useAppSettings,
 } from "../appSettings";
-import {
-  ACCENT_COLOR_PRESETS,
-  DEFAULT_ACCENT_COLOR,
-  normalizeAccentColor,
-} from "../accentColor";
+import { ACCENT_COLOR_PRESETS, DEFAULT_ACCENT_COLOR, normalizeAccentColor } from "../accentColor";
 import { isElectron } from "../env";
 import { useTheme } from "../hooks/useTheme";
 import { serverConfigQueryOptions } from "../lib/serverReactQuery";
@@ -419,7 +415,9 @@ function SettingsRouteView() {
                 </div>
 
                 <label className="block space-y-1">
-                  <span className="text-xs font-medium text-foreground">Provider logo appearance</span>
+                  <span className="text-xs font-medium text-foreground">
+                    Provider logo appearance
+                  </span>
                   <Select
                     items={APP_PROVIDER_LOGO_APPEARANCE_OPTIONS.map((option) => ({
                       label: option.label,
@@ -656,9 +654,12 @@ function SettingsRouteView() {
                         </div>
 
                         <div className="border-t border-border/80 pt-3">
-                          <p className="text-xs font-medium text-foreground">Accent color override</p>
+                          <p className="text-xs font-medium text-foreground">
+                            Accent color override
+                          </p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            Custom color for this provider's usage bar. Leave unset to use the global accent color.
+                            Custom color for this provider's usage bar. Leave unset to use the
+                            global accent color.
                           </p>
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <input
@@ -713,8 +714,8 @@ function SettingsRouteView() {
                 <div>
                   <p className="text-sm font-medium text-foreground">Stream assistant messages</p>
                   <p className="text-xs text-muted-foreground">
-                    Show token-by-token output while a response is in progress. Cursor turns
-                    always stream so tool calls and assistant text stay interleaved.
+                    Show token-by-token output while a response is in progress. Cursor turns always
+                    stream so tool calls and assistant text stay interleaved.
                   </p>
                 </div>
                 <Switch

@@ -56,18 +56,14 @@ function startApp() {
     return;
   }
 
-  const app = spawn(
-    electronPath,
-    [`--t3code-dev-root=${desktopDir}`, "dist-electron/main.js"],
-    {
-      cwd: desktopDir,
-      env: {
-        ...childEnv,
-        VITE_DEV_SERVER_URL: devServerUrl,
-      },
-      stdio: "inherit",
+  const app = spawn(electronPath, [`--t3code-dev-root=${desktopDir}`, "dist-electron/main.js"], {
+    cwd: desktopDir,
+    env: {
+      ...childEnv,
+      VITE_DEV_SERVER_URL: devServerUrl,
     },
-  );
+    stdio: "inherit",
+  });
 
   currentApp = app;
 

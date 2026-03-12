@@ -5,10 +5,7 @@ import type { ProviderKind } from "@t3tools/contracts";
 import { Effect, Layer, Stream } from "effect";
 
 import { ProviderUnsupportedError } from "../Errors.ts";
-import {
-  ClaudeCodeAdapter,
-  type ClaudeCodeAdapterShape,
-} from "../Services/ClaudeCodeAdapter.ts";
+import { ClaudeCodeAdapter, type ClaudeCodeAdapterShape } from "../Services/ClaudeCodeAdapter.ts";
 import { CopilotAdapter, type CopilotAdapterShape } from "../Services/CopilotAdapter.ts";
 import { CodexAdapter, type CodexAdapterShape } from "../Services/CodexAdapter.ts";
 import { CursorAdapter, type CursorAdapterShape } from "../Services/CursorAdapter.ts";
@@ -196,7 +193,16 @@ layer("ProviderAdapterRegistryLive", (it) => {
       assert.equal(kilo, fakeKiloAdapter);
 
       const providers = yield* registry.listProviders();
-      assert.deepEqual(providers, ["codex", "copilot", "claudeCode", "cursor", "opencode", "geminiCli", "amp", "kilo"]);
+      assert.deepEqual(providers, [
+        "codex",
+        "copilot",
+        "claudeCode",
+        "cursor",
+        "opencode",
+        "geminiCli",
+        "amp",
+        "kilo",
+      ]);
     }),
   );
 

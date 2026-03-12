@@ -370,12 +370,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const localDraftThread = useMemo(
     () =>
       draftThread
-        ? buildLocalDraftThread(
-            threadId,
-            draftThread,
-            draftThreadDefaults,
-            localDraftError,
-          )
+        ? buildLocalDraftThread(threadId, draftThread, draftThreadDefaults, localDraftError)
         : undefined,
     [draftThread, draftThreadDefaults, localDraftError, threadId],
   );
@@ -563,7 +558,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
       return { claudeCode: { effort: selectedClaudeCodeEffort } };
     }
     return undefined;
-  }, [selectedClaudeCodeEffort, selectedCodexFastModeEnabled, selectedEffort, selectedProvider, supportsClaudeCodeEffort, supportsReasoningEffort]);
+  }, [
+    selectedClaudeCodeEffort,
+    selectedCodexFastModeEnabled,
+    selectedEffort,
+    selectedProvider,
+    supportsClaudeCodeEffort,
+    supportsReasoningEffort,
+  ]);
   const selectedCursorModel = useMemo(
     () => (selectedProvider === "cursor" ? parseCursorModelSelection(selectedModel) : null),
     [selectedModel, selectedProvider],
@@ -3628,7 +3630,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
                               />
                             )}
                           <CompactComposerControlsMenu
-                            activePlan={Boolean(activePlan || activeProposedPlan || planSidebarOpen)}
+                            activePlan={Boolean(
+                              activePlan || activeProposedPlan || planSidebarOpen,
+                            )}
                             interactionMode={interactionMode}
                             planSidebarOpen={planSidebarOpen}
                             runtimeMode={runtimeMode}
@@ -3680,7 +3684,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
                                 onFastModeChange={onCodexFastModeChange}
                               />
                             </>
-                          ) : selectedProvider === "claudeCode" && supportsClaudeCodeEffort && selectedClaudeCodeEffort != null ? (
+                          ) : selectedProvider === "claudeCode" &&
+                            supportsClaudeCodeEffort &&
+                            selectedClaudeCodeEffort != null ? (
                             <>
                               <Separator
                                 orientation="vertical"

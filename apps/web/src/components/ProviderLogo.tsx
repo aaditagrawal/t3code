@@ -40,10 +40,7 @@ export function ProviderLogo({ provider, className, style, ...props }: ProviderL
     <ProviderIcon
       {...props}
       monochrome={isAccentAppearance}
-      className={cn(
-        className,
-        settings.providerLogoAppearance === "grayscale" && "grayscale",
-      )}
+      className={cn(className, settings.providerLogoAppearance === "grayscale" && "grayscale")}
       style={isAccentAppearance ? { ...style, color: accentColor } : style}
     />
   );

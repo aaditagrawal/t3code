@@ -167,7 +167,8 @@ export const makeCopilotTextGenerationLive = (options?: CopilotTextGenerationLiv
             ...(cliPath ? { cliPath } : {}),
             logLevel: "error",
           };
-          const client = options?.clientFactory?.(clientOptions) ?? new CopilotClient(clientOptions);
+          const client =
+            options?.clientFactory?.(clientOptions) ?? new CopilotClient(clientOptions);
           let session: CopilotSessionHandle | undefined;
           const cleanup = Effect.promise(async () => {
             if (session) {
@@ -198,7 +199,8 @@ export const makeCopilotTextGenerationLive = (options?: CopilotTextGenerationLiv
             session = createdSession;
 
             const response = yield* Effect.tryPromise({
-              try: () => createdSession.sendAndWait({ prompt, mode: "immediate" }, COPILOT_TIMEOUT_MS),
+              try: () =>
+                createdSession.sendAndWait({ prompt, mode: "immediate" }, COPILOT_TIMEOUT_MS),
               catch: (cause) =>
                 normalizeCopilotError(
                   operation,
@@ -229,7 +231,9 @@ export const makeCopilotTextGenerationLive = (options?: CopilotTextGenerationLiv
           }).pipe(Effect.ensuring(cleanup));
         });
 
-      const generateCommitMessage: CopilotTextGenerationShape["generateCommitMessage"] = (input) => {
+      const generateCommitMessage: CopilotTextGenerationShape["generateCommitMessage"] = (
+        input,
+      ) => {
         const prompt = [
           "You write concise git commit messages.",
           input.includeBranch === true
@@ -262,7 +266,9 @@ export const makeCopilotTextGenerationLive = (options?: CopilotTextGenerationLiv
               ({
                 subject: generated.subject,
                 body: generated.body.trim(),
-                ...(generated.branch ? { branch: sanitizeFeatureBranchName(generated.branch) } : {}),
+                ...(generated.branch
+                  ? { branch: sanitizeFeatureBranchName(generated.branch) }
+                  : {}),
               }) satisfies CommitMessageGenerationResult,
           ),
         );

@@ -45,7 +45,15 @@ const asTurnId = (value: string): TurnId => TurnId.makeUnsafe(value);
 type LegacyProviderRuntimeEvent = {
   readonly type: string;
   readonly eventId: EventId;
-  readonly provider: "codex" | "copilot" | "claudeCode" | "cursor" | "opencode" | "geminiCli" | "amp" | "kilo";
+  readonly provider:
+    | "codex"
+    | "copilot"
+    | "claudeCode"
+    | "cursor"
+    | "opencode"
+    | "geminiCli"
+    | "amp"
+    | "kilo";
   readonly createdAt: string;
   readonly threadId: ThreadId;
   readonly turnId?: string | undefined;
@@ -967,7 +975,8 @@ describe("ProviderRuntimeIngestion", () => {
     await waitForThread(
       harness.engine,
       (thread) =>
-        thread.session?.status === "running" && thread.session?.activeTurnId === "turn-streaming-lag",
+        thread.session?.status === "running" &&
+        thread.session?.activeTurnId === "turn-streaming-lag",
     );
 
     harness.emit({
@@ -1079,15 +1088,13 @@ describe("ProviderRuntimeIngestion", () => {
         delta: "Before tool.",
       },
     });
-    await waitForThread(
-      harness.engine,
-      (thread) =>
-        thread.messages.some(
-          (message: ProviderRuntimeTestMessage) =>
-            message.id === "assistant:item-interleaved-streaming" &&
-            message.streaming &&
-            message.text === "Before tool.",
-        ),
+    await waitForThread(harness.engine, (thread) =>
+      thread.messages.some(
+        (message: ProviderRuntimeTestMessage) =>
+          message.id === "assistant:item-interleaved-streaming" &&
+          message.streaming &&
+          message.text === "Before tool.",
+      ),
     );
 
     harness.emit({
@@ -1134,15 +1141,13 @@ describe("ProviderRuntimeIngestion", () => {
         delta: "After tool.",
       },
     });
-    await waitForThread(
-      harness.engine,
-      (thread) =>
-        thread.messages.some(
-          (message: ProviderRuntimeTestMessage) =>
-            message.id === "assistant:item-interleaved-streaming:segment:1" &&
-            message.streaming &&
-            message.text === "After tool.",
-        ),
+    await waitForThread(harness.engine, (thread) =>
+      thread.messages.some(
+        (message: ProviderRuntimeTestMessage) =>
+          message.id === "assistant:item-interleaved-streaming:segment:1" &&
+          message.streaming &&
+          message.text === "After tool.",
+      ),
     );
 
     harness.emit({
@@ -1159,13 +1164,11 @@ describe("ProviderRuntimeIngestion", () => {
       },
     });
 
-    const thread = await waitForThread(
-      harness.engine,
-      (entry) =>
-        entry.messages.some(
-          (message: ProviderRuntimeTestMessage) =>
-            message.id === "assistant:item-interleaved-streaming:segment:1" && !message.streaming,
-        ),
+    const thread = await waitForThread(harness.engine, (entry) =>
+      entry.messages.some(
+        (message: ProviderRuntimeTestMessage) =>
+          message.id === "assistant:item-interleaved-streaming:segment:1" && !message.streaming,
+      ),
     );
     expect(
       thread.messages.map((message: ProviderRuntimeTestMessage) => ({

@@ -9,9 +9,7 @@ export interface CompiledMacIconAsset {
 }
 
 function parseActoolVersion(rawOutput: string): string | null {
-  const match = rawOutput.match(
-    /<key>short-bundle-version<\/key>\s*<string>([^<]+)<\/string>/,
-  );
+  const match = rawOutput.match(/<key>short-bundle-version<\/key>\s*<string>([^<]+)<\/string>/);
   return match?.[1] ?? null;
 }
 

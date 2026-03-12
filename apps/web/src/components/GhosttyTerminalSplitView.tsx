@@ -232,13 +232,11 @@ function GhosttyPane({
 
         // Handle user input → send to PTY
         const inputDisposable = terminal.onData((data) => {
-          void api.terminal
-            .write({ threadId, terminalId, data })
-            .catch((err) => {
-              terminal.write(
-                `\r\n[ghostty] ${err instanceof Error ? err.message : "Write failed"}\r\n`,
-              );
-            });
+          void api.terminal.write({ threadId, terminalId, data }).catch((err) => {
+            terminal.write(
+              `\r\n[ghostty] ${err instanceof Error ? err.message : "Write failed"}\r\n`,
+            );
+          });
         });
 
         // Listen for PTY output → write to terminal
@@ -378,9 +376,7 @@ function GhosttyPane({
   return (
     <div
       className={`ghostty-pane group relative flex h-full min-w-0 flex-1 flex-col overflow-hidden ${
-        isActive
-          ? "ring-1 ring-accent/50"
-          : "ring-1 ring-border/30 hover:ring-border/60"
+        isActive ? "ring-1 ring-accent/50" : "ring-1 ring-border/30 hover:ring-border/60"
       }`}
       style={{ minWidth: `${MIN_PANE_WIDTH_PX}px` }}
       onMouseDown={onFocus}
@@ -388,9 +384,7 @@ function GhosttyPane({
       {/* Pane header */}
       <div
         className={`flex h-6 shrink-0 items-center justify-between px-1.5 text-[10px] ${
-          isActive
-            ? "bg-accent/10 text-foreground"
-            : "bg-muted/30 text-muted-foreground"
+          isActive ? "bg-accent/10 text-foreground" : "bg-muted/30 text-muted-foreground"
         }`}
       >
         <div className="flex items-center gap-1">
@@ -509,16 +503,19 @@ export default function GhosttyTerminalSplitView({
 
   // ─── Vertical resize (container height) ─────────────────────────────
 
-  const handleResizePointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    resizeStateRef.current = {
-      pointerId: e.pointerId,
-      startY: e.clientY,
-      startHeight: containerHeight,
-    };
-  }, [containerHeight]);
+  const handleResizePointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      resizeStateRef.current = {
+        pointerId: e.pointerId,
+        startY: e.clientY,
+        startHeight: containerHeight,
+      };
+    },
+    [containerHeight],
+  );
 
   const handleResizePointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     const state = resizeStateRef.current;

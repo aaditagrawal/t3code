@@ -3,14 +3,7 @@ import { getDefaultClaudeCodeEffort } from "@t3tools/shared/model";
 import { memo, useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { Button } from "../ui/button";
-import {
-  Menu,
-  MenuGroup,
-  MenuPopup,
-  MenuRadioGroup,
-  MenuRadioItem,
-  MenuTrigger,
-} from "../ui/menu";
+import { Menu, MenuGroup, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "../ui/menu";
 
 export const CLAUDE_CODE_EFFORT_LABEL: Record<ClaudeCodeEffort, string> = {
   low: "Low",

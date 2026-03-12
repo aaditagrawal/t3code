@@ -169,7 +169,10 @@ async function buildMacLauncher(electronBinaryPath) {
   rmSync(targetAppBundlePath, { recursive: true, force: true });
   cpSync(sourceAppBundlePath, targetAppBundlePath, { recursive: true });
   patchMainBundleInfoPlist(targetAppBundlePath);
-  const refreshedIconMetadata = await stageMainBundleIcons(targetAppBundlePath, desktopResourcesDir);
+  const refreshedIconMetadata = await stageMainBundleIcons(
+    targetAppBundlePath,
+    desktopResourcesDir,
+  );
   patchHelperBundleInfoPlists(targetAppBundlePath);
   writeFileSync(
     metadataPath,

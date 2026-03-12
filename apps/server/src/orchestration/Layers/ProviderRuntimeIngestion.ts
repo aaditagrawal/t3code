@@ -751,7 +751,10 @@ const make = Effect.gen(function* () {
       if (input.turnId) {
         rememberAssistantSegmentKeyForTurn(input.threadId, input.turnId, stateKey);
       }
-      return assistantSegmentMessageId(existingState.baseMessageId, existingState.currentSegmentIndex);
+      return assistantSegmentMessageId(
+        existingState.baseMessageId,
+        existingState.currentSegmentIndex,
+      );
     }
 
     const segmentIndex = existingState?.nextSegmentIndex ?? 0;
@@ -776,7 +779,9 @@ const make = Effect.gen(function* () {
       return { messageId: input.baseMessageId, hadAnySegment: false };
     }
     if (state.currentSegmentIndex === null) {
-      return state.nextSegmentIndex > 0 ? null : { messageId: input.baseMessageId, hadAnySegment: false };
+      return state.nextSegmentIndex > 0
+        ? null
+        : { messageId: input.baseMessageId, hadAnySegment: false };
     }
     return {
       messageId: assistantSegmentMessageId(state.baseMessageId, state.currentSegmentIndex),
@@ -805,7 +810,10 @@ const make = Effect.gen(function* () {
             if (!state || state.currentSegmentIndex === null) {
               return;
             }
-            const messageId = assistantSegmentMessageId(state.baseMessageId, state.currentSegmentIndex);
+            const messageId = assistantSegmentMessageId(
+              state.baseMessageId,
+              state.currentSegmentIndex,
+            );
             assistantSegmentStateByKey.set(stateKey, {
               ...state,
               currentSegmentIndex: null,
@@ -840,11 +848,13 @@ const make = Effect.gen(function* () {
     commandTag: string;
     finalDeltaCommandTag: string;
     fallbackText?: string;
-    existingMessage?: {
-      readonly id: MessageId;
-      readonly text: string;
-      readonly streaming: boolean;
-    } | undefined;
+    existingMessage?:
+      | {
+          readonly id: MessageId;
+          readonly text: string;
+          readonly streaming: boolean;
+        }
+      | undefined;
   }) =>
     Effect.gen(function* () {
       if (input.existingMessage && !input.existingMessage.streaming) {
@@ -872,8 +882,7 @@ const make = Effect.gen(function* () {
       // finalization time.  This ensures assistant text messages are positioned
       // chronologically relative to tool activities in the timeline instead of
       // all appearing at the end when the turn completes.
-      const deltaCreatedAt =
-        buffered.createdAt.length > 0 ? buffered.createdAt : input.createdAt;
+      const deltaCreatedAt = buffered.createdAt.length > 0 ? buffered.createdAt : input.createdAt;
 
       if (text.length > 0) {
         yield* orchestrationEngine.dispatch({
@@ -1247,9 +1256,7 @@ const make = Effect.gen(function* () {
               const shouldApplyFallbackCompletionText =
                 !existingAssistantMessage || existingAssistantMessage.text.length === 0;
               return {
-                fallbackText: shouldApplyFallbackCompletionText
-                  ? event.payload.detail
-                  : undefined,
+                fallbackText: shouldApplyFallbackCompletionText ? event.payload.detail : undefined,
               };
             })()
           : undefined;

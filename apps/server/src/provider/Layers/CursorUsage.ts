@@ -210,11 +210,7 @@ async function postCursorDashboard<TResponse>(
 
 function epochMillisToIsoString(value: unknown): string | undefined {
   const raw =
-    typeof value === "string"
-      ? Number(value)
-      : typeof value === "number"
-        ? value
-        : undefined;
+    typeof value === "string" ? Number(value) : typeof value === "number" ? value : undefined;
   if (raw === undefined || !Number.isFinite(raw)) {
     return undefined;
   }
@@ -258,12 +254,16 @@ export async function fetchCursorUsage(): Promise<ProviderUsageResult> {
 
   const [planInfo, currentPeriod, billingCycle] = await Promise.all([
     postCursorDashboard<CursorPlanInfoResponse>("GetPlanInfo", accessToken, {}).catch(() => null),
-    postCursorDashboard<CursorCurrentPeriodUsageResponse>("GetCurrentPeriodUsage", accessToken, {}).catch(
-      () => null,
-    ),
-    postCursorDashboard<CursorBillingCycleResponse>("GetCurrentBillingCycle", accessToken, {}).catch(
-      () => null,
-    ),
+    postCursorDashboard<CursorCurrentPeriodUsageResponse>(
+      "GetCurrentPeriodUsage",
+      accessToken,
+      {},
+    ).catch(() => null),
+    postCursorDashboard<CursorBillingCycleResponse>(
+      "GetCurrentBillingCycle",
+      accessToken,
+      {},
+    ).catch(() => null),
   ]);
 
   const quota = parseCursorUsageQuota({ planInfo, currentPeriod, billingCycle });

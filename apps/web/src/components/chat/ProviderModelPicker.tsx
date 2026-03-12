@@ -34,9 +34,7 @@ import {
 } from "../Icons";
 import { cn } from "~/lib/utils";
 import { getAppModelOptions } from "../../appSettings";
-import {
-  getCursorModelFamilyOptions,
-} from "@t3tools/shared/model";
+import { getCursorModelFamilyOptions } from "@t3tools/shared/model";
 
 export type ModelOptionEntry = {
   slug: string;
@@ -97,9 +95,7 @@ export function mergeDiscoveredModels(
     // For copilot, discovered models replace the static list but inherit
     // pricingTier from the static entries when the SDK doesn't provide it.
     if (provider === "copilot") {
-      const baseTiers = new Map(
-        (base[provider] ?? []).map((m) => [m.slug, m.pricingTier]),
-      );
+      const baseTiers = new Map((base[provider] ?? []).map((m) => [m.slug, m.pricingTier]));
       const enriched = dedupedModels.map((m) => {
         if (m.pricingTier) return m;
         const tier = baseTiers.get(m.slug);
@@ -137,7 +133,8 @@ function groupModelsBySubProvider(
     if (slashIndex > 0) {
       const subProviderId = model.slug.slice(0, slashIndex);
       const nameSlashIndex = model.name.indexOf(" / ");
-      const subProviderName = nameSlashIndex > 0 ? model.name.slice(0, nameSlashIndex) : subProviderId;
+      const subProviderName =
+        nameSlashIndex > 0 ? model.name.slice(0, nameSlashIndex) : subProviderId;
       const modelName = nameSlashIndex > 0 ? model.name.slice(nameSlashIndex + 3) : model.name;
 
       let group = groupMap.get(subProviderId);
@@ -293,7 +290,11 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             if (props.disabled) return;
             if (isDisabledByProviderLock) return;
             if (!value) return;
-            const resolvedModel = resolveModelForProviderPicker(option.value, value, providerModels);
+            const resolvedModel = resolveModelForProviderPicker(
+              option.value,
+              value,
+              providerModels,
+            );
             if (!resolvedModel) return;
             props.onProviderModelChange(option.value, resolvedModel);
             setIsMenuOpen(false);

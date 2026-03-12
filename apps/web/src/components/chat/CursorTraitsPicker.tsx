@@ -1,11 +1,5 @@
-import {
-  CURSOR_REASONING_OPTIONS,
-  type CursorReasoningOption,
-} from "@t3tools/contracts";
-import {
-  getCursorModelCapabilities,
-  parseCursorModelSelection,
-} from "@t3tools/shared/model";
+import { CURSOR_REASONING_OPTIONS, type CursorReasoningOption } from "@t3tools/contracts";
+import { getCursorModelCapabilities, parseCursorModelSelection } from "@t3tools/shared/model";
 import { memo, useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { Button } from "../ui/button";

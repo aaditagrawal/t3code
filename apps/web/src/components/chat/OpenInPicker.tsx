@@ -113,7 +113,9 @@ export const OpenInPicker = memo(function OpenInPicker({
       </Button>
       <GroupSeparator className="hidden @sm/header-actions:block" />
       <Menu>
-        <MenuTrigger render={<Button aria-label="Select editor" size="icon-xs" variant="outline" />}>
+        <MenuTrigger
+          render={<Button aria-label="Select editor" size="icon-xs" variant="outline" />}
+        >
           <ChevronDownIcon aria-hidden="true" className="size-4" />
         </MenuTrigger>
         <MenuPopup align="end">

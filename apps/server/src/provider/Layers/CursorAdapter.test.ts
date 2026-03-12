@@ -49,8 +49,8 @@ class FakeCursorAcpProcess extends EventEmitter {
       }
 
       if (message.id === this.permissionRequestId) {
-        const optionId =
-          (message.result as { outcome?: { optionId?: unknown } } | undefined)?.outcome?.optionId;
+        const optionId = (message.result as { outcome?: { optionId?: unknown } } | undefined)
+          ?.outcome?.optionId;
         if (typeof optionId === "string") {
           this.lastPermissionSelection = optionId;
         }
@@ -270,9 +270,9 @@ gpt-5.4-high-fast - GPT-5.4 High Fast  (current)
 opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
 `),
       [
-      { slug: "gpt-5.4-medium", name: "GPT-5.4" },
-      { slug: "gpt-5.4-high-fast", name: "GPT-5.4 High Fast" },
-      { slug: "opus-4.6-thinking", name: "Claude 4.6 Opus (Thinking)" },
+        { slug: "gpt-5.4-medium", name: "GPT-5.4" },
+        { slug: "gpt-5.4-high-fast", name: "GPT-5.4 High Fast" },
+        { slug: "opus-4.6-thinking", name: "Claude 4.6 Opus (Thinking)" },
       ],
     );
   });
@@ -453,13 +453,13 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
   });
 
   it.effect("writes provider-native observability records when enabled", () => {
-      const nativeEvents: Array<{
-        event?: {
-          provider?: string;
-          method?: string;
-          threadId?: string;
-        };
-      }> = [];
+    const nativeEvents: Array<{
+      event?: {
+        provider?: string;
+        method?: string;
+        threadId?: string;
+      };
+    }> = [];
     const fake = new FakeCursorAcpProcess();
     const layer = makeCursorAdapterLive({
       createProcess: () => fake as never,
@@ -483,9 +483,18 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
       });
 
       assert.equal(nativeEvents.length > 0, true);
-      assert.equal(nativeEvents.some((record) => record.event?.provider === "cursor"), true);
-      assert.equal(nativeEvents.some((record) => record.event?.threadId === session.threadId), true);
-      assert.equal(nativeEvents.some((record) => record.event?.method === "cursor/acp/response"), true);
+      assert.equal(
+        nativeEvents.some((record) => record.event?.provider === "cursor"),
+        true,
+      );
+      assert.equal(
+        nativeEvents.some((record) => record.event?.threadId === session.threadId),
+        true,
+      );
+      assert.equal(
+        nativeEvents.some((record) => record.event?.method === "cursor/acp/response"),
+        true,
+      );
     }).pipe(Effect.provide(layer));
   });
 
@@ -683,7 +692,10 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
         }),
       );
 
-      assert.equal(fake.requests.some((request) => request.method === "session/prompt"), false);
+      assert.equal(
+        fake.requests.some((request) => request.method === "session/prompt"),
+        false,
+      );
     }).pipe(Effect.provide(layer));
   });
 

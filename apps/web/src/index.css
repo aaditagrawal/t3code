@@ -36,7 +36,8 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
-  --font-mono: "Geist Mono", "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-mono:
+    "Geist Mono", "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   @keyframes skeleton {
     to {
       background-position: -200% 0;
@@ -118,25 +119,13 @@
     --info-foreground: color-mix(in srgb, var(--accent-color) 78%, var(--color-white));
     --success: var(--color-emerald-500);
     --success-foreground: var(--color-emerald-400);
-  --warning: var(--color-amber-500);
-  --warning-foreground: var(--color-amber-400);
-  --terminal-font-family:
-    "Symbols Nerd Font Mono",
-    "Symbols Nerd Font",
-    "JetBrainsMono Nerd Font Mono",
-    "JetBrainsMonoNL Nerd Font Mono",
-    "Hack Nerd Font Mono",
-    "SauceCodePro Nerd Font Mono",
-    "FiraCode Nerd Font Mono",
-    "MesloLGS NF",
-    "CaskaydiaMono Nerd Font Mono",
-    "Geist Mono",
-    "SF Mono",
-    "SFMono-Regular",
-    Consolas,
-    "Liberation Mono",
-    Menlo,
-    monospace;
+    --warning: var(--color-amber-500);
+    --warning-foreground: var(--color-amber-400);
+    --terminal-font-family:
+      "Symbols Nerd Font Mono", "Symbols Nerd Font", "JetBrainsMono Nerd Font Mono",
+      "JetBrainsMonoNL Nerd Font Mono", "Hack Nerd Font Mono", "SauceCodePro Nerd Font Mono",
+      "FiraCode Nerd Font Mono", "MesloLGS NF", "CaskaydiaMono Nerd Font Mono", "Geist Mono",
+      "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   }
 }
 
@@ -180,7 +169,8 @@ pre,
 code,
 textarea,
 input {
-  font-family: "Geist Mono", "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-family:
+    "Geist Mono", "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
 /* Window drag region (frameless titlebar) */

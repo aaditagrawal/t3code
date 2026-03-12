@@ -52,7 +52,15 @@ const asTurnId = (value: string): TurnId => TurnId.makeUnsafe(value);
 type LegacyProviderRuntimeEvent = {
   readonly type: string;
   readonly eventId: EventId;
-  readonly provider: "codex" | "copilot" | "claudeCode" | "cursor" | "opencode" | "geminiCli" | "amp" | "kilo";
+  readonly provider:
+    | "codex"
+    | "copilot"
+    | "claudeCode"
+    | "cursor"
+    | "opencode"
+    | "geminiCli"
+    | "amp"
+    | "kilo";
   readonly createdAt: string;
   readonly threadId: ThreadId;
   readonly turnId?: string | undefined;
@@ -224,7 +232,7 @@ function makeProviderServiceLayer() {
         ? Effect.succeed(codex.adapter)
         : provider === "claudeCode"
           ? Effect.succeed(claude.adapter)
-        : Effect.fail(new ProviderUnsupportedError({ provider })),
+          : Effect.fail(new ProviderUnsupportedError({ provider })),
     listProviders: () => Effect.succeed(["codex", "claudeCode"]),
   };
 

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveBundledCopilotCliPathFrom, withSanitizedCopilotDesktopEnv } from "./copilotCliPath.ts";
+import {
+  resolveBundledCopilotCliPathFrom,
+  withSanitizedCopilotDesktopEnv,
+} from "./copilotCliPath.ts";
 
 describe("resolveBundledCopilotCliPathFrom", () => {
   it("prefers the unpacked desktop resources path when available", () => {

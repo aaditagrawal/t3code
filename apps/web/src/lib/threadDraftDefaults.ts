@@ -13,7 +13,9 @@ function timestampOrNaN(value: string | null | undefined): number {
   return Date.parse(value);
 }
 
-function threadRecencyTimestamp(thread: Pick<Thread, "createdAt" | "lastVisitedAt" | "latestTurn">): number {
+function threadRecencyTimestamp(
+  thread: Pick<Thread, "createdAt" | "lastVisitedAt" | "latestTurn">,
+): number {
   return (
     [thread.lastVisitedAt, thread.latestTurn?.completedAt, thread.createdAt]
       .map((value) => timestampOrNaN(value))

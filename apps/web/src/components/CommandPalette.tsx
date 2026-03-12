@@ -14,7 +14,15 @@ import {
   GhostIcon,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
-import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type ProviderInteractionMode,
   type ResolvedKeybindingsConfig,
@@ -109,11 +117,7 @@ function matchesPaletteQuery(item: PaletteItem, query: string): boolean {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   if (normalizedQuery.length === 0) return true;
 
-  const haystack = [
-    item.title,
-    item.subtitle ?? "",
-    ...(item.keywords ?? []),
-  ]
+  const haystack = [item.title, item.subtitle ?? "", ...(item.keywords ?? [])]
     .join(" ")
     .toLocaleLowerCase();
 
@@ -277,7 +281,9 @@ export default function CommandPalette({
       id: "action:new-terminal",
       group: "actions",
       title: "Create terminal",
-      subtitle: canCreateTerminal ? "Open a new terminal for this thread" : "Terminal limit reached",
+      subtitle: canCreateTerminal
+        ? "Open a new terminal for this thread"
+        : "Terminal limit reached",
       keywords: ["shell", "console"],
       shortcut: terminalNewShortcutLabel,
       icon: <TerminalSquareIcon className="size-4" />,
@@ -400,7 +406,8 @@ export default function CommandPalette({
           const latestThread = threads
             .filter((thread) => thread.projectId === project.id)
             .toSorted((left, right) => {
-              const byDate = new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+              const byDate =
+                new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
               if (byDate !== 0) return byDate;
               return right.id.localeCompare(left.id);
             })[0];
@@ -450,7 +457,10 @@ export default function CommandPalette({
   );
 
   const filteredItems = useMemo(
-    () => [...actionItems, ...scriptItems, ...projectItems, ...threadItems].filter((item) => matchesPaletteQuery(item, query)),
+    () =>
+      [...actionItems, ...scriptItems, ...projectItems, ...threadItems].filter((item) =>
+        matchesPaletteQuery(item, query),
+      ),
     [actionItems, projectItems, query, scriptItems, threadItems],
   );
   const groupedItems = useMemo(() => groupPaletteItems(filteredItems), [filteredItems]);
@@ -525,15 +535,18 @@ export default function CommandPalette({
     setOpen(false);
   }, []);
 
-  const activateItem = useCallback(async (item: PaletteItem | undefined) => {
-    if (!item || item.disabled) return;
-    closePalette();
-    try {
-      await item.onSelect();
-    } catch (error) {
-      console.error("Failed to execute command palette action", error);
-    }
-  }, [closePalette]);
+  const activateItem = useCallback(
+    async (item: PaletteItem | undefined) => {
+      if (!item || item.disabled) return;
+      closePalette();
+      try {
+        await item.onSelect();
+      } catch (error) {
+        console.error("Failed to execute command palette action", error);
+      }
+    },
+    [closePalette],
+  );
 
   const onListKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -546,7 +559,9 @@ export default function CommandPalette({
       if (event.key === "ArrowUp") {
         event.preventDefault();
         if (filteredItems.length === 0) return;
-        setHighlightedIndex((current) => (current - 1 + filteredItems.length) % filteredItems.length);
+        setHighlightedIndex(
+          (current) => (current - 1 + filteredItems.length) % filteredItems.length,
+        );
         return;
       }
       if (event.key === "Enter") {
@@ -660,7 +675,9 @@ export default function CommandPalette({
         <CommandFooter>
           <span>Enter to open</span>
           <span>Up/Down to navigate</span>
-          <span>{paletteShortcutLabel ? `${paletteShortcutLabel} or Esc to close` : "Esc to close"}</span>
+          <span>
+            {paletteShortcutLabel ? `${paletteShortcutLabel} or Esc to close` : "Esc to close"}
+          </span>
         </CommandFooter>
       </CommandDialogPopup>
     </CommandDialog>

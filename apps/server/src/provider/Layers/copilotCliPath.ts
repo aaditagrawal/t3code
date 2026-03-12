@@ -42,13 +42,19 @@ function resolveProcessResourcesPath(): string | undefined {
   return processWithResourcesPath.resourcesPath;
 }
 
-export function normalizeCopilotCliPathOverride(value: string | null | undefined): string | undefined {
+export function normalizeCopilotCliPathOverride(
+  value: string | null | undefined,
+): string | undefined {
   if (value == null) return undefined;
 
   const trimmed = value.trim();
   if (!trimmed) return undefined;
 
-  if (!trimmed.includes("/") && !trimmed.includes("\\") && COPILOT_PATHLESS_COMMAND_PATTERN.test(trimmed)) {
+  if (
+    !trimmed.includes("/") &&
+    !trimmed.includes("\\") &&
+    COPILOT_PATHLESS_COMMAND_PATTERN.test(trimmed)
+  ) {
     return undefined;
   }
 
@@ -85,11 +91,16 @@ export async function withSanitizedCopilotDesktopEnv<T>(operation: () => Promise
   };
 
   const result = copilotDesktopEnvChain.then(run, run);
-  copilotDesktopEnvChain = result.then(() => undefined, () => undefined);
+  copilotDesktopEnvChain = result.then(
+    () => undefined,
+    () => undefined,
+  );
   return result;
 }
 
-function resolveGithubScopeDirFromSdkEntrypoint(sdkEntrypoint: string | undefined): string | undefined {
+function resolveGithubScopeDirFromSdkEntrypoint(
+  sdkEntrypoint: string | undefined,
+): string | undefined {
   if (!sdkEntrypoint) return undefined;
   return join(dirname(dirname(sdkEntrypoint)), "..");
 }

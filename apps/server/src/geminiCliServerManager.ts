@@ -132,7 +132,10 @@ interface GeminiCliSession {
   /** Stable itemId for the current turn's assistant message (reused across content.delta events). */
   activeAssistantItemId: RuntimeItemId | undefined;
   /** Track active tool items by tool_id → { itemId, toolName, paramSummary } for item lifecycle events. */
-  readonly activeToolItems: Map<string, { itemId: RuntimeItemId; toolName: string; paramSummary: string | undefined }>;
+  readonly activeToolItems: Map<
+    string,
+    { itemId: RuntimeItemId; toolName: string; paramSummary: string | undefined }
+  >;
   readonly createdAt: string;
   updatedAt: string;
 }
@@ -497,9 +500,8 @@ export class GeminiCliServerManager extends EventEmitter<{
 
         const itemId = RuntimeItemId.makeUnsafe(randomUUID());
         const toolTitle = summarizeToolCall(event.tool_name, event.parameters);
-        const paramSummary = typeof event.parameters === "object"
-          ? JSON.stringify(event.parameters)
-          : undefined;
+        const paramSummary =
+          typeof event.parameters === "object" ? JSON.stringify(event.parameters) : undefined;
         session.activeToolItems.set(event.tool_id, { itemId, toolName: toolTitle, paramSummary });
 
         this.emitEvent(threadId, turnId, {
@@ -516,9 +518,8 @@ export class GeminiCliServerManager extends EventEmitter<{
       case "tool_result": {
         const tool = session.activeToolItems.get(event.tool_id);
         if (tool) {
-          const detail = event.output && event.output.trim().length > 0
-            ? event.output
-            : tool.paramSummary;
+          const detail =
+            event.output && event.output.trim().length > 0 ? event.output : tool.paramSummary;
           this.emitEvent(threadId, turnId, {
             type: "item.completed",
             itemId: tool.itemId,

@@ -88,9 +88,7 @@ function toRuntimeStatus(session: ProviderSession): "starting" | "running" | "st
   }
 }
 
-function redactProviderOptions(
-  providerOptions: unknown,
-): unknown {
+function redactProviderOptions(providerOptions: unknown): unknown {
   if (!providerOptions || typeof providerOptions !== "object" || Array.isArray(providerOptions)) {
     return providerOptions;
   }
@@ -155,11 +153,13 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
       Effect.succeed(event).pipe(
         Effect.tap((canonicalEvent) =>
           canonicalEventLogger
-            ? canonicalEventLogger.write(canonicalEvent, null).pipe(
-                Effect.catchCause((cause) =>
-                  Effect.logWarning("failed to write canonical provider event", { cause }),
-                ),
-              )
+            ? canonicalEventLogger
+                .write(canonicalEvent, null)
+                .pipe(
+                  Effect.catchCause((cause) =>
+                    Effect.logWarning("failed to write canonical provider event", { cause }),
+                  ),
+                )
             : Effect.void,
         ),
         Effect.flatMap((canonicalEvent) => PubSub.publish(runtimeEventPubSub, canonicalEvent)),
@@ -214,11 +214,15 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
             (session) => session.threadId === input.binding.threadId,
           );
           if (existing) {
-            const existingProviderOptions = readPersistedProviderOptions(input.binding.runtimePayload);
+            const existingProviderOptions = readPersistedProviderOptions(
+              input.binding.runtimePayload,
+            );
             yield* upsertSessionBinding(
               existing,
               input.binding.threadId,
-              existingProviderOptions !== undefined ? { providerOptions: existingProviderOptions } : undefined,
+              existingProviderOptions !== undefined
+                ? { providerOptions: existingProviderOptions }
+                : undefined,
             );
             yield* analytics.record("provider.session.recovered", {
               provider: existing.provider,
@@ -243,7 +247,9 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           threadId: input.binding.threadId,
           provider: input.binding.provider,
           ...(persistedCwd ? { cwd: persistedCwd } : {}),
-          ...(persistedProviderOptions !== undefined ? { providerOptions: persistedProviderOptions } : {}),
+          ...(persistedProviderOptions !== undefined
+            ? { providerOptions: persistedProviderOptions }
+            : {}),
           ...(hasResumeCursor ? { resumeCursor: input.binding.resumeCursor } : {}),
           runtimeMode: input.binding.runtimeMode ?? "full-access",
         });
@@ -257,7 +263,9 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
         yield* upsertSessionBinding(
           resumed,
           input.binding.threadId,
-          persistedProviderOptions !== undefined ? { providerOptions: persistedProviderOptions } : undefined,
+          persistedProviderOptions !== undefined
+            ? { providerOptions: persistedProviderOptions }
+            : undefined,
         );
         yield* analytics.record("provider.session.recovered", {
           provider: resumed.provider,
@@ -374,7 +382,9 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
             activeTurnId: turn.turnId,
             lastRuntimeEvent: "provider.sendTurn",
             lastRuntimeEventAt: new Date().toISOString(),
-            ...(safeSendTurnProviderOptions !== undefined ? { providerOptions: safeSendTurnProviderOptions } : {}),
+            ...(safeSendTurnProviderOptions !== undefined
+              ? { providerOptions: safeSendTurnProviderOptions }
+              : {}),
           },
         });
         yield* analytics.record("provider.turn.sent", {
@@ -558,7 +568,9 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
                   activeTurnId: null,
                   lastRuntimeEvent: "provider.stopAll",
                   lastRuntimeEventAt: new Date().toISOString(),
-                  ...(safeExistingProviderOptions !== undefined ? { providerOptions: safeExistingProviderOptions } : {}),
+                  ...(safeExistingProviderOptions !== undefined
+                    ? { providerOptions: safeExistingProviderOptions }
+                    : {}),
                 },
               });
             }),

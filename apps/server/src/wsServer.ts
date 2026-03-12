@@ -910,10 +910,12 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
           });
           if (dynamicModels && dynamicModels.length > 0) {
             const staticTiers = new Map(
-              (MODEL_OPTIONS_BY_PROVIDER.copilot as ReadonlyArray<{
-                slug: string;
-                pricingTier?: string;
-              }>).map((m) => [m.slug, m.pricingTier]),
+              (
+                MODEL_OPTIONS_BY_PROVIDER.copilot as ReadonlyArray<{
+                  slug: string;
+                  pricingTier?: string;
+                }>
+              ).map((m) => [m.slug, m.pricingTier]),
             );
             const enriched: ProviderModelOption[] = dynamicModels.map((m) => {
               const tier = m.pricingTier ?? staticTiers.get(m.slug);
@@ -937,12 +939,11 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
             return { models } satisfies ProviderListModelsResult;
           }
         }
-        const staticModels =
-          (MODEL_OPTIONS_BY_PROVIDER[provider] ?? []) as ReadonlyArray<{
-            slug: string;
-            name: string;
-            pricingTier?: string;
-          }>;
+        const staticModels = (MODEL_OPTIONS_BY_PROVIDER[provider] ?? []) as ReadonlyArray<{
+          slug: string;
+          name: string;
+          pricingTier?: string;
+        }>;
         const models: ProviderModelOption[] = staticModels.map((m) =>
           m.pricingTier
             ? { slug: m.slug, name: m.name, pricingTier: m.pricingTier }

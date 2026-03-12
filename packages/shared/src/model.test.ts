@@ -45,22 +45,14 @@ describe("normalizeModelSlug", () => {
   it("uses provider-specific aliases", () => {
     expect(normalizeModelSlug("sonnet", "claudeCode")).toBe("claude-sonnet-4-6");
     expect(normalizeModelSlug("opus-4.6", "claudeCode")).toBe("claude-opus-4-6");
-    expect(normalizeModelSlug("claude-haiku-4-5-20251001", "claudeCode")).toBe(
-      "claude-haiku-4-5",
-    );
+    expect(normalizeModelSlug("claude-haiku-4-5-20251001", "claudeCode")).toBe("claude-haiku-4-5");
     expect(normalizeModelSlug("composer", "cursor")).toBe("composer-1.5");
-    expect(normalizeModelSlug("gpt-5.3-codex-spark", "cursor")).toBe(
-      "gpt-5.3-codex-spark-preview",
-    );
+    expect(normalizeModelSlug("gpt-5.3-codex-spark", "cursor")).toBe("gpt-5.3-codex-spark-preview");
     expect(normalizeModelSlug("gpt-5.4", "cursor")).toBe("gpt-5.4-medium");
     expect(normalizeModelSlug("gpt-5.2-codex", "cursor")).toBe("gpt-5.2-codex");
     expect(normalizeModelSlug("gemini-3.1", "cursor")).toBe("gemini-3.1-pro");
-    expect(normalizeModelSlug("claude-4.6-sonnet-thinking", "cursor")).toBe(
-      "sonnet-4.6-thinking",
-    );
-    expect(normalizeModelSlug("claude-4.5-sonnet-thinking", "cursor")).toBe(
-      "sonnet-4.5-thinking",
-    );
+    expect(normalizeModelSlug("claude-4.6-sonnet-thinking", "cursor")).toBe("sonnet-4.6-thinking");
+    expect(normalizeModelSlug("claude-4.5-sonnet-thinking", "cursor")).toBe("sonnet-4.5-thinking");
   });
 
   it("does not leak prototype properties as aliases", () => {
@@ -94,9 +86,7 @@ describe("resolveModelSlug", () => {
     expect(resolveModelSlugForProvider("claudeCode", "gpt-5.3-codex")).toBe(
       DEFAULT_MODEL_BY_PROVIDER.claudeCode,
     );
-    expect(resolveModelSlugForProvider("cursor", undefined)).toBe(
-      DEFAULT_MODEL_BY_PROVIDER.cursor,
-    );
+    expect(resolveModelSlugForProvider("cursor", undefined)).toBe(DEFAULT_MODEL_BY_PROVIDER.cursor);
     expect(resolveModelSlugForProvider("cursor", "composer")).toBe("composer-1.5");
     expect(resolveModelSlugForProvider("cursor", "gpt-5.3-codex-high-fast")).toBe(
       "gpt-5.3-codex-high-fast",
@@ -197,9 +187,7 @@ describe("cursor model selection", () => {
 
 describe("getReasoningEffortOptions", () => {
   it("returns codex reasoning options for codex", () => {
-    expect(getReasoningEffortOptions("codex")).toEqual(
-      REASONING_EFFORT_OPTIONS_BY_PROVIDER.codex,
-    );
+    expect(getReasoningEffortOptions("codex")).toEqual(REASONING_EFFORT_OPTIONS_BY_PROVIDER.codex);
   });
 
   it("returns no reasoning options for claudeCode", () => {
@@ -213,14 +201,10 @@ describe("getReasoningEffortOptions", () => {
 
 describe("getDefaultReasoningEffort", () => {
   it("returns provider-scoped defaults", () => {
-    expect(getDefaultReasoningEffort("codex")).toBe(
-      DEFAULT_REASONING_EFFORT_BY_PROVIDER.codex,
-    );
+    expect(getDefaultReasoningEffort("codex")).toBe(DEFAULT_REASONING_EFFORT_BY_PROVIDER.codex);
     expect(getDefaultReasoningEffort("claudeCode")).toBe(
       DEFAULT_REASONING_EFFORT_BY_PROVIDER.claudeCode,
     );
-    expect(getDefaultReasoningEffort("cursor")).toBe(
-      DEFAULT_REASONING_EFFORT_BY_PROVIDER.cursor,
-    );
+    expect(getDefaultReasoningEffort("cursor")).toBe(DEFAULT_REASONING_EFFORT_BY_PROVIDER.cursor);
   });
 });

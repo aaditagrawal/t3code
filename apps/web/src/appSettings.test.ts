@@ -165,10 +165,7 @@ describe("getAppSettingsSnapshot", () => {
       ...getAppSettingsSnapshot(),
       providerLogoAppearance: "accent",
     };
-    localStorage.setItem(
-      APP_SETTINGS_STORAGE_KEY,
-      JSON.stringify(persistedSettings),
-    );
+    localStorage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify(persistedSettings));
 
     expect(getAppSettingsSnapshot().providerLogoAppearance).toBe("accent");
   });

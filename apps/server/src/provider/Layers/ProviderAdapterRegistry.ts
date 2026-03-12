@@ -48,9 +48,7 @@ const makeProviderAdapterRegistry = (options?: ProviderAdapterRegistryLiveOption
     for (const adapter of adapters) {
       if (byProvider.has(adapter.provider)) {
         return yield* Effect.die(
-          new Error(
-            `Duplicate provider adapter registration for provider "${adapter.provider}"`,
-          ),
+          new Error(`Duplicate provider adapter registration for provider "${adapter.provider}"`),
         );
       }
       byProvider.set(adapter.provider, adapter);

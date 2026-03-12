@@ -509,11 +509,7 @@ export class AmpServerManager extends EventEmitter<{
 
   // ── type: "system" ────────────────────────────────────────────────
 
-  private handleSystemMessage(
-    threadId: ThreadId,
-    session: AmpSession,
-    msg: AmpJsonlMessage,
-  ): void {
+  private handleSystemMessage(threadId: ThreadId, session: AmpSession, msg: AmpJsonlMessage): void {
     // Emit session.configured with the tools list from the init payload.
     const config: Record<string, unknown> = {};
     if (msg.tools) {
@@ -742,11 +738,7 @@ export class AmpServerManager extends EventEmitter<{
 
   // ── type: "user" ──────────────────────────────────────────────────
 
-  private handleUserMessage(
-    threadId: ThreadId,
-    session: AmpSession,
-    msg: AmpJsonlMessage,
-  ): void {
+  private handleUserMessage(threadId: ThreadId, session: AmpSession, msg: AmpJsonlMessage): void {
     // User messages with tool_result content → emit item.completed for the matching tool.
     const content = msg.message?.content;
     if (content && Array.isArray(content)) {
@@ -777,11 +769,7 @@ export class AmpServerManager extends EventEmitter<{
 
   // ── type: "result" ────────────────────────────────────────────────
 
-  private handleResultMessage(
-    threadId: ThreadId,
-    session: AmpSession,
-    msg: AmpJsonlMessage,
-  ): void {
+  private handleResultMessage(threadId: ThreadId, session: AmpSession, msg: AmpJsonlMessage): void {
     // Guard: only complete the turn if one is still active (handleAssistantMessage
     // may have already completed it via stop_reason === "end_turn").
     if (!session.activeTurnId || session.status === "ready") return;

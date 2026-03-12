@@ -42,9 +42,7 @@ export function redactEventForBoundary<T extends Omit<OrchestrationEvent, "seque
     ...event,
     payload: {
       ...payload,
-      providerOptions: redactProviderStartOptions(
-        payload.providerOptions as ProviderStartOptions,
-      ),
+      providerOptions: redactProviderStartOptions(payload.providerOptions as ProviderStartOptions),
     },
   } as T;
 }

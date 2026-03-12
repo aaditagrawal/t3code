@@ -1049,7 +1049,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
         }
         return {
           ...(rateLimits.primary ? { primary: rateLimits.primary } : {}),
-          ...(rateLimits.weekly ?? rateLimits.secondary
+          ...((rateLimits.weekly ?? rateLimits.secondary)
             ? { weekly: rateLimits.weekly ?? rateLimits.secondary }
             : {}),
         };
