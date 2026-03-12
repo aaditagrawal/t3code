@@ -748,6 +748,67 @@ function SettingsRouteView() {
 
             <section className="rounded-2xl border border-border bg-card p-5">
               <div className="mb-4">
+                <h2 className="text-sm font-medium text-foreground">Display</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Control which elements are visible in the chat timeline.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Show command output</p>
+                    <p className="text-xs text-muted-foreground">
+                      Display stdout/stderr inline after executed commands.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.showCommandOutput}
+                    onCheckedChange={(checked) =>
+                      updateSettings({ showCommandOutput: Boolean(checked) })
+                    }
+                    aria-label="Show command output"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Show file change diffs</p>
+                    <p className="text-xs text-muted-foreground">
+                      Render file diffs in the side panel after completed turns.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.showFileChangeDiffs}
+                    onCheckedChange={(checked) =>
+                      updateSettings({ showFileChangeDiffs: Boolean(checked) })
+                    }
+                    aria-label="Show file change diffs"
+                  />
+                </div>
+
+                {settings.showCommandOutput !== defaults.showCommandOutput ||
+                settings.showFileChangeDiffs !== defaults.showFileChangeDiffs ? (
+                  <div className="flex justify-end">
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() =>
+                        updateSettings({
+                          showCommandOutput: defaults.showCommandOutput,
+                          showFileChangeDiffs: defaults.showFileChangeDiffs,
+                        })
+                      }
+                    >
+                      Restore defaults
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card p-5">
+              <div className="mb-4">
                 <h2 className="text-sm font-medium text-foreground">Keybindings</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Open the persisted <code>keybindings.json</code> file to edit advanced bindings
