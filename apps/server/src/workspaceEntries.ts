@@ -62,6 +62,44 @@ function normalizeQuery(input: string): string {
     .toLowerCase();
 }
 
+/**
+ * Score a fuzzy subsequence match of `query` against `value`.
+ * Returns a numeric penalty (lower = better) or `null` if the query
+ * characters do not appear as a subsequence in order.
+ */
+function scoreSubsequenceMatch(query: string, value: string): number | null {
+  let queryIndex = 0;
+  let firstMatchIndex = -1;
+  let lastMatchIndex = -1;
+  let gapPenalty = 0;
+  let prevMatchIndex = -1;
+
+  for (let i = 0; i < value.length && queryIndex < query.length; i++) {
+    if (value[i] === query[queryIndex]) {
+      if (firstMatchIndex === -1) {
+        firstMatchIndex = i;
+      }
+      if (prevMatchIndex !== -1) {
+        const gap = i - prevMatchIndex - 1;
+        if (gap > 0) {
+          gapPenalty += gap;
+        }
+      }
+      prevMatchIndex = i;
+      lastMatchIndex = i;
+      queryIndex++;
+    }
+  }
+
+  if (queryIndex < query.length) {
+    return null;
+  }
+
+  const spanPenalty = lastMatchIndex - firstMatchIndex - query.length + 1;
+  const lengthPenalty = Math.min(value.length, 64);
+  return firstMatchIndex * 2 + gapPenalty * 3 + spanPenalty + lengthPenalty;
+}
+
 function scoreEntry(entry: ProjectEntry, query: string): number {
   if (!query) {
     return entry.kind === "directory" ? 0 : 1;
@@ -75,7 +113,16 @@ function scoreEntry(entry: ProjectEntry, query: string): number {
   if (normalizedName.startsWith(query)) return 2;
   if (normalizedPath.startsWith(query)) return 3;
   if (normalizedPath.includes(`/${query}`)) return 4;
-  return 5;
+  if (normalizedName.includes(query)) return 5;
+  if (normalizedPath.includes(query)) return 6;
+
+  const nameFuzzy = scoreSubsequenceMatch(query, normalizedName);
+  if (nameFuzzy !== null) return 100 + nameFuzzy;
+
+  const pathFuzzy = scoreSubsequenceMatch(query, normalizedPath);
+  if (pathFuzzy !== null) return 200 + pathFuzzy;
+
+  return Infinity;
 }
 
 function isPathInIgnoredDirectory(relativePath: string): boolean {
@@ -419,23 +466,66 @@ export function clearWorkspaceIndexCache(cwd: string): void {
   inFlightWorkspaceIndexBuilds.delete(cwd);
 }
 
+function findInsertionIndex(ranked: Array<{ entry: ProjectEntry; score: number }>, score: number): number {
+  let lo = 0;
+  let hi = ranked.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if ((ranked[mid] as { score: number }).score <= score) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  return lo;
+}
+
+function insertRankedEntry(
+  ranked: Array<{ entry: ProjectEntry; score: number }>,
+  entry: ProjectEntry,
+  score: number,
+  limit: number,
+): void {
+  if (ranked.length >= limit && score >= (ranked[ranked.length - 1] as { score: number }).score) {
+    return;
+  }
+  const index = findInsertionIndex(ranked, score);
+  ranked.splice(index, 0, { entry, score });
+  if (ranked.length > limit) {
+    ranked.pop();
+  }
+}
+
 export async function searchWorkspaceEntries(
   input: ProjectSearchEntriesInput,
 ): Promise<ProjectSearchEntriesResult> {
   const index = await getWorkspaceIndex(input.cwd);
   const normalizedQuery = normalizeQuery(input.query);
-  const candidates = normalizedQuery
-    ? index.entries.filter((entry) => entry.path.toLowerCase().includes(normalizedQuery))
-    : index.entries;
 
-  const ranked = candidates.toSorted((left, right) => {
-    const scoreDelta = scoreEntry(left, normalizedQuery) - scoreEntry(right, normalizedQuery);
-    if (scoreDelta !== 0) return scoreDelta;
-    return left.path.localeCompare(right.path);
-  });
+  if (!normalizedQuery) {
+    const ranked = index.entries.toSorted((left, right) => {
+      const scoreDelta = scoreEntry(left, normalizedQuery) - scoreEntry(right, normalizedQuery);
+      if (scoreDelta !== 0) return scoreDelta;
+      return left.path.localeCompare(right.path);
+    });
+    return {
+      entries: ranked.slice(0, input.limit),
+      truncated: index.truncated || ranked.length > input.limit,
+    };
+  }
+
+  const ranked: Array<{ entry: ProjectEntry; score: number }> = [];
+  let matchedEntryCount = 0;
+
+  for (const entry of index.entries) {
+    const score = scoreEntry(entry, normalizedQuery);
+    if (!Number.isFinite(score)) continue;
+    matchedEntryCount++;
+    insertRankedEntry(ranked, entry, score, input.limit);
+  }
 
   return {
-    entries: ranked.slice(0, input.limit),
-    truncated: index.truncated || ranked.length > input.limit,
+    entries: ranked.map((item) => item.entry),
+    truncated: index.truncated || matchedEntryCount > input.limit,
   };
 }

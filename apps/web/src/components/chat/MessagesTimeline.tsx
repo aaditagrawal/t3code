@@ -6,6 +6,7 @@ import {
   useVirtualizer,
 } from "@tanstack/react-virtual";
 import { deriveTimelineEntries, formatElapsed, formatTimestamp } from "../../session-logic";
+import { useAppSettings } from "../../appSettings";
 import { AUTO_SCROLL_BOTTOM_THRESHOLD_PX } from "../../chat-scroll";
 import { type TurnDiffSummary } from "../../types";
 import { summarizeTurnDiffStats } from "../../lib/turnDiffTree";
@@ -68,6 +69,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   resolvedTheme,
   workspaceRoot,
 }: MessagesTimelineProps) {
+  const { settings } = useAppSettings();
   const timelineRootRef = useRef<HTMLDivElement | null>(null);
   const [timelineWidthPx, setTimelineWidthPx] = useState<number | null>(null);
 
@@ -311,7 +313,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                       <p className={`text-[11px] leading-relaxed ${workToneClass(workEntry.tone)}`}>
                         {workEntry.label}
                       </p>
-                      {workEntry.command && (
+                      {workEntry.command && settings.showCommandOutput && (
                         <pre className="mt-1 overflow-x-auto rounded-md border border-border/70 bg-background/80 px-2 py-1 font-mono text-[11px] leading-relaxed text-foreground/80">
                           {workEntry.command}
                         </pre>
@@ -335,6 +337,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                         </div>
                       )}
                       {workEntry.detail &&
+                        settings.showCommandOutput &&
                         (!workEntry.command || workEntry.detail !== workEntry.command) && (
                           <p
                             className="mt-1 text-[11px] leading-relaxed text-muted-foreground/75"
