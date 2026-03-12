@@ -28,12 +28,8 @@ export const ChangedFilesTree = memo(function ChangedFilesTree(props: {
       ),
     [allDirectoriesExpanded, directoryPathsKey],
   );
-  const [expandedDirectories, setExpandedDirectories] = useState<Record<string, boolean>>(() =>
-    buildDirectoryExpansionState(
-      directoryPathsKey ? directoryPathsKey.split("\u0000") : [],
-      allDirectoriesExpanded,
-    ),
-  );
+  const [expandedDirectories, setExpandedDirectories] =
+    useState<Record<string, boolean>>(allDirectoryExpansionState);
   useEffect(() => {
     setExpandedDirectories(allDirectoryExpansionState);
   }, [allDirectoryExpansionState]);

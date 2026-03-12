@@ -111,14 +111,9 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
           description: error instanceof Error ? error.message : "An error occurred while saving.",
         });
       })
-      .then(
-        () => {
-          setIsSavingToWorkspace(false);
-        },
-        () => {
-          setIsSavingToWorkspace(false);
-        },
-      );
+      .finally(() => {
+        setIsSavingToWorkspace(false);
+      });
   };
 
   return (
