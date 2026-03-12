@@ -125,6 +125,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Align package versions to release version
+        run: bun run scripts/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
+
       - name: Build desktop artifact
         shell: bash
         env:
@@ -244,6 +247,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Align package versions to release version
+        run: bun run scripts/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
+
       - name: Build CLI package
         run: bun run build --filter=@t3tools/web --filter=t3
 
@@ -322,7 +328,7 @@ jobs:
         name: Update version strings
         env:
           RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
-        run: node scripts/update-release-package-versions.ts "$RELEASE_VERSION" --github-output
+        run: bun run scripts/update-release-package-versions.ts "$RELEASE_VERSION" --github-output
 
       - name: Format package.json files
         if: steps.update_versions.outputs.changed == 'true'

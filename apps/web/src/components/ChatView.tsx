@@ -2,8 +2,6 @@ import {
   type ApprovalRequestId,
   type ClaudeCodeEffort,
   DEFAULT_MODEL_BY_PROVIDER,
-  CURSOR_REASONING_OPTIONS,
-  EDITORS,
   type EditorId,
   type KeybindingCommand,
   type CodexReasoningEffort,
@@ -31,44 +29,25 @@ import {
   getDefaultModel,
   getDefaultReasoningEffort,
   getCursorModelCapabilities,
-  getCursorModelFamilyOptions,
   getReasoningEffortOptions,
   normalizeModelSlug,
   parseCursorModelSelection,
-  resolveCursorPickerModelSlug,
   resolveCursorModelFromSelection,
   resolveModelSlugForProvider,
 } from "@t3tools/shared/model";
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  useId,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import {
-  measureElement as measureVirtualElement,
-  type VirtualItem,
-  useVirtualizer,
-} from "@tanstack/react-virtual";
 import { gitBranchesQueryOptions, gitCreateWorktreeMutationOptions } from "~/lib/gitReactQuery";
 import { projectSearchEntriesQueryOptions } from "~/lib/projectReactQuery";
 import { providerListModelsQueryOptions } from "~/lib/providerReactQuery";
 import { serverConfigQueryOptions, serverQueryKeys } from "~/lib/serverReactQuery";
-
 import { isElectron } from "../env";
 import { parseDiffRouteSearch, stripDiffSearchParams } from "../diffRouteSearch";
 import { resolveDraftThreadDefaults } from "../lib/threadDraftDefaults";
 import {
-  type ComposerSlashCommand,
   type ComposerTrigger,
-  type ComposerTriggerKind,
   detectComposerTrigger,
   expandCollapsedComposerCursor,
   parseStandaloneComposerSlashCommand,
@@ -82,18 +61,14 @@ import {
   deriveActiveWorkStartedAt,
   deriveActivePlanState,
   findLatestProposedPlan,
-  type PendingApproval,
-  type PendingUserInput,
   PROVIDER_OPTIONS,
   deriveWorkLogEntries,
   hasToolActivityForTurn,
   hasToolActivitySince,
   isLatestTurnSettled,
   formatElapsed,
-  formatTimestamp,
-  type WorkLogEntry,
 } from "../session-logic";
-import { AUTO_SCROLL_BOTTOM_THRESHOLD_PX, isScrollContainerNearBottom } from "../chat-scroll";
+import { isScrollContainerNearBottom } from "../chat-scroll";
 import {
   buildPendingUserInputAnswers,
   derivePendingUserInputProgress,
@@ -102,15 +77,10 @@ import {
 } from "../pendingUserInput";
 import { useStore } from "../store";
 import {
-  buildCollapsedProposedPlanPreviewMarkdown,
   buildPlanImplementationThreadTitle,
   buildPlanImplementationPrompt,
-  buildProposedPlanMarkdownFilename,
-  downloadPlanAsTextFile,
-  normalizePlanMarkdownForExport,
   proposedPlanTitle,
   resolvePlanFollowUpSubmission,
-  stripDisplayedPlanMarkdown,
 } from "../proposedPlan";
 import { truncateTitle } from "../truncateTitle";
 import {
@@ -119,114 +89,34 @@ import {
   DEFAULT_THREAD_TERMINAL_ID,
   MAX_THREAD_TERMINAL_COUNT,
   type ChatMessage,
-  type Thread,
-  type TurnDiffFileChange,
   type TurnDiffSummary,
 } from "../types";
-import { basenameOfPath, getVscodeIconUrlForEntry } from "../vscode-icons";
+import { basenameOfPath } from "../vscode-icons";
 import { useTheme } from "../hooks/useTheme";
 import { useTurnDiffSummaries } from "../hooks/useTurnDiffSummaries";
-import {
-  buildTurnDiffTree,
-  summarizeTurnDiffStats,
-  type TurnDiffTreeNode,
-} from "../lib/turnDiffTree";
 import BranchToolbar from "./BranchToolbar";
-import GitActionsControl from "./GitActionsControl";
-import {
-  isOpenFavoriteEditorShortcut,
-  resolveShortcutCommand,
-  shortcutLabelForCommand,
-} from "../keybindings";
-import ChatMarkdown from "./ChatMarkdown";
-import CommandPalette from "./CommandPalette";
+import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import PlanSidebar from "./PlanSidebar";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
-import GhosttyTerminalSplitView from "./GhosttyTerminalSplitView";
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "./ui/alert";
 import {
   BotIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleAlertIcon,
-  DatabaseIcon,
-  EyeIcon,
-  FileIcon,
-  FolderIcon,
-  DiffIcon,
-  EllipsisIcon,
-  FolderClosedIcon,
-  HammerIcon,
   ListTodoIcon,
   LockIcon,
   LockOpenIcon,
-  type LucideIcon,
-  SearchIcon,
-  SquarePenIcon,
-  TargetIcon,
-  TerminalIcon,
-  Undo2Icon,
-  WrenchIcon,
   XIcon,
-  ZapIcon,
-  CopyIcon,
-  CheckIcon,
 } from "lucide-react";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { Separator } from "./ui/separator";
-import { Group, GroupSeparator } from "./ui/group";
-import {
-  Menu,
-  MenuGroup,
-  MenuItem,
-  MenuPopup,
-  MenuRadioGroup,
-  MenuRadioItem,
-  MenuSeparator as MenuDivider,
-  MenuSub,
-  MenuSubPopup,
-  MenuSubTrigger,
-  MenuShortcut,
-  MenuTrigger,
-} from "./ui/menu";
-import {
-  ClaudeAI,
-  CursorIcon,
-  FleetIcon,
-  Gemini,
-  GhosttyIcon,
-  GitHubIcon,
-  Icon,
-  IntelliJIcon,
-  OpenAI,
-  OpenCodeIcon,
-  AmpIcon,
-  KiloIcon,
-  PositronIcon,
-  SublimeTextIcon,
-  VisualStudioCode,
-  WebStormIcon,
-  WindsurfIcon,
-  Zed,
-} from "./Icons";
-import { cn, isMacPlatform, isWindowsPlatform, randomUUID } from "~/lib/utils";
-import { Badge } from "./ui/badge";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
+import { cn, randomUUID } from "~/lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
-import { Command, CommandItem, CommandList } from "./ui/command";
-import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogPanel,
-  DialogPopup,
-  DialogTitle,
-} from "./ui/dialog";
 import { toastManager } from "./ui/toast";
 import { decodeProjectScriptKeybindingRule } from "~/lib/projectScriptKeybindings";
-import ProjectScriptsControl, { type NewProjectScriptInput } from "./ProjectScriptsControl";
+import { type NewProjectScriptInput } from "./ProjectScriptsControl";
 import {
   commandForProjectScript,
   nextProjectScriptId,
@@ -234,57 +124,54 @@ import {
   projectScriptIdFromCommand,
   setupProjectScript,
 } from "~/projectScripts";
-import { Toggle } from "./ui/toggle";
 import { SidebarTrigger } from "./ui/sidebar";
 import { newCommandId, newMessageId, newThreadId } from "~/lib/utils";
 import { readNativeApi } from "~/nativeApi";
-import { getAppModelOptions, resolveAppModelSelection, useAppSettings } from "../appSettings";
+import { resolveAppModelSelection, useAppSettings } from "../appSettings";
 import {
   type ComposerImageAttachment,
   type DraftThreadEnvMode,
-  type DraftThreadState,
   type PersistedComposerImageAttachment,
   useComposerDraftStore,
   useComposerThreadDraft,
 } from "../composerDraftStore";
 import { shouldUseCompactComposerFooter } from "./composerFooterLayout";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminalStateStore";
-import { clamp } from "effect/Number";
 import { ComposerPromptEditor, type ComposerPromptEditorHandle } from "./ComposerPromptEditor";
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
-import { estimateTimelineMessageHeight } from "./timelineHeight";
+import { MessagesTimeline } from "./chat/MessagesTimeline";
+import { ChatHeader } from "./chat/ChatHeader";
+import { buildExpandedImagePreview, ExpandedImagePreview } from "./chat/ExpandedImagePreview";
+import {
+  getCustomModelOptionsByProvider,
+  mergeDiscoveredModels,
+  ProviderModelPicker,
+} from "./chat/ProviderModelPicker";
+import { ComposerCommandItem, ComposerCommandMenu } from "./chat/ComposerCommandMenu";
+import { ComposerPendingApprovalActions } from "./chat/ComposerPendingApprovalActions";
+import { CodexTraitsPicker } from "./chat/CodexTraitsPicker";
+import { ClaudeCodeTraitsPicker } from "./chat/ClaudeCodeTraitsPicker";
+import { CursorTraitsPicker } from "./chat/CursorTraitsPicker";
+import { CompactComposerControlsMenu } from "./chat/CompactComposerControlsMenu";
+import { ComposerPendingApprovalPanel } from "./chat/ComposerPendingApprovalPanel";
+import { ComposerPendingUserInputPanel } from "./chat/ComposerPendingUserInputPanel";
+import { ComposerPlanFollowUpBanner } from "./chat/ComposerPlanFollowUpBanner";
+import { ProviderHealthBanner } from "./chat/ProviderHealthBanner";
+import { ThreadErrorBanner } from "./chat/ThreadErrorBanner";
+import {
+  buildLocalDraftThread,
+  buildTemporaryWorktreeBranchName,
+  cloneComposerImageForRetry,
+  collectUserMessageBlobPreviewUrls,
+  LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
+  PullRequestDialogState,
+  readFileAsDataUrl,
+  readLastInvokedScriptByProjectFromStorage,
+  revokeBlobPreviewUrl,
+  revokeUserMessagePreviewUrls,
+  SendPhase,
+} from "./ChatView.logic";
 
-function formatMessageMeta(createdAt: string, duration: string | null): string {
-  if (!duration) return formatTimestamp(createdAt);
-  return `${formatTimestamp(createdAt)} • ${duration}`;
-}
-
-function formatWorkingTimer(startIso: string, endIso: string): string | null {
-  const startedAtMs = Date.parse(startIso);
-  const endedAtMs = Date.parse(endIso);
-  if (!Number.isFinite(startedAtMs) || !Number.isFinite(endedAtMs)) {
-    return null;
-  }
-
-  const elapsedSeconds = Math.max(0, Math.floor((endedAtMs - startedAtMs) / 1000));
-  if (elapsedSeconds < 60) {
-    return `${elapsedSeconds}s`;
-  }
-
-  const hours = Math.floor(elapsedSeconds / 3600);
-  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
-  const seconds = elapsedSeconds % 60;
-
-  if (hours > 0) {
-    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
-  }
-
-  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
-}
-
-const LAST_EDITOR_KEY = "t3code:last-editor";
-const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "t3code:last-invoked-script-by-project";
-const ALWAYS_UNVIRTUALIZED_TAIL_ROWS = 8;
 const ATTACHMENT_PREVIEW_HANDOFF_TTL_MS = 5000;
 const IMAGE_SIZE_LIMIT_LABEL = `${Math.round(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES / (1024 * 1024))}MB`;
 const IMAGE_ONLY_BOOTSTRAP_PROMPT =
@@ -298,416 +185,6 @@ const EMPTY_PENDING_USER_INPUT_ANSWERS: Record<string, PendingUserInputDraftAnsw
 const COMPOSER_PATH_QUERY_DEBOUNCE_MS = 120;
 const SCRIPT_TERMINAL_COLS = 120;
 const SCRIPT_TERMINAL_ROWS = 30;
-const WORKTREE_BRANCH_PREFIX = "t3code";
-
-function readLastInvokedScriptByProjectFromStorage(): Record<string, string> {
-  const stored = localStorage.getItem(LAST_INVOKED_SCRIPT_BY_PROJECT_KEY);
-  if (!stored) return {};
-
-  try {
-    const parsed: unknown = JSON.parse(stored);
-    if (!parsed || typeof parsed !== "object") return {};
-    return Object.fromEntries(
-      Object.entries(parsed).filter(
-        (entry): entry is [string, string] =>
-          typeof entry[0] === "string" && typeof entry[1] === "string",
-      ),
-    );
-  } catch {
-    return {};
-  }
-}
-
-function workToneClass(tone: "thinking" | "tool" | "info" | "error"): string {
-  if (tone === "error") return "text-rose-300/50 dark:text-rose-300/50";
-  if (tone === "tool") return "text-muted-foreground/70";
-  if (tone === "thinking") return "text-muted-foreground/50";
-  return "text-muted-foreground/40";
-}
-
-function workToneIcon(tone: "thinking" | "tool" | "info" | "error") {
-  if (tone === "error") {
-    return {
-      icon: CircleAlertIcon,
-      className: "text-black/85 dark:text-white/90",
-    };
-  }
-  if (tone === "thinking") {
-    return {
-      icon: BotIcon,
-      className: "text-black/85 dark:text-white/90",
-    };
-  }
-  if (tone === "info") {
-    return {
-      icon: CheckIcon,
-      className: "text-black/85 dark:text-white/90",
-    };
-  }
-  return {
-    icon: ZapIcon,
-    className: "text-black/85 dark:text-white/90",
-  };
-}
-
-function workEntryPreview(workEntry: {
-  detail?: string;
-  command?: string;
-  changedFiles?: ReadonlyArray<string>;
-}): string | null {
-  if (workEntry.command) return workEntry.command;
-  if (workEntry.detail) return workEntry.detail;
-  if ((workEntry.changedFiles?.length ?? 0) > 0) {
-    const [firstPath] = workEntry.changedFiles ?? [];
-    if (!firstPath) return null;
-    return workEntry.changedFiles!.length === 1
-      ? firstPath
-      : `${firstPath} +${workEntry.changedFiles!.length - 1} more`;
-  }
-  return null;
-}
-
-function workEntryIcon(workEntry: WorkLogEntry): LucideIcon {
-  if (workEntry.requestKind === "command") return TerminalIcon;
-  if (workEntry.requestKind === "file-read") return EyeIcon;
-  if (workEntry.requestKind === "file-change") return SquarePenIcon;
-
-  const haystack = [workEntry.label, workEntry.detail, workEntry.command]
-    .filter((value): value is string => typeof value === "string" && value.length > 0)
-    .join(" ")
-    .toLowerCase();
-
-  if (haystack.includes("report_intent") || haystack.includes("intent logged")) {
-    return TargetIcon;
-  }
-  if (
-    haystack.includes("bash") ||
-    haystack.includes("read_bash") ||
-    haystack.includes("write_bash") ||
-    haystack.includes("stop_bash") ||
-    haystack.includes("list_bash")
-  ) {
-    return TerminalIcon;
-  }
-  if (haystack.includes("sql")) return DatabaseIcon;
-  if (haystack.includes("view")) return EyeIcon;
-  if (haystack.includes("apply_patch")) return SquarePenIcon;
-  if (haystack.includes("rg") || haystack.includes("glob") || haystack.includes("search")) {
-    return SearchIcon;
-  }
-  if (haystack.includes("skill")) return ZapIcon;
-  if (haystack.includes("ask_user") || haystack.includes("approval")) return BotIcon;
-  if (haystack.includes("store_memory")) return FolderIcon;
-  if (haystack.includes("edit") || haystack.includes("patch")) return WrenchIcon;
-  if (haystack.includes("file")) return FileIcon;
-
-  switch (workEntry.itemType) {
-    case "command_execution":
-      return TerminalIcon;
-    case "file_change":
-      return SquarePenIcon;
-    case "mcp_tool_call":
-      return WrenchIcon;
-    case "dynamic_tool_call":
-    case "collab_agent_tool_call":
-      return HammerIcon;
-    case "web_search":
-      return SearchIcon;
-    case "image_view":
-      return EyeIcon;
-  }
-  if (haystack.includes("task")) return HammerIcon;
-
-  if (workEntry.activityKind === "turn.plan.updated") return ListTodoIcon;
-  if (workEntry.activityKind === "task.progress") return HammerIcon;
-  if (workEntry.activityKind === "approval.requested") return BotIcon;
-  if (workEntry.activityKind === "approval.resolved") return CheckIcon;
-
-  return workToneIcon(workEntry.tone).icon;
-}
-
-interface ExpandedImageItem {
-  src: string;
-  name: string;
-}
-
-interface ExpandedImagePreview {
-  images: ExpandedImageItem[];
-  index: number;
-}
-
-function buildExpandedImagePreview(
-  images: ReadonlyArray<{ id: string; name: string; previewUrl?: string }>,
-  selectedImageId: string,
-): ExpandedImagePreview | null {
-  const previewableImages = images.flatMap((image) =>
-    image.previewUrl ? [{ id: image.id, src: image.previewUrl, name: image.name }] : [],
-  );
-  if (previewableImages.length === 0) {
-    return null;
-  }
-  const selectedIndex = previewableImages.findIndex((image) => image.id === selectedImageId);
-  if (selectedIndex < 0) {
-    return null;
-  }
-  return {
-    images: previewableImages.map((image) => ({ src: image.src, name: image.name })),
-    index: selectedIndex,
-  };
-}
-
-function buildLocalDraftThread(
-  threadId: ThreadId,
-  draftThread: DraftThreadState,
-  defaults: {
-    readonly provider: ProviderKind;
-    readonly model: string;
-  },
-  error: string | null,
-): Thread {
-  return {
-    id: threadId,
-    codexThreadId: null,
-    projectId: draftThread.projectId,
-    title: "New thread",
-    provider: defaults.provider,
-    model: defaults.model,
-    runtimeMode: draftThread.runtimeMode,
-    interactionMode: draftThread.interactionMode,
-    session: null,
-    messages: [],
-    error,
-    createdAt: draftThread.createdAt,
-    latestTurn: null,
-    lastVisitedAt: draftThread.createdAt,
-    branch: draftThread.branch,
-    worktreePath: draftThread.worktreePath,
-    turnDiffSummaries: [],
-    activities: [],
-    proposedPlans: [],
-  };
-}
-
-function revokeBlobPreviewUrl(previewUrl: string | undefined): void {
-  if (!previewUrl || typeof URL === "undefined" || !previewUrl.startsWith("blob:")) {
-    return;
-  }
-  URL.revokeObjectURL(previewUrl);
-}
-
-function revokeUserMessagePreviewUrls(message: ChatMessage): void {
-  if (message.role !== "user" || !message.attachments) {
-    return;
-  }
-  for (const attachment of message.attachments) {
-    if (attachment.type !== "image") {
-      continue;
-    }
-    revokeBlobPreviewUrl(attachment.previewUrl);
-  }
-}
-
-function collectUserMessageBlobPreviewUrls(message: ChatMessage): string[] {
-  if (message.role !== "user" || !message.attachments) {
-    return [];
-  }
-  const previewUrls: string[] = [];
-  for (const attachment of message.attachments) {
-    if (attachment.type !== "image") continue;
-    if (!attachment.previewUrl || !attachment.previewUrl.startsWith("blob:")) continue;
-    previewUrls.push(attachment.previewUrl);
-  }
-  return previewUrls;
-}
-
-type ComposerCommandItem =
-  | {
-      id: string;
-      type: "path";
-      path: string;
-      pathKind: ProjectEntry["kind"];
-      label: string;
-      description: string;
-    }
-  | {
-      id: string;
-      type: "slash-command";
-      command: ComposerSlashCommand;
-      label: string;
-      description: string;
-    }
-  | {
-      id: string;
-      type: "model";
-      provider: ProviderKind;
-      model: ModelSlug;
-      label: string;
-      description: string;
-    };
-
-type SendPhase = "idle" | "preparing-worktree" | "sending-turn";
-
-interface PullRequestDialogState {
-  initialReference: string | null;
-  key: number;
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener("load", () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-      reject(new Error("Could not read image data."));
-    });
-    reader.addEventListener("error", () => {
-      reject(reader.error ?? new Error("Failed to read image."));
-    });
-    reader.readAsDataURL(file);
-  });
-}
-
-function buildTemporaryWorktreeBranchName(): string {
-  // Keep the 8-hex suffix shape for backend temporary-branch detection.
-  const token = randomUUID().slice(0, 8).toLowerCase();
-  return `${WORKTREE_BRANCH_PREFIX}/${token}`;
-}
-
-function cloneComposerImageForRetry(image: ComposerImageAttachment): ComposerImageAttachment {
-  if (typeof URL === "undefined" || !image.previewUrl.startsWith("blob:")) {
-    return image;
-  }
-  try {
-    return {
-      ...image,
-      previewUrl: URL.createObjectURL(image.file),
-    };
-  } catch {
-    return image;
-  }
-}
-
-const VscodeEntryIcon = memo(function VscodeEntryIcon(props: {
-  pathValue: string;
-  kind: "file" | "directory";
-  theme: "light" | "dark";
-  className?: string;
-}) {
-  const [failedIconUrl, setFailedIconUrl] = useState<string | null>(null);
-  const iconUrl = useMemo(
-    () => getVscodeIconUrlForEntry(props.pathValue, props.kind, props.theme),
-    [props.kind, props.pathValue, props.theme],
-  );
-  const failed = failedIconUrl === iconUrl;
-
-  if (failed) {
-    return props.kind === "directory" ? (
-      <FolderIcon className={cn("size-4 text-muted-foreground/80", props.className)} />
-    ) : (
-      <FileIcon className={cn("size-4 text-muted-foreground/80", props.className)} />
-    );
-  }
-
-  return (
-    <img
-      src={iconUrl}
-      alt=""
-      aria-hidden="true"
-      className={cn("size-4 shrink-0", props.className)}
-      loading="lazy"
-      onError={() => setFailedIconUrl(iconUrl)}
-    />
-  );
-});
-
-const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
-  item: ComposerCommandItem;
-  resolvedTheme: "light" | "dark";
-  isActive: boolean;
-  onSelect: (item: ComposerCommandItem) => void;
-}) {
-  return (
-    <CommandItem
-      value={props.item.id}
-      className={cn(
-        "cursor-pointer select-none gap-2",
-        props.isActive && "bg-accent text-accent-foreground",
-      )}
-      onMouseDown={(event) => {
-        event.preventDefault();
-      }}
-      onClick={() => {
-        props.onSelect(props.item);
-      }}
-    >
-      {props.item.type === "path" ? (
-        <VscodeEntryIcon
-          pathValue={props.item.path}
-          kind={props.item.pathKind}
-          theme={props.resolvedTheme}
-        />
-      ) : null}
-      {props.item.type === "slash-command" ? (
-        <BotIcon className="size-4 text-muted-foreground/80" />
-      ) : null}
-      {props.item.type === "model" ? (
-        <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-          model
-        </Badge>
-      ) : null}
-      <span className="flex min-w-0 items-center gap-1.5 truncate">
-        <span className="truncate">{props.item.label}</span>
-      </span>
-      <span className="truncate text-muted-foreground/70 text-xs">{props.item.description}</span>
-    </CommandItem>
-  );
-});
-
-const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
-  items: ComposerCommandItem[];
-  resolvedTheme: "light" | "dark";
-  isLoading: boolean;
-  triggerKind: ComposerTriggerKind | null;
-  activeItemId: string | null;
-  onHighlightedItemChange: (itemId: string | null) => void;
-  onSelect: (item: ComposerCommandItem) => void;
-}) {
-  return (
-    <Command
-      mode="none"
-      onItemHighlighted={(highlightedValue) => {
-        props.onHighlightedItemChange(
-          typeof highlightedValue === "string" ? highlightedValue : null,
-        );
-      }}
-    >
-      <div className="relative overflow-hidden rounded-xl border border-border/80 bg-popover/96 shadow-lg/8 backdrop-blur-xs">
-        <CommandList className="max-h-64">
-          {props.items.map((item) => (
-            <ComposerCommandMenuItem
-              key={item.id}
-              item={item}
-              resolvedTheme={props.resolvedTheme}
-              isActive={props.activeItemId === item.id}
-              onSelect={props.onSelect}
-            />
-          ))}
-        </CommandList>
-        {props.items.length === 0 && (
-          <p className="px-3 py-2 text-muted-foreground/70 text-xs">
-            {props.isLoading
-              ? "Searching workspace files..."
-              : props.triggerKind === "path"
-                ? "No matching files or folders."
-                : "No matching command."}
-          </p>
-        )}
-      </div>
-    </Command>
-  );
-});
 
 interface ChatViewProps {
   threadId: ThreadId;
@@ -730,7 +207,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const queryClient = useQueryClient();
   const createWorktreeMutation = useMutation(gitCreateWorktreeMutationOptions({ queryClient }));
   const composerDraft = useComposerThreadDraft(threadId);
-  const persistedPrompt = composerDraft.prompt;
+  const prompt = composerDraft.prompt;
   const composerImages = composerDraft.images;
   const nonPersistedComposerImageIds = composerDraft.nonPersistedImageIds;
   const setComposerDraftPrompt = useComposerDraftStore((store) => store.setPrompt);
@@ -767,10 +244,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const draftThread = useComposerDraftStore(
     (store) => store.draftThreadsByThreadId[threadId] ?? null,
   );
-  const [prompt, setPromptState] = useState(() => persistedPrompt);
-  const [hasPromptText, setHasPromptText] = useState(() => persistedPrompt.trim().length > 0);
   const promptRef = useRef(prompt);
-  const promptSyncPendingRef = useRef(false);
   const [isDragOverComposer, setIsDragOverComposer] = useState(false);
   const [expandedImage, setExpandedImage] = useState<ExpandedImagePreview | null>(null);
   const [optimisticUserMessages, setOptimisticUserMessages] = useState<ChatMessage[]>([]);
@@ -809,7 +283,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
     Record<string, string[]>
   >({});
   const [composerCursor, setComposerCursor] = useState(() => prompt.length);
-  const composerCursorRef = useRef(prompt.length);
   const [composerTrigger, setComposerTrigger] = useState<ComposerTrigger | null>(() =>
     detectComposerTrigger(prompt, prompt.length),
   );
@@ -842,7 +315,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const sendInFlightRef = useRef(false);
   const dragDepthRef = useRef(0);
   const terminalOpenByThreadRef = useRef<Record<string, boolean>>({});
-  const [ghosttySplitOpen, setGhosttySplitOpen] = useState(false);
   const setMessagesScrollContainerRef = useCallback((element: HTMLDivElement | null) => {
     messagesScrollRef.current = element;
     setMessagesScrollElement(element);
@@ -860,12 +332,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
   const setPrompt = useCallback(
     (nextPrompt: string) => {
-      promptRef.current = nextPrompt;
-      promptSyncPendingRef.current = true;
-      setPromptState(nextPrompt);
-      setHasPromptText(nextPrompt.trim().length > 0);
+      setComposerDraftPrompt(threadId, nextPrompt);
     },
-    [],
+    [setComposerDraftPrompt, threadId],
   );
   const addComposerImage = useCallback(
     (image: ComposerImageAttachment) => {
@@ -1035,10 +504,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
     : null;
   const selectedProvider: ProviderKind =
     lockedProvider ?? selectedProviderByThreadId ?? activeThread?.provider ?? "codex";
-  const assistantDeliveryMode =
-    settings.enableAssistantStreaming || selectedProvider === "cursor"
-      ? "streaming"
-      : "buffered";
   const customModelsByProvider = useMemo(
     () => ({
       codex: settings.customCodexModels,
@@ -1061,10 +526,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
       settings.customKiloModels,
     ],
   );
-  const cursorModelSelectionLockedReason =
-    hasThreadStarted && selectedProvider === "cursor"
-      ? "Cursor currently does not support changing models after the first message in a thread."
-      : null;
   const baseThreadModel = resolveModelSlugForProvider(
     selectedProvider,
     activeThread?.model ?? activeProject?.model ?? getDefaultModel(selectedProvider),
@@ -1479,43 +940,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
     if (!latestTurnHasToolActivity) return null;
 
     const elapsed = formatElapsed(activeLatestTurn.startedAt, activeLatestTurn.completedAt);
-    const parts: string[] = [];
-    if (elapsed) parts.push(`Worked for ${elapsed}`);
-
-    const usage = activeLatestTurn.usage as
-      | { input_tokens?: number; output_tokens?: number; cached_tokens?: number }
-      | undefined;
-    if (usage) {
-      const tokenParts: string[] = [];
-      if (typeof usage.input_tokens === "number") {
-        const formatted =
-          usage.input_tokens >= 1000
-            ? `${(usage.input_tokens / 1000).toFixed(1)}k`
-            : String(usage.input_tokens);
-        tokenParts.push(`${formatted} in`);
-      }
-      if (typeof usage.output_tokens === "number") {
-        const formatted =
-          usage.output_tokens >= 1000
-            ? `${(usage.output_tokens / 1000).toFixed(1)}k`
-            : String(usage.output_tokens);
-        tokenParts.push(`${formatted} out`);
-      }
-      if (typeof usage.cached_tokens === "number" && usage.cached_tokens > 0) {
-        const formatted =
-          usage.cached_tokens >= 1000
-            ? `${(usage.cached_tokens / 1000).toFixed(1)}k`
-            : String(usage.cached_tokens);
-        tokenParts.push(`${formatted} cached`);
-      }
-      if (tokenParts.length > 0) parts.push(tokenParts.join(" · "));
-    }
-
-    return parts.length > 0 ? parts.join(" · ") : null;
+    return elapsed ? `Worked for ${elapsed}` : null;
   }, [
     activeLatestTurn?.completedAt,
     activeLatestTurn?.startedAt,
-    activeLatestTurn?.usage,
     latestTurnHasToolActivity,
     latestTurnSettled,
   ]);
@@ -1630,7 +1058,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         type: "model",
         provider,
         model: slug,
-        label: pricingTier ? `${name}  ${formatPricingTier(pricingTier)}` : name,
+        label: pricingTier ? `${name}  ${pricingTier}` : name,
         description: `${providerLabel} · ${slug}`,
       }));
   }, [composerTrigger, searchableModelOptions, workspaceEntries]);
@@ -1786,7 +1214,11 @@ export default function ChatView({ threadId }: ChatViewProps) {
               .clear({ threadId: activeThreadId, terminalId })
               .catch(() => undefined);
           }
-          await api.terminal.close({ threadId: activeThreadId, terminalId, deleteHistory: true });
+          await api.terminal.close({
+            threadId: activeThreadId,
+            terminalId,
+            deleteHistory: true,
+          });
         })().catch(() => fallbackExitWrite());
       } else {
         void fallbackExitWrite();
@@ -1916,12 +1348,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
       if (isElectron && keybindingRule) {
         await api.server.upsertKeybinding(keybindingRule);
-        await queryClient.invalidateQueries({ queryKey: serverQueryKeys.all });
-      } else if (isElectron && input.keybinding === null) {
-        // Explicitly null keybinding means the script (and its shortcut) is
-        // being deleted. Remove any persisted keybinding for this command so
-        // stale accelerators don't linger.
-        await api.server.removeKeybinding({ command: input.keybindingCommand });
         await queryClient.invalidateQueries({ queryKey: serverQueryKeys.all });
       }
     },
@@ -2368,15 +1794,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   }, [composerMenuItems, composerMenuOpen]);
 
   useEffect(() => {
-    setExpandedWorkGroups({});
     setIsRevertingCheckpoint(false);
-    if (planSidebarOpenOnNextThreadRef.current) {
-      planSidebarOpenOnNextThreadRef.current = false;
-      setPlanSidebarOpen(true);
-    } else {
-      setPlanSidebarOpen(false);
-    }
-    planSidebarDismissedForTurnRef.current = null;
   }, [activeThread?.id]);
 
   useEffect(() => {
@@ -2423,39 +1841,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
   useEffect(() => {
     promptRef.current = prompt;
-    setHasPromptText(prompt.trim().length > 0);
     setComposerCursor((existing) => Math.min(Math.max(0, existing), prompt.length));
   }, [prompt]);
-
-  useEffect(() => {
-    composerCursorRef.current = composerCursor;
-  }, [composerCursor]);
-
-  useEffect(() => {
-    // Always reset pending sync when the thread changes so stale debounce
-    // timeouts from the previous thread cannot overwrite the new thread's draft.
-    promptSyncPendingRef.current = false;
-
-    if (persistedPrompt === promptRef.current) {
-      return;
-    }
-    promptRef.current = persistedPrompt;
-    setPromptState(persistedPrompt);
-    setHasPromptText(persistedPrompt.trim().length > 0);
-  }, [persistedPrompt, threadId]);
-
-  useEffect(() => {
-    if (prompt === persistedPrompt) {
-      promptSyncPendingRef.current = false;
-      return;
-    }
-    const timeout = window.setTimeout(() => {
-      setComposerDraftPrompt(threadId, prompt);
-    }, 180);
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [persistedPrompt, prompt, setComposerDraftPrompt, threadId]);
 
   useEffect(() => {
     setOptimisticUserMessages((existing) => {
@@ -2673,7 +2060,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
         terminalOpen: Boolean(terminalState.terminalOpen),
       };
 
-      const command = resolveShortcutCommand(event, keybindings, { context: shortcutContext });
+      const command = resolveShortcutCommand(event, keybindings, {
+        context: shortcutContext,
+      });
       if (!command) return;
 
       if (command === "terminal.toggle") {
@@ -2824,6 +2213,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
       return;
     }
     event.preventDefault();
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+      return;
+    }
     dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
     if (dragDepthRef.current === 0) {
       setIsDragOverComposer(false);
@@ -2891,15 +2284,13 @@ export default function ChatView({ threadId }: ChatViewProps) {
       onAdvanceActivePendingUserInput();
       return;
     }
-    const trimmed = promptRef.current.trim();
+    const trimmed = prompt.trim();
     if (showPlanFollowUpPrompt && activeProposedPlan) {
       const followUp = resolvePlanFollowUpSubmission({
         draftText: trimmed,
         planMarkdown: activeProposedPlan.planMarkdown,
       });
       promptRef.current = "";
-      promptSyncPendingRef.current = false;
-      setPromptState("");
       clearComposerDraftContent(activeThread.id);
       setComposerHighlightedItemId(null);
       setComposerCursor(0);
@@ -2915,8 +2306,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
     if (standaloneSlashCommand) {
       await handleInteractionModeChange(standaloneSlashCommand);
       promptRef.current = "";
-      promptSyncPendingRef.current = false;
-      setPromptState("");
       clearComposerDraftContent(activeThread.id);
       setComposerHighlightedItemId(null);
       setComposerCursor(0);
@@ -2984,8 +2373,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
     setThreadError(threadIdForSend, null);
     promptRef.current = "";
-    promptSyncPendingRef.current = false;
-    setPromptState("");
     clearComposerDraftContent(threadIdForSend);
     setComposerHighlightedItemId(null);
     setComposerCursor(0);
@@ -3121,7 +2508,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
           : {}),
         ...(providerOptionsForDispatch ? { providerOptions: providerOptionsForDispatch } : {}),
         provider: selectedProvider,
-        assistantDeliveryMode,
+        assistantDeliveryMode: settings.enableAssistantStreaming ? "streaming" : "buffered",
         runtimeMode,
         interactionMode,
         createdAt: messageCreatedAt,
@@ -3167,23 +2554,16 @@ export default function ChatView({ threadId }: ChatViewProps) {
     }
   };
 
-  const onInterrupt = useCallback(async () => {
+  const onInterrupt = async () => {
     const api = readNativeApi();
     if (!api || !activeThread) return;
-    try {
-      await api.orchestration.dispatchCommand({
-        type: "thread.turn.interrupt",
-        commandId: newCommandId(),
-        threadId: activeThread.id,
-        createdAt: new Date().toISOString(),
-      });
-    } catch (err) {
-      setThreadError(
-        activeThread.id,
-        err instanceof Error ? err.message : "Failed to stop generation.",
-      );
-    }
-  }, [activeThread, setThreadError]);
+    await api.orchestration.dispatchCommand({
+      type: "thread.turn.interrupt",
+      commandId: newCommandId(),
+      threadId: activeThread.id,
+      createdAt: new Date().toISOString(),
+    });
+  };
 
   const onRespondToApproval = useCallback(
     async (requestId: ApprovalRequestId, decision: ProviderApprovalDecision) => {
@@ -3270,8 +2650,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
         },
       }));
       promptRef.current = "";
-      promptSyncPendingRef.current = false;
-      setPromptState("");
       setComposerCursor(0);
       setComposerTrigger(null);
     },
@@ -3400,14 +2778,11 @@ export default function ChatView({ threadId }: ChatViewProps) {
           },
           provider: selectedProvider,
           model: selectedModel || undefined,
-
           ...(selectedModelOptionsForDispatch
             ? { modelOptions: selectedModelOptionsForDispatch }
             : {}),
-          ...(providerOptionsForDispatch
-            ? { providerOptions: providerOptionsForDispatch }
-            : {}),
-          assistantDeliveryMode,
+          ...(providerOptionsForDispatch ? { providerOptions: providerOptionsForDispatch } : {}),
+          assistantDeliveryMode: settings.enableAssistantStreaming ? "streaming" : "buffered",
           runtimeMode,
           interactionMode: nextInteractionMode,
           createdAt: messageCreatedAt,
@@ -3448,7 +2823,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       selectedProvider,
       setComposerDraftInteractionMode,
       setThreadError,
-      assistantDeliveryMode,
+      settings.enableAssistantStreaming,
     ],
   );
 
@@ -3485,8 +2860,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
       resetSendPhase();
     };
 
-    let serverStarted = false;
-
     await api.orchestration
       .dispatchCommand({
         type: "thread.create",
@@ -3514,30 +2887,18 @@ export default function ChatView({ threadId }: ChatViewProps) {
           },
           provider: selectedProvider,
           model: selectedModel || undefined,
-
           ...(selectedModelOptionsForDispatch
             ? { modelOptions: selectedModelOptionsForDispatch }
             : {}),
-          ...(providerOptionsForDispatch
-            ? { providerOptions: providerOptionsForDispatch }
-            : {}),
-          assistantDeliveryMode,
+          ...(providerOptionsForDispatch ? { providerOptions: providerOptionsForDispatch } : {}),
+          assistantDeliveryMode: settings.enableAssistantStreaming ? "streaming" : "buffered",
           runtimeMode,
           interactionMode: "default",
           createdAt,
         });
       })
-      .then(() => {
-        serverStarted = true;
-        return api.orchestration.getSnapshot();
-      })
+      .then(() => api.orchestration.getSnapshot())
       .then((snapshot) => {
-        // Snapshot sync is a safety net for the navigation/thread creation
-        // flow: the newly created thread must exist in the client-side read
-        // model before we navigate to it. The WebSocket push channel
-        // (`orchestration.domainEvent`) is the primary update path and will
-        // usually deliver the event first, but a snapshot fetch here
-        // guarantees correctness when the push hasn't arrived yet.
         syncServerReadModel(snapshot);
         // Signal that the plan sidebar should open on the new thread.
         planSidebarOpenOnNextThreadRef.current = true;
@@ -3547,23 +2908,19 @@ export default function ChatView({ threadId }: ChatViewProps) {
         });
       })
       .catch(async (err) => {
-        if (!serverStarted) {
-          await api.orchestration
-            .dispatchCommand({
-              type: "thread.delete",
-              commandId: newCommandId(),
-              threadId: nextThreadId,
-            })
-            .catch(() => undefined);
-          // Re-sync after rollback so the deleted thread is removed from
-          // the client read model even if the WebSocket push is delayed.
-          await api.orchestration
-            .getSnapshot()
-            .then((snapshot) => {
-              syncServerReadModel(snapshot);
-            })
-            .catch(() => undefined);
-        }
+        await api.orchestration
+          .dispatchCommand({
+            type: "thread.delete",
+            commandId: newCommandId(),
+            threadId: nextThreadId,
+          })
+          .catch(() => undefined);
+        await api.orchestration
+          .getSnapshot()
+          .then((snapshot) => {
+            syncServerReadModel(snapshot);
+          })
+          .catch(() => undefined);
         toastManager.add({
           type: "error",
           title: "Could not start implementation thread",
@@ -3587,40 +2944,39 @@ export default function ChatView({ threadId }: ChatViewProps) {
     selectedModelOptionsForDispatch,
     providerOptionsForDispatch,
     selectedProvider,
-    assistantDeliveryMode,
+    settings.enableAssistantStreaming,
     syncServerReadModel,
   ]);
 
   const onProviderModelSelect = useCallback(
     (provider: ProviderKind, model: ModelSlug) => {
       if (!activeThread) return;
-      if (cursorModelSelectionLockedReason !== null && provider === "cursor") {
-        scheduleComposerFocus();
-        return;
-      }
       if (lockedProvider !== null && provider !== lockedProvider) {
         scheduleComposerFocus();
         return;
       }
-      const parsedCursorSelection =
-        provider === "cursor" ? parseCursorModelSelection(model) : null;
-      const resolvedModel =
-        provider === "cursor" && parsedCursorSelection?.family === model
-          ? resolveCursorModelFromSelection({ family: parsedCursorSelection.family })
-          : resolveAppModelSelection(provider, customModelsByProvider[provider], model);
       setComposerDraftProvider(activeThread.id, provider);
-      setComposerDraftModel(activeThread.id, resolvedModel);
+      setComposerDraftModel(
+        activeThread.id,
+        resolveAppModelSelection(provider, customModelsByProvider[provider], model),
+      );
       scheduleComposerFocus();
     },
     [
       activeThread,
-      cursorModelSelectionLockedReason,
       customModelsByProvider,
       lockedProvider,
       scheduleComposerFocus,
       setComposerDraftModel,
       setComposerDraftProvider,
     ],
+  );
+  const onEffortSelect = useCallback(
+    (effort: CodexReasoningEffort) => {
+      setComposerDraftEffort(threadId, effort);
+      scheduleComposerFocus();
+    },
+    [scheduleComposerFocus, setComposerDraftEffort, threadId],
   );
   const onCursorReasoningSelect = useCallback(
     (reasoning: CursorReasoningOption) => {
@@ -3664,12 +3020,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
     },
     [onProviderModelSelect, selectedModel, selectedProvider],
   );
-  const onEffortSelect = useCallback(
-    (effort: CodexReasoningEffort) => {
-      setComposerDraftEffort(threadId, effort);
+  const onCodexFastModeChange = useCallback(
+    (enabled: boolean) => {
+      setComposerDraftCodexFastMode(threadId, enabled);
       scheduleComposerFocus();
     },
-    [scheduleComposerFocus, setComposerDraftEffort, threadId],
+    [scheduleComposerFocus, setComposerDraftCodexFastMode, threadId],
   );
   const onClaudeCodeEffortSelect = useCallback(
     (effort: ClaudeCodeEffort) => {
@@ -3677,13 +3033,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
       scheduleComposerFocus();
     },
     [scheduleComposerFocus, setComposerDraftClaudeCodeEffort, threadId],
-  );
-  const onCodexFastModeChange = useCallback(
-    (enabled: boolean) => {
-      setComposerDraftCodexFastMode(threadId, enabled);
-      scheduleComposerFocus();
-    },
-    [scheduleComposerFocus, setComposerDraftCodexFastMode, threadId],
   );
   const onEnvModeChange = useCallback(
     (mode: DraftThreadEnvMode) => {
@@ -3738,13 +3087,16 @@ export default function ChatView({ threadId }: ChatViewProps) {
     [activePendingProgress?.activeQuestion, activePendingUserInput, setPrompt],
   );
 
-  const readComposerSnapshot = useCallback((): { value: string; cursor: number } => {
+  const readComposerSnapshot = useCallback((): {
+    value: string;
+    cursor: number;
+  } => {
     const editorSnapshot = composerEditorRef.current?.readSnapshot();
     if (editorSnapshot) {
       return editorSnapshot;
     }
-    return { value: promptRef.current, cursor: composerCursorRef.current };
-  }, []);
+    return { value: promptRef.current, cursor: composerCursor };
+  }, [composerCursor]);
 
   const resolveActiveComposerTrigger = useCallback((): {
     snapshot: { value: string; cursor: number };
@@ -3853,13 +3205,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
         return;
       }
       promptRef.current = nextPrompt;
-      promptSyncPendingRef.current = true;
-      setPromptState((current) => (current === nextPrompt ? current : nextPrompt));
-      composerCursorRef.current = nextCursor;
-      setHasPromptText((current) => {
-        const next = nextPrompt.trim().length > 0;
-        return current === next ? current : next;
-      });
+      setPrompt(nextPrompt);
+      setComposerCursor(nextCursor);
       setComposerTrigger(
         cursorAdjacentToMention
           ? null
@@ -3873,6 +3220,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       activePendingProgress?.activeQuestion,
       activePendingUserInput,
       onChangeActivePendingUserInputCustomAnswer,
+      setPrompt,
     ],
   );
 
@@ -3974,35 +3322,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-background">
-      <CommandPalette
-        threadId={activeThread.id}
-        activeThread={activeThread}
-        activeProject={activeProject}
-        keybindings={keybindings}
-        diffOpen={diffOpen}
-        terminalOpen={terminalState.terminalOpen}
-        isGitRepo={isGitRepo}
-        isWorking={phase === "running"}
-        canCreateTerminal={!hasReachedTerminalLimit}
-        canSplitTerminal={!hasReachedTerminalLimit}
-        interactionMode={interactionMode}
-        runtimeMode={runtimeMode}
-        onToggleDiff={onToggleDiff}
-        onToggleTerminal={toggleTerminalVisibility}
-        onCreateTerminal={createNewTerminal}
-        onSplitTerminal={splitTerminal}
-        onToggleInteractionMode={toggleInteractionMode}
-        onToggleRuntimeMode={() =>
-          void handleRuntimeModeChange(
-            runtimeMode === "full-access" ? "approval-required" : "full-access",
-          )
-        }
-        onInterrupt={onInterrupt}
-        onRunProjectScript={(script) => runProjectScript(script)}
-        ghosttySplitOpen={ghosttySplitOpen}
-        onToggleGhosttySplit={() => setGhosttySplitOpen((v) => !v)}
-      />
-
       {/* Top bar */}
       <header
         className={cn(
@@ -4698,15 +4017,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
         );
       })()}
 
-      {ghosttySplitOpen && activeProject && activeThread && (
-        <GhosttyTerminalSplitView
-          key={`ghostty-${activeThread.id}`}
-          threadId={activeThread.id}
-          cwd={gitCwd ?? activeProject.cwd}
-          runtimeEnv={threadTerminalRuntimeEnv}
-        />
-      )}
-
       {expandedImage && expandedImageItem && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 [-webkit-app-region:no-drag]"
@@ -4777,2358 +4087,3 @@ export default function ChatView({ threadId }: ChatViewProps) {
     </div>
   );
 }
-
-interface ChatHeaderProps {
-  activeThreadId: ThreadId;
-  activeThreadTitle: string;
-  activeProjectName: string | undefined;
-  isGitRepo: boolean;
-  openInCwd: string | null;
-  activeProjectScripts: ProjectScript[] | undefined;
-  preferredScriptId: string | null;
-  keybindings: ResolvedKeybindingsConfig;
-  availableEditors: ReadonlyArray<EditorId>;
-  diffToggleShortcutLabel: string | null;
-  gitCwd: string | null;
-  diffOpen: boolean;
-  onRunProjectScript: (script: ProjectScript) => void;
-  onAddProjectScript: (input: NewProjectScriptInput) => Promise<void>;
-  onUpdateProjectScript: (scriptId: string, input: NewProjectScriptInput) => Promise<void>;
-  onDeleteProjectScript: (scriptId: string) => Promise<void>;
-  onToggleDiff: () => void;
-}
-
-const ChatHeader = memo(function ChatHeader({
-  activeThreadId,
-  activeThreadTitle,
-  activeProjectName,
-  isGitRepo,
-  openInCwd,
-  activeProjectScripts,
-  preferredScriptId,
-  keybindings,
-  availableEditors,
-  diffToggleShortcutLabel,
-  gitCwd,
-  diffOpen,
-  onRunProjectScript,
-  onAddProjectScript,
-  onUpdateProjectScript,
-  onDeleteProjectScript,
-  onToggleDiff,
-}: ChatHeaderProps) {
-  return (
-    <div className="flex min-w-0 flex-1 items-center gap-2">
-      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden sm:gap-3">
-        <SidebarTrigger className="size-7 shrink-0 md:hidden" />
-        <h2
-          className="min-w-0 shrink truncate text-sm font-medium text-foreground"
-          title={activeThreadTitle}
-        >
-          {activeThreadTitle}
-        </h2>
-        {activeProjectName && (
-          <Badge variant="outline" className="min-w-0 shrink truncate">
-            {activeProjectName}
-          </Badge>
-        )}
-        {activeProjectName && !isGitRepo && (
-          <Badge variant="outline" className="shrink-0 text-[10px] text-amber-700">
-            No Git
-          </Badge>
-        )}
-      </div>
-      <div className="@container/header-actions flex min-w-0 flex-1 items-center justify-end gap-2 @sm/header-actions:gap-3">
-        {activeProjectScripts && (
-          <ProjectScriptsControl
-            scripts={activeProjectScripts}
-            keybindings={keybindings}
-            preferredScriptId={preferredScriptId}
-            onRunScript={onRunProjectScript}
-            onAddScript={onAddProjectScript}
-            onUpdateScript={onUpdateProjectScript}
-            onDeleteScript={onDeleteProjectScript}
-          />
-        )}
-        {activeProjectName && (
-          <OpenInPicker
-            keybindings={keybindings}
-            availableEditors={availableEditors}
-            openInCwd={openInCwd}
-          />
-        )}
-        {activeProjectName && <GitActionsControl gitCwd={gitCwd} activeThreadId={activeThreadId} />}
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Toggle
-                className="shrink-0"
-                pressed={diffOpen}
-                onPressedChange={onToggleDiff}
-                aria-label="Toggle diff panel"
-                variant="outline"
-                size="xs"
-                disabled={!isGitRepo}
-              >
-                <DiffIcon className="size-3" />
-              </Toggle>
-            }
-          />
-          <TooltipPopup side="bottom">
-            {!isGitRepo
-              ? "Diff panel is unavailable because this project is not a git repository."
-              : diffToggleShortcutLabel
-                ? `Toggle diff panel (${diffToggleShortcutLabel})`
-                : "Toggle diff panel"}
-          </TooltipPopup>
-        </Tooltip>
-      </div>
-    </div>
-  );
-});
-
-const ThreadErrorBanner = memo(function ThreadErrorBanner({
-  error,
-  onDismiss,
-}: {
-  error: string | null;
-  onDismiss?: () => void;
-}) {
-  if (!error) return null;
-  return (
-    <div className="pt-3 mx-auto max-w-3xl">
-      <Alert variant="error">
-        <CircleAlertIcon />
-        <AlertDescription className="line-clamp-3" title={error}>
-          {error}
-        </AlertDescription>
-        {onDismiss && (
-          <AlertAction>
-            <button
-              type="button"
-              aria-label="Dismiss error"
-              className="inline-flex size-6 items-center justify-center rounded-md text-destructive/60 transition-colors hover:text-destructive"
-              onClick={onDismiss}
-            >
-              <XIcon className="size-3.5" />
-            </button>
-          </AlertAction>
-        )}
-      </Alert>
-    </div>
-  );
-});
-
-const ProviderHealthBanner = memo(function ProviderHealthBanner({
-  status,
-}: {
-  status: ServerProviderStatus | null;
-}) {
-  if (!status || status.status === "ready") {
-    return null;
-  }
-
-  const defaultMessage =
-    status.status === "error"
-      ? `${status.provider} provider is unavailable.`
-      : `${status.provider} provider has limited availability.`;
-
-  return (
-    <div className="pt-3 mx-auto max-w-3xl">
-      <Alert variant={status.status === "error" ? "error" : "warning"}>
-        <CircleAlertIcon />
-        <AlertTitle>
-          {status.provider === "codex"
-            ? "Codex provider status"
-            : status.provider === "copilot"
-              ? "GitHub Copilot provider status"
-              : `${status.provider} status`}
-        </AlertTitle>
-        <AlertDescription className="line-clamp-3" title={status.message ?? defaultMessage}>
-          {status.message ?? defaultMessage}
-        </AlertDescription>
-      </Alert>
-    </div>
-  );
-});
-
-interface ComposerPendingApprovalPanelProps {
-  approval: PendingApproval;
-  pendingCount: number;
-}
-
-const ComposerPendingApprovalPanel = memo(function ComposerPendingApprovalPanel({
-  approval,
-  pendingCount,
-}: ComposerPendingApprovalPanelProps) {
-  const approvalSummary =
-    approval.requestKind === "command"
-      ? "Command approval requested"
-      : approval.requestKind === "file-read"
-        ? "File-read approval requested"
-        : "File-change approval requested";
-
-  return (
-    <div className="px-4 py-3.5 sm:px-5 sm:py-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="uppercase text-sm tracking-[0.2em]">PENDING APPROVAL</span>
-        <span className="text-sm font-medium">{approvalSummary}</span>
-        {pendingCount > 1 ? (
-          <span className="text-xs text-muted-foreground">1/{pendingCount}</span>
-        ) : null}
-      </div>
-    </div>
-  );
-});
-
-interface ComposerPendingApprovalActionsProps {
-  requestId: ApprovalRequestId;
-  isResponding: boolean;
-  onRespondToApproval: (
-    requestId: ApprovalRequestId,
-    decision: ProviderApprovalDecision,
-  ) => Promise<void>;
-}
-
-const ComposerPendingApprovalActions = memo(function ComposerPendingApprovalActions({
-  requestId,
-  isResponding,
-  onRespondToApproval,
-}: ComposerPendingApprovalActionsProps) {
-  return (
-    <>
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={isResponding}
-        onClick={() => void onRespondToApproval(requestId, "cancel")}
-      >
-        Cancel turn
-      </Button>
-      <Button
-        size="sm"
-        variant="destructive-outline"
-        disabled={isResponding}
-        onClick={() => void onRespondToApproval(requestId, "decline")}
-      >
-        Decline
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={isResponding}
-        onClick={() => void onRespondToApproval(requestId, "acceptForSession")}
-      >
-        Always allow this session
-      </Button>
-      <Button
-        size="sm"
-        variant="default"
-        disabled={isResponding}
-        onClick={() => void onRespondToApproval(requestId, "accept")}
-      >
-        Approve once
-      </Button>
-    </>
-  );
-});
-
-interface PendingUserInputPanelProps {
-  pendingUserInputs: PendingUserInput[];
-  respondingRequestIds: ApprovalRequestId[];
-  answers: Record<string, PendingUserInputDraftAnswer>;
-  questionIndex: number;
-  onSelectOption: (questionId: string, optionLabel: string) => void;
-  onAdvance: () => void;
-}
-
-const ComposerPendingUserInputPanel = memo(function ComposerPendingUserInputPanel({
-  pendingUserInputs,
-  respondingRequestIds,
-  answers,
-  questionIndex,
-  onSelectOption,
-  onAdvance,
-}: PendingUserInputPanelProps) {
-  if (pendingUserInputs.length === 0) return null;
-  const activePrompt = pendingUserInputs[0];
-  if (!activePrompt) return null;
-
-  return (
-    <ComposerPendingUserInputCard
-      key={activePrompt.requestId}
-      prompt={activePrompt}
-      isResponding={respondingRequestIds.includes(activePrompt.requestId)}
-      answers={answers}
-      questionIndex={questionIndex}
-      onSelectOption={onSelectOption}
-      onAdvance={onAdvance}
-    />
-  );
-});
-
-const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard({
-  prompt,
-  isResponding,
-  answers,
-  questionIndex,
-  onSelectOption,
-  onAdvance,
-}: {
-  prompt: PendingUserInput;
-  isResponding: boolean;
-  answers: Record<string, PendingUserInputDraftAnswer>;
-  questionIndex: number;
-  onSelectOption: (questionId: string, optionLabel: string) => void;
-  onAdvance: () => void;
-}) {
-  const progress = derivePendingUserInputProgress(prompt.questions, answers, questionIndex);
-  const activeQuestion = progress.activeQuestion;
-  const autoAdvanceTimerRef = useRef<number | null>(null);
-
-  // Clear auto-advance timer on unmount
-  useEffect(() => {
-    return () => {
-      if (autoAdvanceTimerRef.current !== null) {
-        window.clearTimeout(autoAdvanceTimerRef.current);
-      }
-    };
-  }, []);
-
-  const selectOptionAndAutoAdvance = useCallback(
-    (questionId: string, optionLabel: string) => {
-      onSelectOption(questionId, optionLabel);
-      if (autoAdvanceTimerRef.current !== null) {
-        window.clearTimeout(autoAdvanceTimerRef.current);
-      }
-      autoAdvanceTimerRef.current = window.setTimeout(() => {
-        autoAdvanceTimerRef.current = null;
-        onAdvance();
-      }, 200);
-    },
-    [onSelectOption, onAdvance],
-  );
-
-  // Keyboard shortcut: number keys 1-9 select corresponding option and auto-advance.
-  // Works even when the Lexical composer (contenteditable) has focus — the composer
-  // doubles as a custom-answer field during user input, and when it's empty the digit
-  // keys should pick options instead of typing into the editor.
-  useEffect(() => {
-    if (!activeQuestion || isResponding) return;
-    const handler = (event: globalThis.KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const target = event.target;
-      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
-        return;
-      }
-      // If the user has started typing a custom answer in the contenteditable
-      // composer, let digit keys pass through so they can type numbers.
-      if (target instanceof HTMLElement && target.isContentEditable) {
-        const hasCustomText = progress.customAnswer.length > 0;
-        if (hasCustomText) return;
-      }
-      const digit = Number.parseInt(event.key, 10);
-      if (Number.isNaN(digit) || digit < 1 || digit > 9) return;
-      const optionIndex = digit - 1;
-      if (optionIndex >= activeQuestion.options.length) return;
-      const option = activeQuestion.options[optionIndex];
-      if (!option) return;
-      event.preventDefault();
-      selectOptionAndAutoAdvance(activeQuestion.id, option.label);
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [activeQuestion, isResponding, selectOptionAndAutoAdvance, progress.customAnswer.length]);
-
-  if (!activeQuestion) {
-    return null;
-  }
-
-  return (
-    <div className="px-4 py-3 sm:px-5">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          {prompt.questions.length > 1 ? (
-            <span className="flex h-5 items-center rounded-md bg-muted/60 px-1.5 text-[10px] font-medium tabular-nums text-muted-foreground/60">
-              {questionIndex + 1}/{prompt.questions.length}
-            </span>
-          ) : null}
-          <span className="text-[11px] font-semibold tracking-widest text-muted-foreground/50 uppercase">
-            {activeQuestion.header}
-          </span>
-        </div>
-      </div>
-      <p className="mt-1.5 text-sm text-foreground/90">{activeQuestion.question}</p>
-      <div className="mt-3 space-y-1">
-        {activeQuestion.options.map((option, index) => {
-          const isSelected = progress.selectedOptionLabel === option.label;
-          const shortcutKey = index < 9 ? index + 1 : null;
-          return (
-            <button
-              key={`${activeQuestion.id}:${option.label}`}
-              type="button"
-              disabled={isResponding}
-              onClick={() => selectOptionAndAutoAdvance(activeQuestion.id, option.label)}
-              title={option.description}
-              className={cn(
-                "group flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-all duration-150",
-                isSelected
-                  ? "border-blue-500/40 bg-blue-500/8 text-foreground"
-                  : "border-transparent bg-muted/20 text-foreground/80 hover:bg-muted/40 hover:border-border/40",
-                isResponding && "opacity-50 cursor-not-allowed",
-              )}
-            >
-              {shortcutKey !== null ? (
-                <kbd
-                  className={cn(
-                    "flex size-5 shrink-0 items-center justify-center rounded text-[11px] font-medium tabular-nums transition-colors duration-150",
-                    isSelected
-                      ? "bg-blue-500/20 text-blue-400"
-                      : "bg-muted/40 text-muted-foreground/50 group-hover:bg-muted/60 group-hover:text-muted-foreground/70",
-                  )}
-                >
-                  {shortcutKey}
-                </kbd>
-              ) : null}
-              <div className="min-w-0 flex-1">
-                <span className="text-sm font-medium">{option.label}</span>
-                {option.description && option.description !== option.label ? (
-                  <span className="ml-2 text-xs text-muted-foreground/50">
-                    {option.description}
-                  </span>
-                ) : null}
-              </div>
-              {isSelected ? <CheckIcon className="size-3.5 shrink-0 text-blue-400" /> : null}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-});
-
-const ComposerPlanFollowUpBanner = memo(function ComposerPlanFollowUpBanner({
-  planTitle,
-}: {
-  planTitle: string | null;
-}) {
-  return (
-    <div className="px-4 py-3.5 sm:px-5 sm:py-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="uppercase text-sm tracking-[0.2em]">Plan ready</span>
-        {planTitle ? (
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{planTitle}</span>
-        ) : null}
-      </div>
-      {/* <div className="mt-2 text-xs text-muted-foreground">
-        Review the plan
-      </div> */}
-    </div>
-  );
-});
-
-const MessageCopyButton = memo(function MessageCopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [text]);
-
-  return (
-    <Button type="button" size="xs" variant="outline" onClick={handleCopy} title="Copy message">
-      {copied ? <CheckIcon className="size-3 text-success" /> : <CopyIcon className="size-3" />}
-    </Button>
-  );
-});
-
-function hasNonZeroStat(stat: { additions: number; deletions: number }): boolean {
-  return stat.additions > 0 || stat.deletions > 0;
-}
-
-const DiffStatLabel = memo(function DiffStatLabel(props: {
-  additions: number;
-  deletions: number;
-  showParentheses?: boolean;
-}) {
-  const { additions, deletions, showParentheses = false } = props;
-  return (
-    <>
-      {showParentheses && <span className="text-muted-foreground/70">(</span>}
-      <span className="text-success">+{additions}</span>
-      <span className="mx-0.5 text-muted-foreground/70">/</span>
-      <span className="text-destructive">-{deletions}</span>
-      {showParentheses && <span className="text-muted-foreground/70">)</span>}
-    </>
-  );
-});
-
-function collectDirectoryPaths(nodes: ReadonlyArray<TurnDiffTreeNode>): string[] {
-  const paths: string[] = [];
-  for (const node of nodes) {
-    if (node.kind !== "directory") continue;
-    paths.push(node.path);
-    paths.push(...collectDirectoryPaths(node.children));
-  }
-  return paths;
-}
-
-function buildDirectoryExpansionState(
-  directoryPaths: ReadonlyArray<string>,
-  expanded: boolean,
-): Record<string, boolean> {
-  const expandedState: Record<string, boolean> = {};
-  for (const directoryPath of directoryPaths) {
-    expandedState[directoryPath] = expanded;
-  }
-  return expandedState;
-}
-
-const ChangedFilesTree = memo(function ChangedFilesTree(props: {
-  turnId: TurnId;
-  files: ReadonlyArray<TurnDiffFileChange>;
-  allDirectoriesExpanded: boolean;
-  resolvedTheme: "light" | "dark";
-  onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
-}) {
-  const { files, allDirectoriesExpanded, onOpenTurnDiff, resolvedTheme, turnId } = props;
-  const treeNodes = useMemo(() => buildTurnDiffTree(files), [files]);
-  const directoryPathsKey = useMemo(
-    () => collectDirectoryPaths(treeNodes).join("\u0000"),
-    [treeNodes],
-  );
-  const allDirectoryExpansionState = useMemo(
-    () =>
-      buildDirectoryExpansionState(
-        directoryPathsKey ? directoryPathsKey.split("\u0000") : [],
-        allDirectoriesExpanded,
-      ),
-    [allDirectoriesExpanded, directoryPathsKey],
-  );
-  const [expandedDirectories, setExpandedDirectories] = useState<Record<string, boolean>>(() =>
-    buildDirectoryExpansionState(directoryPathsKey ? directoryPathsKey.split("\u0000") : [], true),
-  );
-  useEffect(() => {
-    setExpandedDirectories(allDirectoryExpansionState);
-  }, [allDirectoryExpansionState]);
-
-  const toggleDirectory = useCallback((pathValue: string, fallbackExpanded: boolean) => {
-    setExpandedDirectories((current) => ({
-      ...current,
-      [pathValue]: !(current[pathValue] ?? fallbackExpanded),
-    }));
-  }, []);
-
-  const renderTreeNode = (node: TurnDiffTreeNode, depth: number) => {
-    const leftPadding = 8 + depth * 14;
-    if (node.kind === "directory") {
-      const isExpanded = expandedDirectories[node.path] ?? depth === 0;
-      return (
-        <div key={`dir:${node.path}`}>
-          <button
-            type="button"
-            className="group flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left hover:bg-background/80"
-            style={{ paddingLeft: `${leftPadding}px` }}
-            onClick={() => toggleDirectory(node.path, depth === 0)}
-          >
-            <ChevronRightIcon
-              aria-hidden="true"
-              className={cn(
-                "size-3.5 shrink-0 text-muted-foreground/70 transition-transform group-hover:text-foreground/80",
-                isExpanded && "rotate-90",
-              )}
-            />
-            {isExpanded ? (
-              <FolderIcon className="size-3.5 shrink-0 text-muted-foreground/75" />
-            ) : (
-              <FolderClosedIcon className="size-3.5 shrink-0 text-muted-foreground/75" />
-            )}
-            <span className="truncate font-mono text-[11px] text-muted-foreground/90 group-hover:text-foreground/90">
-              {node.name}
-            </span>
-            {hasNonZeroStat(node.stat) && (
-              <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums">
-                <DiffStatLabel additions={node.stat.additions} deletions={node.stat.deletions} />
-              </span>
-            )}
-          </button>
-          {isExpanded && (
-            <div className="space-y-0.5">
-              {node.children.map((childNode) => renderTreeNode(childNode, depth + 1))}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <button
-        key={`file:${node.path}`}
-        type="button"
-        className="group flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left hover:bg-background/80"
-        style={{ paddingLeft: `${leftPadding}px` }}
-        onClick={() => onOpenTurnDiff(turnId, node.path)}
-      >
-        <span aria-hidden="true" className="size-3.5 shrink-0" />
-        <VscodeEntryIcon
-          pathValue={node.path}
-          kind="file"
-          theme={resolvedTheme}
-          className="size-3.5 text-muted-foreground/70"
-        />
-        <span className="truncate font-mono text-[11px] text-muted-foreground/80 group-hover:text-foreground/90">
-          {node.name}
-        </span>
-        {node.stat && (
-          <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums">
-            <DiffStatLabel additions={node.stat.additions} deletions={node.stat.deletions} />
-          </span>
-        )}
-      </button>
-    );
-  };
-
-  return <div className="space-y-0.5">{treeNodes.map((node) => renderTreeNode(node, 0))}</div>;
-});
-
-const ProposedPlanCard = memo(function ProposedPlanCard({
-  planMarkdown,
-  cwd,
-  workspaceRoot,
-}: {
-  planMarkdown: string;
-  cwd: string | undefined;
-  workspaceRoot: string | undefined;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
-  const [savePath, setSavePath] = useState("");
-  const [isSavingToWorkspace, setIsSavingToWorkspace] = useState(false);
-  const savePathInputId = useId();
-  const title = proposedPlanTitle(planMarkdown) ?? "Proposed plan";
-  const lineCount = planMarkdown.split("\n").length;
-  const canCollapse = planMarkdown.length > 900 || lineCount > 20;
-  const displayedPlanMarkdown = stripDisplayedPlanMarkdown(planMarkdown);
-  const collapsedPreview = canCollapse
-    ? buildCollapsedProposedPlanPreviewMarkdown(planMarkdown, { maxLines: 10 })
-    : null;
-  const downloadFilename = buildProposedPlanMarkdownFilename(planMarkdown);
-  const saveContents = normalizePlanMarkdownForExport(planMarkdown);
-
-  const handleDownload = () => {
-    downloadPlanAsTextFile(downloadFilename, saveContents);
-  };
-
-  const openSaveDialog = () => {
-    if (!workspaceRoot) {
-      toastManager.add({
-        type: "error",
-        title: "Workspace path is unavailable",
-        description: "This thread does not have a workspace path to save into.",
-      });
-      return;
-    }
-    setSavePath((existing) => (existing.length > 0 ? existing : downloadFilename));
-    setIsSaveDialogOpen(true);
-  };
-
-  const handleSaveToWorkspace = () => {
-    const api = readNativeApi();
-    const relativePath = savePath.trim();
-    if (!api || !workspaceRoot) {
-      return;
-    }
-    if (!relativePath) {
-      toastManager.add({
-        type: "warning",
-        title: "Enter a workspace path",
-      });
-      return;
-    }
-
-    setIsSavingToWorkspace(true);
-    void api.projects
-      .writeFile({
-        cwd: workspaceRoot,
-        relativePath,
-        contents: saveContents,
-      })
-      .then((result) => {
-        setIsSaveDialogOpen(false);
-        toastManager.add({
-          type: "success",
-          title: "Plan saved to workspace",
-          description: result.relativePath,
-        });
-      })
-      .catch((error) => {
-        toastManager.add({
-          type: "error",
-          title: "Could not save plan",
-          description: error instanceof Error ? error.message : "An error occurred while saving.",
-        });
-      })
-      .then(
-        () => {
-          setIsSavingToWorkspace(false);
-        },
-        () => {
-          setIsSavingToWorkspace(false);
-        },
-      );
-  };
-
-  return (
-    <div className="rounded-[24px] border border-border/80 bg-card/70 p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Badge variant="secondary">Plan</Badge>
-          <p className="truncate text-sm font-medium text-foreground">{title}</p>
-        </div>
-        <Menu>
-          <MenuTrigger
-            render={<Button aria-label="Plan actions" size="icon-xs" variant="outline" />}
-          >
-            <EllipsisIcon aria-hidden="true" className="size-4" />
-          </MenuTrigger>
-          <MenuPopup align="end">
-            <MenuItem onClick={handleDownload}>Download as markdown</MenuItem>
-            <MenuItem onClick={openSaveDialog} disabled={!workspaceRoot || isSavingToWorkspace}>
-              Save to workspace
-            </MenuItem>
-          </MenuPopup>
-        </Menu>
-      </div>
-      <div className="mt-4">
-        <div className={cn("relative", canCollapse && !expanded && "max-h-104 overflow-hidden")}>
-          {canCollapse && !expanded ? (
-            <ChatMarkdown text={collapsedPreview ?? ""} cwd={cwd} isStreaming={false} />
-          ) : (
-            <ChatMarkdown text={displayedPlanMarkdown} cwd={cwd} isStreaming={false} />
-          )}
-          {canCollapse && !expanded ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-card/95 via-card/80 to-transparent" />
-          ) : null}
-        </div>
-        {canCollapse ? (
-          <div className="mt-4 flex justify-center">
-            <Button
-              size="sm"
-              variant="outline"
-              data-scroll-anchor-ignore
-              onClick={() => setExpanded((value) => !value)}
-            >
-              {expanded ? "Collapse plan" : "Expand plan"}
-            </Button>
-          </div>
-        ) : null}
-      </div>
-
-      <Dialog
-        open={isSaveDialogOpen}
-        onOpenChange={(open) => {
-          if (!isSavingToWorkspace) {
-            setIsSaveDialogOpen(open);
-          }
-        }}
-      >
-        <DialogPopup className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Save plan to workspace</DialogTitle>
-            <DialogDescription>
-              Enter a path relative to <code>{workspaceRoot ?? "the workspace"}</code>.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogPanel className="space-y-3">
-            <label htmlFor={savePathInputId} className="grid gap-1.5">
-              <span className="text-xs font-medium text-foreground">Workspace path</span>
-              <Input
-                id={savePathInputId}
-                value={savePath}
-                onChange={(event) => setSavePath(event.target.value)}
-                placeholder={downloadFilename}
-                spellCheck={false}
-                disabled={isSavingToWorkspace}
-              />
-            </label>
-          </DialogPanel>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsSaveDialogOpen(false)}
-              disabled={isSavingToWorkspace}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => void handleSaveToWorkspace()}
-              disabled={isSavingToWorkspace}
-            >
-              {isSavingToWorkspace ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogPopup>
-      </Dialog>
-    </div>
-  );
-});
-
-interface MessagesTimelineProps {
-  hasMessages: boolean;
-  isWorking: boolean;
-  activeTurnInProgress: boolean;
-  activeTurnStartedAt: string | null;
-  scrollContainer: HTMLDivElement | null;
-  timelineEntries: ReturnType<typeof deriveTimelineEntries>;
-  completionDividerBeforeEntryId: string | null;
-  completionSummary: string | null;
-  turnDiffSummaryByAssistantMessageId: Map<MessageId, TurnDiffSummary>;
-  nowIso: string;
-  expandedWorkGroups: Record<string, boolean>;
-  onToggleWorkGroup: (groupId: string) => void;
-  onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
-  revertTurnCountByUserMessageId: Map<MessageId, number>;
-  onRevertUserMessage: (messageId: MessageId) => void;
-  isRevertingCheckpoint: boolean;
-  onImageExpand: (preview: ExpandedImagePreview) => void;
-  markdownCwd: string | undefined;
-  resolvedTheme: "light" | "dark";
-  workspaceRoot: string | undefined;
-}
-
-type TimelineEntry = ReturnType<typeof deriveTimelineEntries>[number];
-type TimelineMessage = Extract<TimelineEntry, { kind: "message" }>["message"];
-type TimelineProposedPlan = Extract<TimelineEntry, { kind: "proposed-plan" }>["proposedPlan"];
-type TimelineWorkEntry = Extract<TimelineEntry, { kind: "work" }>["entry"];
-type TimelineRow =
-  | {
-      kind: "work";
-      id: string;
-      createdAt: string;
-      groupedEntries: TimelineWorkEntry[];
-    }
-  | {
-      kind: "message";
-      id: string;
-      createdAt: string;
-      message: TimelineMessage;
-      showCompletionDivider: boolean;
-    }
-  | {
-      kind: "proposed-plan";
-      id: string;
-      createdAt: string;
-      proposedPlan: TimelineProposedPlan;
-    }
-  | { kind: "working"; id: string; createdAt: string | null };
-
-function estimateTimelineProposedPlanHeight(proposedPlan: TimelineProposedPlan): number {
-  const estimatedLines = Math.max(1, Math.ceil(proposedPlan.planMarkdown.length / 72));
-  return 120 + Math.min(estimatedLines * 22, 880);
-}
-
-const MessagesTimeline = memo(function MessagesTimeline({
-  hasMessages,
-  isWorking,
-  activeTurnInProgress,
-  activeTurnStartedAt,
-  scrollContainer,
-  timelineEntries,
-  completionDividerBeforeEntryId,
-  completionSummary,
-  turnDiffSummaryByAssistantMessageId,
-  nowIso,
-  expandedWorkGroups,
-  onToggleWorkGroup,
-  onOpenTurnDiff,
-  revertTurnCountByUserMessageId,
-  onRevertUserMessage,
-  isRevertingCheckpoint,
-  onImageExpand,
-  markdownCwd,
-  resolvedTheme,
-  workspaceRoot,
-}: MessagesTimelineProps) {
-  const timelineRootRef = useRef<HTMLDivElement | null>(null);
-  const [timelineWidthPx, setTimelineWidthPx] = useState<number | null>(null);
-
-  useLayoutEffect(() => {
-    const timelineRoot = timelineRootRef.current;
-    if (!timelineRoot) return;
-
-    const updateWidth = (nextWidth: number) => {
-      setTimelineWidthPx((previousWidth) => {
-        if (previousWidth !== null && Math.abs(previousWidth - nextWidth) < 0.5) {
-          return previousWidth;
-        }
-        return nextWidth;
-      });
-    };
-
-    updateWidth(timelineRoot.getBoundingClientRect().width);
-
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => {
-      updateWidth(timelineRoot.getBoundingClientRect().width);
-    });
-    observer.observe(timelineRoot);
-    return () => {
-      observer.disconnect();
-    };
-  }, [hasMessages, isWorking]);
-
-  const rows = useMemo<TimelineRow[]>(() => {
-    const nextRows: TimelineRow[] = [];
-
-    for (let index = 0; index < timelineEntries.length; index += 1) {
-      const timelineEntry = timelineEntries[index];
-      if (!timelineEntry) {
-        continue;
-      }
-
-      if (timelineEntry.kind === "work") {
-        if (timelineEntry.entry.tone === "tool") {
-          const groupedEntries = [timelineEntry.entry];
-          let cursor = index + 1;
-          while (cursor < timelineEntries.length) {
-            const nextEntry = timelineEntries[cursor];
-            if (!nextEntry || nextEntry.kind !== "work" || nextEntry.entry.tone !== "tool") {
-              break;
-            }
-            groupedEntries.push(nextEntry.entry);
-            cursor += 1;
-          }
-          nextRows.push({
-            kind: "work",
-            id: timelineEntry.id,
-            createdAt: timelineEntry.createdAt,
-            groupedEntries,
-          });
-          index = cursor - 1;
-          continue;
-        }
-
-        nextRows.push({
-          kind: "work",
-          id: timelineEntry.id,
-          createdAt: timelineEntry.createdAt,
-          groupedEntries: [timelineEntry.entry],
-        });
-        continue;
-      }
-
-      if (timelineEntry.kind === "proposed-plan") {
-        nextRows.push({
-          kind: "proposed-plan",
-          id: timelineEntry.id,
-          createdAt: timelineEntry.createdAt,
-          proposedPlan: timelineEntry.proposedPlan,
-        });
-        continue;
-      }
-
-      nextRows.push({
-        kind: "message",
-        id: timelineEntry.id,
-        createdAt: timelineEntry.createdAt,
-        message: timelineEntry.message,
-        showCompletionDivider:
-          timelineEntry.message.role === "assistant" &&
-          completionDividerBeforeEntryId === timelineEntry.id,
-      });
-    }
-
-    if (isWorking) {
-      nextRows.push({
-        kind: "working",
-        id: "working-indicator-row",
-        createdAt: activeTurnStartedAt,
-      });
-    }
-
-    return nextRows;
-  }, [timelineEntries, completionDividerBeforeEntryId, isWorking, activeTurnStartedAt]);
-
-  const firstUnvirtualizedRowIndex = useMemo(() => {
-    const firstTailRowIndex = Math.max(rows.length - ALWAYS_UNVIRTUALIZED_TAIL_ROWS, 0);
-    if (!activeTurnInProgress) return firstTailRowIndex;
-
-    const turnStartedAtMs =
-      typeof activeTurnStartedAt === "string" ? Date.parse(activeTurnStartedAt) : Number.NaN;
-    let firstCurrentTurnRowIndex = -1;
-    if (!Number.isNaN(turnStartedAtMs)) {
-      firstCurrentTurnRowIndex = rows.findIndex((row) => {
-        if (row.kind === "working") return true;
-        if (!row.createdAt) return false;
-        const rowCreatedAtMs = Date.parse(row.createdAt);
-        return !Number.isNaN(rowCreatedAtMs) && rowCreatedAtMs >= turnStartedAtMs;
-      });
-    }
-
-    if (firstCurrentTurnRowIndex < 0) {
-      firstCurrentTurnRowIndex = rows.findIndex(
-        (row) => row.kind === "message" && row.message.streaming,
-      );
-    }
-
-    if (firstCurrentTurnRowIndex < 0) return firstTailRowIndex;
-
-    for (let index = firstCurrentTurnRowIndex - 1; index >= 0; index -= 1) {
-      const previousRow = rows[index];
-      if (!previousRow || previousRow.kind !== "message") continue;
-      if (previousRow.message.role === "user") {
-        return Math.min(index, firstTailRowIndex);
-      }
-      if (previousRow.message.role === "assistant" && !previousRow.message.streaming) {
-        break;
-      }
-    }
-
-    return Math.min(firstCurrentTurnRowIndex, firstTailRowIndex);
-  }, [activeTurnInProgress, activeTurnStartedAt, rows]);
-
-  const virtualizedRowCount = clamp(firstUnvirtualizedRowIndex, {
-    minimum: 0,
-    maximum: rows.length,
-  });
-
-  const rowVirtualizer = useVirtualizer({
-    count: virtualizedRowCount,
-    getScrollElement: () => scrollContainer,
-    // Use stable row ids so virtual measurements do not leak across thread switches.
-    getItemKey: (index: number) => rows[index]?.id ?? index,
-    estimateSize: (index: number) => {
-      const row = rows[index];
-      if (!row) return 96;
-      if (row.kind === "work") return 112;
-      if (row.kind === "proposed-plan") return estimateTimelineProposedPlanHeight(row.proposedPlan);
-      if (row.kind === "working") return 40;
-      return estimateTimelineMessageHeight(row.message, { timelineWidthPx });
-    },
-    measureElement: measureVirtualElement,
-    useAnimationFrameWithResizeObserver: true,
-    overscan: 8,
-  });
-  useEffect(() => {
-    if (timelineWidthPx === null) return;
-    rowVirtualizer.measure();
-  }, [rowVirtualizer, timelineWidthPx]);
-  useEffect(() => {
-    rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = (_item, _delta, instance) => {
-      const viewportHeight = instance.scrollRect?.height ?? 0;
-      const scrollOffset = instance.scrollOffset ?? 0;
-      const remainingDistance = instance.getTotalSize() - (scrollOffset + viewportHeight);
-      return remainingDistance > AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
-    };
-    return () => {
-      rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined;
-    };
-  }, [rowVirtualizer]);
-  const pendingMeasureFrameRef = useRef<number | null>(null);
-  const onTimelineImageLoad = useCallback(() => {
-    if (pendingMeasureFrameRef.current !== null) return;
-    pendingMeasureFrameRef.current = window.requestAnimationFrame(() => {
-      pendingMeasureFrameRef.current = null;
-      rowVirtualizer.measure();
-    });
-  }, [rowVirtualizer]);
-  useEffect(() => {
-    return () => {
-      const frame = pendingMeasureFrameRef.current;
-      if (frame !== null) {
-        window.cancelAnimationFrame(frame);
-      }
-    };
-  }, []);
-
-  const virtualRows = rowVirtualizer.getVirtualItems();
-  const nonVirtualizedRows = rows.slice(virtualizedRowCount);
-  const [allDirectoriesExpandedByTurnId, setAllDirectoriesExpandedByTurnId] = useState<
-    Record<string, boolean>
-  >({});
-  const onToggleAllDirectories = useCallback((turnId: TurnId) => {
-    setAllDirectoriesExpandedByTurnId((current) => ({
-      ...current,
-      [turnId]: !(current[turnId] ?? true),
-    }));
-  }, []);
-
-  const renderRowContent = (row: TimelineRow) => (
-    <div
-      className="pb-4"
-      data-timeline-row-kind={row.kind}
-      data-message-id={row.kind === "message" ? row.message.id : undefined}
-      data-message-role={row.kind === "message" ? row.message.role : undefined}
-    >
-      {row.kind === "work" &&
-        (() => {
-          const groupedEntries = row.groupedEntries;
-          const onlyToolEntries = groupedEntries.every((entry) => entry.tone === "tool");
-          const groupLabel = onlyToolEntries
-            ? groupedEntries.length === 1
-              ? "Tool call"
-              : `Tool calls (${groupedEntries.length})`
-            : "Work event";
-
-          return (
-            <div className="rounded-lg border border-border/80 bg-card/45 px-3 py-2">
-              <div className="mb-1.5 flex items-center justify-between gap-3">
-                <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground/65">
-                  {groupLabel}
-                </p>
-              </div>
-              <div className="space-y-1">
-                {groupedEntries.map((workEntry) => {
-                  const iconConfig = workToneIcon(workEntry.tone);
-                  const EntryIcon = workEntryIcon(workEntry);
-                  const preview = workEntryPreview(workEntry);
-                  return (
-                    <div key={`work-row:${workEntry.id}`} className="flex items-start gap-2 py-0.5">
-                      <span
-                        className={cn(
-                          "mt-[3px] flex size-4 shrink-0 items-center justify-center",
-                          iconConfig.className,
-                        )}
-                      >
-                        <EntryIcon className="size-3" />
-                      </span>
-                      <div className="min-w-0 flex-1 py-[2px]">
-                        <p className={`text-[11px] leading-relaxed ${workToneClass(workEntry.tone)}`}>
-                          {workEntry.label}
-                        </p>
-                        {preview && preview !== workEntry.label && (
-                          <p
-                            className="mt-0.5 truncate text-[10px] leading-relaxed text-muted-foreground/65"
-                            title={preview}
-                          >
-                            {preview}
-                          </p>
-                        )}
-                        {workEntry.command && (
-                          <pre className="mt-1 overflow-x-auto rounded-md border border-border/70 bg-background/80 px-2 py-1 font-mono text-[11px] leading-relaxed text-foreground/80">
-                            {workEntry.command}
-                          </pre>
-                        )}
-                        {workEntry.changedFiles && workEntry.changedFiles.length > 0 && (
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {workEntry.changedFiles.slice(0, 6).map((filePath) => (
-                              <span
-                                key={`${workEntry.id}:${filePath}`}
-                                className="rounded-md border border-border/70 bg-background/65 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/85"
-                                title={filePath}
-                              >
-                                {basenameOfPath(filePath)}
-                              </span>
-                            ))}
-                            {workEntry.changedFiles.length > 6 && (
-                              <span className="px-1 text-[10px] text-muted-foreground/65">
-                                +{workEntry.changedFiles.length - 6} more
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        {workEntry.detail &&
-                          (!workEntry.command || workEntry.detail !== workEntry.command) &&
-                          workEntry.detail !== preview && (
-                            <p
-                              className="mt-1 text-[11px] leading-relaxed text-muted-foreground/75"
-                              title={workEntry.detail}
-                            >
-                              {workEntry.detail}
-                            </p>
-                          )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-
-      {row.kind === "message" &&
-        row.message.role === "user" &&
-        (() => {
-          const userImages = row.message.attachments ?? [];
-          const canRevertAgentWork = revertTurnCountByUserMessageId.has(row.message.id);
-          return (
-            <div className="flex justify-end">
-              <div className="group relative max-w-[80%] rounded-2xl rounded-br-sm border border-border bg-secondary px-4 py-3">
-                {userImages.length > 0 && (
-                  <div className="mb-2 grid max-w-[420px] grid-cols-2 gap-2">
-                    {userImages.map(
-                      (image: NonNullable<TimelineMessage["attachments"]>[number]) => (
-                        <div
-                          key={image.id}
-                          className="overflow-hidden rounded-lg border border-border/80 bg-background/70"
-                        >
-                          {image.previewUrl ? (
-                            <button
-                              type="button"
-                              className="h-full w-full cursor-zoom-in"
-                              aria-label={`Preview ${image.name}`}
-                              onClick={() => {
-                                const preview = buildExpandedImagePreview(userImages, image.id);
-                                if (!preview) return;
-                                onImageExpand(preview);
-                              }}
-                            >
-                              <img
-                                src={image.previewUrl}
-                                alt={image.name}
-                                className="h-full max-h-[220px] w-full object-cover"
-                                onLoad={onTimelineImageLoad}
-                                onError={onTimelineImageLoad}
-                              />
-                            </button>
-                          ) : (
-                            <div className="flex min-h-[72px] items-center justify-center px-2 py-3 text-center text-[11px] text-muted-foreground/70">
-                              {image.name}
-                            </div>
-                          )}
-                        </div>
-                      ),
-                    )}
-                  </div>
-                )}
-                {row.message.text && (
-                  <div className="whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground">
-                    {row.message.text}
-                  </div>
-                )}
-                <div className="mt-1.5 flex items-center justify-end gap-2">
-                  <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100">
-                    {row.message.text && <MessageCopyButton text={row.message.text} />}
-                    {canRevertAgentWork && (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        disabled={isRevertingCheckpoint || isWorking}
-                        onClick={() => onRevertUserMessage(row.message.id)}
-                        title="Revert to this message"
-                      >
-                        <Undo2Icon className="size-3" />
-                      </Button>
-                    )}
-                  </div>
-                  <p className="text-right text-[10px] text-muted-foreground/30">
-                    {formatTimestamp(row.message.createdAt)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-      {row.kind === "message" &&
-        row.message.role === "assistant" &&
-        (() => {
-          const turnSummary = turnDiffSummaryByAssistantMessageId.get(row.message.id);
-          if (!row.message.text && !row.message.streaming && !turnSummary) return null;
-          const messageText = row.message.text || "";
-          return (
-            <>
-              {row.showCompletionDivider && (
-                <div className="my-3 flex items-center gap-3">
-                  <span className="h-px flex-1 bg-border" />
-                  <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground/80">
-                    {completionSummary ? `Response • ${completionSummary}` : "Response"}
-                  </span>
-                  <span className="h-px flex-1 bg-border" />
-                </div>
-              )}
-              <div className="min-w-0 px-1 py-0.5">
-                <ChatMarkdown
-                  text={messageText}
-                  cwd={markdownCwd}
-                  isStreaming={Boolean(row.message.streaming)}
-                />
-                {(() => {
-                  if (!turnSummary) return null;
-                  const checkpointFiles = turnSummary.files;
-                  if (checkpointFiles.length === 0) return null;
-                  const summaryStat = summarizeTurnDiffStats(checkpointFiles);
-                  const changedFileCountLabel = String(checkpointFiles.length);
-                  const allDirectoriesExpanded =
-                    allDirectoriesExpandedByTurnId[turnSummary.turnId] ?? true;
-                  return (
-                    <div className="mt-2 rounded-lg border border-border/80 bg-card/45 p-2.5">
-                      <div className="mb-1.5 flex items-center justify-between gap-2">
-                        <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground/65">
-                          <span>Changed files ({changedFileCountLabel})</span>
-                          {hasNonZeroStat(summaryStat) && (
-                            <>
-                              <span className="mx-1">•</span>
-                              <DiffStatLabel
-                                additions={summaryStat.additions}
-                                deletions={summaryStat.deletions}
-                              />
-                            </>
-                          )}
-                        </p>
-                        <div className="flex items-center gap-1.5">
-                          <Button
-                            type="button"
-                            size="xs"
-                            variant="outline"
-                            onClick={() => onToggleAllDirectories(turnSummary.turnId)}
-                          >
-                            {allDirectoriesExpanded ? "Collapse all" : "Expand all"}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="xs"
-                            variant="outline"
-                            onClick={() =>
-                              onOpenTurnDiff(turnSummary.turnId, checkpointFiles[0]?.path)
-                            }
-                          >
-                            View diff
-                          </Button>
-                        </div>
-                      </div>
-                      <ChangedFilesTree
-                        key={`changed-files-tree:${turnSummary.turnId}`}
-                        turnId={turnSummary.turnId}
-                        files={checkpointFiles}
-                        allDirectoriesExpanded={allDirectoriesExpanded}
-                        resolvedTheme={resolvedTheme}
-                        onOpenTurnDiff={onOpenTurnDiff}
-                      />
-                    </div>
-                  );
-                })()}
-                <p className="mt-1.5 text-[10px] text-muted-foreground/30">
-                  {formatMessageMeta(
-                    row.message.createdAt,
-                    row.message.streaming
-                      ? formatElapsed(row.message.createdAt, nowIso)
-                      : formatElapsed(row.message.createdAt, row.message.completedAt),
-                  )}
-                </p>
-              </div>
-            </>
-          );
-        })()}
-
-      {row.kind === "proposed-plan" && (
-        <div className="min-w-0 px-1 py-0.5">
-          <ProposedPlanCard
-            planMarkdown={row.proposedPlan.planMarkdown}
-            cwd={markdownCwd}
-            workspaceRoot={workspaceRoot}
-          />
-        </div>
-      )}
-
-      {row.kind === "working" && (
-        <div className="py-0.5 pl-1.5">
-          <div className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground/70">
-            <span className="inline-flex items-center gap-[3px]">
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse" />
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:200ms]" />
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:400ms]" />
-            </span>
-            <span>
-              {row.createdAt
-                ? `Working for ${formatWorkingTimer(row.createdAt, nowIso) ?? "0s"}`
-                : "Working..."}
-            </span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  if (!hasMessages && !isWorking) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-muted-foreground/30">
-          Send a message to start the conversation.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={timelineRootRef}
-      data-timeline-root="true"
-      className="mx-auto w-full min-w-0 max-w-3xl overflow-x-hidden"
-    >
-      {virtualizedRowCount > 0 && (
-        <div className="relative" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
-          {virtualRows.map((virtualRow: VirtualItem) => {
-            const row = rows[virtualRow.index];
-            if (!row) return null;
-
-            return (
-              <div
-                key={`virtual-row:${row.id}`}
-                data-index={virtualRow.index}
-                ref={rowVirtualizer.measureElement}
-                className="absolute left-0 top-0 w-full"
-                style={{ transform: `translateY(${virtualRow.start}px)` }}
-              >
-                {renderRowContent(row)}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {nonVirtualizedRows.map((row) => (
-        <div key={`non-virtual-row:${row.id}`}>{renderRowContent(row)}</div>
-      ))}
-    </div>
-  );
-});
-
-const AVAILABLE_PROVIDER_OPTIONS = PROVIDER_OPTIONS.filter((option) => option.available);
-const UNAVAILABLE_PROVIDER_OPTIONS = PROVIDER_OPTIONS.filter((option) => !option.available);
-const COMING_SOON_PROVIDER_OPTIONS: ReadonlyArray<{ id: string; label: string; icon: Icon }> = [];
-
-function getCustomModelOptionsByProvider(settings: {
-  customCodexModels: readonly string[];
-  customCopilotModels: readonly string[];
-  customClaudeModels: readonly string[];
-  customCursorModels: readonly string[];
-  customOpencodeModels: readonly string[];
-  customGeminiCliModels: readonly string[];
-  customAmpModels: readonly string[];
-  customKiloModels: readonly string[];
-}): Record<ProviderKind, ReadonlyArray<ModelOptionEntry>> {
-  const cursorFamilyOptions = getCursorModelFamilyOptions();
-  return {
-    codex: getAppModelOptions("codex", settings.customCodexModels),
-    copilot: getAppModelOptions("copilot", settings.customCopilotModels),
-    claudeCode: getAppModelOptions("claudeCode", settings.customClaudeModels),
-    cursor: [
-      ...cursorFamilyOptions,
-      ...getAppModelOptions("cursor", settings.customCursorModels).filter(
-        (option) =>
-          option.isCustom && !cursorFamilyOptions.some((family) => family.slug === option.slug),
-      ),
-    ],
-    opencode: getAppModelOptions("opencode", settings.customOpencodeModels),
-    geminiCli: getAppModelOptions("geminiCli", settings.customGeminiCliModels),
-    amp: getAppModelOptions("amp", settings.customAmpModels),
-    kilo: getAppModelOptions("kilo", settings.customKiloModels),
-  };
-}
-
-type ModelOptionEntry = { slug: string; name: string; pricingTier?: string; isCustom?: boolean };
-
-function mergeDiscoveredModels(
-  base: Record<ProviderKind, ReadonlyArray<ModelOptionEntry>>,
-  discovered: Partial<Record<ProviderKind, ReadonlyArray<ModelOptionEntry> | undefined>>,
-): Record<ProviderKind, ReadonlyArray<ModelOptionEntry>> {
-  const result = { ...base };
-  for (const [provider, models] of Object.entries(discovered) as Array<
-    [ProviderKind, ReadonlyArray<ModelOptionEntry> | undefined]
-  >) {
-    if (!models || models.length === 0) continue;
-    const normalizedModels =
-      provider === "cursor"
-        ? models.filter((model) => resolveCursorPickerModelSlug(model.slug) === model.slug)
-        : models;
-    const dedupedModels = Array.from(new Map(normalizedModels.map((m) => [m.slug, m])).values());
-    const existing = new Set(base[provider]?.map((m) => m.slug));
-    // For copilot, discovered models replace the static list but inherit
-    // pricingTier from the static entries when the SDK doesn't provide it.
-    if (provider === "copilot") {
-      const baseTiers = new Map(
-        (base[provider] ?? []).map((m) => [m.slug, m.pricingTier]),
-      );
-      const enriched = dedupedModels.map((m) => {
-        if (m.pricingTier) return m;
-        const tier = baseTiers.get(m.slug);
-        return tier ? { ...m, pricingTier: tier } : m;
-      });
-      const customOnly = (base[provider] ?? []).filter(
-        (m) => m.isCustom && !dedupedModels.some((d) => d.slug === m.slug),
-      );
-      result[provider] = [...enriched, ...customOnly];
-      continue;
-    }
-    // Build a lookup of discovered models by slug so we can merge metadata
-    // (e.g. pricingTier) into base entries and also add truly-new models.
-    const discoveredBySlug = new Map(dedupedModels.map((m) => [m.slug, m]));
-    const merged = (base[provider] ?? []).map((m) => {
-      const discovered = discoveredBySlug.get(m.slug);
-      return discovered ? { ...m, ...discovered } : m;
-    });
-    // Append any discovered models that weren't already in the base list.
-    const additions = dedupedModels.filter((m) => !existing.has(m.slug));
-    result[provider] = [...additions, ...merged];
-  }
-  return result;
-}
-
-type GroupedModelEntry = {
-  readonly subProvider: string;
-  readonly models: ReadonlyArray<ModelOptionEntry>;
-};
-
-function groupModelsBySubProvider(
-  models: ReadonlyArray<ModelOptionEntry>,
-): ReadonlyArray<GroupedModelEntry> {
-  const groupOrder: string[] = [];
-  const groupMap = new Map<string, { displayName: string; models: ModelOptionEntry[] }>();
-  const ungrouped: ModelOptionEntry[] = [];
-
-  for (const model of models) {
-    const slashIndex = model.slug.indexOf("/");
-    if (slashIndex > 0) {
-      const subProviderId = model.slug.slice(0, slashIndex);
-      const nameSlashIndex = model.name.indexOf(" / ");
-      const subProviderName = nameSlashIndex > 0 ? model.name.slice(0, nameSlashIndex) : subProviderId;
-      const modelName = nameSlashIndex > 0 ? model.name.slice(nameSlashIndex + 3) : model.name;
-
-      let group = groupMap.get(subProviderId);
-      if (!group) {
-        group = { displayName: subProviderName, models: [] };
-        groupMap.set(subProviderId, group);
-        groupOrder.push(subProviderId);
-      }
-      group.models.push({
-        slug: model.slug,
-        name: modelName,
-        ...(model.pricingTier != null && { pricingTier: model.pricingTier }),
-        ...(model.isCustom != null && { isCustom: model.isCustom }),
-      });
-    } else {
-      ungrouped.push(model);
-    }
-  }
-
-  const result: GroupedModelEntry[] = groupOrder.map((id) => {
-    const group = groupMap.get(id)!;
-    return { subProvider: group.displayName, models: group.models };
-  });
-  if (ungrouped.length > 0) {
-    result.push({ subProvider: "Other", models: ungrouped });
-  }
-  return result;
-}
-
-const PROVIDER_ICON_BY_PROVIDER: Record<ProviderKind, Icon> = {
-  codex: OpenAI,
-  copilot: GitHubIcon,
-  claudeCode: ClaudeAI,
-  cursor: CursorIcon,
-  opencode: OpenCodeIcon,
-  geminiCli: Gemini,
-  amp: AmpIcon,
-  kilo: KiloIcon,
-};
-
-function resolveModelForProviderPicker(
-  provider: ProviderKind,
-  value: string,
-  options: ReadonlyArray<{ slug: string; name: string }>,
-): ModelSlug | null {
-  const trimmedValue = value.trim();
-  if (!trimmedValue) {
-    return null;
-  }
-
-  const direct = options.find((option) => option.slug === trimmedValue);
-  if (direct) {
-    return direct.slug;
-  }
-
-  const byName = options.find((option) => option.name.toLowerCase() === trimmedValue.toLowerCase());
-  if (byName) {
-    return byName.slug;
-  }
-
-  const normalized = normalizeModelSlug(trimmedValue, provider);
-  if (!normalized) {
-    return null;
-  }
-
-  const resolved = options.find((option) => option.slug === normalized);
-  if (resolved) {
-    return resolved.slug;
-  }
-
-  if (provider === "cursor") {
-    return parseCursorModelSelection(normalized).family;
-  }
-
-  return null;
-}
-
-function formatPricingTier(tier: string): string {
-  // Normalize to uppercase X suffix: "1x" → "1X", "0.3x" → "0.3X"
-  return tier.replace(/x$/i, "X");
-}
-
-
-const ProviderModelPicker = memo(function ProviderModelPicker(props: {
-  provider: ProviderKind;
-  model: ModelSlug;
-  lockedProvider: ProviderKind | null;
-  modelOptionsByProvider: Record<ProviderKind, ReadonlyArray<ModelOptionEntry>>;
-  compact?: boolean;
-  disabled?: boolean;
-  onProviderModelChange: (provider: ProviderKind, model: ModelSlug) => void;
-}) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const selectedProviderOptions = props.modelOptionsByProvider[props.provider];
-  const selectedModelOption = selectedProviderOptions.find((option) => option.slug === props.model);
-  const selectedModelLabel = selectedModelOption?.name ?? props.model;
-  const selectedPricingTier = selectedModelOption?.pricingTier;
-  const ProviderIcon = PROVIDER_ICON_BY_PROVIDER[props.provider];
-
-  return (
-    <Menu
-      open={isMenuOpen}
-      onOpenChange={(open) => {
-        if (props.disabled) {
-          setIsMenuOpen(false);
-          return;
-        }
-        setIsMenuOpen(open);
-      }}
-    >
-      <MenuTrigger
-        render={
-          <Button
-            size="sm"
-            variant="ghost"
-            className={cn(
-              "min-w-0 shrink-0 whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80",
-              props.compact ? "max-w-42" : "sm:px-3",
-            )}
-            disabled={props.disabled}
-          />
-        }
-      >
-        <span
-          className={cn("flex min-w-0 items-center gap-2", props.compact ? "max-w-36" : undefined)}
-        >
-          <ProviderIcon
-            aria-hidden="true"
-            className={cn(
-              "size-4 shrink-0",
-              props.provider === "claudeCode" ? "" : "text-muted-foreground/70",
-            )}
-          />
-          <span className="truncate">{selectedModelLabel}</span>
-          {selectedPricingTier ? (
-            <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-              {formatPricingTier(selectedPricingTier)}
-            </span>
-          ) : null}
-          <ChevronDownIcon aria-hidden="true" className="size-3 opacity-60" />
-        </span>
-      </MenuTrigger>
-      <MenuPopup align="start">
-        {AVAILABLE_PROVIDER_OPTIONS.map((option) => {
-          const OptionIcon = PROVIDER_ICON_BY_PROVIDER[option.value];
-          const isDisabledByProviderLock =
-            props.lockedProvider !== null && props.lockedProvider !== option.value;
-          const providerModels = props.modelOptionsByProvider[option.value];
-          const onModelSelect = (value: string) => {
-            if (props.disabled) return;
-            if (isDisabledByProviderLock) return;
-            if (!value) return;
-            const resolvedModel = resolveModelForProviderPicker(option.value, value, providerModels);
-            if (!resolvedModel) return;
-            props.onProviderModelChange(option.value, resolvedModel);
-            setIsMenuOpen(false);
-          };
-
-          // OpenCode / Kilo: two-tiered picker grouped by sub-provider
-          if (option.value === "opencode" || option.value === "kilo") {
-            const groups = groupModelsBySubProvider(providerModels);
-            return (
-              <MenuSub key={option.value}>
-                <MenuSubTrigger disabled={isDisabledByProviderLock}>
-                  <OptionIcon
-                    aria-hidden="true"
-                    className="size-4 shrink-0 text-muted-foreground/85"
-                  />
-                  {option.label}
-                </MenuSubTrigger>
-                <MenuSubPopup className="[--available-height:min(24rem,70vh)]">
-                  {groups.length === 0 ? (
-                    <MenuItem disabled>
-                      <span className="text-muted-foreground/60 text-xs">No models discovered</span>
-                    </MenuItem>
-                  ) : (
-                    groups.map((group) => (
-                      <MenuSub key={group.subProvider}>
-                        <MenuSubTrigger>{group.subProvider}</MenuSubTrigger>
-                        <MenuSubPopup className="[--available-height:min(24rem,70vh)]">
-                          <MenuGroup>
-                            <MenuRadioGroup
-                              value={props.provider === option.value ? props.model : ""}
-                              onValueChange={onModelSelect}
-                            >
-                              {group.models.map((modelOption) => (
-                                <MenuRadioItem
-                                  key={modelOption.slug}
-                                  value={modelOption.slug}
-                                  onClick={() => setIsMenuOpen(false)}
-                                >
-                                  <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                                    <span className="truncate">{modelOption.name}</span>
-                                    {modelOption.pricingTier ? (
-                                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                                        {formatPricingTier(modelOption.pricingTier)}
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                </MenuRadioItem>
-                              ))}
-                            </MenuRadioGroup>
-                          </MenuGroup>
-                        </MenuSubPopup>
-                      </MenuSub>
-                    ))
-                  )}
-                </MenuSubPopup>
-              </MenuSub>
-            );
-          }
-
-          return (
-            <MenuSub key={option.value}>
-              <MenuSubTrigger disabled={isDisabledByProviderLock}>
-                <OptionIcon
-                  aria-hidden="true"
-                  className="size-4 shrink-0 text-muted-foreground/85"
-                />
-                {option.label}
-              </MenuSubTrigger>
-              <MenuSubPopup className="[--available-height:min(24rem,70vh)]">
-                <MenuGroup>
-                  <MenuRadioGroup
-                    value={props.provider === option.value ? props.model : ""}
-                    onValueChange={onModelSelect}
-                  >
-                    {providerModels.map((modelOption) => (
-                      <MenuRadioItem
-                        key={`${option.value}:${modelOption.slug}`}
-                        value={modelOption.slug}
-                        onClick={() => setIsMenuOpen(false)}
-                      >
-                        <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                          <span className="truncate">{modelOption.name}</span>
-                          {modelOption.pricingTier ? (
-                            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                              {formatPricingTier(modelOption.pricingTier)}
-                            </span>
-                          ) : null}
-                        </span>
-                      </MenuRadioItem>
-                    ))}
-                  </MenuRadioGroup>
-                </MenuGroup>
-              </MenuSubPopup>
-            </MenuSub>
-          );
-        })}
-        {UNAVAILABLE_PROVIDER_OPTIONS.length > 0 && <MenuDivider />}
-        {UNAVAILABLE_PROVIDER_OPTIONS.map((option) => {
-          const OptionIcon = PROVIDER_ICON_BY_PROVIDER[option.value];
-          return (
-            <MenuItem key={option.value} disabled>
-              <OptionIcon
-                aria-hidden="true"
-                className={cn(
-                  "size-4 shrink-0 opacity-80",
-                  option.value === "claudeCode" ? "" : "text-muted-foreground/85",
-                )}
-              />
-              <span>{option.label}</span>
-              <span className="ms-auto text-[11px] text-muted-foreground/80 uppercase tracking-[0.08em]">
-                Coming soon
-              </span>
-            </MenuItem>
-          );
-        })}
-        {UNAVAILABLE_PROVIDER_OPTIONS.length === 0 && <MenuDivider />}
-        {COMING_SOON_PROVIDER_OPTIONS.map((option) => {
-          const OptionIcon = option.icon;
-          return (
-            <MenuItem key={option.id} disabled>
-              <OptionIcon aria-hidden="true" className="size-4 shrink-0 opacity-80" />
-              <span>{option.label}</span>
-              <span className="ms-auto text-[11px] text-muted-foreground/80 uppercase tracking-[0.08em]">
-                Coming soon
-              </span>
-            </MenuItem>
-          );
-        })}
-      </MenuPopup>
-    </Menu>
-  );
-});
-
-const CompactComposerControlsMenu = memo(function CompactComposerControlsMenu(props: {
-  activePlan: boolean;
-  interactionMode: ProviderInteractionMode;
-  planSidebarOpen: boolean;
-  runtimeMode: RuntimeMode;
-  selectedEffort: CodexReasoningEffort | null;
-  selectedProvider: ProviderKind;
-  selectedCodexFastModeEnabled: boolean;
-  reasoningOptions: ReadonlyArray<CodexReasoningEffort>;
-  onEffortSelect: (effort: CodexReasoningEffort) => void;
-  onCodexFastModeChange: (enabled: boolean) => void;
-  onToggleInteractionMode: () => void;
-  onTogglePlanSidebar: () => void;
-  onToggleRuntimeMode: () => void;
-}) {
-  const defaultReasoningEffort = getDefaultReasoningEffort("codex");
-  const reasoningLabelByOption: Record<CodexReasoningEffort, string> = {
-    low: "Low",
-    medium: "Medium",
-    high: "High",
-    xhigh: "Extra High",
-  };
-
-  return (
-    <Menu>
-      <MenuTrigger
-        render={
-          <Button
-            size="sm"
-            variant="ghost"
-            className="shrink-0 px-2 text-muted-foreground/70 hover:text-foreground/80"
-            aria-label="More composer controls"
-          />
-        }
-      >
-        <EllipsisIcon aria-hidden="true" className="size-4" />
-      </MenuTrigger>
-      <MenuPopup align="start">
-        {props.selectedProvider === "codex" && props.selectedEffort != null ? (
-          <>
-            <MenuGroup>
-              <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">Reasoning</div>
-              <MenuRadioGroup
-                value={props.selectedEffort}
-                onValueChange={(value) => {
-                  if (!value) return;
-                  const nextEffort = props.reasoningOptions.find((option) => option === value);
-                  if (!nextEffort) return;
-                  props.onEffortSelect(nextEffort);
-                }}
-              >
-                {props.reasoningOptions.map((effort) => (
-                  <MenuRadioItem key={effort} value={effort}>
-                    {reasoningLabelByOption[effort]}
-                    {effort === defaultReasoningEffort ? " (default)" : ""}
-                  </MenuRadioItem>
-                ))}
-              </MenuRadioGroup>
-            </MenuGroup>
-            <MenuDivider />
-            <MenuGroup>
-              <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">Fast Mode</div>
-              <MenuRadioGroup
-                value={props.selectedCodexFastModeEnabled ? "on" : "off"}
-                onValueChange={(value) => {
-                  props.onCodexFastModeChange(value === "on");
-                }}
-              >
-                <MenuRadioItem value="off">off</MenuRadioItem>
-                <MenuRadioItem value="on">on</MenuRadioItem>
-              </MenuRadioGroup>
-            </MenuGroup>
-            <MenuDivider />
-          </>
-        ) : null}
-        <MenuGroup>
-          <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">Mode</div>
-          <MenuRadioGroup
-            value={props.interactionMode}
-            onValueChange={(value) => {
-              if (!value || value === props.interactionMode) return;
-              props.onToggleInteractionMode();
-            }}
-          >
-            <MenuRadioItem value="default">Chat</MenuRadioItem>
-            <MenuRadioItem value="plan">Plan</MenuRadioItem>
-          </MenuRadioGroup>
-        </MenuGroup>
-        <MenuDivider />
-        <MenuGroup>
-          <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">Access</div>
-          <MenuRadioGroup
-            value={props.runtimeMode}
-            onValueChange={(value) => {
-              if (!value || value === props.runtimeMode) return;
-              props.onToggleRuntimeMode();
-            }}
-          >
-            <MenuRadioItem value="approval-required">Supervised</MenuRadioItem>
-            <MenuRadioItem value="full-access">Full access</MenuRadioItem>
-          </MenuRadioGroup>
-        </MenuGroup>
-        {props.activePlan ? (
-          <>
-            <MenuDivider />
-            <MenuItem onClick={props.onTogglePlanSidebar}>
-              <ListTodoIcon className="size-4 shrink-0" />
-              {props.planSidebarOpen ? "Hide plan sidebar" : "Show plan sidebar"}
-            </MenuItem>
-          </>
-        ) : null}
-      </MenuPopup>
-    </Menu>
-  );
-});
-
-const CodexTraitsPicker = memo(function CodexTraitsPicker(props: {
-  effort: CodexReasoningEffort;
-  fastModeEnabled: boolean;
-  options: ReadonlyArray<CodexReasoningEffort>;
-  onEffortChange: (effort: CodexReasoningEffort) => void;
-  onFastModeChange: (enabled: boolean) => void;
-}) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const defaultReasoningEffort = getDefaultReasoningEffort("codex");
-  const reasoningLabelByOption: Record<CodexReasoningEffort, string> = {
-    low: "Low",
-    medium: "Medium",
-    high: "High",
-    xhigh: "Extra High",
-  };
-  const triggerLabel = [
-    reasoningLabelByOption[props.effort],
-    ...(props.fastModeEnabled ? ["Fast"] : []),
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-  return (
-    <Menu
-      open={isMenuOpen}
-      onOpenChange={(open) => {
-        setIsMenuOpen(open);
-      }}
-    >
-      <MenuTrigger
-        render={
-          <Button
-            size="sm"
-            variant="ghost"
-            className="shrink-0 whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80 sm:px-3"
-          />
-        }
-      >
-        <span>{triggerLabel}</span>
-        <ChevronDownIcon aria-hidden="true" className="size-3 opacity-60" />
-      </MenuTrigger>
-      <MenuPopup align="start">
-        <MenuGroup>
-          <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">Reasoning</div>
-          <MenuRadioGroup
-            value={props.effort}
-            onValueChange={(value) => {
-              if (!value) return;
-              const nextEffort = props.options.find((option) => option === value);
-              if (!nextEffort) return;
-              props.onEffortChange(nextEffort);
-            }}
-          >
-            {props.options.map((effort) => (
-              <MenuRadioItem key={effort} value={effort}>
-                {reasoningLabelByOption[effort]}
-                {effort === defaultReasoningEffort ? " (default)" : ""}
-              </MenuRadioItem>
-            ))}
-          </MenuRadioGroup>
-        </MenuGroup>
-        <MenuDivider />
-        <MenuGroup>
-          <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">Fast Mode</div>
-          <MenuRadioGroup
-            value={props.fastModeEnabled ? "on" : "off"}
-            onValueChange={(value) => {
-              props.onFastModeChange(value === "on");
-            }}
-          >
-            <MenuRadioItem value="off">off</MenuRadioItem>
-            <MenuRadioItem value="on">on</MenuRadioItem>
-          </MenuRadioGroup>
-        </MenuGroup>
-      </MenuPopup>
-    </Menu>
-  );
-});
-
-const CLAUDE_CODE_EFFORT_LABEL: Record<ClaudeCodeEffort, string> = {
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  max: "Max",
-};
-
-const ClaudeCodeTraitsPicker = memo(function ClaudeCodeTraitsPicker(props: {
-  effort: ClaudeCodeEffort;
-  options: ReadonlyArray<ClaudeCodeEffort>;
-  onEffortChange: (effort: ClaudeCodeEffort) => void;
-}) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const defaultEffort = getDefaultClaudeCodeEffort("claudeCode");
-
-  return (
-    <Menu
-      open={isMenuOpen}
-      onOpenChange={(open) => {
-        setIsMenuOpen(open);
-      }}
-    >
-      <MenuTrigger
-        render={
-          <Button
-            size="sm"
-            variant="ghost"
-            className="shrink-0 whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80 sm:px-3"
-          />
-        }
-      >
-        <span>{CLAUDE_CODE_EFFORT_LABEL[props.effort]}</span>
-        <ChevronDownIcon aria-hidden="true" className="size-3 opacity-60" />
-      </MenuTrigger>
-      <MenuPopup align="start">
-        <MenuGroup>
-          <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">Effort</div>
-          <MenuRadioGroup
-            value={props.effort}
-            onValueChange={(value) => {
-              if (!value) return;
-              const nextEffort = props.options.find((option) => option === value);
-              if (!nextEffort) return;
-              props.onEffortChange(nextEffort);
-            }}
-          >
-            {props.options.map((effort) => (
-              <MenuRadioItem key={effort} value={effort}>
-                {CLAUDE_CODE_EFFORT_LABEL[effort]}
-                {effort === defaultEffort ? " (default)" : ""}
-              </MenuRadioItem>
-            ))}
-          </MenuRadioGroup>
-        </MenuGroup>
-      </MenuPopup>
-    </Menu>
-  );
-});
-
-const CursorTraitsPicker = memo(function CursorTraitsPicker(props: {
-  selection: ReturnType<typeof parseCursorModelSelection>;
-  capabilities: ReturnType<typeof getCursorModelCapabilities>;
-  disabled?: boolean;
-  onReasoningChange: (reasoning: CursorReasoningOption) => void;
-  onFastModeChange: (enabled: boolean) => void;
-  onThinkingModeChange: (enabled: boolean) => void;
-}) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const reasoningLabelByOption: Record<CursorReasoningOption, string> = {
-    low: "Low",
-    normal: "Normal",
-    high: "High",
-    xhigh: "Extra High",
-  };
-  const traitSummary = [
-    ...(props.capabilities.supportsReasoning
-      ? [reasoningLabelByOption[props.selection.reasoning]]
-      : []),
-    ...(props.capabilities.supportsFast && props.selection.fast ? ["Fast"] : []),
-    ...(props.capabilities.supportsThinking && props.selection.thinking ? ["Thinking"] : []),
-  ];
-  const triggerLabel = traitSummary.length > 0 ? traitSummary.join(" · ") : "Traits";
-
-  return (
-    <Menu
-      open={isMenuOpen}
-      onOpenChange={(open) => {
-        if (props.disabled) {
-          setIsMenuOpen(false);
-          return;
-        }
-        setIsMenuOpen(open);
-      }}
-    >
-      <MenuTrigger
-        render={
-          <Button
-            size="sm"
-            variant="ghost"
-            className="shrink-0 whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80 sm:px-3"
-            disabled={props.disabled}
-          />
-        }
-      >
-        <span>{triggerLabel}</span>
-        <ChevronDownIcon aria-hidden="true" className="size-3 opacity-60" />
-      </MenuTrigger>
-      <MenuPopup align="start">
-        {props.capabilities.supportsReasoning && (
-          <MenuGroup>
-            <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">Reasoning</div>
-            <MenuRadioGroup
-              value={props.selection.reasoning}
-              onValueChange={(value) => {
-                if (props.disabled) return;
-                if (!value) return;
-                const nextReasoning = CURSOR_REASONING_OPTIONS.find((option) => option === value);
-                if (!nextReasoning) return;
-                props.onReasoningChange(nextReasoning);
-              }}
-            >
-              {CURSOR_REASONING_OPTIONS.map((reasoning) => (
-                <MenuRadioItem key={reasoning} value={reasoning}>
-                  {reasoning}
-                  {reasoning === "normal" ? " (default)" : ""}
-                </MenuRadioItem>
-              ))}
-            </MenuRadioGroup>
-          </MenuGroup>
-        )}
-        {props.capabilities.supportsReasoning &&
-          (props.capabilities.supportsFast || props.capabilities.supportsThinking) && (
-            <MenuDivider />
-          )}
-        {props.capabilities.supportsFast && (
-          <MenuGroup>
-            <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">Fast Mode</div>
-            <MenuRadioGroup
-              value={props.selection.fast ? "on" : "off"}
-              onValueChange={(value) => {
-                if (props.disabled) return;
-                props.onFastModeChange(value === "on");
-              }}
-            >
-              <MenuRadioItem value="off">off</MenuRadioItem>
-              <MenuRadioItem value="on">on</MenuRadioItem>
-            </MenuRadioGroup>
-          </MenuGroup>
-        )}
-        {props.capabilities.supportsFast && props.capabilities.supportsThinking && <MenuDivider />}
-        {props.capabilities.supportsThinking && (
-          <MenuGroup>
-            <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">Thinking</div>
-            <MenuRadioGroup
-              value={props.selection.thinking ? "on" : "off"}
-              onValueChange={(value) => {
-                if (props.disabled) return;
-                props.onThinkingModeChange(value === "on");
-              }}
-            >
-              <MenuRadioItem value="off">off</MenuRadioItem>
-              <MenuRadioItem value="on">on</MenuRadioItem>
-            </MenuRadioGroup>
-          </MenuGroup>
-        )}
-      </MenuPopup>
-    </Menu>
-  );
-});
-
-const OpenInPicker = memo(function OpenInPicker({
-  keybindings,
-  availableEditors,
-  openInCwd,
-}: {
-  keybindings: ResolvedKeybindingsConfig;
-  availableEditors: ReadonlyArray<EditorId>;
-  openInCwd: string | null;
-}) {
-  const [lastEditor, setLastEditor] = useState<EditorId>(() => {
-    const stored = localStorage.getItem(LAST_EDITOR_KEY);
-    return EDITORS.some((e) => e.id === stored) ? (stored as EditorId) : EDITORS[0].id;
-  });
-
-  const allOptions = useMemo<Array<{ label: string; Icon: Icon; value: EditorId }>>(
-    () => [
-      {
-        label: "Cursor",
-        Icon: CursorIcon,
-        value: "cursor",
-      },
-      {
-        label: "Windsurf",
-        Icon: WindsurfIcon,
-        value: "windsurf",
-      },
-      {
-        label: "VS Code",
-        Icon: VisualStudioCode,
-        value: "vscode",
-      },
-      {
-        label: "Zed",
-        Icon: Zed,
-        value: "zed",
-      },
-      {
-        label: "Positron",
-        Icon: PositronIcon,
-        value: "positron",
-      },
-      {
-        label: "Sublime Text",
-        Icon: SublimeTextIcon,
-        value: "sublime",
-      },
-      {
-        label: "WebStorm",
-        Icon: WebStormIcon,
-        value: "webstorm",
-      },
-      {
-        label: "IntelliJ IDEA",
-        Icon: IntelliJIcon,
-        value: "intellij",
-      },
-      {
-        label: "Fleet",
-        Icon: FleetIcon,
-        value: "fleet",
-      },
-      {
-        label: "Ghostty",
-        Icon: GhosttyIcon,
-        value: "ghostty",
-      },
-      {
-        label: isMacPlatform(navigator.platform)
-          ? "Finder"
-          : isWindowsPlatform(navigator.platform)
-            ? "Explorer"
-            : "Files",
-        Icon: FolderClosedIcon,
-        value: "file-manager",
-      },
-    ],
-    [],
-  );
-  const options = useMemo(
-    () => allOptions.filter((option) => availableEditors.includes(option.value)),
-    [allOptions, availableEditors],
-  );
-
-  const effectiveEditor = options.some((option) => option.value === lastEditor)
-    ? lastEditor
-    : (options[0]?.value ?? null);
-  const primaryOption = options.find(({ value }) => value === effectiveEditor) ?? null;
-
-  const openInEditor = useCallback(
-    (editorId: EditorId | null) => {
-      const api = readNativeApi();
-      if (!api || !openInCwd) return;
-      const editor = editorId ?? effectiveEditor;
-      if (!editor) return;
-      void api.shell.openInEditor(openInCwd, editor);
-      localStorage.setItem(LAST_EDITOR_KEY, editor);
-      setLastEditor(editor);
-    },
-    [effectiveEditor, openInCwd, setLastEditor],
-  );
-
-  const [copiedPath, setCopiedPath] = useState(false);
-  const copiedPathTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (copiedPathTimeoutRef.current !== null) {
-        clearTimeout(copiedPathTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const copyPath = useCallback(() => {
-    if (!openInCwd) return;
-    void navigator.clipboard.writeText(openInCwd).then(() => {
-      setCopiedPath(true);
-      if (copiedPathTimeoutRef.current !== null) {
-        clearTimeout(copiedPathTimeoutRef.current);
-      }
-      copiedPathTimeoutRef.current = setTimeout(() => {
-        setCopiedPath(false);
-        copiedPathTimeoutRef.current = null;
-      }, 2000);
-    }).catch(() => {
-      // Clipboard write failed — don't show success indicator.
-    });
-  }, [openInCwd]);
-
-  const openFavoriteEditorShortcutLabel = useMemo(
-    () => shortcutLabelForCommand(keybindings, "editor.openFavorite"),
-    [keybindings],
-  );
-
-  useEffect(() => {
-    const handler = (e: globalThis.KeyboardEvent) => {
-      const api = readNativeApi();
-      if (!isOpenFavoriteEditorShortcut(e, keybindings)) return;
-      if (!api || !openInCwd) return;
-      if (!effectiveEditor) return;
-
-      e.preventDefault();
-      void api.shell.openInEditor(openInCwd, effectiveEditor);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [effectiveEditor, keybindings, openInCwd]);
-
-  return (
-    <Group aria-label="Subscription actions">
-      <Button
-        size="xs"
-        variant="outline"
-        disabled={!effectiveEditor || !openInCwd}
-        onClick={() => openInEditor(effectiveEditor)}
-      >
-        {primaryOption?.Icon && <primaryOption.Icon aria-hidden="true" className="size-3.5" />}
-        <span className="sr-only @sm/header-actions:not-sr-only @sm/header-actions:ml-0.5">
-          Open
-        </span>
-      </Button>
-      <GroupSeparator className="hidden @sm/header-actions:block" />
-      <Menu>
-        <MenuTrigger render={<Button aria-label="Copy options" size="icon-xs" variant="outline" />}>
-          <ChevronDownIcon aria-hidden="true" className="size-4" />
-        </MenuTrigger>
-        <MenuPopup align="end">
-          {options.length === 0 && <MenuItem disabled>No installed editors found</MenuItem>}
-          {options.map(({ label, Icon, value }) => (
-            <MenuItem key={value} onClick={() => openInEditor(value)}>
-              <Icon aria-hidden="true" className="text-muted-foreground" />
-              {label}
-              {value === effectiveEditor && openFavoriteEditorShortcutLabel && (
-                <MenuShortcut>{openFavoriteEditorShortcutLabel}</MenuShortcut>
-              )}
-            </MenuItem>
-          ))}
-          {openInCwd && (
-            <>
-              <MenuDivider />
-              <MenuItem onClick={copyPath}>
-                {copiedPath ? (
-                  <CheckIcon aria-hidden="true" className="text-success" />
-                ) : (
-                  <CopyIcon aria-hidden="true" className="text-muted-foreground" />
-                )}
-                Copy Path
-              </MenuItem>
-            </>
-          )}
-        </MenuPopup>
-      </Menu>
-    </Group>
-  );
-});
