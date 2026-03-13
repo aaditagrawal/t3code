@@ -667,6 +667,10 @@ function sessionErrorMessage(error: EventSessionError["properties"]["error"]): s
       return error.data?.message;
     case "MessageOutputLengthError":
       return "OpenCode response exceeded output length";
+    default: {
+      const msg = (error.data as { message?: string } | undefined)?.message;
+      return msg ?? `OpenCode error: ${error.name}`;
+    }
   }
 }
 
