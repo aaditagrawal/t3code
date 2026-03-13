@@ -41,11 +41,13 @@ export type ModelOptionEntry = {
   name: string;
   pricingTier?: string;
   isCustom?: boolean;
+  connected?: boolean;
 };
 
 type GroupedModelEntry = {
   readonly subProvider: string;
   readonly models: ReadonlyArray<ModelOptionEntry>;
+  readonly connected: boolean;
 };
 
 export function getCustomModelOptionsByProvider(settings: {
@@ -125,7 +127,10 @@ function groupModelsBySubProvider(
   models: ReadonlyArray<ModelOptionEntry>,
 ): ReadonlyArray<GroupedModelEntry> {
   const groupOrder: string[] = [];
-  const groupMap = new Map<string, { displayName: string; models: ModelOptionEntry[] }>();
+  const groupMap = new Map<
+    string,
+    { displayName: string; models: ModelOptionEntry[]; connected: boolean }
+  >();
   const ungrouped: ModelOptionEntry[] = [];
 
   for (const model of models) {
@@ -139,7 +144,7 @@ function groupModelsBySubProvider(
 
       let group = groupMap.get(subProviderId);
       if (!group) {
-        group = { displayName: subProviderName, models: [] };
+        group = { displayName: subProviderName, models: [], connected: model.connected !== false };
         groupMap.set(subProviderId, group);
         groupOrder.push(subProviderId);
       }
@@ -154,12 +159,20 @@ function groupModelsBySubProvider(
     }
   }
 
-  const result: GroupedModelEntry[] = groupOrder.map((id) => {
+  const sorted = groupOrder.toSorted((a, b) => {
+    const nameA = groupMap.get(a)!.displayName;
+    const nameB = groupMap.get(b)!.displayName;
+    return nameA.localeCompare(nameB);
+  });
+
+  const result: GroupedModelEntry[] = sorted.map((id) => {
     const group = groupMap.get(id)!;
-    return { subProvider: group.displayName, models: group.models };
+    const sortedModels = [...group.models].sort((a, b) => a.name.localeCompare(b.name));
+    return { subProvider: group.displayName, models: sortedModels, connected: group.connected };
   });
   if (ungrouped.length > 0) {
-    result.push({ subProvider: "Other", models: ungrouped });
+    const sortedUngrouped = [...ungrouped].sort((a, b) => a.name.localeCompare(b.name));
+    result.push({ subProvider: "Other", models: sortedUngrouped, connected: true });
   }
   return result;
 }
@@ -300,9 +313,45 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             setIsMenuOpen(false);
           };
 
-          // OpenCode / Kilo: two-tiered picker grouped by sub-provider
+          // OpenCode / Kilo: two-tiered picker grouped by sub-provider.
+          // Connected providers are shown first; disconnected ones are
+          // collapsed under an "All Providers" submenu.
           if (option.value === "opencode" || option.value === "kilo") {
             const groups = groupModelsBySubProvider(providerModels);
+            const connectedGroups = groups.filter((g) => g.connected);
+            const disconnectedGroups = groups.filter((g) => !g.connected);
+
+            const renderSubProviderGroup = (group: GroupedModelEntry) => (
+              <MenuSub key={group.subProvider}>
+                <MenuSubTrigger>{group.subProvider}</MenuSubTrigger>
+                <MenuSubPopup className="[--available-height:min(24rem,70vh)]">
+                  <MenuGroup>
+                    <MenuRadioGroup
+                      value={props.provider === option.value ? props.model : ""}
+                      onValueChange={onModelSelect}
+                    >
+                      {group.models.map((modelOption) => (
+                        <MenuRadioItem
+                          key={modelOption.slug}
+                          value={modelOption.slug}
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                            <span className="truncate">{modelOption.name}</span>
+                            {modelOption.pricingTier ? (
+                              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                                {formatPricingTier(modelOption.pricingTier)}
+                              </span>
+                            ) : null}
+                          </span>
+                        </MenuRadioItem>
+                      ))}
+                    </MenuRadioGroup>
+                  </MenuGroup>
+                </MenuSubPopup>
+              </MenuSub>
+            );
+
             return (
               <MenuSub key={option.value}>
                 <MenuSubTrigger disabled={isDisabledByProviderLock}>
@@ -318,36 +367,25 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                       <span className="text-muted-foreground/60 text-xs">No models discovered</span>
                     </MenuItem>
                   ) : (
-                    groups.map((group) => (
-                      <MenuSub key={group.subProvider}>
-                        <MenuSubTrigger>{group.subProvider}</MenuSubTrigger>
-                        <MenuSubPopup className="[--available-height:min(24rem,70vh)]">
-                          <MenuGroup>
-                            <MenuRadioGroup
-                              value={props.provider === option.value ? props.model : ""}
-                              onValueChange={onModelSelect}
-                            >
-                              {group.models.map((modelOption) => (
-                                <MenuRadioItem
-                                  key={modelOption.slug}
-                                  value={modelOption.slug}
-                                  onClick={() => setIsMenuOpen(false)}
-                                >
-                                  <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                                    <span className="truncate">{modelOption.name}</span>
-                                    {modelOption.pricingTier ? (
-                                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                                        {formatPricingTier(modelOption.pricingTier)}
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                </MenuRadioItem>
-                              ))}
-                            </MenuRadioGroup>
-                          </MenuGroup>
-                        </MenuSubPopup>
-                      </MenuSub>
-                    ))
+                    <>
+                      {connectedGroups.map(renderSubProviderGroup)}
+                      {disconnectedGroups.length > 0 && connectedGroups.length > 0 && (
+                        <>
+                          <MenuDivider />
+                          <MenuSub>
+                            <MenuSubTrigger>
+                              <span className="text-muted-foreground/70">All Providers</span>
+                            </MenuSubTrigger>
+                            <MenuSubPopup className="[--available-height:min(24rem,70vh)]">
+                              {disconnectedGroups.map(renderSubProviderGroup)}
+                            </MenuSubPopup>
+                          </MenuSub>
+                        </>
+                      )}
+                      {disconnectedGroups.length > 0 &&
+                        connectedGroups.length === 0 &&
+                        disconnectedGroups.map(renderSubProviderGroup)}
+                    </>
                   )}
                 </MenuSubPopup>
               </MenuSub>

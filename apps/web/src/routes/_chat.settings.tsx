@@ -10,14 +10,13 @@ import {
   useAppSettings,
 } from "../appSettings";
 import { ACCENT_COLOR_PRESETS, DEFAULT_ACCENT_COLOR, normalizeAccentColor } from "../accentColor";
+import { resolveAndPersistPreferredEditor } from "../editorPreferences";
 import { isElectron } from "../env";
 import { useTheme } from "../hooks/useTheme";
 import { serverConfigQueryOptions } from "../lib/serverReactQuery";
 import { ensureNativeApi } from "../nativeApi";
-import { preferredTerminalEditor } from "../terminal-links";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Switch } from "../components/ui/switch";
 import {
   Select,
   SelectItem,
@@ -25,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
+import { Switch } from "../components/ui/switch";
 import { APP_VERSION } from "../branding";
 import { SidebarInset } from "~/components/ui/sidebar";
 
@@ -110,6 +110,12 @@ const MODEL_PROVIDER_SETTINGS: Array<{
     example: "openai/gpt-5#high",
   },
 ] as const;
+
+const TIMESTAMP_FORMAT_LABELS = {
+  locale: "System default",
+  "12-hour": "12-hour",
+  "24-hour": "24-hour",
+} as const;
 
 function getCustomModelsForProvider(
   settings: ReturnType<typeof useAppSettings>["settings"],
@@ -209,14 +215,21 @@ function SettingsRouteView() {
   const codexHomePath = settings.codexHomePath;
   const accentColor = settings.accentColor;
   const keybindingsConfigPath = serverConfigQuery.data?.keybindingsConfigPath ?? null;
+  const availableEditors = serverConfigQuery.data?.availableEditors;
 
   const openKeybindingsFile = useCallback(() => {
     if (!keybindingsConfigPath) return;
     setOpenKeybindingsError(null);
     setIsOpeningKeybindings(true);
     const api = ensureNativeApi();
+    const editor = resolveAndPersistPreferredEditor(availableEditors ?? []);
+    if (!editor) {
+      setOpenKeybindingsError("No available editors found.");
+      setIsOpeningKeybindings(false);
+      return;
+    }
     void api.shell
-      .openInEditor(keybindingsConfigPath, preferredTerminalEditor())
+      .openInEditor(keybindingsConfigPath, editor)
       .catch((error) => {
         setOpenKeybindingsError(
           error instanceof Error ? error.message : "Unable to open keybindings file.",
@@ -225,7 +238,7 @@ function SettingsRouteView() {
       .finally(() => {
         setIsOpeningKeybindings(false);
       });
-  }, [keybindingsConfigPath]);
+  }, [availableEditors, keybindingsConfigPath]);
 
   const addCustomModel = useCallback(
     (provider: ProviderKind) => {
@@ -315,146 +328,192 @@ function SettingsRouteView() {
               <div className="mb-4">
                 <h2 className="text-sm font-medium text-foreground">Appearance</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Choose how T3 Code handles light and dark mode.
+                  Choose how T3 Code looks across the app.
                 </p>
               </div>
 
-              <div className="space-y-2" role="radiogroup" aria-label="Theme preference">
-                {THEME_OPTIONS.map((option) => {
-                  const selected = theme === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      className={`flex w-full items-start justify-between rounded-lg border px-3 py-2 text-left transition-colors ${
-                        selected
-                          ? "border-primary/60 bg-primary/8 text-foreground"
-                          : "border-border bg-background text-muted-foreground hover:bg-accent"
-                      }`}
-                      onClick={() => setTheme(option.value)}
-                    >
-                      <span className="flex flex-col">
-                        <span className="text-sm font-medium">{option.label}</span>
-                        <span className="text-xs">{option.description}</span>
-                      </span>
-                      {selected ? (
-                        <span className="rounded bg-primary/14 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
-                          Selected
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <p className="mt-4 text-xs text-muted-foreground">
-                Active theme: <span className="font-medium text-foreground">{resolvedTheme}</span>
-              </p>
-
-              <div className="mt-5 space-y-3 border-t border-border/80 pt-4">
-                <div>
-                  <p className="text-xs font-medium text-foreground">Accent color</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Applies to primary actions, focus rings, info highlights, and terminal blue.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {ACCENT_COLOR_PRESETS.map((preset) => {
-                    const selected = accentColor === preset.value;
+              <div className="space-y-4">
+                <div className="space-y-2" role="radiogroup" aria-label="Theme preference">
+                  {THEME_OPTIONS.map((option) => {
+                    const selected = theme === option.value;
                     return (
                       <button
-                        key={preset.value}
+                        key={option.value}
                         type="button"
-                        className={`inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs transition-colors ${
+                        role="radio"
+                        aria-checked={selected}
+                        className={`flex w-full items-start justify-between rounded-lg border px-3 py-2 text-left transition-colors ${
                           selected
                             ? "border-primary/60 bg-primary/8 text-foreground"
                             : "border-border bg-background text-muted-foreground hover:bg-accent"
                         }`}
-                        onClick={() => updateSettings({ accentColor: preset.value })}
+                        onClick={() => setTheme(option.value)}
                       >
-                        <span
-                          aria-hidden="true"
-                          className="size-3 rounded-full border border-black/20"
-                          style={{ backgroundColor: preset.value }}
-                        />
-                        {preset.label}
+                        <span className="flex flex-col">
+                          <span className="text-sm font-medium">{option.label}</span>
+                          <span className="text-xs">{option.description}</span>
+                        </span>
+                        {selected ? (
+                          <span className="rounded bg-primary/14 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                            Selected
+                          </span>
+                        ) : null}
                       </button>
                     );
                   })}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background px-3 py-2">
-                  <label
-                    htmlFor="accent-color-picker"
-                    className="text-xs font-medium text-foreground"
-                  >
-                    Custom
-                  </label>
-                  <input
-                    id="accent-color-picker"
-                    type="color"
-                    value={accentColor}
-                    className="h-8 w-12 cursor-pointer rounded border border-border bg-transparent p-0"
-                    onChange={(event) =>
-                      updateSettings({ accentColor: normalizeAccentColor(event.target.value) })
-                    }
-                  />
-                  <code className="text-xs text-muted-foreground">{accentColor}</code>
-                  {accentColor !== DEFAULT_ACCENT_COLOR ? (
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => updateSettings({ accentColor: DEFAULT_ACCENT_COLOR })}
+                <p className="mt-4 text-xs text-muted-foreground">
+                  Active theme: <span className="font-medium text-foreground">{resolvedTheme}</span>
+                </p>
+
+                <div className="mt-5 space-y-3 border-t border-border/80 pt-4">
+                  <div>
+                    <p className="text-xs font-medium text-foreground">Accent color</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Applies to primary actions, focus rings, info highlights, and terminal blue.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {ACCENT_COLOR_PRESETS.map((preset) => {
+                      const selected = accentColor === preset.value;
+                      return (
+                        <button
+                          key={preset.value}
+                          type="button"
+                          className={`inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs transition-colors ${
+                            selected
+                              ? "border-primary/60 bg-primary/8 text-foreground"
+                              : "border-border bg-background text-muted-foreground hover:bg-accent"
+                          }`}
+                          onClick={() => updateSettings({ accentColor: preset.value })}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="size-3 rounded-full border border-black/20"
+                            style={{ backgroundColor: preset.value }}
+                          />
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background px-3 py-2">
+                    <label
+                      htmlFor="accent-color-picker"
+                      className="text-xs font-medium text-foreground"
                     >
-                      Reset
-                    </Button>
+                      Custom
+                    </label>
+                    <input
+                      id="accent-color-picker"
+                      type="color"
+                      value={accentColor}
+                      className="h-8 w-12 cursor-pointer rounded border border-border bg-transparent p-0"
+                      onChange={(event) =>
+                        updateSettings({ accentColor: normalizeAccentColor(event.target.value) })
+                      }
+                    />
+                    <code className="text-xs text-muted-foreground">{accentColor}</code>
+                    {accentColor !== DEFAULT_ACCENT_COLOR ? (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => updateSettings({ accentColor: DEFAULT_ACCENT_COLOR })}
+                      >
+                        Reset
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  <label className="block space-y-1">
+                    <span className="text-xs font-medium text-foreground">
+                      Provider logo appearance
+                    </span>
+                    <Select
+                      items={APP_PROVIDER_LOGO_APPEARANCE_OPTIONS.map((option) => ({
+                        label: option.label,
+                        value: option.value,
+                      }))}
+                      value={settings.providerLogoAppearance}
+                      onValueChange={(value) => {
+                        if (!value) return;
+                        updateSettings({ providerLogoAppearance: value });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectPopup alignItemWithTrigger={false}>
+                        {APP_PROVIDER_LOGO_APPEARANCE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectPopup>
+                    </Select>
+                    <span className="text-xs text-muted-foreground">
+                      {APP_PROVIDER_LOGO_APPEARANCE_OPTIONS.find(
+                        (option) => option.value === settings.providerLogoAppearance,
+                      )?.description ?? "Use each provider's native logo colors."}
+                    </span>
+                  </label>
+
+                  {settings.providerLogoAppearance !== defaults.providerLogoAppearance ? (
+                    <div className="flex justify-end">
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() =>
+                          updateSettings({
+                            providerLogoAppearance: defaults.providerLogoAppearance,
+                          })
+                        }
+                      >
+                        Restore default
+                      </Button>
+                    </div>
                   ) : null}
                 </div>
 
-                <label className="block space-y-1">
-                  <span className="text-xs font-medium text-foreground">
-                    Provider logo appearance
-                  </span>
+                <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Timestamp format</p>
+                    <p className="text-xs text-muted-foreground">
+                      System default follows your browser or OS time format. <code>12-hour</code>{" "}
+                      and <code>24-hour</code> force the hour cycle.
+                    </p>
+                  </div>
                   <Select
-                    items={APP_PROVIDER_LOGO_APPEARANCE_OPTIONS.map((option) => ({
-                      label: option.label,
-                      value: option.value,
-                    }))}
-                    value={settings.providerLogoAppearance}
+                    value={settings.timestampFormat}
                     onValueChange={(value) => {
-                      if (!value) return;
-                      updateSettings({ providerLogoAppearance: value });
+                      if (value !== "locale" && value !== "12-hour" && value !== "24-hour") return;
+                      updateSettings({
+                        timestampFormat: value,
+                      });
                     }}
                   >
-                    <SelectTrigger>
-                      <SelectValue />
+                    <SelectTrigger className="w-40" aria-label="Timestamp format">
+                      <SelectValue>{TIMESTAMP_FORMAT_LABELS[settings.timestampFormat]}</SelectValue>
                     </SelectTrigger>
-                    <SelectPopup alignItemWithTrigger={false}>
-                      {APP_PROVIDER_LOGO_APPEARANCE_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
+                    <SelectPopup align="end">
+                      <SelectItem value="locale">{TIMESTAMP_FORMAT_LABELS.locale}</SelectItem>
+                      <SelectItem value="12-hour">{TIMESTAMP_FORMAT_LABELS["12-hour"]}</SelectItem>
+                      <SelectItem value="24-hour">{TIMESTAMP_FORMAT_LABELS["24-hour"]}</SelectItem>
                     </SelectPopup>
                   </Select>
-                  <span className="text-xs text-muted-foreground">
-                    {APP_PROVIDER_LOGO_APPEARANCE_OPTIONS.find(
-                      (option) => option.value === settings.providerLogoAppearance,
-                    )?.description ?? "Use each provider's native logo colors."}
-                  </span>
-                </label>
+                </div>
 
-                {settings.providerLogoAppearance !== defaults.providerLogoAppearance ? (
+                {settings.timestampFormat !== defaults.timestampFormat ? (
                   <div className="flex justify-end">
                     <Button
                       size="xs"
                       variant="outline"
                       onClick={() =>
                         updateSettings({
-                          providerLogoAppearance: defaults.providerLogoAppearance,
+                          timestampFormat: defaults.timestampFormat,
                         })
                       }
                     >
@@ -700,6 +759,49 @@ function SettingsRouteView() {
                   );
                 })}
               </div>
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card p-5">
+              <div className="mb-4">
+                <h2 className="text-sm font-medium text-foreground">Threads</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Choose the default workspace mode for newly created draft threads.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Default to New worktree</p>
+                  <p className="text-xs text-muted-foreground">
+                    New threads start in New worktree mode instead of Local.
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.defaultThreadEnvMode === "worktree"}
+                  onCheckedChange={(checked) =>
+                    updateSettings({
+                      defaultThreadEnvMode: checked ? "worktree" : "local",
+                    })
+                  }
+                  aria-label="Default new threads to New worktree mode"
+                />
+              </div>
+
+              {settings.defaultThreadEnvMode !== defaults.defaultThreadEnvMode ? (
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={() =>
+                      updateSettings({
+                        defaultThreadEnvMode: defaults.defaultThreadEnvMode,
+                      })
+                    }
+                  >
+                    Restore default
+                  </Button>
+                </div>
+              ) : null}
             </section>
 
             <section className="rounded-2xl border border-border bg-card p-5">

@@ -1,9 +1,11 @@
 import {
   ApprovalRequestId,
+  isToolLifecycleItemType,
   type OrchestrationLatestTurn,
   type OrchestrationThreadActivity,
   type OrchestrationProposedPlanId,
   type ProviderKind,
+  type ToolLifecycleItemType,
   type UserInputQuestion,
   type TurnId,
 } from "@t3tools/contracts";
@@ -42,14 +44,8 @@ export interface WorkLogEntry {
   changedFiles?: ReadonlyArray<string>;
   tone: "thinking" | "tool" | "info" | "error";
   activityKind: OrchestrationThreadActivity["kind"];
-  itemType?:
-    | "command_execution"
-    | "file_change"
-    | "mcp_tool_call"
-    | "dynamic_tool_call"
-    | "collab_agent_tool_call"
-    | "web_search"
-    | "image_view";
+  toolTitle?: string;
+  itemType?: ToolLifecycleItemType;
   requestKind?: PendingApproval["requestKind"];
 }
 
@@ -103,14 +99,6 @@ export type TimelineEntry =
       createdAt: string;
       entry: WorkLogEntry;
     };
-
-export function formatTimestamp(isoDate: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(new Date(isoDate));
-}
 
 export function formatDuration(durationMs: number): string {
   if (!Number.isFinite(durationMs) || durationMs < 0) return "0ms";
@@ -442,6 +430,7 @@ export function deriveWorkLogEntries(
           : null;
       const command = extractToolCommand(payload);
       const changedFiles = extractChangedFiles(payload);
+      const title = extractToolTitle(payload);
       const entry: WorkLogEntry = {
         id: activity.id,
         createdAt: activity.createdAt,
@@ -452,13 +441,19 @@ export function deriveWorkLogEntries(
       const itemType = extractWorkLogItemType(payload);
       const requestKind = extractWorkLogRequestKind(payload);
       if (payload && typeof payload.detail === "string" && payload.detail.length > 0) {
-        entry.detail = payload.detail;
+        const detail = stripTrailingExitCode(payload.detail).output;
+        if (detail) {
+          entry.detail = detail;
+        }
       }
       if (command) {
         entry.command = command;
       }
       if (changedFiles.length > 0) {
         entry.changedFiles = changedFiles;
+      }
+      if (title) {
+        entry.toolTitle = title;
       }
       if (itemType) {
         entry.itemType = itemType;
@@ -510,21 +505,38 @@ function extractToolCommand(payload: Record<string, unknown> | null): string | n
   return candidates.find((candidate) => candidate !== null) ?? null;
 }
 
+function extractToolTitle(payload: Record<string, unknown> | null): string | null {
+  return asTrimmedString(payload?.title);
+}
+
+function stripTrailingExitCode(value: string): {
+  output: string | null;
+  exitCode?: number | undefined;
+} {
+  const trimmed = value.trim();
+  const match = /^(?<output>[\s\S]*?)(?:\s*<exited with exit code (?<code>\d+)>)\s*$/i.exec(
+    trimmed,
+  );
+  if (!match?.groups) {
+    return {
+      output: trimmed.length > 0 ? trimmed : null,
+    };
+  }
+  const exitCode = Number.parseInt(match.groups.code ?? "", 10);
+  const normalizedOutput = match.groups.output?.trim() ?? "";
+  return {
+    output: normalizedOutput.length > 0 ? normalizedOutput : null,
+    ...(Number.isInteger(exitCode) ? { exitCode } : {}),
+  };
+}
+
 function extractWorkLogItemType(
   payload: Record<string, unknown> | null,
 ): WorkLogEntry["itemType"] | undefined {
-  switch (payload?.itemType) {
-    case "command_execution":
-    case "file_change":
-    case "mcp_tool_call":
-    case "dynamic_tool_call":
-    case "collab_agent_tool_call":
-    case "web_search":
-    case "image_view":
-      return payload.itemType;
-    default:
-      return undefined;
+  if (typeof payload?.itemType === "string" && isToolLifecycleItemType(payload.itemType)) {
+    return payload.itemType;
   }
+  return undefined;
 }
 
 function extractWorkLogRequestKind(
@@ -598,9 +610,9 @@ function collectChangedFiles(value: unknown, target: string[], seen: Set<string>
 }
 
 function extractChangedFiles(payload: Record<string, unknown> | null): string[] {
-  const data = asRecord(payload?.data);
   const changedFiles: string[] = [];
-  collectChangedFiles(data, changedFiles, new Set<string>(), 0);
+  const seen = new Set<string>();
+  collectChangedFiles(asRecord(payload?.data), changedFiles, seen, 0);
   return changedFiles;
 }
 

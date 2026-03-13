@@ -405,6 +405,7 @@ type OpenCodeDiscoveredModel = {
   slug: string;
   name: string;
   variants?: ReadonlyArray<string>;
+  connected?: boolean;
 };
 
 interface OpenCodeManagerEvents {
@@ -565,6 +566,7 @@ function modelOptionsFromProvider(
   providerId: string,
   providerName: string,
   model: OpenCodeModel,
+  connected?: boolean,
 ): ReadonlyArray<OpenCodeDiscoveredModel> {
   const variantNames = Object.keys(model.variants ?? {})
     .filter((variant) => variant.length > 0)
@@ -574,6 +576,7 @@ function modelOptionsFromProvider(
       slug: `${providerId}/${model.id}`,
       name: `${providerName} / ${model.name}`,
       ...(variantNames.length > 0 ? { variants: variantNames } : {}),
+      ...(connected != null ? { connected } : {}),
     },
   ];
 }
@@ -582,11 +585,18 @@ function parseProviderModels(
   providers: ReadonlyArray<
     Pick<OpenCodeListedProvider, "id" | "name" | "models"> | OpenCodeConfiguredProvider
   >,
+  connectedIds?: ReadonlySet<string>,
 ): ReadonlyArray<OpenCodeDiscoveredModel> {
-  return providers.flatMap((provider) => {
+  const sorted = [...providers].sort((a, b) => {
+    const nameA = a.name || a.id;
+    const nameB = b.name || b.id;
+    return nameA.localeCompare(nameB);
+  });
+  return sorted.flatMap((provider) => {
     const providerName = provider.name || provider.id;
+    const isConnected = connectedIds ? connectedIds.has(provider.id) : undefined;
     return Object.values(provider.models).flatMap((model) =>
-      modelOptionsFromProvider(provider.id, providerName, model),
+      modelOptionsFromProvider(provider.id, providerName, model, isConnected),
     );
   });
 }
@@ -1183,11 +1193,11 @@ export class OpenCodeServerManager extends EventEmitter<OpenCodeManagerEvents> {
         client.provider.list(options?.workspace ? { workspace: options.workspace } : {}),
       ),
     );
-    // Show models from all configured providers, not just connected ones.
-    // Connection status is a runtime concern — users want to pick from
-    // everything they've set up. Fall back to config.providers if the
-    // provider.list response has no entries at all.
-    const listed = parseProviderModels(payload.all);
+    // Show all configured providers, marking which ones are connected.
+    // Fall back to config.providers if the provider.list response has
+    // no entries at all.
+    const connectedIds = new Set(payload.connected);
+    const listed = parseProviderModels(payload.all, connectedIds);
     if (listed.length > 0) {
       return listed;
     }
@@ -1273,13 +1283,6 @@ export class OpenCodeServerManager extends EventEmitter<OpenCodeManagerEvents> {
       });
 
       const startedBaseUrl = await new Promise<string>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(
-            new Error(
-              `Timed out waiting for OpenCode server to start after ${SERVER_START_TIMEOUT_MS}ms`,
-            ),
-          );
-        }, SERVER_START_TIMEOUT_MS);
         let output = "";
 
         const onChunk = (chunk: Buffer) => {
@@ -1288,18 +1291,17 @@ export class OpenCodeServerManager extends EventEmitter<OpenCodeManagerEvents> {
           if (!url) {
             return;
           }
-          clearTimeout(timeout);
+          cleanup();
           resolve(url);
         };
 
-        child.stdout.on("data", onChunk);
-        child.stderr.on("data", onChunk);
-        child.once("error", (error) => {
-          clearTimeout(timeout);
+        const onError = (error: Error) => {
+          cleanup();
           reject(error);
-        });
-        child.once("exit", (code) => {
-          clearTimeout(timeout);
+        };
+
+        const onExit = (code: number | null) => {
+          cleanup();
           void probeServer(baseUrl, authHeader).then((reuse) => {
             if (reuse) {
               resolve(baseUrl);
@@ -1314,7 +1316,34 @@ export class OpenCodeServerManager extends EventEmitter<OpenCodeManagerEvents> {
               ),
             );
           });
-        });
+        };
+
+        const cleanup = () => {
+          clearTimeout(timeout);
+          child.stdout.off("data", onChunk);
+          child.stderr.off("data", onChunk);
+          child.off("error", onError);
+          child.off("exit", onExit);
+        };
+
+        const timeout = setTimeout(() => {
+          cleanup();
+          try {
+            child.kill();
+          } catch {
+            // Process may already be dead.
+          }
+          reject(
+            new Error(
+              `Timed out waiting for OpenCode server to start after ${SERVER_START_TIMEOUT_MS}ms`,
+            ),
+          );
+        }, SERVER_START_TIMEOUT_MS);
+
+        child.stdout.on("data", onChunk);
+        child.stderr.on("data", onChunk);
+        child.once("error", onError);
+        child.once("exit", onExit);
       });
 
       const shared = {

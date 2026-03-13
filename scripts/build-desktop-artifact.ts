@@ -671,6 +671,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   const useMacIconComposer =
     options.platform === "mac" && (yield* fs.exists(path.join(stageResourcesDir, "icon.icon")));
 
+  // electron-builder is filtering out stageResourcesDir directory in the AppImage for production
+  yield* fs.copy(stageResourcesDir, path.join(stageAppDir, "apps/desktop/prod-resources"));
+
   const stagePackageJson: StagePackageJson = {
     name: "t3-code-desktop",
     version: appVersion,

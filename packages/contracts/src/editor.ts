@@ -12,6 +12,7 @@ export const EDITORS = [
   { id: "intellij", label: "IntelliJ IDEA", command: "idea" },
   { id: "fleet", label: "Fleet", command: "fleet" },
   { id: "ghostty", label: "Ghostty", command: "ghostty" },
+  { id: "antigravity", label: "Antigravity", command: "agy" },
   { id: "file-manager", label: "File Manager", command: null },
 ] as const;
 

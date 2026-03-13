@@ -28,8 +28,18 @@ const IGNORED_DIRECTORY_NAMES = new Set([
 
 interface WorkspaceIndex {
   scannedAt: number;
-  entries: ProjectEntry[];
+  entries: SearchableWorkspaceEntry[];
   truncated: boolean;
+}
+
+interface SearchableWorkspaceEntry extends ProjectEntry {
+  normalizedPath: string;
+  normalizedName: string;
+}
+
+interface RankedWorkspaceEntry {
+  entry: SearchableWorkspaceEntry;
+  score: number;
 }
 
 const workspaceIndexCache = new Map<string, WorkspaceIndex>();
@@ -53,6 +63,15 @@ function basenameOf(input: string): string {
     return input;
   }
   return input.slice(separatorIndex + 1);
+}
+
+function toSearchableWorkspaceEntry(entry: ProjectEntry): SearchableWorkspaceEntry {
+  const normalizedPath = entry.path.toLowerCase();
+  return {
+    ...entry,
+    normalizedPath,
+    normalizedName: basenameOf(normalizedPath),
+  };
 }
 
 function normalizeQuery(input: string): string {
@@ -300,20 +319,26 @@ async function buildWorkspaceIndexFromGit(cwd: string): Promise<WorkspaceIndex |
     }
   }
 
-  const directoryEntries: ProjectEntry[] = [...directorySet]
+  const directoryEntries = [...directorySet]
     .toSorted((left, right) => left.localeCompare(right))
-    .map((directoryPath) => ({
-      path: directoryPath,
-      kind: "directory",
-      parentPath: parentPathOf(directoryPath),
-    }));
-  const fileEntries: ProjectEntry[] = [...new Set(filePaths)]
+    .map(
+      (directoryPath): ProjectEntry => ({
+        path: directoryPath,
+        kind: "directory",
+        parentPath: parentPathOf(directoryPath),
+      }),
+    )
+    .map(toSearchableWorkspaceEntry);
+  const fileEntries = [...new Set(filePaths)]
     .toSorted((left, right) => left.localeCompare(right))
-    .map((filePath) => ({
-      path: filePath,
-      kind: "file",
-      parentPath: parentPathOf(filePath),
-    }));
+    .map(
+      (filePath): ProjectEntry => ({
+        path: filePath,
+        kind: "file",
+        parentPath: parentPathOf(filePath),
+      }),
+    )
+    .map(toSearchableWorkspaceEntry);
 
   const entries = [...directoryEntries, ...fileEntries];
   return {
@@ -331,7 +356,7 @@ async function buildWorkspaceIndex(cwd: string): Promise<WorkspaceIndex> {
   const shouldFilterWithGitIgnore = await isInsideGitWorkTree(cwd);
 
   let pendingDirectories: string[] = [""];
-  const entries: ProjectEntry[] = [];
+  const entries: SearchableWorkspaceEntry[] = [];
   let truncated = false;
 
   while (pendingDirectories.length > 0 && !truncated) {
@@ -398,11 +423,11 @@ async function buildWorkspaceIndex(cwd: string): Promise<WorkspaceIndex> {
           continue;
         }
 
-        const entry: ProjectEntry = {
+        const entry = toSearchableWorkspaceEntry({
           path: candidate.relativePath,
           kind: candidate.dirent.isDirectory() ? "directory" : "file",
           parentPath: parentPathOf(candidate.relativePath),
-        };
+        });
         entries.push(entry);
 
         if (candidate.dirent.isDirectory()) {

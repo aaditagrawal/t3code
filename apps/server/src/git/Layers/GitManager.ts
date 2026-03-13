@@ -660,9 +660,10 @@ export const makeGitManager = Effect.gen(function* () {
     provider?: ProviderKind | undefined;
     /** Provider model to use for text generation. */
     model?: string | undefined;
+    filePaths?: readonly string[];
   }) =>
     Effect.gen(function* () {
-      const context = yield* gitCore.prepareCommitContext(input.cwd);
+      const context = yield* gitCore.prepareCommitContext(input.cwd, input.filePaths);
       if (!context) {
         return null;
       }
@@ -707,6 +708,7 @@ export const makeGitManager = Effect.gen(function* () {
     preResolvedSuggestion?: CommitAndBranchSuggestion,
     provider?: ProviderKind | undefined,
     model?: string | undefined,
+    filePaths?: readonly string[],
   ) =>
     Effect.gen(function* () {
       const suggestion =
@@ -717,6 +719,7 @@ export const makeGitManager = Effect.gen(function* () {
           ...(commitMessage ? { commitMessage } : {}),
           provider,
           model,
+          ...(filePaths ? { filePaths } : {}),
         }));
       if (!suggestion) {
         return { status: "skipped_no_changes" as const };
@@ -1008,12 +1011,14 @@ export const makeGitManager = Effect.gen(function* () {
     commitMessage?: string,
     provider?: ProviderKind | undefined,
     model?: string | undefined,
+    filePaths?: readonly string[],
   ) =>
     Effect.gen(function* () {
       const suggestion = yield* resolveCommitAndBranchSuggestion({
         cwd,
         branch,
         ...(commitMessage ? { commitMessage } : {}),
+        ...(filePaths ? { filePaths } : {}),
         includeBranch: true,
         provider,
         model,
@@ -1066,6 +1071,7 @@ export const makeGitManager = Effect.gen(function* () {
           input.commitMessage,
           input.provider,
           input.model,
+          input.filePaths,
         );
         branchStep = result.branchStep;
         commitMessageForStep = result.resolvedCommitMessage;
@@ -1083,6 +1089,7 @@ export const makeGitManager = Effect.gen(function* () {
         preResolvedCommitSuggestion,
         input.provider,
         input.model,
+        input.filePaths,
       );
 
       const push = wantsPush

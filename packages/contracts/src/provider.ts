@@ -121,6 +121,7 @@ export interface ProviderModelOption {
   readonly slug: string;
   readonly name: string;
   readonly pricingTier?: string;
+  readonly connected?: boolean;
 }
 
 export interface ProviderListModelsResult {

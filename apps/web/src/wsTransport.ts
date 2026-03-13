@@ -190,11 +190,9 @@ export class WsTransport {
       this.scheduleReconnect();
     });
 
-    // The "close" event always fires after "error", but scheduleReconnect()
-    // guards against double-scheduling via the reconnectTimer check, so both
-    // handlers can safely call it independently.
-    ws.addEventListener("error", () => {
-      // close will follow
+    ws.addEventListener("error", (event) => {
+      // Log WebSocket errors for debugging (close event will follow)
+      console.warn("WebSocket connection error", { type: event.type, url: this.url });
     });
   }
 

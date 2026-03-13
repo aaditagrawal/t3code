@@ -367,6 +367,7 @@ type KiloDiscoveredModel = {
   slug: string;
   name: string;
   variants?: ReadonlyArray<string>;
+  connected?: boolean;
 };
 
 interface KiloManagerEvents {
@@ -532,6 +533,7 @@ function modelOptionsFromProvider(
   providerId: string,
   providerName: string,
   model: KiloModel,
+  connected?: boolean,
 ): ReadonlyArray<KiloDiscoveredModel> {
   const variantNames = Object.keys(model.variants ?? {})
     .filter((variant) => variant.length > 0)
@@ -541,6 +543,7 @@ function modelOptionsFromProvider(
       slug: `${providerId}/${model.id}`,
       name: `${providerName} / ${model.name}`,
       ...(variantNames.length > 0 ? { variants: variantNames } : {}),
+      ...(connected != null ? { connected } : {}),
     },
   ];
 }
@@ -549,11 +552,18 @@ function parseProviderModels(
   providers: ReadonlyArray<
     Pick<KiloListedProvider, "id" | "name" | "models"> | KiloConfiguredProvider
   >,
+  connectedIds?: ReadonlySet<string>,
 ): ReadonlyArray<KiloDiscoveredModel> {
-  return providers.flatMap((provider) => {
+  const sorted = [...providers].sort((a, b) => {
+    const nameA = a.name || a.id;
+    const nameB = b.name || b.id;
+    return nameA.localeCompare(nameB);
+  });
+  return sorted.flatMap((provider) => {
     const providerName = provider.name || provider.id;
+    const isConnected = connectedIds ? connectedIds.has(provider.id) : undefined;
     return Object.values(provider.models).flatMap((model) =>
-      modelOptionsFromProvider(provider.id, providerName, model),
+      modelOptionsFromProvider(provider.id, providerName, model, isConnected),
     );
   });
 }
@@ -1121,11 +1131,11 @@ export class KiloServerManager extends EventEmitter<KiloManagerEvents> {
     const payload = readProviderListResponse(
       await client.provider.list(options?.workspace ? { workspace: options.workspace } : {}),
     );
-    // Show models from all configured providers, not just connected ones.
-    // Connection status is a runtime concern — users want to pick from
-    // everything they've set up. Fall back to config.providers if the
-    // provider.list response has no entries at all.
-    const listed = parseProviderModels(payload.all);
+    // Show all configured providers, marking which ones are connected.
+    // Fall back to config.providers if the provider.list response has
+    // no entries at all.
+    const connectedIds = new Set(payload.connected);
+    const listed = parseProviderModels(payload.all, connectedIds);
     if (listed.length > 0) {
       return listed;
     }
