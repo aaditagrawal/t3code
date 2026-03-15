@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
-import { type ProviderKind } from "@t3tools/contracts";
+import { useCallback, useEffect, useState } from "react";
+import { type DesktopUpdateState, type ProviderKind } from "@t3tools/contracts";
 import { getModelOptions, normalizeModelSlug } from "@t3tools/shared/model";
 
 import {
@@ -210,6 +210,40 @@ function SettingsRouteView() {
   const [customModelErrorByProvider, setCustomModelErrorByProvider] = useState<
     Partial<Record<ProviderKind, string | null>>
   >({});
+
+  const [updateState, setUpdateState] = useState<DesktopUpdateState | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+
+  useEffect(() => {
+    if (!isElectron || !window.desktopBridge) return;
+    const bridge = window.desktopBridge;
+    void bridge.getUpdateState().then(setUpdateState);
+    const unsubscribe = bridge.onUpdateState(setUpdateState);
+    return unsubscribe;
+  }, []);
+
+  const handleCheckForUpdate = useCallback(async () => {
+    if (!isElectron || !window.desktopBridge) return;
+    setIsCheckingUpdate(true);
+    try {
+      const state = await window.desktopBridge.checkForUpdate();
+      setUpdateState(state);
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  }, []);
+
+  const handleDownloadUpdate = useCallback(async () => {
+    if (!isElectron || !window.desktopBridge) return;
+    const result = await window.desktopBridge.downloadUpdate();
+    setUpdateState(result.state);
+  }, []);
+
+  const handleInstallUpdate = useCallback(async () => {
+    if (!isElectron || !window.desktopBridge) return;
+    const result = await window.desktopBridge.installUpdate();
+    setUpdateState(result.state);
+  }, []);
 
   const codexBinaryPath = settings.codexBinaryPath;
   const codexHomePath = settings.codexHomePath;
