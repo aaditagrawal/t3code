@@ -392,6 +392,8 @@ function SettingsRouteView() {
   const codexBinaryPath = settings.codexBinaryPath;
   const codexHomePath = settings.codexHomePath;
   const accentColor = settings.accentColor;
+  const [presetNameInput, setPresetNameInput] = useState<string | null>(null);
+  const presetNameRef = useRef<HTMLInputElement>(null);
   const keybindingsConfigPath = serverConfigQuery.data?.keybindingsConfigPath ?? null;
   const availableEditors = serverConfigQuery.data?.availableEditors;
 
@@ -642,27 +644,56 @@ function SettingsRouteView() {
                         Reset
                       </Button>
                     ) : null}
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => {
-                        const allPresets = [
-                          ...ACCENT_COLOR_PRESETS,
-                          ...settings.customAccentPresets,
-                        ];
-                        if (allPresets.some((p) => p.value === accentColor)) return;
-                        const label = window.prompt("Preset name:");
-                        if (!label?.trim()) return;
-                        updateSettings({
-                          customAccentPresets: [
+                    {presetNameInput === null ? (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => {
+                          const allPresets = [
+                            ...ACCENT_COLOR_PRESETS,
                             ...settings.customAccentPresets,
-                            { label: label.trim(), value: accentColor },
-                          ],
-                        });
-                      }}
-                    >
-                      Save as Preset
-                    </Button>
+                          ];
+                          if (allPresets.some((p) => p.value === accentColor)) return;
+                          setPresetNameInput("");
+                          requestAnimationFrame(() => presetNameRef.current?.focus());
+                        }}
+                      >
+                        Save as Preset
+                      </Button>
+                    ) : (
+                      <form
+                        className="flex items-center gap-2"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const name = presetNameInput.trim();
+                          if (!name) return;
+                          updateSettings({
+                            customAccentPresets: [
+                              ...settings.customAccentPresets,
+                              { label: name, value: accentColor },
+                            ],
+                          });
+                          setPresetNameInput(null);
+                        }}
+                      >
+                        <Input
+                          ref={presetNameRef}
+                          className="h-7 w-32 text-xs"
+                          placeholder="Preset name"
+                          value={presetNameInput}
+                          onChange={(e) => setPresetNameInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") setPresetNameInput(null);
+                          }}
+                          onBlur={() => {
+                            if (!presetNameInput.trim()) setPresetNameInput(null);
+                          }}
+                        />
+                        <Button size="xs" type="submit" disabled={!presetNameInput.trim()}>
+                          Save
+                        </Button>
+                      </form>
+                    )}
                   </div>
 
                   <label className="block space-y-1">
