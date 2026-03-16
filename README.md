@@ -14,15 +14,15 @@ This fork is designed to keep up a faster rate of development customised to my n
 
 Adds full provider adapters (server managers, service layers, runtime layers) for agents that are not yet on the upstream roadmap:
 
-| Provider    | What's included                                                           |
-| ----------- | ------------------------------------------------------------------------- |
-| Amp         | Adapter + `ampServerManager` for headless Amp sessions                    |
-| Copilot     | Adapter + CLI binary resolution + text generation layer                   |
-| Cursor      | Adapter + ACP probe integration + usage tracking                          |
-| Gemini CLI  | Adapter + `geminiCliServerManager` with full test coverage                |
+| Provider    | What's included                                                                              |
+| ----------- | -------------------------------------------------------------------------------------------- |
+| Amp         | Adapter + `ampServerManager` for headless Amp sessions                                       |
+| Copilot     | Adapter + CLI binary resolution + text generation layer                                      |
+| Cursor      | Adapter + ACP probe integration + usage tracking                                             |
+| Gemini CLI  | Adapter + `geminiCliServerManager` with full test coverage                                   |
 | Kilo        | Modular adapter (`kilo/`) + HTTP/SSE via OpenCode SDK + dynamic port allocation + Basic Auth |
 | OpenCode    | Modular adapter (`opencode/`) + HTTP/SSE via OpenCode SDK + session resume + Basic Auth      |
-| Claude Code | Full adapter with permission mode, thinking token limits, and SDK typings |
+| Claude Code | Full adapter with permission mode, thinking token limits, and SDK typings                    |
 
 ### UX enhancements
 
