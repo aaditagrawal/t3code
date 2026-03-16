@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { type DesktopUpdateState, type ProviderKind } from "@t3tools/contracts";
 import { getModelOptions, normalizeModelSlug } from "@t3tools/shared/model";
 
@@ -187,6 +187,92 @@ function patchCustomModels(provider: ProviderKind, models: string[]) {
     default:
       return { customCodexModels: models };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Log syntax highlighting
+// ---------------------------------------------------------------------------
+
+const LOG_TOKEN_PATTERN =
+  /(?<key>timestamp|level|fiber|message|cause|span\.\w+)=(?<value>"(?:[^"\\]|\\.)*"|[^\s]+)/g;
+
+const LOG_LEVEL_COLORS: Record<string, string> = {
+  Info: "text-blue-400",
+  Warning: "text-amber-400",
+  Error: "text-red-400",
+  Debug: "text-zinc-500",
+  Fatal: "text-red-500 font-semibold",
+};
+
+function highlightLogLine(line: string): ReactNode {
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of line.matchAll(LOG_TOKEN_PATTERN)) {
+    const start = match.index;
+    if (start > lastIndex) {
+      parts.push(line.slice(lastIndex, start));
+    }
+
+    const key = match.groups?.key ?? "";
+    const value = match.groups?.value ?? "";
+
+    if (key === "timestamp") {
+      parts.push(
+        <span key={start} className="text-zinc-500">
+          {key}={value}
+        </span>,
+      );
+    } else if (key === "level") {
+      const levelClass = LOG_LEVEL_COLORS[value] ?? "text-muted-foreground";
+      parts.push(
+        <span key={start} className={levelClass}>
+          {key}={value}
+        </span>,
+      );
+    } else if (key === "fiber") {
+      parts.push(
+        <span key={start} className="text-violet-400/70">
+          {key}={value}
+        </span>,
+      );
+    } else if (key === "message" || key === "cause") {
+      parts.push(
+        <span key={start}>
+          <span className="text-zinc-500">{key}=</span>
+          <span className="text-foreground">{value}</span>
+        </span>,
+      );
+    } else {
+      parts.push(
+        <span key={start} className="text-zinc-500">
+          {key}={value}
+        </span>,
+      );
+    }
+
+    lastIndex = start + match[0].length;
+  }
+
+  if (lastIndex < line.length) {
+    parts.push(line.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : line;
+}
+
+function HighlightedLogContent({ content }: { content: string }) {
+  const lines = content.split("\n");
+  return (
+    <>
+      {lines.map((line, i) => (
+        <span key={i}>
+          {highlightLogLine(line)}
+          {i < lines.length - 1 ? "\n" : null}
+        </span>
+      ))}
+    </>
+  );
 }
 
 function SettingsRouteView() {
@@ -1209,7 +1295,11 @@ function SettingsRouteView() {
                       ref={logViewerRef}
                       className="max-h-96 overflow-auto rounded-lg border border-border bg-background p-3 font-mono text-xs leading-relaxed text-foreground"
                     >
-                      {logContent || "No log content."}
+                      {logContent ? (
+                        <HighlightedLogContent content={logContent} />
+                      ) : (
+                        "No log content."
+                      )}
                     </pre>
                   </div>
                 ) : null}
