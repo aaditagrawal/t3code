@@ -20,8 +20,8 @@ Adds full provider adapters (server managers, service layers, runtime layers) fo
 | Copilot     | Adapter + CLI binary resolution + text generation layer                   |
 | Cursor      | Adapter + ACP probe integration + usage tracking                          |
 | Gemini CLI  | Adapter + `geminiCliServerManager` with full test coverage                |
-| Kilo        | Adapter + `kiloServerManager` + OpenCode-style server URL config          |
-| OpenCode    | Adapter + `opencodeServerManager` with hostname/port/workspace config     |
+| Kilo        | Modular adapter (`kilo/`) + HTTP/SSE via OpenCode SDK + dynamic port allocation + Basic Auth |
+| OpenCode    | Modular adapter (`opencode/`) + HTTP/SSE via OpenCode SDK + session resume + Basic Auth      |
 | Claude Code | Full adapter with permission mode, thinking token limits, and SDK typings |
 
 ### UX enhancements
@@ -83,7 +83,7 @@ bun run dev
 ## Supported agents
 
 - [Codex CLI](https://github.com/openai/codex) (requires v0.37.0 or later)
-- [Claude Code](https://github.com/anthropics/claude-code) — **not yet working in the desktop app**
+- [Claude Code](https://github.com/anthropics/claude-code)
 - [Cursor](https://cursor.sh)
 - [Copilot](https://github.com/features/copilot)
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli)
