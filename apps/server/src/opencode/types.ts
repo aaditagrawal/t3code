@@ -1,5 +1,4 @@
 import type {
-  ProviderApprovalDecision,
   ProviderRuntimeEvent,
   ProviderSendTurnInput,
   ProviderSession,

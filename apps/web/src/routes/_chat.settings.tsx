@@ -265,10 +265,11 @@ function HighlightedLogContent({ content }: { content: string }) {
   const lines = content.split("\n");
   return (
     <>
-      {lines.map((line, i) => (
-        <span key={i}>
+      {lines.map((line, lineIndex) => (
+        // eslint-disable-next-line react/no-array-index-key -- static log lines never reorder
+        <span key={lineIndex}>
           {highlightLogLine(line)}
-          {i < lines.length - 1 ? "\n" : null}
+          {lineIndex < lines.length - 1 ? "\n" : null}
         </span>
       ))}
     </>

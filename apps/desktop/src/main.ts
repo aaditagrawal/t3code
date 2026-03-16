@@ -1230,7 +1230,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(LOG_LIST_CHANNEL, async () => {
     try {
       const entries = await FS.promises.readdir(LOG_DIR);
-      return entries.filter((f) => f.endsWith(".log")).sort();
+      return entries.filter((f) => f.endsWith(".log")).toSorted();
     } catch {
       return [];
     }

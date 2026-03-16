@@ -57,14 +57,8 @@ export async function ensureServer(
   }
 
   const serverPromise = spawnOrConnect(options);
-  try {
-    const state = await serverPromise;
-    return { state, serverPromise };
-  } catch (error) {
-    // Propagate the error — the caller's finally block clears serverPromise
-    // when this.server is still undefined, enabling retry on next call.
-    throw error;
-  }
+  const state = await serverPromise;
+  return { state, serverPromise };
 }
 
 async function spawnOrConnect(options?: OpenCodeProviderOptions): Promise<SharedServerState> {
