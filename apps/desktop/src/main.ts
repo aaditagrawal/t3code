@@ -57,6 +57,10 @@ const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const UPDATE_CHECK_CHANNEL = "desktop:update-check";
+const LOG_DIR_CHANNEL = "desktop:log-dir";
+const LOG_LIST_CHANNEL = "desktop:log-list";
+const LOG_READ_CHANNEL = "desktop:log-read";
+const LOG_OPEN_DIR_CHANNEL = "desktop:log-open-dir";
 const STATE_DIR =
   process.env.T3CODE_STATE_DIR?.trim() || Path.join(OS.homedir(), ".t3", "userdata");
 const DESKTOP_SCHEME = "t3";
@@ -1217,6 +1221,43 @@ function registerIpcHandlers(): void {
       completed: result.completed,
       state: updateState,
     } satisfies DesktopUpdateActionResult;
+  });
+
+  ipcMain.removeHandler(LOG_DIR_CHANNEL);
+  ipcMain.handle(LOG_DIR_CHANNEL, () => LOG_DIR);
+
+  ipcMain.removeHandler(LOG_LIST_CHANNEL);
+  ipcMain.handle(LOG_LIST_CHANNEL, async () => {
+    try {
+      const entries = await FS.promises.readdir(LOG_DIR);
+      return entries.filter((f) => f.endsWith(".log")).sort();
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.removeHandler(LOG_READ_CHANNEL);
+  ipcMain.handle(LOG_READ_CHANNEL, async (_event, rawFilename: unknown) => {
+    if (typeof rawFilename !== "string") return "";
+    // Prevent path traversal
+    const basename = Path.basename(rawFilename);
+    if (basename !== rawFilename || !basename.endsWith(".log")) return "";
+    const filePath = Path.join(LOG_DIR, basename);
+    try {
+      return await FS.promises.readFile(filePath, "utf-8");
+    } catch {
+      return "";
+    }
+  });
+
+  ipcMain.removeHandler(LOG_OPEN_DIR_CHANNEL);
+  ipcMain.handle(LOG_OPEN_DIR_CHANNEL, async () => {
+    try {
+      await FS.promises.mkdir(LOG_DIR, { recursive: true });
+      await shell.openPath(LOG_DIR);
+    } catch {
+      // Silently ignore
+    }
   });
 }
 

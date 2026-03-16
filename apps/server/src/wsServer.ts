@@ -997,6 +997,35 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         return { provider } satisfies ProviderUsageResult;
       }
 
+      case WS_METHODS.logsGetDir:
+        return { dir: path.join(serverConfig.stateDir, "logs") };
+
+      case WS_METHODS.logsList: {
+        const logsDir = path.join(serverConfig.stateDir, "logs");
+        const entries = yield* fileSystem
+          .readDirectory(logsDir)
+          .pipe(
+            Effect.mapError(() => new RouteRequestError({ message: "Failed to list log files" })),
+          );
+        const logFiles = entries.filter((f) => f.endsWith(".log")).toSorted();
+        return { files: logFiles };
+      }
+
+      case WS_METHODS.logsRead: {
+        const body = stripRequestTag(request.body);
+        const basename = path.basename(body.filename);
+        if (basename !== body.filename || !basename.endsWith(".log")) {
+          return yield* new RouteRequestError({ message: "Invalid log filename" });
+        }
+        const logPath = path.join(serverConfig.stateDir, "logs", basename);
+        const content = yield* fileSystem
+          .readFileString(logPath)
+          .pipe(
+            Effect.mapError(() => new RouteRequestError({ message: "Failed to read log file" })),
+          );
+        return { content };
+      }
+
       case WS_METHODS.serverGetConfig:
         const keybindingsConfig = yield* keybindingsManager.loadConfigState;
         return {

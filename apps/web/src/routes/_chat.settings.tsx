@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { type DesktopUpdateState, type ProviderKind } from "@t3tools/contracts";
 import { getModelOptions, normalizeModelSlug } from "@t3tools/shared/model";
 
@@ -214,6 +214,14 @@ function SettingsRouteView() {
   const [updateState, setUpdateState] = useState<DesktopUpdateState | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 
+  const [logDir, setLogDir] = useState<string | null>(null);
+  const [logFiles, setLogFiles] = useState<string[]>([]);
+  const [selectedLogFile, setSelectedLogFile] = useState<string | null>(null);
+  const [logContent, setLogContent] = useState<string>("");
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [isLogViewerOpen, setIsLogViewerOpen] = useState(false);
+  const logViewerRef = useRef<HTMLPreElement>(null);
+
   const hasDesktopBridge = isElectron && !!window.desktopBridge;
 
   useEffect(() => {
@@ -226,6 +234,14 @@ function SettingsRouteView() {
     const unsubscribe = bridge.onUpdateState(setUpdateState);
     return unsubscribe;
   }, [hasDesktopBridge]);
+
+  useEffect(() => {
+    const api = ensureNativeApi();
+    void api.logs
+      .getDir()
+      .then((result) => setLogDir(result.dir))
+      .catch(() => {});
+  }, []);
 
   const handleCheckForUpdate = useCallback(async () => {
     if (!hasDesktopBridge) return;
@@ -1063,6 +1079,143 @@ function SettingsRouteView() {
                 </div>
               ) : null}
             </section>
+
+            <section className="rounded-2xl border border-border bg-card p-5">
+              <div className="mb-4">
+                <h2 className="text-sm font-medium text-foreground">Logs</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Application log files for debugging.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {logDir ? (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2">
+                    <code className="min-w-0 truncate text-xs text-muted-foreground select-all">
+                      {logDir}
+                    </code>
+                    {hasDesktopBridge ? (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="shrink-0"
+                        onClick={() => void window.desktopBridge!.openLogDir()}
+                      >
+                        Show in File Manager
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <Button
+                  size="xs"
+                  variant="outline"
+                  disabled={isLoadingLogs}
+                  onClick={async () => {
+                    if (isLogViewerOpen) {
+                      setIsLogViewerOpen(false);
+                      return;
+                    }
+                    setIsLoadingLogs(true);
+                    try {
+                      const api = ensureNativeApi();
+                      const result = await api.logs.list();
+                      const files = result.files;
+                      setLogFiles(files);
+                      if (files.length > 0 && !selectedLogFile) {
+                        setSelectedLogFile(files[0]!);
+                        const readResult = await api.logs.read(files[0]!);
+                        setLogContent(readResult.content);
+                      }
+                      setIsLogViewerOpen(true);
+                    } catch {
+                      setLogContent("Failed to load log files.");
+                      setIsLogViewerOpen(true);
+                    } finally {
+                      setIsLoadingLogs(false);
+                    }
+                  }}
+                >
+                  {isLoadingLogs
+                    ? "Loading..."
+                    : isLogViewerOpen
+                      ? "Hide Log Viewer"
+                      : "View in App"}
+                </Button>
+
+                {isLogViewerOpen ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={selectedLogFile ?? ""}
+                        onValueChange={async (value) => {
+                          if (!value) return;
+                          setSelectedLogFile(value);
+                          setIsLoadingLogs(true);
+                          try {
+                            const api = ensureNativeApi();
+                            const result = await api.logs.read(value);
+                            setLogContent(result.content);
+                            requestAnimationFrame(() => {
+                              if (logViewerRef.current) {
+                                logViewerRef.current.scrollTop = logViewerRef.current.scrollHeight;
+                              }
+                            });
+                          } catch {
+                            setLogContent("Failed to read log file.");
+                          } finally {
+                            setIsLoadingLogs(false);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-60 text-xs">
+                          <SelectValue placeholder="Select a log file" />
+                        </SelectTrigger>
+                        <SelectPopup>
+                          {logFiles.map((file) => (
+                            <SelectItem key={file} value={file}>
+                              {file}
+                            </SelectItem>
+                          ))}
+                        </SelectPopup>
+                      </Select>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        disabled={!selectedLogFile || isLoadingLogs}
+                        onClick={async () => {
+                          if (!selectedLogFile) return;
+                          setIsLoadingLogs(true);
+                          try {
+                            const api = ensureNativeApi();
+                            const result = await api.logs.read(selectedLogFile);
+                            setLogContent(result.content);
+                            requestAnimationFrame(() => {
+                              if (logViewerRef.current) {
+                                logViewerRef.current.scrollTop = logViewerRef.current.scrollHeight;
+                              }
+                            });
+                          } catch {
+                            setLogContent("Failed to read log file.");
+                          } finally {
+                            setIsLoadingLogs(false);
+                          }
+                        }}
+                      >
+                        Refresh
+                      </Button>
+                    </div>
+                    <pre
+                      ref={logViewerRef}
+                      className="max-h-96 overflow-auto rounded-lg border border-border bg-background p-3 font-mono text-xs leading-relaxed text-foreground"
+                    >
+                      {logContent || "No log content."}
+                    </pre>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
             <section className="rounded-2xl border border-border bg-card p-5">
               <div className="mb-4">
                 <h2 className="text-sm font-medium text-foreground">About</h2>

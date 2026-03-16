@@ -12,6 +12,10 @@ const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const UPDATE_CHECK_CHANNEL = "desktop:update-check";
+const LOG_DIR_CHANNEL = "desktop:log-dir";
+const LOG_LIST_CHANNEL = "desktop:log-list";
+const LOG_READ_CHANNEL = "desktop:log-read";
+const LOG_OPEN_DIR_CHANNEL = "desktop:log-open-dir";
 const wsUrl = process.env.T3CODE_DESKTOP_WS_URL ?? null;
 
 contextBridge.exposeInMainWorld("desktopBridge", {
@@ -47,4 +51,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       ipcRenderer.removeListener(UPDATE_STATE_CHANNEL, wrappedListener);
     };
   },
+  getLogDir: () => ipcRenderer.invoke(LOG_DIR_CHANNEL),
+  listLogFiles: () => ipcRenderer.invoke(LOG_LIST_CHANNEL),
+  readLogFile: (filename) => ipcRenderer.invoke(LOG_READ_CHANNEL, filename),
+  openLogDir: () => ipcRenderer.invoke(LOG_OPEN_DIR_CHANNEL),
 } satisfies DesktopBridge);

@@ -77,6 +77,11 @@ export const WS_METHODS = {
   providerListModels: "provider.listModels",
   providerGetUsage: "provider.getUsage",
 
+  // Log methods
+  logsGetDir: "logs.getDir",
+  logsList: "logs.list",
+  logsRead: "logs.read",
+
   // Server meta
   serverGetConfig: "server.getConfig",
   serverUpsertKeybinding: "server.upsertKeybinding",
@@ -145,6 +150,11 @@ const WebSocketRequestBody = Schema.Union([
   // Provider methods
   tagRequestBody(WS_METHODS.providerListModels, ProviderListModelsInput),
   tagRequestBody(WS_METHODS.providerGetUsage, ProviderGetUsageInput),
+
+  // Log methods
+  tagRequestBody(WS_METHODS.logsGetDir, Schema.Struct({})),
+  tagRequestBody(WS_METHODS.logsList, Schema.Struct({})),
+  tagRequestBody(WS_METHODS.logsRead, Schema.Struct({ filename: TrimmedNonEmptyString })),
 
   // Server meta
   tagRequestBody(WS_METHODS.serverGetConfig, Schema.Struct({})),

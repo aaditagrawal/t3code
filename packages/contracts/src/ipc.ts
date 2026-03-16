@@ -121,6 +121,10 @@ export interface DesktopBridge {
   downloadUpdate: () => Promise<DesktopUpdateActionResult>;
   installUpdate: () => Promise<DesktopUpdateActionResult>;
   onUpdateState: (listener: (state: DesktopUpdateState) => void) => () => void;
+  getLogDir: () => Promise<string>;
+  listLogFiles: () => Promise<string[]>;
+  readLogFile: (filename: string) => Promise<string>;
+  openLogDir: () => Promise<void>;
 }
 
 export interface NativeApi {
@@ -140,6 +144,11 @@ export interface NativeApi {
   projects: {
     searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
+  };
+  logs: {
+    getDir: () => Promise<{ dir: string }>;
+    list: () => Promise<{ files: string[] }>;
+    read: (filename: string) => Promise<{ content: string }>;
   };
   shell: {
     openInEditor: (cwd: string, editor: EditorId) => Promise<void>;

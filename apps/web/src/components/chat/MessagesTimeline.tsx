@@ -735,6 +735,7 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
   showCommandOutput?: boolean;
 }) {
   const { workEntry, showCommandOutput = true } = props;
+  const [expanded, setExpanded] = useState(false);
   const iconConfig = workToneIcon(workEntry.tone);
   const EntryIcon = workEntryIcon(workEntry);
   const heading = toolWorkEntryHeading(workEntry);
@@ -745,26 +746,32 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
     : !workEntry.command && !workEntry.detail
       ? rawPreview
       : null;
-  const displayText = preview ? `${heading} - ${preview}` : heading;
   const hasChangedFiles = (workEntry.changedFiles?.length ?? 0) > 0;
   const previewIsChangedFiles = hasChangedFiles && !workEntry.command && !workEntry.detail;
+  const isExpandable = !!preview;
 
   return (
-    <div className="rounded-lg px-1 py-1">
-      <div className="flex items-center gap-2 transition-[opacity,translate] duration-200">
+    <div
+      className={cn("rounded-lg px-1 py-1", isExpandable && "cursor-pointer")}
+      onClick={isExpandable ? () => setExpanded((prev) => !prev) : undefined}
+    >
+      <div className="flex items-start gap-2 transition-[opacity,translate] duration-200">
         <span
-          className={cn("flex size-5 shrink-0 items-center justify-center", iconConfig.className)}
+          className={cn(
+            "mt-0.5 flex size-5 shrink-0 items-center justify-center",
+            iconConfig.className,
+          )}
         >
           <EntryIcon className="size-3" />
         </span>
         <div className="min-w-0 flex-1 overflow-hidden">
           <p
             className={cn(
-              "truncate text-[11px] leading-5",
+              "text-[11px] leading-5",
+              expanded ? "whitespace-pre-wrap break-words" : "truncate",
               workToneClass(workEntry.tone),
               preview ? "text-muted-foreground/70" : "",
             )}
-            title={displayText}
           >
             <span className={cn("text-foreground/80", workToneClass(workEntry.tone))}>
               {heading}
