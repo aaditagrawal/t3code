@@ -60,8 +60,10 @@ export async function ensureServer(
   try {
     const state = await serverPromise;
     return { state, serverPromise };
-  } catch {
-    return { state: await serverPromise, serverPromise: undefined };
+  } catch (error) {
+    // Clear the promise so next call will retry instead of re-awaiting the
+    // same rejected promise.
+    throw error;
   }
 }
 

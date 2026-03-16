@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { ApprovalRequestId, RuntimeItemId, RuntimeRequestId } from "@t3tools/contracts";
 
 import { sessionErrorClass, sessionErrorIsRetryable, sessionErrorMessage } from "./errors.ts";
@@ -807,7 +809,7 @@ function handleCommandExecutedEvent(
   if (sessionID !== context.providerSessionId) {
     return;
   }
-  const itemId = RuntimeItemId.makeUnsafe(`cmd:${command}:${Date.now()}`);
+  const itemId = RuntimeItemId.makeUnsafe(`cmd:${command}:${randomUUID()}`);
   const title = `Command: ${command}`;
   emitter.emitRuntimeEvent({
     type: "item.started",
