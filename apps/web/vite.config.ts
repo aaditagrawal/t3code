@@ -34,7 +34,6 @@ export default defineConfig({
       "@pierre/diffs",
       "@pierre/diffs/react",
       "@pierre/diffs/worker/worker.js",
-      "ghostty-web",
     ],
   },
   define: {

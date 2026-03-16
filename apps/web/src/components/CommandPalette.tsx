@@ -11,7 +11,6 @@ import {
   TerminalSquareIcon,
   MessageSquareIcon,
   StopCircleIcon,
-  GhostIcon,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -73,8 +72,6 @@ interface CommandPaletteProps {
   onToggleRuntimeMode: () => void;
   onInterrupt: () => void | Promise<void>;
   onRunProjectScript?: ((script: ProjectScript) => void | Promise<void>) | undefined;
-  ghosttySplitOpen?: boolean;
-  onToggleGhosttySplit?: () => void;
 }
 
 const GROUP_LABELS: Record<PaletteGroupId, string> = {
@@ -158,8 +155,6 @@ export default function CommandPalette({
   onToggleRuntimeMode,
   onInterrupt,
   onRunProjectScript,
-  ghosttySplitOpen,
-  onToggleGhosttySplit,
 }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -303,18 +298,6 @@ export default function CommandPalette({
       onSelect: onSplitTerminal,
     });
 
-    if (onToggleGhosttySplit) {
-      items.push({
-        id: "action:toggle-ghostty-split",
-        group: "actions",
-        title: ghosttySplitOpen ? "Hide Ghostty split view" : "Show Ghostty split view",
-        subtitle: "Toggle the libghostty-powered split terminal (WASM)",
-        keywords: ["ghostty", "split", "wasm", "libghostty", "terminal"],
-        icon: <GhostIcon className="size-4" />,
-        onSelect: onToggleGhosttySplit,
-      });
-    }
-
     items.push({
       id: "action:toggle-interaction-mode",
       group: "actions",
@@ -374,8 +357,6 @@ export default function CommandPalette({
     onToggleInteractionMode,
     onToggleRuntimeMode,
     onToggleTerminal,
-    onToggleGhosttySplit,
-    ghosttySplitOpen,
     openOrCreateThread,
     navigate,
     runtimeMode,
