@@ -104,8 +104,6 @@ function makeReadModel(thread: OrchestrationReadModel["threads"][number]): Orche
   };
 }
 
-
-
 describe("store pure functions", () => {
   it("markThreadUnread moves lastVisitedAt before completion for a completed thread", () => {
     const latestTurnCompletedAt = "2026-02-25T12:30:00.000Z";

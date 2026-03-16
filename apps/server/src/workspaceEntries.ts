@@ -37,7 +37,6 @@ interface SearchableWorkspaceEntry extends ProjectEntry {
   normalizedName: string;
 }
 
-
 const workspaceIndexCache = new Map<string, WorkspaceIndex>();
 const inFlightWorkspaceIndexBuilds = new Map<string, Promise<WorkspaceIndex>>();
 

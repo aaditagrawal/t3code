@@ -9,7 +9,6 @@ const asThreadId = (value: string): ThreadId => ThreadId.makeUnsafe(value);
 // Helpers to inspect spawned processes
 // ---------------------------------------------------------------------------
 
-
 // ---------------------------------------------------------------------------
 // Unit tests — no real gemini process
 // ---------------------------------------------------------------------------

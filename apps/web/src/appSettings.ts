@@ -306,8 +306,6 @@ export function getAppSettingsSnapshot(): AppSettings {
   return cachedSnapshot;
 }
 
-
-
 export function useAppSettings() {
   const [settings, setSettings] = useLocalStorage(
     APP_SETTINGS_STORAGE_KEY,
