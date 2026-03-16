@@ -13,7 +13,7 @@ import {
   type ProviderUserInputAnswers,
 } from "@t3tools/contracts";
 import { it, vi } from "@effect/vitest";
-import { Effect, Fiber, Stream } from "effect";
+import { Effect, Stream } from "effect";
 
 import { OpenCodeServerManager } from "../../opencodeServerManager.ts";
 import { OpenCodeAdapter } from "../Services/OpenCodeAdapter.ts";
@@ -145,7 +145,6 @@ layer("OpenCodeAdapterLive", (it) => {
   it.effect("forwards manager runtime events through the adapter stream", () =>
     Effect.gen(function* () {
       const adapter = yield* OpenCodeAdapter;
-      const eventFiber = yield* Stream.runHead(adapter.streamEvents).pipe(Effect.forkChild);
 
       const event = {
         type: "content.delta",
@@ -161,8 +160,13 @@ layer("OpenCodeAdapterLive", (it) => {
         },
       } as unknown as ProviderRuntimeEvent;
 
+      // Emit first — the event is buffered in the unbounded queue via the
+      // listener that was registered during layer construction.
       manager.emit("event", event);
-      const received = yield* Fiber.join(eventFiber);
+
+      // Now consume the head. Since the queue already has an item, this
+      // resolves immediately without a race condition.
+      const received = yield* Stream.runHead(adapter.streamEvents);
 
       assert.equal(received._tag, "Some");
       if (received._tag !== "Some") {

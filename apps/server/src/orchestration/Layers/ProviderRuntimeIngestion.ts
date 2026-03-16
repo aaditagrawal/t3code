@@ -151,6 +151,21 @@ function runtimeErrorMessageFromEvent(event: ProviderRuntimeEvent): string | und
   return payloadMessage;
 }
 
+function runtimeErrorClassLabel(errorClass: string): string | undefined {
+  switch (errorClass) {
+    case "provider_error":
+      return "Provider error";
+    case "transport_error":
+      return "Connection error";
+    case "permission_error":
+      return "Permission error";
+    case "validation_error":
+      return "Validation error";
+    default:
+      return undefined;
+  }
+}
+
 function orchestrationSessionStatusFromRuntimeState(
   state: "starting" | "running" | "waiting" | "ready" | "interrupted" | "stopped" | "error",
 ): "starting" | "running" | "ready" | "interrupted" | "stopped" | "error" {
@@ -258,15 +273,19 @@ function runtimeEventToActivities(
       if (!message) {
         return [];
       }
+      const errorClass = runtimePayloadRecord(event)?.class;
+      const errorClassLabel =
+        typeof errorClass === "string" ? runtimeErrorClassLabel(errorClass) : undefined;
       return [
         {
           id: event.eventId,
           createdAt: event.createdAt,
           tone: "error",
           kind: "runtime.error",
-          summary: "Runtime error",
+          summary: errorClassLabel ?? "Runtime error",
           payload: {
             message: truncateDetail(message),
+            detail: truncateDetail(message),
           },
           turnId: toTurnId(event.turnId) ?? null,
           ...maybeSequence,
