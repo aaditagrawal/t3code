@@ -1,4 +1,10 @@
-import { EventId, MessageId, TurnId, type OrchestrationThreadActivity } from "@t3tools/contracts";
+import {
+  EventId,
+  MessageId,
+  ThreadId,
+  TurnId,
+  type OrchestrationThreadActivity,
+} from "@t3tools/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -10,6 +16,7 @@ import {
   deriveTimelineEntries,
   deriveWorkLogEntries,
   findLatestProposedPlan,
+  hasActionableProposedPlan,
   hasToolActivityForTurn,
   hasToolActivitySince,
   isLatestTurnSettled,
@@ -270,6 +277,8 @@ describe("findLatestProposedPlan", () => {
             id: "plan:thread-1:turn:turn-1",
             turnId: TurnId.makeUnsafe("turn-1"),
             planMarkdown: "# Older",
+            implementedAt: null,
+            implementationThreadId: null,
             createdAt: "2026-02-23T00:00:01.000Z",
             updatedAt: "2026-02-23T00:00:01.000Z",
           },
@@ -277,6 +286,8 @@ describe("findLatestProposedPlan", () => {
             id: "plan:thread-1:turn:turn-1",
             turnId: TurnId.makeUnsafe("turn-1"),
             planMarkdown: "# Latest",
+            implementedAt: null,
+            implementationThreadId: null,
             createdAt: "2026-02-23T00:00:01.000Z",
             updatedAt: "2026-02-23T00:00:02.000Z",
           },
@@ -284,6 +295,8 @@ describe("findLatestProposedPlan", () => {
             id: "plan:thread-1:turn:turn-2",
             turnId: TurnId.makeUnsafe("turn-2"),
             planMarkdown: "# Different turn",
+            implementedAt: null,
+            implementationThreadId: null,
             createdAt: "2026-02-23T00:00:03.000Z",
             updatedAt: "2026-02-23T00:00:03.000Z",
           },
@@ -294,6 +307,8 @@ describe("findLatestProposedPlan", () => {
       id: "plan:thread-1:turn:turn-1",
       turnId: "turn-1",
       planMarkdown: "# Latest",
+      implementedAt: null,
+      implementationThreadId: null,
       createdAt: "2026-02-23T00:00:01.000Z",
       updatedAt: "2026-02-23T00:00:02.000Z",
     });
@@ -306,6 +321,8 @@ describe("findLatestProposedPlan", () => {
           id: "plan:thread-1:turn:turn-1",
           turnId: TurnId.makeUnsafe("turn-1"),
           planMarkdown: "# First",
+          implementedAt: null,
+          implementationThreadId: null,
           createdAt: "2026-02-23T00:00:01.000Z",
           updatedAt: "2026-02-23T00:00:01.000Z",
         },
@@ -313,6 +330,8 @@ describe("findLatestProposedPlan", () => {
           id: "plan:thread-1:turn:turn-2",
           turnId: TurnId.makeUnsafe("turn-2"),
           planMarkdown: "# Latest",
+          implementedAt: null,
+          implementationThreadId: null,
           createdAt: "2026-02-23T00:00:02.000Z",
           updatedAt: "2026-02-23T00:00:03.000Z",
         },
@@ -321,6 +340,36 @@ describe("findLatestProposedPlan", () => {
     );
 
     expect(latestPlan?.planMarkdown).toBe("# Latest");
+  });
+});
+
+describe("hasActionableProposedPlan", () => {
+  it("returns true for an unimplemented proposed plan", () => {
+    expect(
+      hasActionableProposedPlan({
+        id: "plan-1",
+        turnId: TurnId.makeUnsafe("turn-1"),
+        planMarkdown: "# Plan",
+        implementedAt: null,
+        implementationThreadId: null,
+        createdAt: "2026-02-23T00:00:00.000Z",
+        updatedAt: "2026-02-23T00:00:01.000Z",
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false for a proposed plan already implemented elsewhere", () => {
+    expect(
+      hasActionableProposedPlan({
+        id: "plan-1",
+        turnId: TurnId.makeUnsafe("turn-1"),
+        planMarkdown: "# Plan",
+        implementedAt: "2026-02-23T00:00:02.000Z",
+        implementationThreadId: ThreadId.makeUnsafe("thread-implement"),
+        createdAt: "2026-02-23T00:00:00.000Z",
+        updatedAt: "2026-02-23T00:00:02.000Z",
+      }),
+    ).toBe(false);
   });
 });
 
@@ -603,6 +652,8 @@ describe("deriveTimelineEntries", () => {
           id: "plan:thread-1:turn:turn-1",
           turnId: TurnId.makeUnsafe("turn-1"),
           planMarkdown: "# Ship it",
+          implementedAt: null,
+          implementationThreadId: null,
           createdAt: "2026-02-23T00:00:02.000Z",
           updatedAt: "2026-02-23T00:00:02.000Z",
         },
@@ -623,6 +674,8 @@ describe("deriveTimelineEntries", () => {
       kind: "proposed-plan",
       proposedPlan: {
         planMarkdown: "# Ship it",
+        implementedAt: null,
+        implementationThreadId: null,
       },
     });
   });

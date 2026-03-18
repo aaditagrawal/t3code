@@ -289,6 +289,8 @@ function normalizeProposedPlan(
     id: proposedPlan.id,
     turnId: proposedPlan.turnId,
     planMarkdown: proposedPlan.planMarkdown,
+    implementedAt: proposedPlan.implementedAt,
+    implementationThreadId: proposedPlan.implementationThreadId,
     createdAt: proposedPlan.createdAt,
     updatedAt: proposedPlan.updatedAt,
   };
@@ -297,6 +299,8 @@ function normalizeProposedPlan(
     existing.id === normalized.id &&
     existing.turnId === normalized.turnId &&
     existing.planMarkdown === normalized.planMarkdown &&
+    existing.implementedAt === normalized.implementedAt &&
+    existing.implementationThreadId === normalized.implementationThreadId &&
     existing.createdAt === normalized.createdAt &&
     existing.updatedAt === normalized.updatedAt
   ) {
