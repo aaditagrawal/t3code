@@ -23,7 +23,11 @@ const DEFAULT_CODE_FONT_STACK =
 function buildFontStack(userFont: string, fallback: string): string {
   const trimmed = userFont.trim();
   if (!trimmed) return fallback;
-  // If the font name contains spaces and isn't already quoted, quote it
+  // If the user provided a comma-separated stack, keep it as-is
+  if (trimmed.includes(",")) {
+    return `${trimmed}, ${fallback}`;
+  }
+  // If the single font family contains spaces and isn't already quoted, quote it
   const quoted =
     trimmed.includes(" ") && !trimmed.startsWith('"') && !trimmed.startsWith("'")
       ? `"${trimmed}"`
