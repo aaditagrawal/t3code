@@ -62,16 +62,7 @@ function RootRouteView() {
 
   useEffect(() => {
     applyThemeConfigToDocument(settings);
-  }, [
-    settings.uiFont,
-    settings.codeFont,
-    settings.uiFontSize,
-    settings.codeFontSize,
-    settings.backgroundColorOverride,
-    settings.foregroundColorOverride,
-    settings.contrast,
-    settings.translucency,
-  ]);
+  }, [settings]);
 
   if (!readNativeApi()) {
     return (

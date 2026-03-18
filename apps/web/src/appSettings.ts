@@ -1,6 +1,9 @@
 import { useCallback } from "react";
 import { Option, Schema } from "effect";
-import { type ProviderKind } from "@t3tools/contracts";
+import {
+  DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER,
+  type ProviderKind,
+} from "@t3tools/contracts";
 import { getDefaultModel, getModelOptions, normalizeModelSlug } from "@t3tools/shared/model";
 import { DEFAULT_ACCENT_COLOR, isValidAccentColor, normalizeAccentColor } from "./accentColor";
 import { useLocalStorage } from "./hooks/useLocalStorage";
@@ -41,6 +44,16 @@ const BUILT_IN_MODEL_SLUGS_BY_PROVIDER: Record<ProviderKind, ReadonlySet<string>
   amp: new Set(getModelOptions("amp").map((option) => option.slug)),
   kilo: new Set(getModelOptions("kilo").map((option) => option.slug)),
 };
+const PROVIDER_KINDS = [
+  "codex",
+  "copilot",
+  "claudeCode",
+  "cursor",
+  "opencode",
+  "geminiCli",
+  "amp",
+  "kilo",
+] as const satisfies readonly ProviderKind[];
 
 const AppSettingsSchema = Schema.Struct({
   codexBinaryPath: Schema.String.check(Schema.isMaxLength(4096)).pipe(
@@ -91,6 +104,9 @@ const AppSettingsSchema = Schema.Struct({
   customKiloModels: Schema.Array(Schema.String).pipe(
     Schema.withConstructorDefault(() => Option.some([])),
   ),
+  gitTextGenerationModelByProvider: Schema.Record(Schema.String, Schema.String).pipe(
+    Schema.withConstructorDefault(() => Option.some({} as Record<string, string>)),
+  ),
   providerLogoAppearance: AppProviderLogoAppearanceSchema.pipe(
     Schema.withConstructorDefault(() => Option.some("original")),
   ),
@@ -136,6 +152,17 @@ export interface AppModelOption {
   name: string;
   isCustom: boolean;
 }
+type ProviderCustomModelSettings = Pick<
+  AppSettings,
+  | "customCodexModels"
+  | "customCopilotModels"
+  | "customClaudeModels"
+  | "customCursorModels"
+  | "customOpencodeModels"
+  | "customGeminiCliModels"
+  | "customAmpModels"
+  | "customKiloModels"
+>;
 
 const DEFAULT_APP_SETTINGS = AppSettingsSchema.makeUnsafe({});
 
@@ -168,6 +195,89 @@ export function normalizeCustomModelSlugs(
   return normalizedModels;
 }
 
+function normalizeGitTextGenerationModelByProvider(
+  overrides: Record<string, string>,
+): Record<string, string> {
+  const normalizedOverrides: Partial<Record<ProviderKind, string>> = {};
+  for (const provider of PROVIDER_KINDS) {
+    const normalized = normalizeModelSlug(overrides[provider], provider);
+    if (!normalized) {
+      continue;
+    }
+    normalizedOverrides[provider] = normalized;
+  }
+  return normalizedOverrides;
+}
+
+export function getCustomModelsForProvider(
+  settings: ProviderCustomModelSettings,
+  provider: ProviderKind,
+): readonly string[] {
+  switch (provider) {
+    case "copilot":
+      return settings.customCopilotModels;
+    case "claudeCode":
+      return settings.customClaudeModels;
+    case "cursor":
+      return settings.customCursorModels;
+    case "opencode":
+      return settings.customOpencodeModels;
+    case "geminiCli":
+      return settings.customGeminiCliModels;
+    case "amp":
+      return settings.customAmpModels;
+    case "kilo":
+      return settings.customKiloModels;
+    case "codex":
+    default:
+      return settings.customCodexModels;
+  }
+}
+
+export function patchCustomModels(provider: ProviderKind, models: string[]): Partial<AppSettings> {
+  switch (provider) {
+    case "copilot":
+      return { customCopilotModels: models };
+    case "claudeCode":
+      return { customClaudeModels: models };
+    case "cursor":
+      return { customCursorModels: models };
+    case "opencode":
+      return { customOpencodeModels: models };
+    case "geminiCli":
+      return { customGeminiCliModels: models };
+    case "amp":
+      return { customAmpModels: models };
+    case "kilo":
+      return { customKiloModels: models };
+    case "codex":
+    default:
+      return { customCodexModels: models };
+  }
+}
+
+export function getGitTextGenerationModelOverride(
+  settings: Pick<AppSettings, "gitTextGenerationModelByProvider">,
+  provider: ProviderKind,
+): string | null {
+  return normalizeModelSlug(settings.gitTextGenerationModelByProvider[provider], provider);
+}
+
+export function patchGitTextGenerationModelOverrides(
+  overrides: AppSettings["gitTextGenerationModelByProvider"],
+  provider: ProviderKind,
+  model: string | null | undefined,
+): Pick<AppSettings, "gitTextGenerationModelByProvider"> {
+  const normalized = normalizeModelSlug(model, provider);
+  const nextOverrides = { ...overrides };
+  if (normalized) {
+    nextOverrides[provider] = normalized;
+  } else {
+    delete nextOverrides[provider];
+  }
+  return { gitTextGenerationModelByProvider: nextOverrides };
+}
+
 function normalizeAppSettings(settings: AppSettings): AppSettings {
   return {
     ...settings,
@@ -179,6 +289,9 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
     customGeminiCliModels: normalizeCustomModelSlugs(settings.customGeminiCliModels, "geminiCli"),
     customAmpModels: normalizeCustomModelSlugs(settings.customAmpModels, "amp"),
     customKiloModels: normalizeCustomModelSlugs(settings.customKiloModels, "kilo"),
+    gitTextGenerationModelByProvider: normalizeGitTextGenerationModelByProvider(
+      settings.gitTextGenerationModelByProvider,
+    ),
     accentColor: normalizeAccentColor(settings.accentColor),
     providerAccentColors: Object.fromEntries(
       Object.entries(settings.providerAccentColors)
@@ -254,6 +367,30 @@ export function resolveAppModelSelection(
   return (
     options.find((option) => option.slug === normalizedSelectedModel)?.slug ??
     getDefaultModel(provider)
+  );
+}
+
+export function resolveGitTextGenerationModelSelection(
+  provider: ProviderKind,
+  settings: Pick<
+    AppSettings,
+    keyof ProviderCustomModelSettings | "gitTextGenerationModelByProvider"
+  >,
+  activeModel: string | null | undefined,
+): string {
+  const customModels = getCustomModelsForProvider(settings, provider);
+  const overrideModel = getGitTextGenerationModelOverride(settings, provider);
+  if (overrideModel) {
+    return resolveAppModelSelection(provider, customModels, overrideModel);
+  }
+  const normalizedActiveModel = normalizeModelSlug(activeModel, provider);
+  if (normalizedActiveModel) {
+    return resolveAppModelSelection(provider, customModels, normalizedActiveModel);
+  }
+  return resolveAppModelSelection(
+    provider,
+    customModels,
+    DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER[provider],
   );
 }
 

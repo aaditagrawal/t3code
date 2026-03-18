@@ -15,6 +15,7 @@ import {
   resolveQuickAction,
   summarizeGitResult,
 } from "./GitActionsControl.logic";
+import { resolveGitTextGenerationModelSelection, useAppSettings } from "~/appSettings";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
@@ -44,11 +45,12 @@ import {
 } from "~/lib/gitReactQuery";
 import { resolvePathLinkTarget } from "~/terminal-links";
 import { readNativeApi } from "~/nativeApi";
-import { useStore } from "~/store";
 
 interface GitActionsControlProps {
   gitCwd: string | null;
   activeThreadId: ThreadId | null;
+  provider: ProviderKind;
+  model: string;
 }
 
 interface PendingDefaultBranchAction {
@@ -154,7 +156,13 @@ function GitQuickActionIcon({ quickAction }: { quickAction: GitQuickAction }) {
   return <InfoIcon className={iconClassName} />;
 }
 
-export default function GitActionsControl({ gitCwd, activeThreadId }: GitActionsControlProps) {
+export default function GitActionsControl({
+  gitCwd,
+  activeThreadId,
+  provider,
+  model,
+}: GitActionsControlProps) {
+  const { settings } = useAppSettings();
   const threadToastData = useMemo(
     () => (activeThreadId ? { threadId: activeThreadId } : undefined),
     [activeThreadId],
@@ -166,12 +174,7 @@ export default function GitActionsControl({ gitCwd, activeThreadId }: GitActions
   const [isEditingFiles, setIsEditingFiles] = useState(false);
   const [pendingDefaultBranchAction, setPendingDefaultBranchAction] =
     useState<PendingDefaultBranchAction | null>(null);
-
-  const activeThread = useStore((state) =>
-    activeThreadId ? state.threads.find((t) => t.id === activeThreadId) : undefined,
-  );
-  const activeProvider: ProviderKind | undefined = activeThread?.session?.provider;
-  const activeModel: string | undefined = activeThread?.model;
+  const gitTextGenerationModel = resolveGitTextGenerationModelSelection(provider, settings, model);
 
   const { data: gitStatus = null, error: gitStatusError } = useQuery(gitStatusQueryOptions(gitCwd));
 
@@ -357,8 +360,8 @@ export default function GitActionsControl({ gitCwd, activeThreadId }: GitActions
         action,
         ...(commitMessage ? { commitMessage } : {}),
         ...(featureBranch ? { featureBranch } : {}),
-        ...(activeProvider ? { provider: activeProvider } : {}),
-        ...(activeModel ? { model: activeModel } : {}),
+        provider,
+        model: gitTextGenerationModel,
         ...(filePaths ? { filePaths } : {}),
       });
 
@@ -451,9 +454,9 @@ export default function GitActionsControl({ gitCwd, activeThreadId }: GitActions
     },
 
     [
-      activeModel,
-      activeProvider,
+      gitTextGenerationModel,
       isDefaultBranch,
+      provider,
       runImmediateGitActionMutation,
       setPendingDefaultBranchAction,
       threadToastData,

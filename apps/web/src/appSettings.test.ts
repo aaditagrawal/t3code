@@ -5,7 +5,9 @@ import {
   getAppModelOptions,
   getAppSettingsSnapshot,
   normalizeCustomModelSlugs,
+  patchGitTextGenerationModelOverrides,
   resolveAppModelSelection,
+  resolveGitTextGenerationModelSelection,
 } from "./appSettings";
 
 const APP_SETTINGS_STORAGE_KEY = "t3code:app-settings:v1";
@@ -94,6 +96,7 @@ describe("getAppModelOptions", () => {
 
     expect(options.map((option) => option.slug)).toEqual([
       "gpt-5.4",
+      "gpt-5.4-mini",
       "gpt-5.3-codex",
       "gpt-5.3-codex-spark",
       "gpt-5.2-codex",
@@ -130,6 +133,33 @@ describe("resolveAppModelSelection", () => {
 
   it("falls back to the provider default when no model is selected", () => {
     expect(resolveAppModelSelection("codex", [], "")).toBe("gpt-5.4");
+  });
+});
+
+describe("resolveGitTextGenerationModelSelection", () => {
+  it("prefers a provider-specific override over the active thread model", () => {
+    const settings = {
+      ...getAppSettingsSnapshot(),
+      ...patchGitTextGenerationModelOverrides({}, "codex", "gpt-5.4-mini"),
+    };
+
+    expect(resolveGitTextGenerationModelSelection("codex", settings, "gpt-5.4")).toBe(
+      "gpt-5.4-mini",
+    );
+  });
+
+  it("falls back to the active thread model when no override is configured", () => {
+    const settings = getAppSettingsSnapshot();
+
+    expect(resolveGitTextGenerationModelSelection("cursor", settings, "opus-4.6-thinking")).toBe(
+      "opus-4.6-thinking",
+    );
+  });
+
+  it("uses the provider git default when neither an override nor thread model exists", () => {
+    const settings = getAppSettingsSnapshot();
+
+    expect(resolveGitTextGenerationModelSelection("codex", settings, null)).toBe("gpt-5.4-mini");
   });
 });
 

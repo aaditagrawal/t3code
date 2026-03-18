@@ -1,12 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { type DesktopUpdateState, type ProviderKind } from "@t3tools/contracts";
+import {
+  DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER,
+  type DesktopUpdateState,
+  type ProviderKind,
+} from "@t3tools/contracts";
 import { getModelOptions, normalizeModelSlug } from "@t3tools/shared/model";
 
 import {
   APP_PROVIDER_LOGO_APPEARANCE_OPTIONS,
+  getAppModelOptions,
+  getCustomModelsForProvider,
   MAX_CUSTOM_MODEL_LENGTH,
+  patchCustomModels,
+  patchGitTextGenerationModelOverrides,
   useAppSettings,
 } from "../appSettings";
 import { ACCENT_COLOR_PRESETS, DEFAULT_ACCENT_COLOR, normalizeAccentColor } from "../accentColor";
@@ -116,77 +124,13 @@ const TIMESTAMP_FORMAT_LABELS = {
   "12-hour": "12-hour",
   "24-hour": "24-hour",
 } as const;
-
-function getCustomModelsForProvider(
-  settings: ReturnType<typeof useAppSettings>["settings"],
-  provider: ProviderKind,
-) {
-  switch (provider) {
-    case "copilot":
-      return settings.customCopilotModels;
-    case "claudeCode":
-      return settings.customClaudeModels;
-    case "cursor":
-      return settings.customCursorModels;
-    case "opencode":
-      return settings.customOpencodeModels;
-    case "geminiCli":
-      return settings.customGeminiCliModels;
-    case "amp":
-      return settings.customAmpModels;
-    case "kilo":
-      return settings.customKiloModels;
-    case "codex":
-    default:
-      return settings.customCodexModels;
-  }
-}
+const GIT_TEXT_GENERATION_INHERIT_VALUE = "__inherit__";
 
 function getDefaultCustomModelsForProvider(
   defaults: ReturnType<typeof useAppSettings>["defaults"],
   provider: ProviderKind,
 ) {
-  switch (provider) {
-    case "copilot":
-      return defaults.customCopilotModels;
-    case "claudeCode":
-      return defaults.customClaudeModels;
-    case "cursor":
-      return defaults.customCursorModels;
-    case "opencode":
-      return defaults.customOpencodeModels;
-    case "geminiCli":
-      return defaults.customGeminiCliModels;
-    case "amp":
-      return defaults.customAmpModels;
-    case "kilo":
-      return defaults.customKiloModels;
-    case "codex":
-    default:
-      return defaults.customCodexModels;
-  }
-}
-
-function patchCustomModels(provider: ProviderKind, models: string[]) {
-  switch (provider) {
-    case "copilot":
-      return { customCopilotModels: models };
-    case "claudeCode":
-      return { customClaudeModels: models };
-    case "cursor":
-      return { customCursorModels: models };
-    case "opencode":
-      return { customOpencodeModels: models };
-    case "geminiCli":
-      return { customGeminiCliModels: models };
-    case "amp":
-      return { customAmpModels: models };
-    case "kilo":
-      return { customKiloModels: models };
-    case "codex":
-    default:
-      return { customCodexModels: models };
-  }
+  return getCustomModelsForProvider(defaults, provider);
 }
 
 // ---------------------------------------------------------------------------
@@ -878,6 +822,84 @@ function SettingsRouteView() {
                     Reset codex overrides
                   </Button>
                 </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card p-5">
+              <div className="mb-4">
+                <h2 className="text-sm font-medium text-foreground">Git</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Configure provider-aware model overrides for auto-generated commit messages, PR
+                  text, and branch names.
+                </p>
+              </div>
+
+              <div className="space-y-5">
+                {MODEL_PROVIDER_SETTINGS.map((providerSettings) => {
+                  const provider = providerSettings.provider;
+                  const customModels = getCustomModelsForProvider(settings, provider);
+                  const overrideModel = settings.gitTextGenerationModelByProvider[provider] ?? null;
+                  const modelOptions = getAppModelOptions(provider, customModels, overrideModel);
+                  const providerFallbackModel =
+                    DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER[provider];
+                  const providerFallbackLabel =
+                    modelOptions.find((option) => option.slug === providerFallbackModel)?.name ??
+                    providerFallbackModel;
+                  return (
+                    <div
+                      key={`git-${provider}`}
+                      className="rounded-xl border border-border bg-background/50 p-4"
+                    >
+                      <div className="mb-4">
+                        <h3 className="text-sm font-medium text-foreground">
+                          {providerSettings.title}
+                        </h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Leave this unset to use the active thread model first, then{" "}
+                          {providerFallbackLabel}.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-foreground">Git model override</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Overrides only git text generation for this provider.
+                          </p>
+                        </div>
+                        <Select
+                          value={overrideModel ?? GIT_TEXT_GENERATION_INHERIT_VALUE}
+                          onValueChange={(value) =>
+                            updateSettings(
+                              patchGitTextGenerationModelOverrides(
+                                settings.gitTextGenerationModelByProvider,
+                                provider,
+                                value === GIT_TEXT_GENERATION_INHERIT_VALUE ? null : value,
+                              ),
+                            )
+                          }
+                        >
+                          <SelectTrigger
+                            className="w-full shrink-0 sm:w-72"
+                            aria-label={`${providerSettings.title} git text generation model`}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectPopup align="end">
+                            <SelectItem value={GIT_TEXT_GENERATION_INHERIT_VALUE}>
+                              Use active thread model
+                            </SelectItem>
+                            {modelOptions.map((option) => (
+                              <SelectItem key={`${provider}-${option.slug}`} value={option.slug}>
+                                {option.name}
+                              </SelectItem>
+                            ))}
+                          </SelectPopup>
+                        </Select>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </section>
 
