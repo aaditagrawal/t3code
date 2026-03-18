@@ -10,7 +10,7 @@ export function syncShellEnvironment(
   if ((options.platform ?? process.platform) !== "darwin") return;
 
   try {
-    const shell = env.SHELL ?? "/bin/zsh";
+    const shell = env.SHELL?.trim() || "/bin/zsh";
     const shellEnvironment = (options.readEnvironment ?? readEnvironmentFromLoginShell)(shell, [
       "PATH",
       "SSH_AUTH_SOCK",
