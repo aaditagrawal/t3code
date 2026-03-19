@@ -215,7 +215,7 @@ export const readCodexConfigModelProvider = Effect.gen(function* () {
   const content = yield* fileSystem.readFileString(configPath).pipe(
     Effect.catchTag("PlatformError", (e) =>
       e.reason instanceof PlatformError.SystemError && e.reason._tag === "NotFound"
-        ? Effect.succeed(undefined)
+        ? Effect.void
         : Effect.gen(function* () {
             yield* Effect.logWarning(`Failed to read Codex config at ${configPath}: ${e.message}`);
             return undefined;

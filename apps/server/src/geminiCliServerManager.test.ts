@@ -36,6 +36,27 @@ describe("GeminiCliServerManager", () => {
       }
     });
 
+    it("hydrates persisted resume state from resumeCursor", async () => {
+      const manager = new GeminiCliServerManager();
+      try {
+        const session = await manager.startSession({
+          threadId: asThreadId("thread-1"),
+          provider: "geminiCli",
+          runtimeMode: "full-access",
+          resumeCursor: {
+            sessionId: "gemini-session-123",
+          },
+        });
+
+        expect(session.resumeCursor).toEqual({ sessionId: "gemini-session-123" });
+        expect(manager.listSessions()[0]?.resumeCursor).toEqual({
+          sessionId: "gemini-session-123",
+        });
+      } finally {
+        manager.stopAll();
+      }
+    });
+
     it("rejects duplicate sessions", async () => {
       const manager = new GeminiCliServerManager();
       try {
@@ -228,6 +249,23 @@ describe("GeminiCliServerManager", () => {
         "Unknown Gemini CLI session",
       );
     });
+
+    it("reports rollback as unsupported", async () => {
+      const manager = new GeminiCliServerManager();
+      try {
+        await manager.startSession({
+          threadId: asThreadId("thread-1"),
+          provider: "geminiCli",
+          runtimeMode: "full-access",
+        });
+
+        expect(() => manager.rollbackThread(asThreadId("thread-1"))).toThrow(
+          "rollbackThread is not supported for Gemini CLI session",
+        );
+      } finally {
+        manager.stopAll();
+      }
+    });
   });
 
   describe("interruptTurn", () => {
@@ -260,6 +298,8 @@ describe("GeminiCliServerManager JSON event mapping", () => {
       model: "gemini-2.5-pro",
       cwd: "/tmp",
     });
+
+    events = [];
   });
 
   /** Invoke the private handleJsonLine method for testing. */

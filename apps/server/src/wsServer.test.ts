@@ -10,6 +10,7 @@ import { createServer } from "./wsServer";
 import WebSocket from "ws";
 import { ServerConfig, type ServerConfigShape } from "./config";
 import { makeServerProviderLayer, makeServerRuntimeServicesLayer } from "./serverLayers";
+import { getProviderCapabilities } from "./provider/Services/ProviderAdapter.ts";
 
 import {
   DEFAULT_TERMINAL_ID,
@@ -1226,7 +1227,7 @@ describe("WebSocket Server", () => {
       respondToUserInput: () => unsupported(),
       stopSession: () => unsupported(),
       listSessions: () => Effect.succeed([]),
-      getCapabilities: () => Effect.succeed({ sessionModelSwitch: "in-session" }),
+      getCapabilities: () => Effect.succeed(getProviderCapabilities("codex")),
       rollbackConversation: () => unsupported(),
       streamEvents: Stream.fromPubSub(runtimeEventPubSub),
     };

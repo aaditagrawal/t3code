@@ -13,12 +13,13 @@ import { GeminiCliAdapter, type GeminiCliAdapterShape } from "../Services/Gemini
 import { OpenCodeAdapter, type OpenCodeAdapterShape } from "../Services/OpenCodeAdapter.ts";
 import { AmpAdapter, type AmpAdapterShape } from "../Services/AmpAdapter.ts";
 import { KiloAdapter, type KiloAdapterShape } from "../Services/KiloAdapter.ts";
+import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import { ProviderAdapterRegistry } from "../Services/ProviderAdapterRegistry.ts";
 import { ProviderAdapterRegistryLive } from "./ProviderAdapterRegistry.ts";
 
 const fakeCodexAdapter: CodexAdapterShape = {
   provider: "codex",
-  capabilities: { sessionModelSwitch: "in-session" },
+  capabilities: getProviderCapabilities("codex"),
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -35,7 +36,7 @@ const fakeCodexAdapter: CodexAdapterShape = {
 
 const fakeClaudeAdapter: ClaudeCodeAdapterShape = {
   provider: "claudeCode",
-  capabilities: { sessionModelSwitch: "in-session" },
+  capabilities: getProviderCapabilities("claudeCode"),
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -52,7 +53,7 @@ const fakeClaudeAdapter: ClaudeCodeAdapterShape = {
 
 const fakeCopilotAdapter: CopilotAdapterShape = {
   provider: "copilot",
-  capabilities: { sessionModelSwitch: "in-session" },
+  capabilities: getProviderCapabilities("copilot"),
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -69,7 +70,7 @@ const fakeCopilotAdapter: CopilotAdapterShape = {
 
 const fakeCursorAdapter: CursorAdapterShape = {
   provider: "cursor",
-  capabilities: { sessionModelSwitch: "unsupported" },
+  capabilities: getProviderCapabilities("cursor"),
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -86,7 +87,7 @@ const fakeCursorAdapter: CursorAdapterShape = {
 
 const fakeOpenCodeAdapter: OpenCodeAdapterShape = {
   provider: "opencode",
-  capabilities: { sessionModelSwitch: "in-session" },
+  capabilities: getProviderCapabilities("opencode"),
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -103,7 +104,7 @@ const fakeOpenCodeAdapter: OpenCodeAdapterShape = {
 
 const fakeGeminiCliAdapter: GeminiCliAdapterShape = {
   provider: "geminiCli",
-  capabilities: { sessionModelSwitch: "restart-session" },
+  capabilities: getProviderCapabilities("geminiCli"),
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -120,7 +121,7 @@ const fakeGeminiCliAdapter: GeminiCliAdapterShape = {
 
 const fakeAmpAdapter: AmpAdapterShape = {
   provider: "amp",
-  capabilities: { sessionModelSwitch: "restart-session" },
+  capabilities: getProviderCapabilities("amp"),
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -137,7 +138,7 @@ const fakeAmpAdapter: AmpAdapterShape = {
 
 const fakeKiloAdapter: KiloAdapterShape = {
   provider: "kilo",
-  capabilities: { sessionModelSwitch: "in-session" },
+  capabilities: getProviderCapabilities("kilo"),
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),

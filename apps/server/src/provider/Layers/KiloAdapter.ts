@@ -9,6 +9,7 @@ import {
   ProviderAdapterValidationError,
   type ProviderAdapterError,
 } from "../Errors.ts";
+import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import { KiloAdapter, type KiloAdapterShape } from "../Services/KiloAdapter.ts";
 
 const PROVIDER = "kilo" as const;
@@ -82,9 +83,7 @@ export function makeKiloAdapterLive(options: KiloAdapterLiveOptions = {}) {
 
       const service = {
         provider: PROVIDER,
-        capabilities: {
-          sessionModelSwitch: "in-session",
-        } as const,
+        capabilities: getProviderCapabilities(PROVIDER),
         startSession: (input) =>
           Effect.tryPromise({
             try: () => manager.startSession(input),

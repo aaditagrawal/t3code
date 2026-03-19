@@ -565,6 +565,9 @@ export interface PendingQuestionRequest {
 export interface PartStreamState {
   readonly kind: "text" | "reasoning" | "tool";
   readonly streamKind?: "assistant_text" | "reasoning_text";
+  readonly lifecycleType?: "item.started" | "item.updated" | "item.completed";
+  readonly title?: string;
+  readonly detail?: string;
 }
 
 export interface KiloSessionContext {

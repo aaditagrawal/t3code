@@ -30,6 +30,7 @@ import {
   ProviderAdapterValidationError,
   type ProviderAdapterError,
 } from "../Errors.ts";
+import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import { CodexAdapter, type CodexAdapterShape } from "../Services/CodexAdapter.ts";
 import {
   CodexAppServerManager,
@@ -1500,9 +1501,7 @@ const makeCodexAdapter = (options?: CodexAdapterLiveOptions) =>
 
     return {
       provider: PROVIDER,
-      capabilities: {
-        sessionModelSwitch: "in-session",
-      },
+      capabilities: getProviderCapabilities(PROVIDER),
       startSession,
       sendTurn,
       interruptTurn,

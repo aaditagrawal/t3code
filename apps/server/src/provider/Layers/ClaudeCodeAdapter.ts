@@ -49,6 +49,7 @@ import {
   ProviderAdapterValidationError,
   type ProviderAdapterError,
 } from "../Errors.ts";
+import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import { ClaudeCodeAdapter, type ClaudeCodeAdapterShape } from "../Services/ClaudeCodeAdapter.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 import { toMessage } from "../toMessage.ts";
@@ -2061,9 +2062,7 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
 
     return {
       provider: PROVIDER,
-      capabilities: {
-        sessionModelSwitch: "in-session",
-      },
+      capabilities: getProviderCapabilities(PROVIDER),
       startSession,
       sendTurn,
       interruptTurn,

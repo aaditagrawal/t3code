@@ -391,6 +391,9 @@ export class OpenCodeServerManager extends EventEmitter<OpenCodeManagerEvents> {
         reply: toPermissionReply(decision),
       }),
     );
+    if (decision === "cancel") {
+      await this.interruptTurn(threadId);
+    }
   }
 
   async respondToUserInput(

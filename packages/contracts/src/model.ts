@@ -49,7 +49,7 @@ export const GeminiCliModelOptions = Schema.Struct({
 export type GeminiCliModelOptions = typeof GeminiCliModelOptions.Type;
 
 export const AmpModelOptions = Schema.Struct({
-  mode: Schema.optional(Schema.Literals(["smart", "rush", "deep"])),
+  mode: Schema.optional(Schema.Literals(["smart", "rush", "deep", "large"])),
 });
 export type AmpModelOptions = typeof AmpModelOptions.Type;
 
@@ -210,6 +210,7 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
     { slug: "smart", name: "Smart (Opus 4.6)" },
     { slug: "rush", name: "Rush (Fast)" },
     { slug: "deep", name: "Deep (GPT-5.3 Codex)" },
+    { slug: "large", name: "Large" },
   ],
   kilo: [] as ModelOption[],
 } as const satisfies Record<ProviderKind, readonly ModelOption[]>;
@@ -318,6 +319,7 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
     opus: "smart",
     fast: "rush",
     codex: "deep",
+    large: "large",
   },
 };
 

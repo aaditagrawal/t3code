@@ -9,6 +9,7 @@ import {
   ProviderAdapterValidationError,
   type ProviderAdapterError,
 } from "../Errors.ts";
+import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import { OpenCodeAdapter, type OpenCodeAdapterShape } from "../Services/OpenCodeAdapter.ts";
 
 const PROVIDER = "opencode" as const;
@@ -82,9 +83,7 @@ export function makeOpenCodeAdapterLive(options: OpenCodeAdapterLiveOptions = {}
 
       const service = {
         provider: PROVIDER,
-        capabilities: {
-          sessionModelSwitch: "in-session",
-        } as const,
+        capabilities: getProviderCapabilities(PROVIDER),
         startSession: (input) =>
           Effect.tryPromise({
             try: () => manager.startSession(input),

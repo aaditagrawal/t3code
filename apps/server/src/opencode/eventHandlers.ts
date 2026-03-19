@@ -47,6 +47,11 @@ type EventEmitter = {
   emitRuntimeEvent(event: OpenCodeProviderRuntimeEvent): void;
 };
 
+function normalizeToolDetail(detail: string | undefined): string | undefined {
+  const trimmed = detail?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : undefined;
+}
+
 /**
  * Dispatches an OpenCode SSE event to the appropriate handler.
  */
@@ -564,40 +569,58 @@ function handleToolPartUpdatedEvent(
   part: OpenCodeToolPart,
 ): void {
   const previous = context.partStreamById.get(part.id);
-  const title = toolStateTitle(part.state);
-  const detail = toolStateDetail(part.state);
+  const stateTitle = toolStateTitle(part.state);
+  const detail = normalizeToolDetail(toolStateDetail(part.state));
   const lifecycleType = toToolLifecycleEventType(previous, part.state.status);
+  const toolTitle = toToolTitle(part.tool);
+  const shouldSuppressCompletion =
+    lifecycleType === "item.completed" &&
+    previous?.kind === "tool" &&
+    previous.lifecycleType === "item.updated" &&
+    previous.title === toolTitle &&
+    (detail === undefined || detail === previous.detail);
 
-  context.partStreamById.set(part.id, { kind: "tool" });
-  emitter.emitRuntimeEvent({
-    type: lifecycleType,
-    eventId: eventId(`opencode-tool-${lifecycleType.replace(".", "-")}`),
-    provider: PROVIDER,
-    threadId: context.threadId,
-    createdAt: nowIso(),
-    ...(context.activeTurnId ? { turnId: context.activeTurnId } : {}),
-    itemId: RuntimeItemId.makeUnsafe(part.id),
-    payload: {
-      itemType: toToolItemType(part.tool),
-      ...(lifecycleType !== "item.updated"
-        ? {
-            status: lifecycleType === "item.completed" ? "completed" : "inProgress",
-          }
-        : {}),
-      title: toToolTitle(part.tool),
-      ...(detail ? { detail } : {}),
-      data: {
-        item: part,
-      },
-    },
-    raw: {
-      source: "opencode.server.event",
-      messageType: "message.part.updated",
-      payload: event,
-    },
+  context.partStreamById.set(part.id, {
+    kind: "tool",
+    lifecycleType,
+    title: toolTitle,
+    ...(detail ? { detail } : {}),
   });
+  if (!shouldSuppressCompletion) {
+    emitter.emitRuntimeEvent({
+      type: lifecycleType,
+      eventId: eventId(`opencode-tool-${lifecycleType.replace(".", "-")}`),
+      provider: PROVIDER,
+      threadId: context.threadId,
+      createdAt: nowIso(),
+      ...(context.activeTurnId ? { turnId: context.activeTurnId } : {}),
+      itemId: RuntimeItemId.makeUnsafe(part.id),
+      payload: {
+        itemType: toToolItemType(part.tool),
+        ...(lifecycleType !== "item.updated"
+          ? {
+              status: lifecycleType === "item.completed" ? "completed" : "inProgress",
+            }
+          : {}),
+        title: toolTitle,
+        ...(detail ? { detail } : {}),
+        data: {
+          item: part,
+        },
+      },
+      raw: {
+        source: "opencode.server.event",
+        messageType: "message.part.updated",
+        payload: event,
+      },
+    });
+  }
 
-  if ((part.state.status === "completed" || part.state.status === "error") && title) {
+  if (
+    !shouldSuppressCompletion &&
+    (part.state.status === "completed" || part.state.status === "error") &&
+    stateTitle
+  ) {
     emitter.emitRuntimeEvent({
       type: "tool.summary",
       eventId: eventId("opencode-tool-summary"),
@@ -607,7 +630,7 @@ function handleToolPartUpdatedEvent(
       ...(context.activeTurnId ? { turnId: context.activeTurnId } : {}),
       itemId: RuntimeItemId.makeUnsafe(part.id),
       payload: {
-        summary: `${part.tool}: ${title}`,
+        summary: `${part.tool}: ${stateTitle}`,
         precedingToolUseIds: [part.id],
       },
       raw: {

@@ -33,6 +33,7 @@ import {
   ProviderAdapterSessionNotFoundError,
   ProviderAdapterValidationError,
 } from "../Errors.ts";
+import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import { type EventNdjsonLogger } from "./EventNdjsonLogger.ts";
 import {
   assistantUsageFields,
@@ -1662,9 +1663,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
 
     return {
       provider: PROVIDER,
-      capabilities: {
-        sessionModelSwitch: "in-session",
-      },
+      capabilities: getProviderCapabilities(PROVIDER),
       startSession,
       sendTurn,
       interruptTurn,

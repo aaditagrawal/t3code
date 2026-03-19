@@ -386,6 +386,9 @@ export class KiloServerManager extends EventEmitter<KiloManagerEvents> {
         reply: toPermissionReply(decision),
       }),
     );
+    if (decision === "cancel") {
+      await this.interruptTurn(threadId);
+    }
   }
 
   async respondToUserInput(

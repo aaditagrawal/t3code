@@ -35,6 +35,7 @@ import {
   ProviderService,
   type ProviderServiceShape,
 } from "../../provider/Services/ProviderService.ts";
+import { getProviderCapabilities } from "../../provider/Services/ProviderAdapter.ts";
 import { checkpointRefForThreadTurn } from "../../checkpointing/Utils.ts";
 import { ServerConfig } from "../../config.ts";
 
@@ -98,7 +99,7 @@ function createProviderServiceHarness(
     respondToUserInput: () => unsupported(),
     stopSession: () => unsupported(),
     listSessions,
-    getCapabilities: () => Effect.succeed({ sessionModelSwitch: "in-session" }),
+    getCapabilities: () => Effect.succeed(getProviderCapabilities(providerName)),
     rollbackConversation,
     streamEvents: Stream.fromPubSub(runtimeEventPubSub),
   };

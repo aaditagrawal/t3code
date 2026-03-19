@@ -35,6 +35,7 @@ import {
   ProviderAdapterValidationError,
   type ProviderAdapterError,
 } from "../Errors.ts";
+import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import {
   CursorAdapter,
   type CursorAdapterShape,
@@ -1784,9 +1785,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
 
     return {
       provider: PROVIDER,
-      capabilities: {
-        sessionModelSwitch: "unsupported",
-      },
+      capabilities: getProviderCapabilities(PROVIDER),
       startSession,
       sendTurn,
       interruptTurn,

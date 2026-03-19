@@ -9,6 +9,7 @@ import {
   ProviderAdapterValidationError,
   type ProviderAdapterError,
 } from "../Errors.ts";
+import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import { AmpAdapter, type AmpAdapterShape } from "../Services/AmpAdapter.ts";
 
 const PROVIDER = "amp" as const;
@@ -82,9 +83,7 @@ export function makeAmpAdapterLive(options: AmpAdapterLiveOptions = {}) {
 
       const service = {
         provider: PROVIDER,
-        capabilities: {
-          sessionModelSwitch: "restart-session",
-        } as const,
+        capabilities: getProviderCapabilities(PROVIDER),
         startSession: (input) =>
           Effect.tryPromise({
             try: () => manager.startSession(input),

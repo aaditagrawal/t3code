@@ -30,6 +30,7 @@ import {
   type ProviderAdapterError,
 } from "../Errors.ts";
 import type { ProviderAdapterShape } from "../Services/ProviderAdapter.ts";
+import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import { ProviderAdapterRegistry } from "../Services/ProviderAdapterRegistry.ts";
 import { ProviderService } from "../Services/ProviderService.ts";
 import { ProviderSessionDirectory } from "../Services/ProviderSessionDirectory.ts";
@@ -182,9 +183,7 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
 
   const adapter: ProviderAdapterShape<ProviderAdapterError> = {
     provider,
-    capabilities: {
-      sessionModelSwitch: "in-session",
-    },
+    capabilities: getProviderCapabilities(provider),
     startSession,
     sendTurn,
     interruptTurn,

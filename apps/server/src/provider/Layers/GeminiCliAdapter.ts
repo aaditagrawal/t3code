@@ -9,6 +9,7 @@ import {
   ProviderAdapterValidationError,
   type ProviderAdapterError,
 } from "../Errors.ts";
+import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import { GeminiCliAdapter, type GeminiCliAdapterShape } from "../Services/GeminiCliAdapter.ts";
 
 const PROVIDER = "geminiCli" as const;
@@ -82,9 +83,7 @@ export function makeGeminiCliAdapterLive(options: GeminiCliAdapterLiveOptions = 
 
       const service = {
         provider: PROVIDER,
-        capabilities: {
-          sessionModelSwitch: "restart-session",
-        } as const,
+        capabilities: getProviderCapabilities(PROVIDER),
         startSession: (input) =>
           Effect.tryPromise({
             try: () => manager.startSession(input),

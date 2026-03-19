@@ -62,6 +62,26 @@ type GeminiCliProviderOptions = {
   readonly binaryPath?: string;
 };
 
+function readGeminiResumeSessionId(resumeCursor: unknown): string | undefined {
+  if (typeof resumeCursor === "string" && resumeCursor.trim().length > 0) {
+    return resumeCursor.trim();
+  }
+  if (!resumeCursor || typeof resumeCursor !== "object" || Array.isArray(resumeCursor)) {
+    return undefined;
+  }
+  const record = resumeCursor as {
+    sessionId?: unknown;
+    geminiSessionId?: unknown;
+    resume?: unknown;
+  };
+  for (const candidate of [record.sessionId, record.geminiSessionId, record.resume]) {
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+  return undefined;
+}
+
 /** Gemini CLI stream-json event types. */
 interface GeminiJsonInit {
   type: "init";
@@ -200,6 +220,7 @@ export class GeminiCliServerManager extends EventEmitter<{
     const geminiOpts = input.providerOptions?.geminiCli as GeminiCliProviderOptions | undefined;
     const binaryPath = geminiOpts?.binaryPath ?? defaultBinaryPath();
     const cwd = input.cwd ?? process.cwd();
+    const resumeSessionId = readGeminiResumeSessionId(input.resumeCursor);
     const now = new Date().toISOString();
 
     const session: GeminiCliSession = {
@@ -209,7 +230,7 @@ export class GeminiCliServerManager extends EventEmitter<{
       binaryPath,
       runtimeMode: input.runtimeMode ?? "full-access",
       status: "ready",
-      geminiSessionId: undefined,
+      geminiSessionId: resumeSessionId,
       activeTurnId: undefined,
       activeProcess: undefined,
       activeAssistantItemId: undefined,
@@ -227,9 +248,24 @@ export class GeminiCliServerManager extends EventEmitter<{
       threadId,
       cwd,
       model: input.model,
+      ...(resumeSessionId ? { resumeCursor: { sessionId: resumeSessionId } } : {}),
       createdAt: now,
       updatedAt: now,
     };
+
+    this.emitEvent(threadId, undefined, {
+      type: "session.configured",
+      payload: {
+        config: {
+          provider: PROVIDER,
+          binaryPath,
+          cwd,
+          runtimeMode: session.runtimeMode,
+          ...(input.model ? { model: input.model } : {}),
+          ...(resumeSessionId ? { resumeSessionId } : {}),
+        },
+      },
+    });
 
     return Promise.resolve(providerSession);
   }
@@ -267,14 +303,14 @@ export class GeminiCliServerManager extends EventEmitter<{
     const args: string[] = [
       "-p",
       prompt,
-      "-o",
+      "--output-format",
       "stream-json",
       "--approval-mode",
       resolveApprovalMode(session.runtimeMode),
     ];
 
     if (effectiveModel) {
-      args.push("-m", effectiveModel);
+      args.push("--model", effectiveModel);
     }
 
     // Resume previous Gemini session for follow-up turns.
@@ -302,7 +338,22 @@ export class GeminiCliServerManager extends EventEmitter<{
       this.handleJsonLine(input.threadId, turnId, line);
     });
 
-    // Ignore stderr (skill conflict warnings, YOLO notices, etc.)
+    child.stderr.on("data", (chunk: Buffer) => {
+      const text = chunk.toString().trim();
+      if (!text) return;
+      const normalized = text.toLowerCase();
+      if (normalized.includes("trusted folder") || normalized.includes("untrusted folder")) {
+        this.emitEvent(input.threadId, turnId, {
+          type: "config.warning",
+          payload: {
+            message: text,
+            detail: {
+              category: "trusted-folder",
+            },
+          },
+        });
+      }
+    });
 
     child.on("close", (code, signal) => {
       const s = this.sessions.get(input.threadId);
@@ -413,6 +464,9 @@ export class GeminiCliServerManager extends EventEmitter<{
         threadId: session.threadId,
         cwd: session.cwd,
         model: session.model,
+        ...(session.geminiSessionId
+          ? { resumeCursor: { sessionId: session.geminiSessionId } }
+          : {}),
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
       });
@@ -435,7 +489,9 @@ export class GeminiCliServerManager extends EventEmitter<{
     if (!this.sessions.has(threadId)) {
       throw new Error(`Unknown Gemini CLI session: ${threadId}`);
     }
-    return Promise.resolve({ threadId, turns: [] });
+    throw new Error(
+      `rollbackThread is not supported for Gemini CLI session '${threadId}' without provider-native checkpoint restoration`,
+    );
   }
 
   stopAll(): void {
@@ -462,6 +518,7 @@ export class GeminiCliServerManager extends EventEmitter<{
       case "init": {
         // Capture Gemini session ID for --resume on subsequent turns.
         session.geminiSessionId = event.session_id;
+        session.updatedAt = new Date().toISOString();
         break;
       }
 
