@@ -30,11 +30,11 @@ export const OpencodeModelOptions = Schema.Struct({
 });
 export type OpencodeModelOptions = typeof OpencodeModelOptions.Type;
 
-export const ClaudeCodeModelOptions = Schema.Struct({
+export const ClaudeModelOptions = Schema.Struct({
   thinking: Schema.optional(Schema.Boolean),
   effort: Schema.optional(Schema.Literals(CLAUDE_CODE_EFFORT_OPTIONS)),
 });
-export type ClaudeCodeModelOptions = typeof ClaudeCodeModelOptions.Type;
+export type ClaudeModelOptions = typeof ClaudeModelOptions.Type;
 
 export const CursorModelOptions = Schema.Struct({
   reasoning: Schema.optional(Schema.Literals(CURSOR_REASONING_OPTIONS)),
@@ -65,7 +65,7 @@ export type KiloModelOptions = typeof KiloModelOptions.Type;
 export const ProviderModelOptions = Schema.Struct({
   codex: Schema.optional(CodexModelOptions),
   copilot: Schema.optional(CopilotModelOptions),
-  claudeCode: Schema.optional(ClaudeCodeModelOptions),
+  claudeAgent: Schema.optional(ClaudeModelOptions),
   cursor: Schema.optional(CursorModelOptions),
   opencode: Schema.optional(OpencodeModelOptions),
   geminiCli: Schema.optional(GeminiCliModelOptions),
@@ -146,7 +146,7 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
     { slug: "gpt-5-mini", name: "GPT-5 mini" },
     { slug: "gpt-4.1", name: "GPT-4.1" },
   ],
-  claudeCode: [
+  claudeAgent: [
     { slug: "claude-opus-4-6", name: "Claude Opus 4.6" },
     { slug: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
     { slug: "claude-haiku-4-5", name: "Claude Haiku 4.5" },
@@ -223,7 +223,7 @@ export type CursorModelSlug = (typeof MODEL_OPTIONS_BY_PROVIDER)["cursor"][numbe
 export const DEFAULT_MODEL_BY_PROVIDER = {
   codex: "gpt-5.4",
   copilot: "claude-sonnet-4.6",
-  claudeCode: "claude-sonnet-4-6",
+  claudeAgent: "claude-sonnet-4-6",
   cursor: "opus-4.6-thinking",
   opencode: "gpt-5",
   geminiCli: "gemini-2.5-pro",
@@ -263,7 +263,7 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
     opus: "claude-opus-4.6",
     gemini: "gemini-3-pro-preview",
   },
-  claudeCode: {
+  claudeAgent: {
     opus: "claude-opus-4-6",
     "opus-4.6": "claude-opus-4-6",
     "claude-opus-4.6": "claude-opus-4-6",
@@ -326,7 +326,7 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
 export const REASONING_EFFORT_OPTIONS_BY_PROVIDER = {
   codex: CODEX_REASONING_EFFORT_OPTIONS,
   copilot: [],
-  claudeCode: [],
+  claudeAgent: [],
   cursor: [],
   opencode: [],
   kilo: [],
@@ -337,7 +337,7 @@ export const REASONING_EFFORT_OPTIONS_BY_PROVIDER = {
 export const DEFAULT_REASONING_EFFORT_BY_PROVIDER = {
   codex: "high",
   copilot: null,
-  claudeCode: null,
+  claudeAgent: null,
   cursor: null,
   opencode: null,
   kilo: null,
@@ -348,7 +348,7 @@ export const DEFAULT_REASONING_EFFORT_BY_PROVIDER = {
 export const CLAUDE_CODE_EFFORT_OPTIONS_BY_PROVIDER = {
   codex: [],
   copilot: [],
-  claudeCode: CLAUDE_CODE_EFFORT_OPTIONS,
+  claudeAgent: CLAUDE_CODE_EFFORT_OPTIONS,
   cursor: [],
   opencode: [],
   kilo: [],
@@ -359,7 +359,7 @@ export const CLAUDE_CODE_EFFORT_OPTIONS_BY_PROVIDER = {
 export const DEFAULT_CLAUDE_CODE_EFFORT_BY_PROVIDER = {
   codex: null,
   copilot: null,
-  claudeCode: "high",
+  claudeAgent: "high",
   cursor: null,
   opencode: null,
   kilo: null,

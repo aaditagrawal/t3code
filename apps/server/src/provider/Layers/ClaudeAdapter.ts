@@ -1,10 +1,10 @@
 /**
- * ClaudeCodeAdapterLive - Scoped live implementation for the Claude Code provider adapter.
+ * ClaudeAdapterLive - Scoped live implementation for the Claude Code provider adapter.
  *
  * Wraps `@anthropic-ai/claude-agent-sdk` query sessions behind the generic
  * provider adapter contract and emits canonical runtime events.
  *
- * @module ClaudeCodeAdapterLive
+ * @module ClaudeAdapterLive
  */
 import { createRequire } from "node:module";
 import * as Path from "node:path";
@@ -50,13 +50,13 @@ import {
   type ProviderAdapterError,
 } from "../Errors.ts";
 import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
-import { ClaudeCodeAdapter, type ClaudeCodeAdapterShape } from "../Services/ClaudeCodeAdapter.ts";
+import { ClaudeAdapter, type ClaudeAdapterShape } from "../Services/ClaudeAdapter.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 import { toMessage } from "../toMessage.ts";
 
 import { createLogger } from "../../logger";
 
-const PROVIDER = "claudeCode" as const;
+const PROVIDER = "claudeAgent" as const;
 const logger = createLogger(PROVIDER);
 
 /**
@@ -237,7 +237,7 @@ interface ClaudeQueryRuntime extends AsyncIterable<SDKMessage> {
   readonly close: () => void;
 }
 
-export interface ClaudeCodeAdapterLiveOptions {
+export interface ClaudeAdapterLiveOptions {
   readonly createQuery?: (input: {
     readonly prompt: AsyncIterable<SDKUserMessage>;
     readonly options: ClaudeQueryOptions;
@@ -622,7 +622,7 @@ function sdkNativeItemId(message: SDKMessageLoose): string | undefined {
   return undefined;
 }
 
-function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
+function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
   return Effect.gen(function* () {
     const nativeEventLogger =
       options?.nativeEventLogger ??
@@ -1564,7 +1564,7 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
       return Effect.succeed(context);
     };
 
-    const startSession: ClaudeCodeAdapterShape["startSession"] = (input) =>
+    const startSession: ClaudeAdapterShape["startSession"] = (input) =>
       Effect.gen(function* () {
         if (input.provider !== undefined && input.provider !== PROVIDER) {
           return yield* new ProviderAdapterValidationError({
@@ -1723,12 +1723,12 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
             }),
           );
 
-        const providerOptions = input.providerOptions?.claudeCode;
-        const claudeCodeModelOptions = input.modelOptions?.claudeCode;
+        const providerOptions = input.providerOptions?.claudeAgent;
+        const claudeAgentModelOptions = input.modelOptions?.claudeAgent;
         const permissionMode =
           toPermissionMode(providerOptions?.permissionMode) ??
           (input.runtimeMode === "full-access" ? "bypassPermissions" : undefined);
-        const effort = claudeCodeModelOptions?.effort as EffortLevel | undefined;
+        const effort = claudeAgentModelOptions?.effort as EffortLevel | undefined;
 
         const pathToClaudeCodeExecutable = yield* Effect.try({
           try: () =>
@@ -1890,7 +1890,7 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
         };
       });
 
-    const sendTurn: ClaudeCodeAdapterShape["sendTurn"] = (input) =>
+    const sendTurn: ClaudeAdapterShape["sendTurn"] = (input) =>
       Effect.gen(function* () {
         const context = yield* requireSession(input.threadId);
 
@@ -1963,7 +1963,7 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
         };
       });
 
-    const interruptTurn: ClaudeCodeAdapterShape["interruptTurn"] = (threadId, _turnId) =>
+    const interruptTurn: ClaudeAdapterShape["interruptTurn"] = (threadId, _turnId) =>
       Effect.gen(function* () {
         const context = yield* requireSession(threadId);
         yield* Effect.tryPromise({
@@ -1972,13 +1972,13 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
         });
       });
 
-    const readThread: ClaudeCodeAdapterShape["readThread"] = (threadId) =>
+    const readThread: ClaudeAdapterShape["readThread"] = (threadId) =>
       Effect.gen(function* () {
         const context = yield* requireSession(threadId);
         return yield* snapshotThread(context);
       });
 
-    const rollbackThread: ClaudeCodeAdapterShape["rollbackThread"] = (threadId, _numTurns) =>
+    const rollbackThread: ClaudeAdapterShape["rollbackThread"] = (threadId, _numTurns) =>
       Effect.gen(function* () {
         yield* requireSession(threadId);
         return yield* new ProviderAdapterRequestError({
@@ -1989,7 +1989,7 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
         });
       });
 
-    const respondToRequest: ClaudeCodeAdapterShape["respondToRequest"] = (
+    const respondToRequest: ClaudeAdapterShape["respondToRequest"] = (
       threadId,
       requestId,
       decision,
@@ -2009,7 +2009,7 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
         yield* Deferred.succeed(pending.decision, decision);
       });
 
-    const respondToUserInput: ClaudeCodeAdapterShape["respondToUserInput"] = (
+    const respondToUserInput: ClaudeAdapterShape["respondToUserInput"] = (
       threadId,
       requestId,
       _answers,
@@ -2022,7 +2022,7 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
         }),
       );
 
-    const stopSession: ClaudeCodeAdapterShape["stopSession"] = (threadId) =>
+    const stopSession: ClaudeAdapterShape["stopSession"] = (threadId) =>
       Effect.gen(function* () {
         const context = yield* requireSession(threadId);
         yield* stopSessionInternal(context, {
@@ -2030,16 +2030,16 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
         });
       });
 
-    const listSessions: ClaudeCodeAdapterShape["listSessions"] = () =>
+    const listSessions: ClaudeAdapterShape["listSessions"] = () =>
       Effect.sync(() => Array.from(sessions.values(), ({ session }) => ({ ...session })));
 
-    const hasSession: ClaudeCodeAdapterShape["hasSession"] = (threadId) =>
+    const hasSession: ClaudeAdapterShape["hasSession"] = (threadId) =>
       Effect.sync(() => {
         const context = sessions.get(threadId);
         return context !== undefined && !context.stopped;
       });
 
-    const stopAll: ClaudeCodeAdapterShape["stopAll"] = () =>
+    const stopAll: ClaudeAdapterShape["stopAll"] = () =>
       Effect.forEach(
         sessions,
         ([, context]) =>
@@ -2075,12 +2075,12 @@ function makeClaudeCodeAdapter(options?: ClaudeCodeAdapterLiveOptions) {
       hasSession,
       stopAll,
       streamEvents: Stream.fromQueue(runtimeEventQueue),
-    } satisfies ClaudeCodeAdapterShape;
+    } satisfies ClaudeAdapterShape;
   });
 }
 
-export const ClaudeCodeAdapterLive = Layer.effect(ClaudeCodeAdapter, makeClaudeCodeAdapter());
+export const ClaudeAdapterLive = Layer.effect(ClaudeAdapter, makeClaudeAdapter());
 
-export function makeClaudeCodeAdapterLive(options?: ClaudeCodeAdapterLiveOptions) {
-  return Layer.effect(ClaudeCodeAdapter, makeClaudeCodeAdapter(options));
+export function makeClaudeAdapterLive(options?: ClaudeAdapterLiveOptions) {
+  return Layer.effect(ClaudeAdapter, makeClaudeAdapter(options));
 }

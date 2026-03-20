@@ -64,7 +64,7 @@ export function getCustomModelOptionsByProvider(settings: {
   return {
     codex: getAppModelOptions("codex", settings.customCodexModels),
     copilot: getAppModelOptions("copilot", settings.customCopilotModels),
-    claudeCode: getAppModelOptions("claudeCode", settings.customClaudeModels),
+    claudeAgent: getAppModelOptions("claudeAgent", settings.customClaudeModels),
     cursor: [
       ...cursorFamilyOptions,
       ...getAppModelOptions("cursor", settings.customCursorModels).filter(
@@ -222,7 +222,7 @@ export function formatPricingTier(tier: string): string {
 const PROVIDER_ICON_BY_PROVIDER: Record<ProviderKind, Icon> = {
   codex: OpenAI,
   copilot: GitHubIcon,
-  claudeCode: ClaudeAI,
+  claudeAgent: ClaudeAI,
   cursor: CursorIcon,
   opencode: OpenCodeIcon,
   geminiCli: Gemini,
@@ -281,7 +281,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             aria-hidden="true"
             className={cn(
               "size-4 shrink-0",
-              props.provider === "claudeCode" ? "" : "text-muted-foreground/70",
+              props.provider === "claudeAgent" ? "" : "text-muted-foreground/70",
             )}
           />
           <span className="truncate">{selectedModelLabel}</span>
@@ -438,7 +438,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
                 aria-hidden="true"
                 className={cn(
                   "size-4 shrink-0 opacity-80",
-                  option.value === "claudeCode" ? "" : "text-muted-foreground/85",
+                  option.value === "claudeAgent" ? "" : "text-muted-foreground/85",
                 )}
               />
               <span>{option.label}</span>

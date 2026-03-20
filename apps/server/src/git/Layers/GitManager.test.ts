@@ -454,7 +454,7 @@ function runStackedAction(
     provider?:
       | "codex"
       | "copilot"
-      | "claudeCode"
+      | "claudeAgent"
       | "cursor"
       | "opencode"
       | "geminiCli"

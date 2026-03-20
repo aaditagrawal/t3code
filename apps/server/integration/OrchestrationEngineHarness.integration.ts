@@ -205,7 +205,7 @@ export interface OrchestrationIntegrationHarness {
 }
 
 interface MakeOrchestrationIntegrationHarnessOptions {
-  readonly provider?: "codex" | "claudeCode";
+  readonly provider?: "codex" | "claudeAgent";
   readonly realCodex?: boolean;
 }
 

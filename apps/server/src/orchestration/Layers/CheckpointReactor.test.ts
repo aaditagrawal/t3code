@@ -48,7 +48,7 @@ type LegacyProviderRuntimeEvent = {
   readonly provider:
     | "codex"
     | "copilot"
-    | "claudeCode"
+    | "claudeAgent"
     | "cursor"
     | "opencode"
     | "geminiCli"
@@ -67,7 +67,7 @@ function createProviderServiceHarness(
   cwd: string,
   hasSession = true,
   sessionCwd = cwd,
-  providerName: "codex" | "claudeCode" = "codex",
+  providerName: "codex" | "claudeAgent" = "codex",
 ) {
   const now = new Date().toISOString();
   const runtimeEventPubSub = Effect.runSync(PubSub.unbounded<ProviderRuntimeEvent>());
@@ -244,7 +244,7 @@ describe("CheckpointReactor", () => {
     readonly projectWorkspaceRoot?: string;
     readonly threadWorktreePath?: string | null;
     readonly providerSessionCwd?: string;
-    readonly providerName?: "codex" | "claudeCode";
+    readonly providerName?: "codex" | "claudeAgent";
   }) {
     const cwd = createGitRepository();
     tempDirs.push(cwd);
@@ -487,10 +487,10 @@ describe("CheckpointReactor", () => {
     expect(thread.checkpoints[0]?.checkpointTurnCount).toBe(1);
   });
 
-  it("captures pre-turn and completion checkpoints for claudeCode runtime events", async () => {
+  it("captures pre-turn and completion checkpoints for claudeAgent runtime events", async () => {
     const harness = await createHarness({
       seedFilesystemCheckpoints: false,
-      providerName: "claudeCode",
+      providerName: "claudeAgent",
     });
     const createdAt = new Date().toISOString();
 
@@ -502,7 +502,7 @@ describe("CheckpointReactor", () => {
         session: {
           threadId: ThreadId.makeUnsafe("thread-1"),
           status: "ready",
-          providerName: "claudeCode",
+          providerName: "claudeAgent",
           runtimeMode: "approval-required",
           activeTurnId: null,
           lastError: null,
@@ -515,7 +515,7 @@ describe("CheckpointReactor", () => {
     harness.provider.emit({
       type: "turn.started",
       eventId: EventId.makeUnsafe("evt-turn-started-claude-1"),
-      provider: "claudeCode",
+      provider: "claudeAgent",
       createdAt: new Date().toISOString(),
       threadId: ThreadId.makeUnsafe("thread-1"),
       turnId: asTurnId("turn-claude-1"),
@@ -529,7 +529,7 @@ describe("CheckpointReactor", () => {
     harness.provider.emit({
       type: "turn.completed",
       eventId: EventId.makeUnsafe("evt-turn-completed-claude-1"),
-      provider: "claudeCode",
+      provider: "claudeAgent",
       createdAt: new Date().toISOString(),
       threadId: ThreadId.makeUnsafe("thread-1"),
       turnId: asTurnId("turn-claude-1"),
@@ -863,8 +863,8 @@ describe("CheckpointReactor", () => {
     ).toBe(false);
   });
 
-  it("executes provider revert and emits thread.reverted for claudeCode sessions", async () => {
-    const harness = await createHarness({ providerName: "claudeCode" });
+  it("executes provider revert and emits thread.reverted for claudeAgent sessions", async () => {
+    const harness = await createHarness({ providerName: "claudeAgent" });
     const createdAt = new Date().toISOString();
 
     await Effect.runPromise(
@@ -875,7 +875,7 @@ describe("CheckpointReactor", () => {
         session: {
           threadId: ThreadId.makeUnsafe("thread-1"),
           status: "ready",
-          providerName: "claudeCode",
+          providerName: "claudeAgent",
           runtimeMode: "approval-required",
           activeTurnId: null,
           lastError: null,

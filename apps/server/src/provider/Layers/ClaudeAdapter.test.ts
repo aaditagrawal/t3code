@@ -11,11 +11,11 @@ import { assert, describe, it } from "@effect/vitest";
 import { Effect, Fiber, Random, Stream } from "effect";
 
 import { ProviderAdapterValidationError } from "../Errors.ts";
-import { ClaudeCodeAdapter } from "../Services/ClaudeCodeAdapter.ts";
+import { ClaudeAdapter } from "../Services/ClaudeAdapter.ts";
 import {
-  makeClaudeCodeAdapterLive,
-  type ClaudeCodeAdapterLiveOptions,
-} from "./ClaudeCodeAdapter.ts";
+  makeClaudeAdapterLive,
+  type ClaudeAdapterLiveOptions,
+} from "./ClaudeAdapter.ts";
 
 class FakeClaudeQuery implements AsyncIterable<SDKMessage> {
   private readonly queue: Array<SDKMessage> = [];
@@ -98,7 +98,7 @@ class FakeClaudeQuery implements AsyncIterable<SDKMessage> {
 }
 
 interface Harness {
-  readonly layer: ReturnType<typeof makeClaudeCodeAdapterLive>;
+  readonly layer: ReturnType<typeof makeClaudeAdapterLive>;
   readonly query: FakeClaudeQuery;
   readonly getLastCreateQueryInput: () =>
     | {
@@ -110,7 +110,7 @@ interface Harness {
 
 function makeHarness(config?: {
   readonly nativeEventLogPath?: string;
-  readonly nativeEventLogger?: ClaudeCodeAdapterLiveOptions["nativeEventLogger"];
+  readonly nativeEventLogger?: ClaudeAdapterLiveOptions["nativeEventLogger"];
 }): Harness {
   const query = new FakeClaudeQuery();
   let createInput:
@@ -120,7 +120,7 @@ function makeHarness(config?: {
       }
     | undefined;
 
-  const adapterOptions: ClaudeCodeAdapterLiveOptions = {
+  const adapterOptions: ClaudeAdapterLiveOptions = {
     createQuery: (input) => {
       createInput = input;
       return query;
@@ -138,7 +138,7 @@ function makeHarness(config?: {
   };
 
   return {
-    layer: makeClaudeCodeAdapterLive(adapterOptions),
+    layer: makeClaudeAdapterLive(adapterOptions),
     query,
     getLastCreateQueryInput: () => createInput,
   };
@@ -163,11 +163,11 @@ function makeDeterministicRandomService(seed = 0x1234_5678): {
 const THREAD_ID = ThreadId.makeUnsafe("thread-claude-1");
 const RESUME_THREAD_ID = ThreadId.makeUnsafe("thread-claude-resume");
 
-describe("ClaudeCodeAdapterLive", () => {
-  it.effect("returns validation error for non-claudeCode provider on startSession", () => {
+describe("ClaudeAdapterLive", () => {
+  it.effect("returns validation error for non-claudeAgent provider on startSession", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+      const adapter = yield* ClaudeAdapter;
       const result = yield* adapter
         .startSession({ threadId: THREAD_ID, provider: "codex", runtimeMode: "full-access" })
         .pipe(Effect.result);
@@ -179,9 +179,9 @@ describe("ClaudeCodeAdapterLive", () => {
       assert.deepEqual(
         result.failure,
         new ProviderAdapterValidationError({
-          provider: "claudeCode",
+          provider: "claudeAgent",
           operation: "startSession",
-          issue: "Expected provider 'claudeCode' but received 'codex'.",
+          issue: "Expected provider 'claudeAgent' but received 'codex'.",
         }),
       );
     }).pipe(
@@ -193,10 +193,10 @@ describe("ClaudeCodeAdapterLive", () => {
   it.effect("derives bypass permission mode from full-access runtime policy", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+      const adapter = yield* ClaudeAdapter;
       yield* adapter.startSession({
         threadId: THREAD_ID,
-        provider: "claudeCode",
+        provider: "claudeAgent",
         runtimeMode: "full-access",
       });
 
@@ -213,13 +213,13 @@ describe("ClaudeCodeAdapterLive", () => {
   it.effect("keeps explicit claude permission mode over runtime-derived defaults", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+      const adapter = yield* ClaudeAdapter;
       yield* adapter.startSession({
         threadId: THREAD_ID,
-        provider: "claudeCode",
+        provider: "claudeAgent",
         runtimeMode: "full-access",
         providerOptions: {
-          claudeCode: {
+          claudeAgent: {
             permissionMode: "plan",
           },
         },
@@ -247,10 +247,10 @@ describe("ClaudeCodeAdapterLive", () => {
     process.env.PATH = "/usr/bin:/bin";
 
     return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+      const adapter = yield* ClaudeAdapter;
       yield* adapter.startSession({
         threadId: THREAD_ID,
-        provider: "claudeCode",
+        provider: "claudeAgent",
         runtimeMode: "full-access",
       });
 
@@ -296,7 +296,7 @@ describe("ClaudeCodeAdapterLive", () => {
   it.effect("maps Claude stream/runtime messages to canonical provider runtime events", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+      const adapter = yield* ClaudeAdapter;
 
       const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 11).pipe(
         Stream.runCollect,
@@ -305,7 +305,7 @@ describe("ClaudeCodeAdapterLive", () => {
 
       const session = yield* adapter.startSession({
         threadId: THREAD_ID,
-        provider: "claudeCode",
+        provider: "claudeAgent",
         model: "claude-sonnet-4-5",
         runtimeMode: "full-access",
       });
@@ -435,7 +435,7 @@ describe("ClaudeCodeAdapterLive", () => {
     () => {
       const harness = makeHarness();
       return Effect.gen(function* () {
-        const adapter = yield* ClaudeCodeAdapter;
+        const adapter = yield* ClaudeAdapter;
 
         const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 9).pipe(
           Stream.runCollect,
@@ -444,7 +444,7 @@ describe("ClaudeCodeAdapterLive", () => {
 
         const session = yield* adapter.startSession({
           threadId: THREAD_ID,
-          provider: "claudeCode",
+          provider: "claudeAgent",
           runtimeMode: "full-access",
         });
 
@@ -527,7 +527,7 @@ describe("ClaudeCodeAdapterLive", () => {
   it.effect("falls back to assistant payload text when stream deltas are absent", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+      const adapter = yield* ClaudeAdapter;
 
       const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 9).pipe(
         Stream.runCollect,
@@ -536,7 +536,7 @@ describe("ClaudeCodeAdapterLive", () => {
 
       const session = yield* adapter.startSession({
         threadId: THREAD_ID,
-        provider: "claudeCode",
+        provider: "claudeAgent",
         runtimeMode: "full-access",
       });
 
@@ -597,7 +597,7 @@ describe("ClaudeCodeAdapterLive", () => {
   it.effect("does not fabricate provider thread ids before first SDK session_id", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+      const adapter = yield* ClaudeAdapter;
 
       const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 5).pipe(
         Stream.runCollect,
@@ -606,7 +606,7 @@ describe("ClaudeCodeAdapterLive", () => {
 
       const session = yield* adapter.startSession({
         threadId: THREAD_ID,
-        provider: "claudeCode",
+        provider: "claudeAgent",
         runtimeMode: "full-access",
       });
       assert.equal(session.threadId, THREAD_ID);
@@ -687,11 +687,11 @@ describe("ClaudeCodeAdapterLive", () => {
   it.effect("bridges approval request/response lifecycle through canUseTool", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+      const adapter = yield* ClaudeAdapter;
 
       const session = yield* adapter.startSession({
         threadId: THREAD_ID,
-        provider: "claudeCode",
+        provider: "claudeAgent",
         runtimeMode: "approval-required",
       });
 
@@ -764,11 +764,11 @@ describe("ClaudeCodeAdapterLive", () => {
   it.effect("passes parsed resume cursor values to Claude query options", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+      const adapter = yield* ClaudeAdapter;
 
       const session = yield* adapter.startSession({
         threadId: RESUME_THREAD_ID,
-        provider: "claudeCode",
+        provider: "claudeAgent",
         resumeCursor: {
           threadId: "resume-thread-1",
           resume: "550e8400-e29b-41d4-a716-446655440000",
@@ -798,11 +798,11 @@ describe("ClaudeCodeAdapterLive", () => {
   it.effect("does not synthesize resume session id from generated thread ids", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+      const adapter = yield* ClaudeAdapter;
 
       const session = yield* adapter.startSession({
         threadId: THREAD_ID,
-        provider: "claudeCode",
+        provider: "claudeAgent",
         runtimeMode: "full-access",
       });
 
@@ -821,11 +821,11 @@ describe("ClaudeCodeAdapterLive", () => {
     () => {
       const harness = makeHarness();
       return Effect.gen(function* () {
-        const adapter = yield* ClaudeCodeAdapter;
+        const adapter = yield* ClaudeAdapter;
 
         const session = yield* adapter.startSession({
           threadId: THREAD_ID,
-          provider: "claudeCode",
+          provider: "claudeAgent",
           runtimeMode: "full-access",
         });
 
@@ -845,11 +845,11 @@ describe("ClaudeCodeAdapterLive", () => {
   it.effect("updates model on sendTurn when model override is provided", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+      const adapter = yield* ClaudeAdapter;
 
       const session = yield* adapter.startSession({
         threadId: THREAD_ID,
-        provider: "claudeCode",
+        provider: "claudeAgent",
         runtimeMode: "full-access",
       });
       yield* adapter.sendTurn({
@@ -886,11 +886,11 @@ describe("ClaudeCodeAdapterLive", () => {
       },
     });
     return Effect.gen(function* () {
-      const adapter = yield* ClaudeCodeAdapter;
+      const adapter = yield* ClaudeAdapter;
 
       const session = yield* adapter.startSession({
         threadId: THREAD_ID,
-        provider: "claudeCode",
+        provider: "claudeAgent",
         runtimeMode: "full-access",
       });
       const turn = yield* adapter.sendTurn({
@@ -933,7 +933,7 @@ describe("ClaudeCodeAdapterLive", () => {
 
       assert.equal(nativeEvents.length > 0, true);
       assert.equal(
-        nativeEvents.some((record) => record.event?.provider === "claudeCode"),
+        nativeEvents.some((record) => record.event?.provider === "claudeAgent"),
         true,
       );
       assert.equal(

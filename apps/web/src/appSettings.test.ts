@@ -79,8 +79,8 @@ describe("normalizeCustomModelSlugs", () => {
   });
 
   it("normalizes provider-specific aliases for claude and cursor", () => {
-    expect(normalizeCustomModelSlugs(["sonnet"], "claudeCode")).toEqual([]);
-    expect(normalizeCustomModelSlugs(["claude/custom-sonnet"], "claudeCode")).toEqual([
+    expect(normalizeCustomModelSlugs(["sonnet"], "claudeAgent")).toEqual([]);
+    expect(normalizeCustomModelSlugs(["claude/custom-sonnet"], "claudeAgent")).toEqual([
       "claude/custom-sonnet",
     ]);
     expect(normalizeCustomModelSlugs(["composer"], "cursor")).toEqual([]);
@@ -116,7 +116,7 @@ describe("getAppModelOptions", () => {
   });
 
   it("keeps a saved custom provider model available as an exact slug option", () => {
-    const options = getAppModelOptions("claudeCode", ["claude/custom-opus"], "claude/custom-opus");
+    const options = getAppModelOptions("claudeAgent", ["claude/custom-opus"], "claude/custom-opus");
 
     expect(options.some((option) => option.slug === "claude/custom-opus" && option.isCustom)).toBe(
       true,
@@ -169,7 +169,7 @@ describe("timestamp format defaults", () => {
   });
 
   it("includes provider-specific custom slugs in non-codex model lists", () => {
-    const claudeOptions = getAppModelOptions("claudeCode", ["claude/custom-opus"]);
+    const claudeOptions = getAppModelOptions("claudeAgent", ["claude/custom-opus"]);
     const cursorOptions = getAppModelOptions("cursor", ["cursor/custom-model"]);
 
     expect(claudeOptions.some((option) => option.slug === "claude/custom-opus")).toBe(true);

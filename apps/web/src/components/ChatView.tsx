@@ -160,7 +160,7 @@ import {
 import { ComposerCommandItem, ComposerCommandMenu } from "./chat/ComposerCommandMenu";
 import { ComposerPendingApprovalActions } from "./chat/ComposerPendingApprovalActions";
 import { CodexTraitsPicker } from "./chat/CodexTraitsPicker";
-import { ClaudeCodeTraitsPicker } from "./chat/ClaudeCodeTraitsPicker";
+import { ClaudeTraitsPicker } from "./chat/ClaudeTraitsPicker";
 import { CursorTraitsPicker } from "./chat/CursorTraitsPicker";
 import { CompactComposerControlsMenu } from "./chat/CompactComposerControlsMenu";
 import { ComposerPendingApprovalPanel } from "./chat/ComposerPendingApprovalPanel";
@@ -603,7 +603,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
     () => ({
       codex: settings.customCodexModels,
       copilot: settings.customCopilotModels,
-      claudeCode: settings.customClaudeModels,
+      claudeAgent: settings.customClaudeModels,
       cursor: settings.customCursorModels,
       opencode: settings.customOpencodeModels,
       geminiCli: settings.customGeminiCliModels,
@@ -642,10 +642,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const selectedEffort = composerDraft.effort ?? getDefaultReasoningEffort(selectedProvider);
   const selectedCodexFastModeEnabled =
     selectedProvider === "codex" ? composerDraft.codexFastMode : false;
-  const claudeCodeEffortOptions = getClaudeCodeEffortOptions(selectedProvider);
-  const supportsClaudeCodeEffort = claudeCodeEffortOptions.length > 0;
+  const claudeAgentEffortOptions = getClaudeCodeEffortOptions(selectedProvider);
+  const supportsClaudeCodeEffort = claudeAgentEffortOptions.length > 0;
   const selectedClaudeCodeEffort =
-    composerDraft.claudeCodeEffort ?? getDefaultClaudeCodeEffort(selectedProvider);
+    composerDraft.claudeAgentEffort ?? getDefaultClaudeCodeEffort(selectedProvider);
   const selectedModelOptionsForDispatch = useMemo(() => {
     if (selectedProvider === "codex") {
       const codexOptions = {
@@ -654,8 +654,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
       };
       return Object.keys(codexOptions).length > 0 ? { codex: codexOptions } : undefined;
     }
-    if (selectedProvider === "claudeCode" && supportsClaudeCodeEffort && selectedClaudeCodeEffort) {
-      return { claudeCode: { effort: selectedClaudeCodeEffort } };
+    if (selectedProvider === "claudeAgent" && supportsClaudeCodeEffort && selectedClaudeCodeEffort) {
+      return { claudeAgent: { effort: selectedClaudeCodeEffort } };
     }
     return undefined;
   }, [
@@ -3908,12 +3908,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
                                 onThinkingModeChange={onCursorThinkingModeChange}
                               />
                             )}
-                          {selectedProvider === "claudeCode" &&
+                          {selectedProvider === "claudeAgent" &&
                             supportsClaudeCodeEffort &&
                             selectedClaudeCodeEffort != null && (
-                              <ClaudeCodeTraitsPicker
+                              <ClaudeTraitsPicker
                                 effort={selectedClaudeCodeEffort}
-                                options={claudeCodeEffortOptions}
+                                options={claudeAgentEffortOptions}
                                 onEffortChange={onClaudeCodeEffortSelect}
                               />
                             )}
@@ -3972,7 +3972,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                                 onFastModeChange={onCodexFastModeChange}
                               />
                             </>
-                          ) : selectedProvider === "claudeCode" &&
+                          ) : selectedProvider === "claudeAgent" &&
                             supportsClaudeCodeEffort &&
                             selectedClaudeCodeEffort != null ? (
                             <>
@@ -3980,9 +3980,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
                                 orientation="vertical"
                                 className="mx-0.5 hidden h-4 sm:block"
                               />
-                              <ClaudeCodeTraitsPicker
+                              <ClaudeTraitsPicker
                                 effort={selectedClaudeCodeEffort}
-                                options={claudeCodeEffortOptions}
+                                options={claudeAgentEffortOptions}
                                 onEffortChange={onClaudeCodeEffortSelect}
                               />
                             </>

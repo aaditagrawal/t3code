@@ -43,9 +43,9 @@ describe("normalizeModelSlug", () => {
   });
 
   it("uses provider-specific aliases", () => {
-    expect(normalizeModelSlug("sonnet", "claudeCode")).toBe("claude-sonnet-4-6");
-    expect(normalizeModelSlug("opus-4.6", "claudeCode")).toBe("claude-opus-4-6");
-    expect(normalizeModelSlug("claude-haiku-4-5-20251001", "claudeCode")).toBe("claude-haiku-4-5");
+    expect(normalizeModelSlug("sonnet", "claudeAgent")).toBe("claude-sonnet-4-6");
+    expect(normalizeModelSlug("opus-4.6", "claudeAgent")).toBe("claude-opus-4-6");
+    expect(normalizeModelSlug("claude-haiku-4-5-20251001", "claudeAgent")).toBe("claude-haiku-4-5");
     expect(normalizeModelSlug("composer", "cursor")).toBe("composer-1.5");
     expect(normalizeModelSlug("gpt-5.3-codex-spark", "cursor")).toBe("gpt-5.3-codex-spark-preview");
     expect(normalizeModelSlug("gpt-5.4", "cursor")).toBe("gpt-5.4-medium");
@@ -79,12 +79,12 @@ describe("resolveModelSlug", () => {
   });
 
   it("supports provider-aware resolution", () => {
-    expect(resolveModelSlugForProvider("claudeCode", undefined)).toBe(
-      DEFAULT_MODEL_BY_PROVIDER.claudeCode,
+    expect(resolveModelSlugForProvider("claudeAgent", undefined)).toBe(
+      DEFAULT_MODEL_BY_PROVIDER.claudeAgent,
     );
-    expect(resolveModelSlugForProvider("claudeCode", "sonnet")).toBe("claude-sonnet-4-6");
-    expect(resolveModelSlugForProvider("claudeCode", "gpt-5.3-codex")).toBe(
-      DEFAULT_MODEL_BY_PROVIDER.claudeCode,
+    expect(resolveModelSlugForProvider("claudeAgent", "sonnet")).toBe("claude-sonnet-4-6");
+    expect(resolveModelSlugForProvider("claudeAgent", "gpt-5.3-codex")).toBe(
+      DEFAULT_MODEL_BY_PROVIDER.claudeAgent,
     );
     expect(resolveModelSlugForProvider("cursor", undefined)).toBe(DEFAULT_MODEL_BY_PROVIDER.cursor);
     expect(resolveModelSlugForProvider("cursor", "composer")).toBe("composer-1.5");
@@ -99,7 +99,7 @@ describe("resolveModelSlug", () => {
   it("keeps codex defaults for backward compatibility", () => {
     expect(getDefaultModel()).toBe(DEFAULT_MODEL);
     expect(getModelOptions()).toEqual(MODEL_OPTIONS);
-    expect(getModelOptions("claudeCode")).toEqual(MODEL_OPTIONS_BY_PROVIDER.claudeCode);
+    expect(getModelOptions("claudeAgent")).toEqual(MODEL_OPTIONS_BY_PROVIDER.claudeAgent);
     expect(getModelOptions("cursor")).toEqual(MODEL_OPTIONS_BY_PROVIDER.cursor);
     expect(getCursorModelFamilyOptions()).toEqual(CURSOR_MODEL_FAMILY_OPTIONS);
   });
@@ -190,8 +190,8 @@ describe("getReasoningEffortOptions", () => {
     expect(getReasoningEffortOptions("codex")).toEqual(REASONING_EFFORT_OPTIONS_BY_PROVIDER.codex);
   });
 
-  it("returns no reasoning options for claudeCode", () => {
-    expect(getReasoningEffortOptions("claudeCode")).toEqual([]);
+  it("returns no reasoning options for claudeAgent", () => {
+    expect(getReasoningEffortOptions("claudeAgent")).toEqual([]);
   });
 
   it("returns no reasoning options for cursor", () => {
@@ -202,8 +202,8 @@ describe("getReasoningEffortOptions", () => {
 describe("getDefaultReasoningEffort", () => {
   it("returns provider-scoped defaults", () => {
     expect(getDefaultReasoningEffort("codex")).toBe(DEFAULT_REASONING_EFFORT_BY_PROVIDER.codex);
-    expect(getDefaultReasoningEffort("claudeCode")).toBe(
-      DEFAULT_REASONING_EFFORT_BY_PROVIDER.claudeCode,
+    expect(getDefaultReasoningEffort("claudeAgent")).toBe(
+      DEFAULT_REASONING_EFFORT_BY_PROVIDER.claudeAgent,
     );
     expect(getDefaultReasoningEffort("cursor")).toBe(DEFAULT_REASONING_EFFORT_BY_PROVIDER.cursor);
   });

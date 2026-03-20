@@ -12,13 +12,13 @@ export const CLAUDE_CODE_EFFORT_LABEL: Record<ClaudeCodeEffort, string> = {
   max: "Max",
 };
 
-export const ClaudeCodeTraitsPicker = memo(function ClaudeCodeTraitsPicker(props: {
+export const ClaudeTraitsPicker = memo(function ClaudeTraitsPicker(props: {
   effort: ClaudeCodeEffort;
   options: ReadonlyArray<ClaudeCodeEffort>;
   onEffortChange: (effort: ClaudeCodeEffort) => void;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const defaultEffort = getDefaultClaudeCodeEffort("claudeCode");
+  const defaultEffort = getDefaultClaudeCodeEffort("claudeAgent");
 
   return (
     <Menu

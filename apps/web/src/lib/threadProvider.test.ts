@@ -6,9 +6,9 @@ describe("inferProviderForThreadModel", () => {
     expect(
       inferProviderForThreadModel({
         model: "gpt-5.3-codex",
-        sessionProviderName: "claudeCode",
+        sessionProviderName: "claudeAgent",
       }),
-    ).toBe("claudeCode");
+    ).toBe("claudeAgent");
   });
 
   it("infers cursor threads from composer models", () => {

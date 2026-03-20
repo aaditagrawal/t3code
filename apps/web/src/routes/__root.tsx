@@ -41,7 +41,7 @@ export const Route = createRootRouteWithContext<{
 const PROVIDER_KINDS = [
   "codex",
   "copilot",
-  "claudeCode",
+  "claudeAgent",
   "cursor",
   "opencode",
   "geminiCli",

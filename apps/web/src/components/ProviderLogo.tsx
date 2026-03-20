@@ -18,7 +18,7 @@ import {
 const PROVIDER_ICON_BY_PROVIDER: Record<ProviderKind, Icon> = {
   codex: OpenAI,
   copilot: GitHubIcon,
-  claudeCode: ClaudeAI,
+  claudeAgent: ClaudeAI,
   cursor: CursorIcon,
   opencode: OpenCodeIcon,
   geminiCli: Gemini,

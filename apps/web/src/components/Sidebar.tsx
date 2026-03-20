@@ -516,7 +516,7 @@ const USAGE_PROVIDERS: ReadonlyArray<{ provider: ProviderKind; label: string }> 
   { provider: "copilot", label: "Copilot" },
   { provider: "codex", label: "Codex" },
   { provider: "cursor", label: "Cursor" },
-  { provider: "claudeCode", label: "Claude Code" },
+  { provider: "claudeAgent", label: "Claude Code" },
   { provider: "geminiCli", label: "Gemini" },
   { provider: "amp", label: "Amp" },
 ];
@@ -547,7 +547,7 @@ function ProviderUsageSection() {
   const copilotUsage = useProviderUsage("copilot");
   const codexUsage = useProviderUsage("codex");
   const cursorUsage = useProviderUsage("cursor");
-  const claudeUsage = useProviderUsage("claudeCode");
+  const claudeUsage = useProviderUsage("claudeAgent");
   const geminiUsage = useProviderUsage("geminiCli");
   const ampUsage = useProviderUsage("amp");
 
@@ -555,7 +555,7 @@ function ProviderUsageSection() {
     copilot: copilotUsage.data,
     codex: codexUsage.data,
     cursor: cursorUsage.data,
-    claudeCode: claudeUsage.data,
+    claudeAgent: claudeUsage.data,
     geminiCli: geminiUsage.data,
     amp: ampUsage.data,
   };
@@ -617,7 +617,7 @@ function ProviderUsageSection() {
     }
     // Session usage (no quota) — show token/cost summary
     if (
-      provider !== "claudeCode" &&
+      provider !== "claudeAgent" &&
       data?.sessionUsage &&
       (data.sessionUsage.totalTokens || data.sessionUsage.totalCostUsd)
     ) {

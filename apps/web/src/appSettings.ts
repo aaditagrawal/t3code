@@ -37,7 +37,7 @@ export const DEFAULT_TIMESTAMP_FORMAT: TimestampFormat = "locale";
 const BUILT_IN_MODEL_SLUGS_BY_PROVIDER: Record<ProviderKind, ReadonlySet<string>> = {
   codex: new Set(getModelOptions("codex").map((option) => option.slug)),
   copilot: new Set(getModelOptions("copilot").map((option) => option.slug)),
-  claudeCode: new Set(getModelOptions("claudeCode").map((option) => option.slug)),
+  claudeAgent: new Set(getModelOptions("claudeAgent").map((option) => option.slug)),
   cursor: new Set(getModelOptions("cursor").map((option) => option.slug)),
   opencode: new Set(getModelOptions("opencode").map((option) => option.slug)),
   geminiCli: new Set(getModelOptions("geminiCli").map((option) => option.slug)),
@@ -47,7 +47,7 @@ const BUILT_IN_MODEL_SLUGS_BY_PROVIDER: Record<ProviderKind, ReadonlySet<string>
 const PROVIDER_KINDS = [
   "codex",
   "copilot",
-  "claudeCode",
+  "claudeAgent",
   "cursor",
   "opencode",
   "geminiCli",
@@ -216,7 +216,7 @@ export function getCustomModelsForProvider(
   switch (provider) {
     case "copilot":
       return settings.customCopilotModels;
-    case "claudeCode":
+    case "claudeAgent":
       return settings.customClaudeModels;
     case "cursor":
       return settings.customCursorModels;
@@ -238,7 +238,7 @@ export function patchCustomModels(provider: ProviderKind, models: string[]): Par
   switch (provider) {
     case "copilot":
       return { customCopilotModels: models };
-    case "claudeCode":
+    case "claudeAgent":
       return { customClaudeModels: models };
     case "cursor":
       return { customCursorModels: models };
@@ -283,7 +283,7 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
     ...settings,
     customCodexModels: normalizeCustomModelSlugs(settings.customCodexModels, "codex"),
     customCopilotModels: normalizeCustomModelSlugs(settings.customCopilotModels, "copilot"),
-    customClaudeModels: normalizeCustomModelSlugs(settings.customClaudeModels, "claudeCode"),
+    customClaudeModels: normalizeCustomModelSlugs(settings.customClaudeModels, "claudeAgent"),
     customCursorModels: normalizeCustomModelSlugs(settings.customCursorModels, "cursor"),
     customOpencodeModels: normalizeCustomModelSlugs(settings.customOpencodeModels, "opencode"),
     customGeminiCliModels: normalizeCustomModelSlugs(settings.customGeminiCliModels, "geminiCli"),

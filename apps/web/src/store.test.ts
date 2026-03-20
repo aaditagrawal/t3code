@@ -199,7 +199,7 @@ describe("store read model sync", () => {
     expect(next.threads[0]?.model).toBe("claude-opus-4-6");
   });
 
-  it("resolves claude aliases when session provider is claudeCode", () => {
+  it("resolves claude aliases when session provider is claudeAgent", () => {
     const initialState = makeState(makeThread());
     const readModel = makeReadModel(
       makeReadModelThread({
@@ -207,7 +207,7 @@ describe("store read model sync", () => {
         session: {
           threadId: ThreadId.makeUnsafe("thread-1"),
           status: "ready",
-          providerName: "claudeCode",
+          providerName: "claudeAgent",
           runtimeMode: "approval-required",
           activeTurnId: null,
           lastError: null,
@@ -247,10 +247,10 @@ describe("store read model sync", () => {
   it("preserves the previous provider when a thread session closes", () => {
     const initialState = makeState(
       makeThread({
-        provider: "claudeCode",
+        provider: "claudeAgent",
         model: "claude-sonnet-4-6",
         session: {
-          provider: "claudeCode",
+          provider: "claudeAgent",
           status: "ready",
           orchestrationStatus: "ready",
           createdAt: "2026-02-27T00:00:00.000Z",
@@ -267,7 +267,7 @@ describe("store read model sync", () => {
 
     const next = syncServerReadModel(initialState, readModel);
 
-    expect(next.threads[0]?.provider).toBe("claudeCode");
+    expect(next.threads[0]?.provider).toBe("claudeAgent");
     expect(next.threads[0]?.model).toBe("claude-sonnet-4-6");
     expect(next.threads[0]?.session).toBeNull();
   });

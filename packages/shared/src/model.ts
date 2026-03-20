@@ -222,7 +222,7 @@ const CURSOR_MODEL_CAPABILITY_BY_FAMILY: Record<CursorModelFamily, CursorModelCa
 const MODEL_SLUG_SET_BY_PROVIDER: Record<ProviderKind, ReadonlySet<ModelSlug>> = {
   codex: new Set(MODEL_OPTIONS_BY_PROVIDER.codex.map((option) => option.slug)),
   copilot: new Set(MODEL_OPTIONS_BY_PROVIDER.copilot.map((option) => option.slug)),
-  claudeCode: new Set(MODEL_OPTIONS_BY_PROVIDER.claudeCode.map((option) => option.slug)),
+  claudeAgent: new Set(MODEL_OPTIONS_BY_PROVIDER.claudeAgent.map((option) => option.slug)),
   cursor: new Set(MODEL_OPTIONS_BY_PROVIDER.cursor.map((option) => option.slug)),
   opencode: new Set(MODEL_OPTIONS_BY_PROVIDER.opencode.map((option) => option.slug)),
   kilo: new Set(MODEL_OPTIONS_BY_PROVIDER.kilo.map((option) => option.slug)),
@@ -443,15 +443,15 @@ export function getDefaultReasoningEffort(
 }
 
 export function getClaudeCodeEffortOptions(
-  provider: ProviderKind = "claudeCode",
+  provider: ProviderKind = "claudeAgent",
 ): ReadonlyArray<ClaudeCodeEffort> {
   return CLAUDE_CODE_EFFORT_OPTIONS_BY_PROVIDER[provider];
 }
 
-export function getDefaultClaudeCodeEffort(provider: "claudeCode"): ClaudeCodeEffort;
+export function getDefaultClaudeCodeEffort(provider: "claudeAgent"): ClaudeCodeEffort;
 export function getDefaultClaudeCodeEffort(provider: ProviderKind): ClaudeCodeEffort | null;
 export function getDefaultClaudeCodeEffort(
-  provider: ProviderKind = "claudeCode",
+  provider: ProviderKind = "claudeAgent",
 ): ClaudeCodeEffort | null {
   return DEFAULT_CLAUDE_CODE_EFFORT_BY_PROVIDER[provider];
 }

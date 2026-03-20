@@ -31,7 +31,7 @@ export const ORCHESTRATION_WS_CHANNELS = {
 export const ProviderKind = Schema.Union([
   Schema.Literal("codex"),
   Schema.Literal("copilot"),
-  Schema.Literal("claudeCode"),
+  Schema.Literal("claudeAgent"),
   Schema.Literal("cursor"),
   Schema.Literal("opencode"),
   Schema.Literal("geminiCli"),
@@ -65,12 +65,12 @@ export const CopilotProviderStartOptions = Schema.Struct({
 });
 export type CopilotProviderStartOptions = typeof CopilotProviderStartOptions.Type;
 
-export const ClaudeCodeProviderStartOptions = Schema.Struct({
+export const ClaudeProviderStartOptions = Schema.Struct({
   binaryPath: Schema.optional(TrimmedNonEmptyString),
   permissionMode: Schema.optional(TrimmedNonEmptyString),
   maxThinkingTokens: Schema.optional(NonNegativeInt),
 });
-export type ClaudeCodeProviderStartOptions = typeof ClaudeCodeProviderStartOptions.Type;
+export type ClaudeProviderStartOptions = typeof ClaudeProviderStartOptions.Type;
 
 export const CursorProviderStartOptions = Schema.Struct({
   binaryPath: Schema.optional(TrimmedNonEmptyString),
@@ -112,7 +112,7 @@ export type KiloProviderStartOptions = typeof KiloProviderStartOptions.Type;
 export const ProviderStartOptions = Schema.Struct({
   codex: Schema.optional(CodexProviderStartOptions),
   copilot: Schema.optional(CopilotProviderStartOptions),
-  claudeCode: Schema.optional(ClaudeCodeProviderStartOptions),
+  claudeAgent: Schema.optional(ClaudeProviderStartOptions),
   cursor: Schema.optional(CursorProviderStartOptions),
   amp: Schema.optional(AmpProviderStartOptions),
   geminiCli: Schema.optional(GeminiCliProviderStartOptions),
@@ -143,7 +143,7 @@ const KiloProviderStartOptionsRedacted = Schema.Struct({
 export const ProviderStartOptionsRedacted = Schema.Struct({
   codex: Schema.optional(CodexProviderStartOptions),
   copilot: Schema.optional(CopilotProviderStartOptions),
-  claudeCode: Schema.optional(ClaudeCodeProviderStartOptions),
+  claudeAgent: Schema.optional(ClaudeProviderStartOptions),
   cursor: Schema.optional(CursorProviderStartOptions),
   amp: Schema.optional(AmpProviderStartOptions),
   geminiCli: Schema.optional(GeminiCliProviderStartOptions),

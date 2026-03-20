@@ -76,7 +76,7 @@ const MODEL_PROVIDER_SETTINGS: Array<{
     example: "gpt-5.1-codex-max",
   },
   {
-    provider: "claudeCode",
+    provider: "claudeAgent",
     title: "Claude Code",
     description: "Save additional Claude model slugs for the picker and `/model` command.",
     placeholder: "your-claude-model-slug",
@@ -231,7 +231,7 @@ function SettingsRouteView() {
   >({
     codex: "",
     copilot: "",
-    claudeCode: "",
+    claudeAgent: "",
     cursor: "",
     opencode: "",
     geminiCli: "",

@@ -5,7 +5,7 @@ import type { Thread } from "../types";
 const PROVIDER_KINDS = [
   "codex",
   "copilot",
-  "claudeCode",
+  "claudeAgent",
   "cursor",
   "opencode",
   "geminiCli",
@@ -20,7 +20,7 @@ const COPILOT_MODEL_SLUGS = new Set<string>(
   getModelOptions("copilot").map((option) => option.slug),
 );
 const CLAUDE_MODEL_SLUGS = new Set<string>(
-  getModelOptions("claudeCode").map((option) => option.slug),
+  getModelOptions("claudeAgent").map((option) => option.slug),
 );
 const CURSOR_MODEL_SLUGS = new Set<string>(getModelOptions("cursor").map((option) => option.slug));
 const OPENCODE_MODEL_SLUGS = new Set<string>(
@@ -89,9 +89,9 @@ export function inferProviderForThreadModel(input: {
     return "cursor";
   }
 
-  const normalizedClaude = normalizeModelSlug(input.model, "claudeCode");
+  const normalizedClaude = normalizeModelSlug(input.model, "claudeAgent");
   if (normalizedClaude && CLAUDE_MODEL_SLUGS.has(normalizedClaude)) {
-    return "claudeCode";
+    return "claudeAgent";
   }
 
   const normalizedCodex = normalizeModelSlug(input.model, "codex");
@@ -117,7 +117,7 @@ export function inferProviderForThreadModel(input: {
     return "cursor";
   }
 
-  return input.model.trim().startsWith("claude-") ? "claudeCode" : "codex";
+  return input.model.trim().startsWith("claude-") ? "claudeAgent" : "codex";
 }
 
 export function resolveThreadProvider(thread: Pick<Thread, "model" | "session">): ProviderKind {

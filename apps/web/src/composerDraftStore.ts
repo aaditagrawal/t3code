@@ -99,7 +99,7 @@ interface PersistedComposerThreadDraftState {
   interactionMode?: ProviderInteractionMode | null;
   effort?: CodexReasoningEffort | null;
   codexFastMode?: boolean | null;
-  claudeCodeEffort?: ClaudeCodeEffort | null;
+  claudeAgentEffort?: ClaudeCodeEffort | null;
   serviceTier?: string | null;
 }
 
@@ -131,7 +131,7 @@ interface ComposerThreadDraftState {
   interactionMode: ProviderInteractionMode | null;
   effort: CodexReasoningEffort | null;
   codexFastMode: boolean;
-  claudeCodeEffort: ClaudeCodeEffort | null;
+  claudeAgentEffort: ClaudeCodeEffort | null;
 }
 
 export interface DraftThreadState {
@@ -241,7 +241,7 @@ const EMPTY_THREAD_DRAFT = Object.freeze({
   interactionMode: null,
   effort: null,
   codexFastMode: false,
-  claudeCodeEffort: null,
+  claudeAgentEffort: null,
 }) as ComposerThreadDraftState;
 
 const REASONING_EFFORT_VALUES = new Set<CodexReasoningEffort>(
@@ -249,7 +249,7 @@ const REASONING_EFFORT_VALUES = new Set<CodexReasoningEffort>(
 );
 
 const CLAUDE_CODE_EFFORT_VALUES = new Set<ClaudeCodeEffort>(
-  CLAUDE_CODE_EFFORT_OPTIONS_BY_PROVIDER.claudeCode,
+  CLAUDE_CODE_EFFORT_OPTIONS_BY_PROVIDER.claudeAgent,
 );
 
 function createEmptyThreadDraft(): ComposerThreadDraftState {
@@ -265,7 +265,7 @@ function createEmptyThreadDraft(): ComposerThreadDraftState {
     interactionMode: null,
     effort: null,
     codexFastMode: false,
-    claudeCodeEffort: null,
+    claudeAgentEffort: null,
   };
 }
 
@@ -338,14 +338,14 @@ function shouldRemoveDraft(draft: ComposerThreadDraftState): boolean {
     draft.interactionMode === null &&
     draft.effort === null &&
     draft.codexFastMode === false &&
-    draft.claudeCodeEffort === null
+    draft.claudeAgentEffort === null
   );
 }
 
 function normalizeProviderKind(value: unknown): ProviderKind | null {
   return value === "codex" ||
     value === "copilot" ||
-    value === "claudeCode" ||
+    value === "claudeAgent" ||
     value === "cursor" ||
     value === "opencode" ||
     value === "geminiCli" ||
@@ -584,12 +584,12 @@ function normalizePersistedComposerDraftState(value: unknown): PersistedComposer
     const codexFastMode =
       draftCandidate.codexFastMode === true ||
       (typeof draftCandidate.serviceTier === "string" && draftCandidate.serviceTier === "fast");
-    const claudeCodeEffortCandidate =
-      typeof draftCandidate.claudeCodeEffort === "string" ? draftCandidate.claudeCodeEffort : null;
-    const claudeCodeEffort =
-      claudeCodeEffortCandidate &&
-      CLAUDE_CODE_EFFORT_VALUES.has(claudeCodeEffortCandidate as ClaudeCodeEffort)
-        ? (claudeCodeEffortCandidate as ClaudeCodeEffort)
+    const claudeAgentEffortCandidate =
+      typeof draftCandidate.claudeAgentEffort === "string" ? draftCandidate.claudeAgentEffort : null;
+    const claudeAgentEffort =
+      claudeAgentEffortCandidate &&
+      CLAUDE_CODE_EFFORT_VALUES.has(claudeAgentEffortCandidate as ClaudeCodeEffort)
+        ? (claudeAgentEffortCandidate as ClaudeCodeEffort)
         : null;
     const prompt = ensureInlineTerminalContextPlaceholders(
       promptCandidate,
@@ -605,7 +605,7 @@ function normalizePersistedComposerDraftState(value: unknown): PersistedComposer
       !interactionMode &&
       !effort &&
       !codexFastMode &&
-      !claudeCodeEffort
+      !claudeAgentEffort
     ) {
       continue;
     }
@@ -619,7 +619,7 @@ function normalizePersistedComposerDraftState(value: unknown): PersistedComposer
       ...(interactionMode ? { interactionMode } : {}),
       ...(effort ? { effort } : {}),
       ...(codexFastMode ? { codexFastMode } : {}),
-      ...(claudeCodeEffort ? { claudeCodeEffort } : {}),
+      ...(claudeAgentEffort ? { claudeAgentEffort } : {}),
     };
   }
   return {
@@ -731,7 +731,7 @@ function toHydratedThreadDraft(
     interactionMode: persistedDraft.interactionMode ?? null,
     effort: persistedDraft.effort ?? null,
     codexFastMode: persistedDraft.codexFastMode === true,
-    claudeCodeEffort: persistedDraft.claudeCodeEffort ?? null,
+    claudeAgentEffort: persistedDraft.claudeAgentEffort ?? null,
   };
 }
 
@@ -1198,7 +1198,7 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
         const nextEffort =
           effort &&
           CLAUDE_CODE_EFFORT_VALUES.has(effort) &&
-          effort !== DEFAULT_CLAUDE_CODE_EFFORT_BY_PROVIDER.claudeCode
+          effort !== DEFAULT_CLAUDE_CODE_EFFORT_BY_PROVIDER.claudeAgent
             ? effort
             : null;
         set((state) => {
@@ -1207,12 +1207,12 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
             return state;
           }
           const base = existing ?? createEmptyThreadDraft();
-          if (base.claudeCodeEffort === nextEffort) {
+          if (base.claudeAgentEffort === nextEffort) {
             return state;
           }
           const nextDraft: ComposerThreadDraftState = {
             ...base,
-            claudeCodeEffort: nextEffort,
+            claudeAgentEffort: nextEffort,
           };
           const nextDraftsByThreadId = { ...state.draftsByThreadId };
           if (shouldRemoveDraft(nextDraft)) {
@@ -1581,7 +1581,7 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
             draft.interactionMode === null &&
             draft.effort === null &&
             draft.codexFastMode === false &&
-            draft.claudeCodeEffort === null
+            draft.claudeAgentEffort === null
           ) {
             continue;
           }
@@ -1618,8 +1618,8 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
           if (draft.codexFastMode) {
             persistedDraft.codexFastMode = true;
           }
-          if (draft.claudeCodeEffort) {
-            persistedDraft.claudeCodeEffort = draft.claudeCodeEffort;
+          if (draft.claudeAgentEffort) {
+            persistedDraft.claudeAgentEffort = draft.claudeAgentEffort;
           }
           persistedDraftsByThreadId[threadId as ThreadId] = persistedDraft;
         }

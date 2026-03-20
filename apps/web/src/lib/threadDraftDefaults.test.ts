@@ -53,7 +53,7 @@ describe("resolveDraftThreadDefaults", () => {
         makeThread({
           id: ThreadId.makeUnsafe("thread-other-project"),
           projectId: ProjectId.makeUnsafe("project-2"),
-          provider: "claudeCode",
+          provider: "claudeAgent",
           model: "claude-sonnet-4-6",
           createdAt: "2026-03-09T10:00:00.000Z",
         }),
@@ -80,7 +80,7 @@ describe("resolveDraftThreadDefaults", () => {
         makeThread({
           id: ThreadId.makeUnsafe("thread-newest"),
           projectId: ProjectId.makeUnsafe("project-2"),
-          provider: "claudeCode",
+          provider: "claudeAgent",
           model: "claude-sonnet-4-6",
           createdAt: "2026-03-09T10:00:00.000Z",
         }),
@@ -90,7 +90,7 @@ describe("resolveDraftThreadDefaults", () => {
     });
 
     expect(defaults).toEqual({
-      provider: "claudeCode",
+      provider: "claudeAgent",
       model: "claude-sonnet-4-6",
     });
   });
@@ -108,7 +108,7 @@ describe("resolveDraftThreadDefaults", () => {
         }),
         makeThread({
           id: ThreadId.makeUnsafe("thread-newer"),
-          provider: "claudeCode",
+          provider: "claudeAgent",
           model: "claude-sonnet-4-6",
           createdAt: "2026-03-08T10:00:00.000Z",
         }),
@@ -131,7 +131,7 @@ describe("resolveDraftThreadDefaults", () => {
     });
 
     expect(defaults).toEqual({
-      provider: "claudeCode",
+      provider: "claudeAgent",
       model: "claude-sonnet-4-6",
     });
   });

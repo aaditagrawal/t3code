@@ -121,7 +121,7 @@ export const PROVIDER_CAPABILITIES_BY_PROVIDER: Readonly<
     supportsAttachments: true,
     persistentRuntime: true,
   },
-  claudeCode: {
+  claudeAgent: {
     sessionModelSwitch: "in-session",
     transport: "sdk-query",
     modelDiscovery: "session-native",

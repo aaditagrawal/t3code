@@ -1,6 +1,6 @@
 # Plan: Claude Code Integration (Orchestration Architecture)
 
-> **Note -- Multi-provider scope:** This plan was originally written for the Claude Code adapter, but the patterns described here (adapter shape, canonical runtime mapping, resume cursor ownership, provider registry wiring, and orchestration integration) apply equally to the full multi-provider adapter infrastructure now implemented in this PR: **ClaudeCodeAdapter**, **CopilotAdapter**, **OpenCodeAdapter**, **GeminiCliAdapter**, **KiloAdapter**, and **AmpAdapter**. Where the text says "Claude adapter", read it as the reference implementation; every other adapter follows the same contract surface.
+> **Note -- Multi-provider scope:** This plan was originally written for the Claude Code adapter, but the patterns described here (adapter shape, canonical runtime mapping, resume cursor ownership, provider registry wiring, and orchestration integration) apply equally to the full multi-provider adapter infrastructure now implemented in this PR: **ClaudeAdapter**, **CopilotAdapter**, **OpenCodeAdapter**, **GeminiCliAdapter**, **KiloAdapter**, and **AmpAdapter**. Where the text says "Claude adapter", read it as the reference implementation; every other adapter follows the same contract surface.
 
 ## Why this plan was rewritten
 
@@ -90,8 +90,8 @@ Update/add tests in `packages/contracts/src/*.test.ts` for:
 
 Create:
 
-1. `apps/server/src/provider/Services/ClaudeCodeAdapter.ts`
-2. `apps/server/src/provider/Layers/ClaudeCodeAdapter.ts`
+1. `apps/server/src/provider/Services/ClaudeAdapter.ts`
+2. `apps/server/src/provider/Layers/ClaudeAdapter.ts`
 
 Adapter must implement `ProviderAdapterShape<ProviderAdapterError>`.
 
@@ -181,7 +181,7 @@ const acquireSession = (input: ProviderSessionStartInput) =>
       },
       catch: (cause) =>
         new ProviderAdapterProcessError({
-          provider: "claudeCode",
+          provider: "claudeAgent",
           sessionId: "pending",
           detail: "Failed to start Claude runtime session.",
           cause,
@@ -200,7 +200,7 @@ const sdkMessageStream = Stream.fromAsyncIterable(
   session.result,
   (cause) =>
     new ProviderAdapterProcessError({
-      provider: "claudeCode",
+      provider: "claudeAgent",
       sessionId,
       detail: "Claude runtime stream failed.",
       cause,
@@ -223,7 +223,7 @@ const sdkMessageStream = Stream.async<ClaudeSdkMessage, ProviderAdapterProcessEr
     } catch (cause) {
       emit.fail(
         new ProviderAdapterProcessError({
-          provider: "claudeCode",
+          provider: "claudeAgent",
           sessionId,
           detail: "Claude runtime stream failed.",
           cause,
@@ -292,7 +292,7 @@ Map orchestration stop/interrupt expectations onto SDK controls:
 
 Update provider registry layer to include Claude:
 
-1. add `claudeCode` -> `ClaudeCodeAdapter`
+1. add `claudeAgent` -> `ClaudeAdapter`
 2. ensure `ProviderService.listProviderStatuses()` reports Claude availability
 
 ### 3.2 Persist provider binding
@@ -309,7 +309,7 @@ Required validation:
 
 Update `ProviderCommandReactor` / orchestration flow:
 
-1. If a thread turn start requests `provider: "claudeCode"`, start Claude if no active session exists.
+1. If a thread turn start requests `provider: "claudeAgent"`, start Claude if no active session exists.
 2. If a thread already has Claude session binding, reuse it.
 3. If provider switches between Codex and Claude, explicitly stop/rebind before next send.
 
@@ -405,7 +405,7 @@ Cover:
 
 ### 6.2 Adapter layer tests
 
-Add `ClaudeCodeAdapter.test.ts` covering:
+Add `ClaudeAdapter.test.ts` covering:
 
 1. session start
 2. event mapping

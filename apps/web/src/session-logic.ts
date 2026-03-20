@@ -18,7 +18,7 @@ import type {
   TurnDiffSummary,
 } from "./types";
 
-export type ProviderPickerKind = ProviderKind | "claudeCode" | "cursor";
+export type ProviderPickerKind = ProviderKind | "claudeAgent" | "cursor";
 
 export const PROVIDER_OPTIONS: Array<{
   value: ProviderPickerKind;
@@ -27,7 +27,7 @@ export const PROVIDER_OPTIONS: Array<{
 }> = [
   { value: "codex", label: "Codex", available: true },
   { value: "copilot", label: "GitHub Copilot", available: true },
-  { value: "claudeCode", label: "Claude Code", available: true },
+  { value: "claudeAgent", label: "Claude Code", available: true },
   { value: "cursor", label: "Cursor Agent", available: true },
   { value: "opencode", label: "OpenCode", available: true },
   { value: "geminiCli", label: "Gemini CLI", available: true },

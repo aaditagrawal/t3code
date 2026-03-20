@@ -98,7 +98,7 @@ describe("ProviderCommandReactor", () => {
         input !== null &&
         "provider" in input &&
         (input.provider === "codex" ||
-          input.provider === "claudeCode" ||
+          input.provider === "claudeAgent" ||
           input.provider === "cursor")
           ? input.provider
           : "codex";
@@ -404,7 +404,7 @@ describe("ProviderCommandReactor", () => {
           text: "hello claude",
           attachments: [],
         },
-        provider: "claudeCode",
+        provider: "claudeAgent",
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
         runtimeMode: "approval-required",
         createdAt: now,
@@ -414,7 +414,7 @@ describe("ProviderCommandReactor", () => {
     await waitFor(() => harness.startSession.mock.calls.length === 1);
     await waitFor(() => harness.sendTurn.mock.calls.length === 1);
     expect(harness.startSession.mock.calls[0]?.[1]).toMatchObject({
-      provider: "claudeCode",
+      provider: "claudeAgent",
       cwd: "/tmp/provider-project",
       model: "gpt-5-codex",
       runtimeMode: "approval-required",
@@ -422,7 +422,7 @@ describe("ProviderCommandReactor", () => {
 
     const readModel = await Effect.runPromise(harness.engine.getReadModel());
     const thread = readModel.threads.find((entry) => entry.id === ThreadId.makeUnsafe("thread-1"));
-    expect(thread?.session?.providerName).toBe("claudeCode");
+    expect(thread?.session?.providerName).toBe("claudeAgent");
     expect(thread?.session?.threadId).toBe("thread-1");
   });
 
@@ -736,7 +736,7 @@ describe("ProviderCommandReactor", () => {
           text: "second",
           attachments: [],
         },
-        provider: "claudeCode",
+        provider: "claudeAgent",
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
         runtimeMode: "approval-required",
         createdAt: now,
@@ -749,7 +749,7 @@ describe("ProviderCommandReactor", () => {
     expect(harness.stopSession.mock.calls.length).toBe(0);
     expect(harness.startSession.mock.calls[1]?.[1]).toMatchObject({
       threadId: ThreadId.makeUnsafe("thread-1"),
-      provider: "claudeCode",
+      provider: "claudeAgent",
       runtimeMode: "approval-required",
     });
     expect(harness.startSession.mock.calls[1]?.[1]).not.toHaveProperty("resumeCursor");
@@ -757,7 +757,7 @@ describe("ProviderCommandReactor", () => {
     const readModel = await Effect.runPromise(harness.engine.getReadModel());
     const thread = readModel.threads.find((entry) => entry.id === ThreadId.makeUnsafe("thread-1"));
     expect(thread?.session?.threadId).toBe("thread-1");
-    expect(thread?.session?.providerName).toBe("claudeCode");
+    expect(thread?.session?.providerName).toBe("claudeAgent");
     expect(thread?.session?.runtimeMode).toBe("approval-required");
   });
 

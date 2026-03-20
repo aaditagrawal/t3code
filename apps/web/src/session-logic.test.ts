@@ -772,7 +772,7 @@ describe("deriveActiveWorkStartedAt", () => {
 describe("PROVIDER_OPTIONS", () => {
   it("advertises all currently integrated providers", () => {
     const copilot = PROVIDER_OPTIONS.find((option) => option.value === "copilot");
-    const claude = PROVIDER_OPTIONS.find((option) => option.value === "claudeCode");
+    const claude = PROVIDER_OPTIONS.find((option) => option.value === "claudeAgent");
     const cursor = PROVIDER_OPTIONS.find((option) => option.value === "cursor");
     const opencode = PROVIDER_OPTIONS.find((option) => option.value === "opencode");
     const geminiCli = PROVIDER_OPTIONS.find((option) => option.value === "geminiCli");
@@ -780,7 +780,7 @@ describe("PROVIDER_OPTIONS", () => {
     expect(PROVIDER_OPTIONS).toEqual([
       { value: "codex", label: "Codex", available: true },
       { value: "copilot", label: "GitHub Copilot", available: true },
-      { value: "claudeCode", label: "Claude Code", available: true },
+      { value: "claudeAgent", label: "Claude Code", available: true },
       { value: "cursor", label: "Cursor Agent", available: true },
       { value: "opencode", label: "OpenCode", available: true },
       { value: "geminiCli", label: "Gemini CLI", available: true },
@@ -793,7 +793,7 @@ describe("PROVIDER_OPTIONS", () => {
       available: true,
     });
     expect(claude).toEqual({
-      value: "claudeCode",
+      value: "claudeAgent",
       label: "Claude Code",
       available: true,
     });

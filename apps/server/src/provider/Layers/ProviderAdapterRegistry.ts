@@ -16,7 +16,7 @@ import {
   ProviderAdapterRegistry,
   type ProviderAdapterRegistryShape,
 } from "../Services/ProviderAdapterRegistry.ts";
-import { ClaudeCodeAdapter } from "../Services/ClaudeCodeAdapter.ts";
+import { ClaudeAdapter } from "../Services/ClaudeAdapter.ts";
 import { CopilotAdapter } from "../Services/CopilotAdapter.ts";
 import { CodexAdapter } from "../Services/CodexAdapter.ts";
 import { CursorAdapter } from "../Services/CursorAdapter.ts";
@@ -37,7 +37,7 @@ const makeProviderAdapterRegistry = (options?: ProviderAdapterRegistryLiveOption
         : [
             yield* CodexAdapter,
             yield* CopilotAdapter,
-            yield* ClaudeCodeAdapter,
+            yield* ClaudeAdapter,
             yield* CursorAdapter,
             yield* OpenCodeAdapter,
             yield* GeminiCliAdapter,

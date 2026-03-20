@@ -77,7 +77,7 @@ import { fetchOpenCodeModels } from "./opencodeServerManager.ts";
 import { fetchCopilotModels, fetchCopilotUsage } from "./provider/Layers/CopilotAdapter.ts";
 import { fetchCursorModels } from "./provider/Layers/CursorAdapter.ts";
 import { fetchCursorUsage } from "./provider/Layers/CursorUsage.ts";
-import { fetchClaudeCodeUsage } from "./provider/Layers/ClaudeCodeAdapter.ts";
+import { fetchClaudeCodeUsage } from "./provider/Layers/ClaudeAdapter.ts";
 import { fetchCodexUsage } from "./provider/Layers/CodexAdapter.ts";
 
 import {
@@ -984,7 +984,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
           });
           return usage satisfies ProviderUsageResult;
         }
-        if (provider === "claudeCode") {
+        if (provider === "claudeAgent") {
           return fetchClaudeCodeUsage() satisfies ProviderUsageResult;
         }
         if (provider === "geminiCli") {

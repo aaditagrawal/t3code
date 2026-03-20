@@ -5,7 +5,7 @@ import type { ProviderKind } from "@t3tools/contracts";
 import { Effect, Layer, Stream } from "effect";
 
 import { ProviderUnsupportedError } from "../Errors.ts";
-import { ClaudeCodeAdapter, type ClaudeCodeAdapterShape } from "../Services/ClaudeCodeAdapter.ts";
+import { ClaudeAdapter, type ClaudeAdapterShape } from "../Services/ClaudeAdapter.ts";
 import { CopilotAdapter, type CopilotAdapterShape } from "../Services/CopilotAdapter.ts";
 import { CodexAdapter, type CodexAdapterShape } from "../Services/CodexAdapter.ts";
 import { CursorAdapter, type CursorAdapterShape } from "../Services/CursorAdapter.ts";
@@ -34,9 +34,9 @@ const fakeCodexAdapter: CodexAdapterShape = {
   streamEvents: Stream.empty,
 };
 
-const fakeClaudeAdapter: ClaudeCodeAdapterShape = {
-  provider: "claudeCode",
-  capabilities: getProviderCapabilities("claudeCode"),
+const fakeClaudeAdapter: ClaudeAdapterShape = {
+  provider: "claudeAgent",
+  capabilities: getProviderCapabilities("claudeAgent"),
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   interruptTurn: vi.fn(),
@@ -159,7 +159,7 @@ const layer = it.layer(
       Layer.mergeAll(
         Layer.succeed(CodexAdapter, fakeCodexAdapter),
         Layer.succeed(CopilotAdapter, fakeCopilotAdapter),
-        Layer.succeed(ClaudeCodeAdapter, fakeClaudeAdapter),
+        Layer.succeed(ClaudeAdapter, fakeClaudeAdapter),
         Layer.succeed(CursorAdapter, fakeCursorAdapter),
         Layer.succeed(OpenCodeAdapter, fakeOpenCodeAdapter),
         Layer.succeed(GeminiCliAdapter, fakeGeminiCliAdapter),
@@ -177,7 +177,7 @@ layer("ProviderAdapterRegistryLive", (it) => {
       const registry = yield* ProviderAdapterRegistry;
       const codex = yield* registry.getByProvider("codex");
       const copilot = yield* registry.getByProvider("copilot");
-      const claude = yield* registry.getByProvider("claudeCode");
+      const claude = yield* registry.getByProvider("claudeAgent");
       const cursor = yield* registry.getByProvider("cursor");
       const opencode = yield* registry.getByProvider("opencode");
       const geminiCli = yield* registry.getByProvider("geminiCli");
@@ -197,7 +197,7 @@ layer("ProviderAdapterRegistryLive", (it) => {
       assert.deepEqual(providers, [
         "codex",
         "copilot",
-        "claudeCode",
+        "claudeAgent",
         "cursor",
         "opencode",
         "geminiCli",
