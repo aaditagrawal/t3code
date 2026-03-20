@@ -57,69 +57,82 @@ const PROVIDER_KINDS = [
   "kilo",
 ] as const satisfies readonly ProviderKind[];
 
+const withDefaults =
+  <
+    S extends Schema.Top & Schema.WithoutConstructorDefault,
+    D extends S["~type.make.in"] & S["Encoded"],
+  >(
+    fallback: () => D,
+  ) =>
+  (schema: S) =>
+    schema.pipe(
+      Schema.withConstructorDefault(() => Option.some(fallback())),
+      Schema.withDecodingDefault(() => fallback()),
+    );
+
 export const AppSettingsSchema = Schema.Struct({
   codexBinaryPath: Schema.String.check(Schema.isMaxLength(4096)).pipe(
-    Schema.withConstructorDefault(() => Option.some("")),
+    withDefaults(() => ""),
   ),
   codexHomePath: Schema.String.check(Schema.isMaxLength(4096)).pipe(
-    Schema.withConstructorDefault(() => Option.some("")),
+    withDefaults(() => ""),
   ),
   copilotCliPath: Schema.String.check(Schema.isMaxLength(4096)).pipe(
-    Schema.withConstructorDefault(() => Option.some("")),
+    withDefaults(() => ""),
   ),
   copilotConfigDir: Schema.String.check(Schema.isMaxLength(4096)).pipe(
-    Schema.withConstructorDefault(() => Option.some("")),
+    withDefaults(() => ""),
   ),
   defaultThreadEnvMode: Schema.Literals(["local", "worktree"]).pipe(
-    Schema.withConstructorDefault(() => Option.some("local")),
+    withDefaults(() => "local" as const),
   ),
-  confirmThreadDelete: Schema.Boolean.pipe(Schema.withConstructorDefault(() => Option.some(true))),
+  confirmThreadDelete: Schema.Boolean.pipe(withDefaults(() => true)),
   enableAssistantStreaming: Schema.Boolean.pipe(
-    Schema.withConstructorDefault(() => Option.some(false)),
+    withDefaults(() => false),
   ),
-  showCommandOutput: Schema.Boolean.pipe(Schema.withConstructorDefault(() => Option.some(true))),
-  showFileChangeDiffs: Schema.Boolean.pipe(Schema.withConstructorDefault(() => Option.some(true))),
+  showCommandOutput: Schema.Boolean.pipe(withDefaults(() => true)),
+  showFileChangeDiffs: Schema.Boolean.pipe(withDefaults(() => true)),
   timestampFormat: Schema.Literals(["locale", "12-hour", "24-hour"]).pipe(
-    Schema.withConstructorDefault(() => Option.some(DEFAULT_TIMESTAMP_FORMAT)),
+    withDefaults(() => DEFAULT_TIMESTAMP_FORMAT),
   ),
   customCodexModels: Schema.Array(Schema.String).pipe(
-    Schema.withConstructorDefault(() => Option.some([])),
+    withDefaults(() => []),
   ),
   customCopilotModels: Schema.Array(Schema.String).pipe(
-    Schema.withConstructorDefault(() => Option.some([])),
+    withDefaults(() => []),
   ),
   customClaudeModels: Schema.Array(Schema.String).pipe(
-    Schema.withConstructorDefault(() => Option.some([])),
+    withDefaults(() => []),
   ),
   customCursorModels: Schema.Array(Schema.String).pipe(
-    Schema.withConstructorDefault(() => Option.some([])),
+    withDefaults(() => []),
   ),
   customOpencodeModels: Schema.Array(Schema.String).pipe(
-    Schema.withConstructorDefault(() => Option.some([])),
+    withDefaults(() => []),
   ),
   customGeminiCliModels: Schema.Array(Schema.String).pipe(
-    Schema.withConstructorDefault(() => Option.some([])),
+    withDefaults(() => []),
   ),
   customAmpModels: Schema.Array(Schema.String).pipe(
-    Schema.withConstructorDefault(() => Option.some([])),
+    withDefaults(() => []),
   ),
   customKiloModels: Schema.Array(Schema.String).pipe(
-    Schema.withConstructorDefault(() => Option.some([])),
+    withDefaults(() => []),
   ),
   gitTextGenerationModelByProvider: Schema.Record(Schema.String, Schema.String).pipe(
-    Schema.withConstructorDefault(() => Option.some({} as Record<string, string>)),
+    withDefaults(() => ({}) as Record<string, string>),
   ),
   providerLogoAppearance: AppProviderLogoAppearanceSchema.pipe(
-    Schema.withConstructorDefault(() => Option.some("original")),
+    withDefaults(() => "original" as const),
   ),
   grayscaleProviderLogos: Schema.Boolean.pipe(
-    Schema.withConstructorDefault(() => Option.some(false)),
+    withDefaults(() => false),
   ),
   accentColor: Schema.String.check(Schema.isMaxLength(16)).pipe(
-    Schema.withConstructorDefault(() => Option.some(DEFAULT_ACCENT_COLOR)),
+    withDefaults(() => DEFAULT_ACCENT_COLOR),
   ),
   providerAccentColors: Schema.Record(Schema.String, Schema.String).pipe(
-    Schema.withConstructorDefault(() => Option.some({} as Record<string, string>)),
+    withDefaults(() => ({}) as Record<string, string>),
   ),
   customAccentPresets: Schema.Array(
     Schema.Struct({
@@ -127,26 +140,24 @@ export const AppSettingsSchema = Schema.Struct({
       value: Schema.String.check(Schema.isMaxLength(16)),
     }),
   ).pipe(
-    Schema.withConstructorDefault(() =>
-      Option.some([] as ReadonlyArray<{ label: string; value: string }>),
-    ),
+    withDefaults(() => [] as ReadonlyArray<{ label: string; value: string }>),
   ),
   backgroundColorOverride: Schema.String.check(Schema.isMaxLength(16)).pipe(
-    Schema.withConstructorDefault(() => Option.some("")),
+    withDefaults(() => ""),
   ),
   foregroundColorOverride: Schema.String.check(Schema.isMaxLength(16)).pipe(
-    Schema.withConstructorDefault(() => Option.some("")),
+    withDefaults(() => ""),
   ),
   uiFont: Schema.String.check(Schema.isMaxLength(256)).pipe(
-    Schema.withConstructorDefault(() => Option.some("")),
+    withDefaults(() => ""),
   ),
   codeFont: Schema.String.check(Schema.isMaxLength(256)).pipe(
-    Schema.withConstructorDefault(() => Option.some("")),
+    withDefaults(() => ""),
   ),
-  uiFontSize: Schema.Number.pipe(Schema.withConstructorDefault(() => Option.some(0))),
-  codeFontSize: Schema.Number.pipe(Schema.withConstructorDefault(() => Option.some(0))),
-  contrast: Schema.Number.pipe(Schema.withConstructorDefault(() => Option.some(0))),
-  translucency: Schema.Boolean.pipe(Schema.withConstructorDefault(() => Option.some(false))),
+  uiFontSize: Schema.Number.pipe(withDefaults(() => 0)),
+  codeFontSize: Schema.Number.pipe(withDefaults(() => 0)),
+  contrast: Schema.Number.pipe(withDefaults(() => 0)),
+  translucency: Schema.Boolean.pipe(withDefaults(() => false)),
 });
 export type AppSettings = typeof AppSettingsSchema.Type;
 export interface AppModelOption {
