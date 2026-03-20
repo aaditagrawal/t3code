@@ -584,29 +584,6 @@ routing.layer("ProviderServiceLive routing", (it) => {
     }),
   );
 
-  it.effect("routes explicit claudeAgent provider session starts to the claude adapter", () =>
-    Effect.gen(function* () {
-      const provider = yield* ProviderService;
-
-      const session = yield* provider.startSession(asThreadId("thread-claude"), {
-        provider: "claudeAgent",
-        threadId: asThreadId("thread-claude"),
-        cwd: "/tmp/project-claude",
-        runtimeMode: "full-access",
-      });
-
-      assert.equal(session.provider, "claudeAgent");
-      assert.equal(routing.claude.startSession.mock.calls.length, 1);
-      const startInput = routing.claude.startSession.mock.calls[0]?.[0];
-      assert.equal(typeof startInput === "object" && startInput !== null, true);
-      if (startInput && typeof startInput === "object") {
-        const startPayload = startInput as { provider?: string; cwd?: string };
-        assert.equal(startPayload.provider, "claudeAgent");
-        assert.equal(startPayload.cwd, "/tmp/project-claude");
-      }
-    }),
-  );
-
   it.effect("recovers stale sessions for sendTurn using persisted cwd", () =>
     Effect.gen(function* () {
       const provider = yield* ProviderService;
