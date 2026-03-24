@@ -1,5 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { Effect, FileSystem, Layer } from "effect";
+import { Effect, FileSystem, Layer, Path } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import { CheckpointDiffQueryLive } from "./checkpointing/Layers/CheckpointDiffQuery";
@@ -39,9 +39,25 @@ import { GitHubCliLive } from "./git/Layers/GitHubCli";
 import { CodexTextGenerationLive } from "./git/Layers/CodexTextGeneration";
 import { SessionTextGenerationLive } from "./git/Layers/SessionTextGeneration";
 import { GitServiceLive } from "./git/Layers/GitService";
-import { BunPtyAdapterLive } from "./terminal/Layers/BunPTY";
-import { NodePtyAdapterLive } from "./terminal/Layers/NodePTY";
+import { PtyAdapter } from "./terminal/Services/PTY";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService";
+
+type RuntimePtyAdapterLoader = {
+  layer: Layer.Layer<PtyAdapter, never, FileSystem.FileSystem | Path.Path>;
+};
+
+const runtimePtyAdapterLoaders = {
+  bun: () => import("./terminal/Layers/BunPTY"),
+  node: () => import("./terminal/Layers/NodePTY"),
+} satisfies Record<string, () => Promise<RuntimePtyAdapterLoader>>;
+
+const makeRuntimePtyAdapterLayer = () =>
+  Effect.gen(function* () {
+    const runtime = process.versions.bun !== undefined ? "bun" : "node";
+    const loader = runtimePtyAdapterLoaders[runtime];
+    const ptyAdapterModule = yield* Effect.promise<RuntimePtyAdapterLoader>(loader);
+    return ptyAdapterModule.layer;
+  }).pipe(Layer.unwrap);
 
 export function makeServerProviderLayer(): Layer.Layer<
   ProviderService,
@@ -132,13 +148,7 @@ export function makeServerRuntimeServicesLayer() {
     Layer.provideMerge(checkpointReactorLayer),
   );
 
-  const terminalLayer = TerminalManagerLive.pipe(
-    Layer.provide(
-      typeof Bun !== "undefined" && process.platform !== "win32"
-        ? BunPtyAdapterLive
-        : NodePtyAdapterLive,
-    ),
-  );
+  const terminalLayer = TerminalManagerLive.pipe(Layer.provide(makeRuntimePtyAdapterLayer()));
 
   const gitManagerLayer = GitManagerLive.pipe(
     Layer.provideMerge(gitCoreLayer),
