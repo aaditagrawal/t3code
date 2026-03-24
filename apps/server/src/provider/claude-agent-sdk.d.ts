@@ -144,6 +144,8 @@ declare module "@anthropic-ai/claude-agent-sdk" {
     off(event: "exit" | "error", listener: (...args: unknown[]) => void): void;
   }
 
+  export type SettingSource = "user" | "project" | "local";
+
   export interface Options {
     readonly cwd?: string;
     readonly model?: string;
@@ -160,6 +162,7 @@ declare module "@anthropic-ai/claude-agent-sdk" {
     readonly persistSession?: boolean;
     readonly sessionId?: string;
     readonly settings?: Record<string, unknown>;
+    readonly settingSources?: SettingSource[];
     readonly spawnClaudeCodeProcess?: (options: SpawnOptions) => SpawnedProcess;
     readonly canUseTool?: CanUseTool;
     readonly env?: Record<string, string | undefined>;
