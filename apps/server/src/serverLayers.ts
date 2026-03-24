@@ -38,7 +38,6 @@ import { GitCoreLive } from "./git/Layers/GitCore";
 import { GitHubCliLive } from "./git/Layers/GitHubCli";
 import { CodexTextGenerationLive } from "./git/Layers/CodexTextGeneration";
 import { SessionTextGenerationLive } from "./git/Layers/SessionTextGeneration";
-import { GitServiceLive } from "./git/Layers/GitService";
 import { PtyAdapter } from "./terminal/Services/PTY";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService";
 
@@ -109,9 +108,9 @@ export function makeServerProviderLayer(): Layer.Layer<
 }
 
 export function makeServerRuntimeServicesLayer() {
-  const gitCoreLayer = GitCoreLive.pipe(Layer.provideMerge(GitServiceLive));
   const textGenerationLayer = CodexTextGenerationLive;
   const sessionTextGenerationLayer = SessionTextGenerationLive;
+  const checkpointStoreLayer = CheckpointStoreLive.pipe(Layer.provide(GitCoreLive));
 
   const orchestrationLayer = OrchestrationEngineLive.pipe(
     Layer.provide(OrchestrationProjectionPipelineLive),
@@ -121,13 +120,13 @@ export function makeServerRuntimeServicesLayer() {
 
   const checkpointDiffQueryLayer = CheckpointDiffQueryLive.pipe(
     Layer.provideMerge(OrchestrationProjectionSnapshotQueryLive),
-    Layer.provideMerge(CheckpointStoreLive),
+    Layer.provideMerge(checkpointStoreLayer),
   );
 
   const runtimeServicesLayer = Layer.mergeAll(
     orchestrationLayer,
     OrchestrationProjectionSnapshotQueryLive,
-    CheckpointStoreLive,
+    checkpointStoreLayer,
     checkpointDiffQueryLayer,
     RuntimeReceiptBusLive,
   );
@@ -136,7 +135,7 @@ export function makeServerRuntimeServicesLayer() {
   );
   const providerCommandReactorLayer = ProviderCommandReactorLive.pipe(
     Layer.provideMerge(runtimeServicesLayer),
-    Layer.provideMerge(gitCoreLayer),
+    Layer.provideMerge(GitCoreLive),
     Layer.provideMerge(textGenerationLayer),
   );
   const checkpointReactorLayer = CheckpointReactorLive.pipe(
@@ -151,7 +150,7 @@ export function makeServerRuntimeServicesLayer() {
   const terminalLayer = TerminalManagerLive.pipe(Layer.provide(makeRuntimePtyAdapterLayer()));
 
   const gitManagerLayer = GitManagerLive.pipe(
-    Layer.provideMerge(gitCoreLayer),
+    Layer.provideMerge(GitCoreLive),
     Layer.provideMerge(GitHubCliLive),
     Layer.provideMerge(textGenerationLayer),
     Layer.provideMerge(sessionTextGenerationLayer),
@@ -159,7 +158,7 @@ export function makeServerRuntimeServicesLayer() {
 
   return Layer.mergeAll(
     orchestrationReactorLayer,
-    gitCoreLayer,
+    GitCoreLive,
     gitManagerLayer,
     terminalLayer,
     KeybindingsLive,
