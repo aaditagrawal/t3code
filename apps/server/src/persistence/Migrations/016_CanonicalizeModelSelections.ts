@@ -129,6 +129,14 @@ export default Effect.gen(function* () {
                         ELSE 'codex'
                       END
                     )),
+                    json_extract(payload_json, '$.defaultModelOptions.codex'),
+                    json_extract(payload_json, '$.defaultModelOptions.claudeAgent'),
+                    json_extract(payload_json, '$.defaultModelOptions.copilot'),
+                    json_extract(payload_json, '$.defaultModelOptions.cursor'),
+                    json_extract(payload_json, '$.defaultModelOptions.opencode'),
+                    json_extract(payload_json, '$.defaultModelOptions.geminiCli'),
+                    json_extract(payload_json, '$.defaultModelOptions.amp'),
+                    json_extract(payload_json, '$.defaultModelOptions.kilo'),
                     '{}'
                   ))
                 )
@@ -202,6 +210,14 @@ export default Effect.gen(function* () {
                     ELSE 'codex'
                   END
                 )),
+                json_extract(payload_json, '$.modelOptions.codex'),
+                json_extract(payload_json, '$.modelOptions.claudeAgent'),
+                json_extract(payload_json, '$.modelOptions.copilot'),
+                json_extract(payload_json, '$.modelOptions.cursor'),
+                json_extract(payload_json, '$.modelOptions.opencode'),
+                json_extract(payload_json, '$.modelOptions.geminiCli'),
+                json_extract(payload_json, '$.modelOptions.amp'),
+                json_extract(payload_json, '$.modelOptions.kilo'),
                 '{}'
               ))
             )
