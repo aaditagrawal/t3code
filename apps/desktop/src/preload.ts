@@ -16,10 +16,13 @@ const LOG_DIR_CHANNEL = "desktop:log-dir";
 const LOG_LIST_CHANNEL = "desktop:log-list";
 const LOG_READ_CHANNEL = "desktop:log-read";
 const LOG_OPEN_DIR_CHANNEL = "desktop:log-open-dir";
-const wsUrl = process.env.T3CODE_DESKTOP_WS_URL ?? null;
+const GET_WS_URL_CHANNEL = "desktop:get-ws-url";
 
 contextBridge.exposeInMainWorld("desktopBridge", {
-  getWsUrl: () => wsUrl,
+  getWsUrl: () => {
+    const result = ipcRenderer.sendSync(GET_WS_URL_CHANNEL);
+    return typeof result === "string" ? result : null;
+  },
   pickFolder: () => ipcRenderer.invoke(PICK_FOLDER_CHANNEL),
   confirm: (message) => ipcRenderer.invoke(CONFIRM_CHANNEL, message),
   setTheme: (theme) => ipcRenderer.invoke(SET_THEME_CHANNEL, theme),
