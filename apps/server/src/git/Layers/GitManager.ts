@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
 
 import { Effect, FileSystem, Layer, Path } from "effect";
-import type { GitActionProgressEvent, GitActionProgressPhase } from "@t3tools/contracts";
+import { GitActionProgressEvent, GitActionProgressPhase, ModelSelection } from "@t3tools/contracts";
 import {
   resolveAutoFeatureBranchName,
   sanitizeBranchFragment,
@@ -706,6 +706,7 @@ export const makeGitManager = Effect.gen(function* () {
     /** Provider model to use for text generation. */
     model?: string | undefined;
     filePaths?: readonly string[];
+    modelSelection: ModelSelection;
   }) =>
     Effect.gen(function* () {
       const context = yield* gitCore.prepareCommitContext(input.cwd, input.filePaths);
@@ -735,6 +736,7 @@ export const makeGitManager = Effect.gen(function* () {
           ...(input.provider ? { provider: input.provider } : {}),
           ...(input.model ? { model: input.model } : {}),
           ...(input.includeBranch ? { includeBranch: true } : {}),
+          modelSelection: input.modelSelection,
         })
         .pipe(Effect.map((result) => sanitizeCommitMessage(result)));
 
@@ -747,6 +749,7 @@ export const makeGitManager = Effect.gen(function* () {
     });
 
   const runCommitStep = (
+    modelSelection: ModelSelection,
     cwd: string,
     action: "commit" | "commit_push" | "commit_push_pr",
     branch: string | null,
@@ -786,6 +789,7 @@ export const makeGitManager = Effect.gen(function* () {
           provider,
           model,
           ...(filePaths ? { filePaths } : {}),
+          modelSelection,
         });
       }
       if (!suggestion) {
@@ -863,6 +867,7 @@ export const makeGitManager = Effect.gen(function* () {
     });
 
   const runPrStep = (
+    modelSelection: ModelSelection,
     cwd: string,
     fallbackBranch: string | null,
     provider?: ProviderKind | undefined,
@@ -914,6 +919,7 @@ export const makeGitManager = Effect.gen(function* () {
         diffPatch: limitContext(rangeContext.diffPatch, 60_000),
         ...(provider ? { provider } : {}),
         ...(model ? { model } : {}),
+        modelSelection,
       });
 
       const bodyFile = path.join(tempDir, `t3code-pr-body-${process.pid}-${randomUUID()}.md`);
@@ -1135,6 +1141,7 @@ export const makeGitManager = Effect.gen(function* () {
   );
 
   const runFeatureBranchStep = (
+    modelSelection: ModelSelection,
     cwd: string,
     branch: string | null,
     commitMessage?: string,
@@ -1151,6 +1158,7 @@ export const makeGitManager = Effect.gen(function* () {
         includeBranch: true,
         provider,
         model,
+        modelSelection,
       });
       if (!suggestion) {
         return yield* gitManagerError(
@@ -1216,6 +1224,7 @@ export const makeGitManager = Effect.gen(function* () {
             label: "Preparing feature branch...",
           });
           const result = yield* runFeatureBranchStep(
+            input.modelSelection,
             input.cwd,
             initialStatus.branch,
             input.commitMessage,
@@ -1234,6 +1243,7 @@ export const makeGitManager = Effect.gen(function* () {
 
         currentPhase = "commit";
         const commit = yield* runCommitStep(
+          input.modelSelection,
           input.cwd,
           input.action,
           currentBranch,
@@ -1274,7 +1284,7 @@ export const makeGitManager = Effect.gen(function* () {
                 Effect.flatMap(() =>
                   Effect.gen(function* () {
                     currentPhase = "pr";
-                    return yield* runPrStep(input.cwd, currentBranch, input.provider, input.model);
+                    return yield* runPrStep(input.modelSelection, input.cwd, currentBranch, input.provider, input.model);
                   }),
                 ),
               )

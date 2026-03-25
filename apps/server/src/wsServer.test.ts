@@ -1839,6 +1839,10 @@ describe("WebSocket Server", () => {
       actionId: "client-action-1",
       cwd: "/test",
       action: "commit_push",
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5.4-mini",
+      },
     });
     expect(response.result).toBeUndefined();
     expect(response.error?.message).toContain("detached HEAD");
@@ -1847,6 +1851,10 @@ describe("WebSocket Server", () => {
         actionId: "client-action-1",
         cwd: "/test",
         action: "commit_push",
+        modelSelection: {
+          provider: "codex",
+          model: "gpt-5.4-mini",
+        },
       },
       expect.objectContaining({
         actionId: "client-action-1",
@@ -1902,6 +1910,10 @@ describe("WebSocket Server", () => {
       actionId: "client-action-2",
       cwd: "/test",
       action: "commit",
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5.4-mini",
+      },
     });
     const progressPush = await waitForPush(initiatingWs, WS_CHANNELS.gitActionProgress);
 

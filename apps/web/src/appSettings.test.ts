@@ -6,13 +6,15 @@ import {
   DEFAULT_SIDEBAR_PROJECT_SORT_ORDER,
   DEFAULT_SIDEBAR_THREAD_SORT_ORDER,
   DEFAULT_TIMESTAMP_FORMAT,
+  getProviderStartOptions,
+} from "./appSettings";
+import {
   getAppModelOptions,
   getAppSettingsSnapshot,
   getCustomModelOptionsByProvider,
   getCustomModelsByProvider,
   getCustomModelsForProvider,
   getDefaultCustomModelsForProvider,
-  getProviderStartOptions,
   MODEL_PROVIDER_SETTINGS,
   normalizeCustomModelSlugs,
   patchCustomModels,
@@ -431,3 +433,8 @@ describe("AppSettingsSchema", () => {
     });
   });
 });
+
+// Note: upstream's resolveAppModelSelectionState tests removed — the fork
+// uses resolveGitTextGenerationModelSelection with per-provider overrides
+// instead of a single textGenerationModelSelection field.  Equivalent
+// coverage lives in the resolveGitTextGenerationModelSelection tests above.

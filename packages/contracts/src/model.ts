@@ -379,6 +379,7 @@ export const DEFAULT_GIT_TEXT_GENERATION_MODEL = "gpt-5.4-mini" as const;
 export const DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER = {
   ...DEFAULT_MODEL_BY_PROVIDER,
   codex: "gpt-5.4-mini",
+  claudeAgent: "claude-haiku-4-5",
 } as const satisfies Record<ProviderKind, ModelSlug>;
 
 export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string, ModelSlug>> = {

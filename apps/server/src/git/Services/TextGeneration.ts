@@ -8,9 +8,12 @@
  */
 import { ServiceMap } from "effect";
 import type { Effect } from "effect";
-import type { ChatAttachment, ProviderKind } from "@t3tools/contracts";
+import type { ChatAttachment, ModelSelection, ProviderKind } from "@t3tools/contracts";
 
 import type { TextGenerationError } from "../Errors.ts";
+
+/** Providers that support git text generation (commit messages, PR content, branch names). */
+export type TextGenerationProvider = "codex" | "claudeAgent";
 
 export interface CommitMessageGenerationInput {
   cwd: string;
@@ -21,6 +24,8 @@ export interface CommitMessageGenerationInput {
   model?: string | undefined;
   /** When true, the model also returns a semantic branch name for the change. */
   includeBranch?: boolean;
+  /** What model and provider to use for generation. */
+  modelSelection: ModelSelection;
 }
 
 export interface CommitMessageGenerationResult {
@@ -39,6 +44,8 @@ export interface PrContentGenerationInput {
   diffPatch: string;
   provider?: ProviderKind | undefined;
   model?: string | undefined;
+  /** What model and provider to use for generation. */
+  modelSelection: ModelSelection;
 }
 
 export interface PrContentGenerationResult {
@@ -52,6 +59,8 @@ export interface BranchNameGenerationInput {
   provider?: ProviderKind | undefined;
   model?: string | undefined;
   attachments?: ReadonlyArray<ChatAttachment> | undefined;
+  /** What model and provider to use for generation. */
+  modelSelection: ModelSelection;
 }
 
 export interface BranchNameGenerationResult {

@@ -2,7 +2,6 @@ import { useCallback, useMemo } from "react";
 import { Option, Schema } from "effect";
 import {
   DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER,
-  TrimmedNonEmptyString,
   type ProviderKind,
   type ProviderStartOptions,
 } from "@t3tools/contracts";
@@ -14,7 +13,6 @@ import {
 } from "@t3tools/shared/model";
 import { DEFAULT_ACCENT_COLOR, isValidAccentColor, normalizeAccentColor } from "./accentColor";
 import { useLocalStorage } from "./hooks/useLocalStorage";
-import { EnvMode } from "./components/BranchToolbar.logic";
 
 const APP_SETTINGS_STORAGE_KEY = "t3code:app-settings:v1";
 const MAX_CUSTOM_MODEL_COUNT = 32;

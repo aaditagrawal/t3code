@@ -267,7 +267,11 @@ export default function GitActionsControl({
   const initMutation = useMutation(gitInitMutationOptions({ cwd: gitCwd, queryClient }));
 
   const runImmediateGitActionMutation = useMutation(
-    gitRunStackedActionMutationOptions({ cwd: gitCwd, queryClient }),
+    gitRunStackedActionMutationOptions({
+      cwd: gitCwd,
+      queryClient,
+      modelSelection: { provider, model: gitTextGenerationModel },
+    }),
   );
   const pullMutation = useMutation(gitPullMutationOptions({ cwd: gitCwd, queryClient }));
 
