@@ -26,7 +26,37 @@ import {
   type OrchestrationEventStoreShape,
 } from "../Services/OrchestrationEventStore.ts";
 
-const decodeEvent = Schema.decodeUnknownEffect(OrchestrationEvent);
+const decodeEventRaw = Schema.decodeUnknownEffect(OrchestrationEvent);
+
+/**
+ * Normalize legacy "claudeCode" provider name to "claudeAgent" in event
+ * payloads before Schema decoding. This handles data written before the
+ * provider rename that migrations may not have caught.
+ */
+function normalizeLegacyProviderNames(row: unknown): unknown {
+  if (typeof row !== "object" || row === null) return row;
+  const obj = row as Record<string, unknown>;
+  const payload = obj.payload;
+  if (typeof payload !== "object" || payload === null) return row;
+  const p = payload as Record<string, unknown>;
+  let patched = false;
+  const patchProvider = (field: string) => {
+    const sel = p[field] as Record<string, unknown> | undefined;
+    if (sel && typeof sel === "object" && sel.provider === "claudeCode") {
+      p[field] = { ...sel, provider: "claudeAgent" };
+      patched = true;
+    }
+  };
+  patchProvider("modelSelection");
+  patchProvider("defaultModelSelection");
+  if ((p as Record<string, unknown>).provider === "claudeCode") {
+    (p as Record<string, unknown>).provider = "claudeAgent";
+    patched = true;
+  }
+  return patched ? { ...obj, payload: { ...p } } : row;
+}
+
+const decodeEvent = (row: unknown) => decodeEventRaw(normalizeLegacyProviderNames(row));
 const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown);
 const EventMetadataFromJsonString = Schema.fromJsonString(OrchestrationEventMetadata);
 

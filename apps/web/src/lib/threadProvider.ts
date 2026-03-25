@@ -55,6 +55,8 @@ const AMP_DISTINCT_MODEL_SLUGS = new Set(
 
 export function toProviderKind(providerName: string | null | undefined): ProviderKind | null {
   if (!providerName) return null;
+  // Normalize legacy provider name
+  if (providerName === "claudeCode") return "claudeAgent";
   return PROVIDER_KIND_SET.has(providerName as ProviderKind)
     ? (providerName as ProviderKind)
     : null;

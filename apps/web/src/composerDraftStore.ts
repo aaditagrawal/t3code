@@ -408,6 +408,7 @@ function shouldRemoveDraft(draft: ComposerThreadDraftState): boolean {
 }
 
 function normalizeProviderKind(value: unknown): ProviderKind | null {
+  if (value === "claudeCode") return "claudeAgent";
   return value === "codex" ||
     value === "copilot" ||
     value === "claudeAgent" ||
