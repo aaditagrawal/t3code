@@ -246,4 +246,46 @@ export default Effect.gen(function* () {
       AND json_type(payload_json, '$.modelSelection') IS NULL
       AND json_type(payload_json, '$.model') IS NULL
   `;
+
+  // Normalize legacy provider name "claudeCode" → "claudeAgent" in all modelSelection payloads
+  yield* sql`
+    UPDATE orchestration_events
+    SET payload_json = json_set(
+      payload_json,
+      '$.modelSelection.provider',
+      'claudeAgent'
+    )
+    WHERE json_extract(payload_json, '$.modelSelection.provider') = 'claudeCode'
+  `;
+
+  yield* sql`
+    UPDATE orchestration_events
+    SET payload_json = json_set(
+      payload_json,
+      '$.defaultModelSelection.provider',
+      'claudeAgent'
+    )
+    WHERE json_extract(payload_json, '$.defaultModelSelection.provider') = 'claudeCode'
+  `;
+
+  // Also normalize in projection tables
+  yield* sql`
+    UPDATE projection_threads
+    SET model_selection_json = json_set(
+      model_selection_json,
+      '$.provider',
+      'claudeAgent'
+    )
+    WHERE json_extract(model_selection_json, '$.provider') = 'claudeCode'
+  `;
+
+  yield* sql`
+    UPDATE projection_projects
+    SET default_model_selection_json = json_set(
+      default_model_selection_json,
+      '$.provider',
+      'claudeAgent'
+    )
+    WHERE json_extract(default_model_selection_json, '$.provider') = 'claudeCode'
+  `;
 });
