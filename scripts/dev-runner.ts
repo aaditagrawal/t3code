@@ -161,6 +161,10 @@ export function createDevRunnerEnv({
       T3CODE_HOME: resolvedBaseDir,
     };
 
+    // Always strip bootstrap fd — it refers to the parent's descriptor and
+    // must never leak into turbo/child processes regardless of mode.
+    delete output.T3CODE_BOOTSTRAP_FD;
+
     if (!isDesktopMode) {
       output.T3CODE_PORT = String(serverPort);
       output.VITE_WS_URL = `ws://localhost:${serverPort}`;
@@ -171,7 +175,6 @@ export function createDevRunnerEnv({
       delete output.T3CODE_MODE;
       delete output.T3CODE_NO_BROWSER;
       delete output.T3CODE_HOST;
-      delete output.T3CODE_BOOTSTRAP_FD;
     }
 
     if (!isDesktopMode && host !== undefined) {
