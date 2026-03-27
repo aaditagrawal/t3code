@@ -402,7 +402,6 @@ export function getDefaultModel(provider: ProviderKind = "codex"): ModelSlug {
   return DEFAULT_MODEL_BY_PROVIDER[provider];
 }
 
-
 // ── Effort helpers ────────────────────────────────────────────────────
 
 /** Check whether a capabilities object includes a given effort value. */
