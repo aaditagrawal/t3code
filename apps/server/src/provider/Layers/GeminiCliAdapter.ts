@@ -66,8 +66,7 @@ export function makeGeminiCliAdapterLive(options: GeminiCliAdapterLiveOptions = 
                 issue: "Gemini CLI provider is disabled in server settings.",
               });
             }
-            const _binaryPath = providerSettings.binaryPath.trim() || "gemini";
-            void _binaryPath;
+            manager.binaryPath = providerSettings.binaryPath.trim() || undefined;
             return yield* Effect.tryPromise({
               try: () => manager.startSession(input),
               catch: (cause) => toRequestError(input.threadId, "session/start", cause),

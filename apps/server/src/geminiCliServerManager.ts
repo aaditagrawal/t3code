@@ -210,6 +210,7 @@ export class GeminiCliServerManager extends EventEmitter<{
   event: [ProviderRuntimeEvent];
 }> {
   private readonly sessions = new Map<ThreadId, GeminiCliSession>();
+  binaryPath: string | undefined;
 
   startSession(input: ProviderSessionStartInput): Promise<ProviderSession> {
     const threadId = input.threadId;
@@ -217,7 +218,7 @@ export class GeminiCliServerManager extends EventEmitter<{
       throw new Error(`Gemini CLI session already exists for thread ${threadId}`);
     }
 
-    const binaryPath = defaultBinaryPath();
+    const binaryPath = this.binaryPath?.trim() || defaultBinaryPath();
     const cwd = input.cwd ?? process.cwd();
     const resumeSessionId = readGeminiResumeSessionId(input.resumeCursor);
     const now = new Date().toISOString();

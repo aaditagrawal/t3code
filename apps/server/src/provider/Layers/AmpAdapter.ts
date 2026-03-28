@@ -64,8 +64,7 @@ export function makeAmpAdapterLive(options: AmpAdapterLiveOptions = {}) {
                 issue: "AMP provider is disabled in server settings.",
               });
             }
-            const _binaryPath = providerSettings.binaryPath.trim() || "amp";
-            void _binaryPath;
+            manager.binaryPath = providerSettings.binaryPath.trim() || undefined;
             return yield* Effect.tryPromise({
               try: () => manager.startSession(input),
               catch: (cause) => toRequestError(input.threadId, "session/start", cause),

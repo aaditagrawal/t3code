@@ -173,6 +173,7 @@ export class AmpServerManager extends EventEmitter<{
 }> {
   private readonly sessions = new Map<ThreadId, AmpSession>();
   private readonly logger = createLogger("amp");
+  binaryPath: string | undefined;
 
   // ── Session lifecycle ───────────────────────────────────────────
 
@@ -187,7 +188,7 @@ export class AmpServerManager extends EventEmitter<{
       }
     }
 
-    const binaryPath = defaultBinaryPath();
+    const binaryPath = this.binaryPath?.trim() || defaultBinaryPath();
     const cwd = input.cwd ?? process.cwd();
     const model = input.modelSelection?.model;
     const now = new Date().toISOString();
