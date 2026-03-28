@@ -117,6 +117,7 @@ import {
 import { ProviderLogo } from "./ProviderLogo";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { useSettings, useUpdateSettings } from "~/hooks/useSettings";
+import { useAppSettings } from "~/appSettings";
 
 const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
 const THREAD_PREVIEW_LIMIT = 6;
@@ -567,7 +568,7 @@ function ProviderUsageSection() {
     });
   }, []);
 
-  const usageSettings = useSettings();
+  const { settings: forkSettings } = useAppSettings();
 
   const copilotUsage = useProviderUsage("copilot");
   const codexUsage = useProviderUsage("codex");
@@ -591,11 +592,7 @@ function ProviderUsageSection() {
     const showCount = provider === "copilot";
     const hidePlanLabel = provider === "copilot";
     const hidePercentLabel = false;
-    const accentMap = (usageSettings as Record<string, unknown>)["providerAccentColors"];
-    const providerColor =
-      accentMap && typeof accentMap === "object"
-        ? ((accentMap as Record<string, string>)[provider] ?? null)
-        : null;
+    const providerColor = forkSettings.providerAccentColors[provider] ?? null;
     const colorProp = providerColor ? { accentColor: providerColor } : {};
     // Multiple quotas (e.g. Codex session + weekly)
     if (data?.quotas && data.quotas.length > 0) {
@@ -809,6 +806,7 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const isOnSettings = useLocation({ select: (loc) => loc.pathname === "/settings" });
   const appSettings = useSettings();
+  const { settings: forkAppSettings } = useAppSettings();
   const { updateSettings } = useUpdateSettings();
   const { handleNewThread } = useHandleNewThread();
   const routeThreadId = useParams({
@@ -1727,7 +1725,7 @@ export default function Sidebar() {
                     <span
                       className={`inline-flex shrink-0 items-center justify-center ${
                         isHighlighted ? "text-foreground/55" : "text-muted-foreground/50"
-                      } ${"grayscaleProviderLogos" in appSettings && appSettings.grayscaleProviderLogos ? "grayscale" : ""}`}
+                      } ${forkAppSettings.grayscaleProviderLogos ? "grayscale" : ""}`}
                     >
                       <ProviderLogo provider={provider} className="size-3" />
                     </span>

@@ -2,60 +2,19 @@ import { type ProviderRuntimeEvent } from "@t3tools/contracts";
 import { Effect, Layer, Queue, Stream } from "effect";
 
 import { OpenCodeServerManager } from "../../opencodeServerManager.ts";
-import {
-  ProviderAdapterRequestError,
-  ProviderAdapterSessionClosedError,
-  ProviderAdapterSessionNotFoundError,
-  ProviderAdapterValidationError,
-  type ProviderAdapterError,
-} from "../Errors.ts";
+import type { OpenCodeSessionStartInput } from "../../opencode/types.ts";
+import { ProviderAdapterProcessError, ProviderAdapterValidationError } from "../Errors.ts";
 import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import { OpenCodeAdapter, type OpenCodeAdapterShape } from "../Services/OpenCodeAdapter.ts";
+import { makeErrorHelpers } from "./ProviderAdapterUtils.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
 
 const PROVIDER = "opencode" as const;
+const { toRequestError } = makeErrorHelpers(PROVIDER);
 
 export interface OpenCodeAdapterLiveOptions {
   readonly manager?: OpenCodeServerManager;
   readonly makeManager?: () => OpenCodeServerManager;
-}
-
-function toMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message.length > 0) {
-    return cause.message;
-  }
-  return fallback;
-}
-
-function toSessionError(threadId: string, cause: unknown) {
-  const normalized = toMessage(cause, "").toLowerCase();
-  if (normalized.includes("unknown opencode session") || normalized.includes("unknown session")) {
-    return new ProviderAdapterSessionNotFoundError({
-      provider: PROVIDER,
-      threadId,
-      cause,
-    });
-  }
-  if (normalized.includes("closed")) {
-    return new ProviderAdapterSessionClosedError({
-      provider: PROVIDER,
-      threadId,
-      cause,
-    });
-  }
-  return undefined;
-}
-
-function toRequestError(threadId: string, method: string, cause: unknown): ProviderAdapterError {
-  const sessionError = toSessionError(threadId, cause);
-  if (sessionError) {
-    return sessionError;
-  }
-  return new ProviderAdapterRequestError({
-    provider: PROVIDER,
-    method,
-    detail: toMessage(cause, `${method} failed`),
-    cause,
-  });
 }
 
 export function makeOpenCodeAdapterLive(options: OpenCodeAdapterLiveOptions = {}) {
@@ -64,6 +23,7 @@ export function makeOpenCodeAdapterLive(options: OpenCodeAdapterLiveOptions = {}
     Effect.gen(function* () {
       const manager = options.manager ?? options.makeManager?.() ?? new OpenCodeServerManager();
       const runtimeEventQueue = yield* Queue.unbounded<ProviderRuntimeEvent>();
+      const serverSettingsService = yield* ServerSettingsService;
 
       yield* Effect.acquireRelease(
         Effect.sync(() => {
@@ -85,9 +45,35 @@ export function makeOpenCodeAdapterLive(options: OpenCodeAdapterLiveOptions = {}
         provider: PROVIDER,
         capabilities: getProviderCapabilities(PROVIDER),
         startSession: (input) =>
-          Effect.tryPromise({
-            try: () => manager.startSession(input),
-            catch: (cause) => toRequestError(input.threadId, "session/start", cause),
+          Effect.gen(function* () {
+            const providerSettings = yield* serverSettingsService.getSettings.pipe(
+              Effect.map((s) => s.providers.opencode),
+              Effect.mapError(
+                (error) =>
+                  new ProviderAdapterProcessError({
+                    provider: PROVIDER,
+                    threadId: input.threadId,
+                    detail: error.message,
+                    cause: error,
+                  }),
+              ),
+            );
+            if (!providerSettings.enabled) {
+              return yield* new ProviderAdapterValidationError({
+                provider: PROVIDER,
+                operation: "startSession",
+                issue: "OpenCode provider is disabled in server settings.",
+              });
+            }
+            const binaryPath = providerSettings.binaryPath.trim() || "opencode";
+            return yield* Effect.tryPromise({
+              try: () =>
+                manager.startSession({
+                  ...input,
+                  opencode: { binaryPath },
+                } as OpenCodeSessionStartInput),
+              catch: (cause) => toRequestError(input.threadId, "session/start", cause),
+            });
           }),
         sendTurn: (input) => {
           if ((input.attachments?.length ?? 0) > 0) {

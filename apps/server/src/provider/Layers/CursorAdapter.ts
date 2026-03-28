@@ -35,6 +35,7 @@ import {
   ProviderAdapterValidationError,
   type ProviderAdapterError,
 } from "../Errors.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
 import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import {
   CursorAdapter,
@@ -46,7 +47,7 @@ import {
   CursorAcpSessionUpdateNotification,
 } from "../Services/CursorAdapter.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
-import { toMessage } from "../toMessage.ts";
+import { asObject, asString, makeErrorHelpers, toMessage } from "./ProviderAdapterUtils.ts";
 
 const PROVIDER = "cursor" as const;
 const DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
@@ -258,51 +259,9 @@ function asRuntimeRequestId(value: ApprovalRequestId): RuntimeRequestId {
   return RuntimeRequestId.makeUnsafe(value);
 }
 
-function toSessionError(
-  threadId: ThreadId,
-  cause: unknown,
-): ProviderAdapterSessionNotFoundError | ProviderAdapterSessionClosedError | undefined {
-  const normalized = toMessage(cause, "").toLowerCase();
-  if (normalized.includes("unknown session") || normalized.includes("not found")) {
-    return new ProviderAdapterSessionNotFoundError({
-      provider: PROVIDER,
-      threadId,
-      cause,
-    });
-  }
-  if (normalized.includes("closed")) {
-    return new ProviderAdapterSessionClosedError({
-      provider: PROVIDER,
-      threadId,
-      cause,
-    });
-  }
-  return undefined;
-}
-
-function toRequestError(threadId: ThreadId, method: string, cause: unknown): ProviderAdapterError {
-  const sessionError = toSessionError(threadId, cause);
-  if (sessionError) {
-    return sessionError;
-  }
-  return new ProviderAdapterRequestError({
-    provider: PROVIDER,
-    method,
-    detail: toMessage(cause, `${method} failed`),
-    cause,
-  });
-}
-
-function asObject(value: unknown): Record<string, unknown> | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-  return value as Record<string, unknown>;
-}
-
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
+const { toRequestError } = makeErrorHelpers(PROVIDER, {
+  sessionNotFoundHints: ["unknown session", "not found"],
+});
 
 function appendChunkText(fragments: string[], value: unknown): void {
   if (typeof value === "string" && value.length > 0) {
@@ -543,6 +502,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
     const makeEventStamp = () => Effect.all({ eventId: nextEventId, createdAt: nowIso });
 
     const sessions = new Map<ThreadId, CursorSessionContext>();
+    const serverSettingsService = yield* ServerSettingsService;
     const runtimeEventQueue = yield* Queue.unbounded<ProviderRuntimeEvent>();
 
     const offerRuntimeEvent = (event: ProviderRuntimeEvent): Effect.Effect<void> =>
@@ -1195,9 +1155,28 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
           });
         }
 
+        const cursorSettings = yield* serverSettingsService.getSettings.pipe(
+          Effect.map((s) => s.providers.cursor),
+          Effect.mapError(
+            (error) =>
+              new ProviderAdapterProcessError({
+                provider: PROVIDER,
+                threadId: input.threadId,
+                detail: error.message,
+                cause: error,
+              }),
+          ),
+        );
+        if (!cursorSettings.enabled) {
+          return yield* new ProviderAdapterValidationError({
+            provider: PROVIDER,
+            operation: "startSession",
+            issue: "Cursor provider is disabled in server settings.",
+          });
+        }
         const startedAt = yield* nowIso;
         const cwd = input.cwd ?? process.cwd();
-        const binaryPath = "agent";
+        const binaryPath = cursorSettings.binaryPath.trim() || "agent";
         const resumeState = readCursorResumeState(input.resumeCursor);
 
         const child = yield* Effect.try({

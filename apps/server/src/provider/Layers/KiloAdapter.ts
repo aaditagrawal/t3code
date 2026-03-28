@@ -2,60 +2,19 @@ import { type ProviderRuntimeEvent } from "@t3tools/contracts";
 import { Effect, Layer, Queue, Stream } from "effect";
 
 import { KiloServerManager } from "../../kiloServerManager.ts";
-import {
-  ProviderAdapterRequestError,
-  ProviderAdapterSessionClosedError,
-  ProviderAdapterSessionNotFoundError,
-  ProviderAdapterValidationError,
-  type ProviderAdapterError,
-} from "../Errors.ts";
+import type { KiloSessionStartInput } from "../../kilo/types.ts";
+import { ProviderAdapterProcessError, ProviderAdapterValidationError } from "../Errors.ts";
 import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import { KiloAdapter, type KiloAdapterShape } from "../Services/KiloAdapter.ts";
+import { makeErrorHelpers } from "./ProviderAdapterUtils.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
 
 const PROVIDER = "kilo" as const;
+const { toRequestError } = makeErrorHelpers(PROVIDER);
 
 export interface KiloAdapterLiveOptions {
   readonly manager?: KiloServerManager;
   readonly makeManager?: () => KiloServerManager;
-}
-
-function toMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message.length > 0) {
-    return cause.message;
-  }
-  return fallback;
-}
-
-function toSessionError(threadId: string, cause: unknown) {
-  const normalized = toMessage(cause, "").toLowerCase();
-  if (normalized.includes("unknown kilo session") || normalized.includes("unknown session")) {
-    return new ProviderAdapterSessionNotFoundError({
-      provider: PROVIDER,
-      threadId,
-      cause,
-    });
-  }
-  if (normalized.includes("closed")) {
-    return new ProviderAdapterSessionClosedError({
-      provider: PROVIDER,
-      threadId,
-      cause,
-    });
-  }
-  return undefined;
-}
-
-function toRequestError(threadId: string, method: string, cause: unknown): ProviderAdapterError {
-  const sessionError = toSessionError(threadId, cause);
-  if (sessionError) {
-    return sessionError;
-  }
-  return new ProviderAdapterRequestError({
-    provider: PROVIDER,
-    method,
-    detail: toMessage(cause, `${method} failed`),
-    cause,
-  });
 }
 
 export function makeKiloAdapterLive(options: KiloAdapterLiveOptions = {}) {
@@ -64,6 +23,7 @@ export function makeKiloAdapterLive(options: KiloAdapterLiveOptions = {}) {
     Effect.gen(function* () {
       const manager = options.manager ?? options.makeManager?.() ?? new KiloServerManager();
       const runtimeEventQueue = yield* Queue.unbounded<ProviderRuntimeEvent>();
+      const serverSettingsService = yield* ServerSettingsService;
 
       yield* Effect.acquireRelease(
         Effect.sync(() => {
@@ -85,9 +45,32 @@ export function makeKiloAdapterLive(options: KiloAdapterLiveOptions = {}) {
         provider: PROVIDER,
         capabilities: getProviderCapabilities(PROVIDER),
         startSession: (input) =>
-          Effect.tryPromise({
-            try: () => manager.startSession(input),
-            catch: (cause) => toRequestError(input.threadId, "session/start", cause),
+          Effect.gen(function* () {
+            const providerSettings = yield* serverSettingsService.getSettings.pipe(
+              Effect.map((s) => s.providers.kilo),
+              Effect.mapError(
+                (error) =>
+                  new ProviderAdapterProcessError({
+                    provider: PROVIDER,
+                    threadId: input.threadId,
+                    detail: error.message,
+                    cause: error,
+                  }),
+              ),
+            );
+            if (!providerSettings.enabled) {
+              return yield* new ProviderAdapterValidationError({
+                provider: PROVIDER,
+                operation: "startSession",
+                issue: "Kilo provider is disabled in server settings.",
+              });
+            }
+            const binaryPath = providerSettings.binaryPath.trim() || "kilo";
+            return yield* Effect.tryPromise({
+              try: () =>
+                manager.startSession({ ...input, kilo: { binaryPath } } as KiloSessionStartInput),
+              catch: (cause) => toRequestError(input.threadId, "session/start", cause),
+            });
           }),
         sendTurn: (input) => {
           if ((input.attachments?.length ?? 0) > 0) {

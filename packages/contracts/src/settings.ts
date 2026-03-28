@@ -79,6 +79,7 @@ export type ClaudeSettings = typeof ClaudeSettings.Type;
 export const GenericProviderSettings = Schema.Struct({
   enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(() => true)),
   customModels: Schema.Array(Schema.String).pipe(Schema.withDecodingDefault(() => [])),
+  binaryPath: TrimmedString.pipe(Schema.withDecodingDefault(() => "")),
 });
 export type GenericProviderSettings = typeof GenericProviderSettings.Type;
 

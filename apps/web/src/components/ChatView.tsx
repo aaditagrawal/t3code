@@ -134,7 +134,7 @@ import {
   getProviderModels,
   resolveSelectableProvider,
 } from "../providerModels";
-import { getCustomModelsByProvider, resolveAppModelSelection } from "../modelSelection";
+import { getCustomModelsByProvider, resolveAppModelSelection } from "../customModels";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import {
   type ComposerImageAttachment,
@@ -162,7 +162,7 @@ import { ChatHeader } from "./chat/ChatHeader";
 import { ContextWindowMeter } from "./chat/ContextWindowMeter";
 import { buildExpandedImagePreview, ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import {
-  getCustomModelOptionsByProvider,
+  buildModelOptionsByProvider,
   mergeDiscoveredModels,
   ProviderModelPicker,
 } from "./chat/ProviderModelPicker";
@@ -715,7 +715,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const ampModelsQuery = useQuery(providerListModelsQueryOptions("amp"));
   const modelOptionsByProvider = useMemo(
     () =>
-      mergeDiscoveredModels(getCustomModelOptionsByProvider(appSettings), {
+      mergeDiscoveredModels(buildModelOptionsByProvider(appSettings), {
         copilot: copilotModelsQuery.data,
         cursor: cursorModelsQuery.data,
         opencode: opencodeModelsQuery.data,
@@ -3995,7 +3995,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
                           provider={selectedProvider}
                           model={selectedModelForPickerWithCustomFallback}
                           lockedProvider={lockedProvider}
-                          providers={providerStatuses}
                           modelOptionsByProvider={modelOptionsByProvider}
                           {...(composerProviderState.modelPickerIconClassName
                             ? {

@@ -80,42 +80,42 @@ export type ClaudeModelSelection = typeof ClaudeModelSelection.Type;
 export const CopilotModelSelection = Schema.Struct({
   provider: Schema.Literal("copilot"),
   model: TrimmedNonEmptyString,
-  options: Schema.optional(CopilotModelOptions),
+  options: Schema.optionalKey(CopilotModelOptions),
 });
 export type CopilotModelSelection = typeof CopilotModelSelection.Type;
 
 export const CursorModelSelection = Schema.Struct({
   provider: Schema.Literal("cursor"),
   model: TrimmedNonEmptyString,
-  options: Schema.optional(CursorModelOptions),
+  options: Schema.optionalKey(CursorModelOptions),
 });
 export type CursorModelSelection = typeof CursorModelSelection.Type;
 
 export const OpencodeModelSelection = Schema.Struct({
   provider: Schema.Literal("opencode"),
   model: TrimmedNonEmptyString,
-  options: Schema.optional(OpencodeModelOptions),
+  options: Schema.optionalKey(OpencodeModelOptions),
 });
 export type OpencodeModelSelection = typeof OpencodeModelSelection.Type;
 
 export const GeminiCliModelSelection = Schema.Struct({
   provider: Schema.Literal("geminiCli"),
   model: TrimmedNonEmptyString,
-  options: Schema.optional(GeminiCliModelOptions),
+  options: Schema.optionalKey(GeminiCliModelOptions),
 });
 export type GeminiCliModelSelection = typeof GeminiCliModelSelection.Type;
 
 export const AmpModelSelection = Schema.Struct({
   provider: Schema.Literal("amp"),
   model: TrimmedNonEmptyString,
-  options: Schema.optional(AmpModelOptions),
+  options: Schema.optionalKey(AmpModelOptions),
 });
 export type AmpModelSelection = typeof AmpModelSelection.Type;
 
 export const KiloModelSelection = Schema.Struct({
   provider: Schema.Literal("kilo"),
   model: TrimmedNonEmptyString,
-  options: Schema.optional(KiloModelOptions),
+  options: Schema.optionalKey(KiloModelOptions),
 });
 export type KiloModelSelection = typeof KiloModelSelection.Type;
 

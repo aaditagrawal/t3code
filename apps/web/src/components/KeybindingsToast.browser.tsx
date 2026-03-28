@@ -63,12 +63,12 @@ function createBaseServerConfig(): ServerConfig {
       providers: {
         codex: { enabled: true, binaryPath: "", homePath: "", customModels: [] },
         claudeAgent: { enabled: true, binaryPath: "", customModels: [] },
-        copilot: { enabled: true, customModels: [] },
-        cursor: { enabled: true, customModels: [] },
-        opencode: { enabled: true, customModels: [] },
-        geminiCli: { enabled: true, customModels: [] },
-        amp: { enabled: true, customModels: [] },
-        kilo: { enabled: true, customModels: [] },
+        copilot: { enabled: true, customModels: [], binaryPath: "" },
+        cursor: { enabled: true, customModels: [], binaryPath: "" },
+        opencode: { enabled: true, customModels: [], binaryPath: "" },
+        geminiCli: { enabled: true, customModels: [], binaryPath: "" },
+        amp: { enabled: true, customModels: [], binaryPath: "" },
+        kilo: { enabled: true, customModels: [], binaryPath: "" },
       },
     },
   };

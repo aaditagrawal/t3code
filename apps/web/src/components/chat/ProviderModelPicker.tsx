@@ -1,4 +1,4 @@
-import { type ModelSlug, type ProviderKind, type ServerProvider } from "@t3tools/contracts";
+import { type ModelSlug, type ProviderKind } from "@t3tools/contracts";
 import {
   normalizeModelSlug,
   parseCursorModelSelection,
@@ -52,7 +52,7 @@ type GroupedModelEntry = {
   readonly connected: boolean;
 };
 
-export function getCustomModelOptionsByProvider(settings: {
+export function buildModelOptionsByProvider(settings: {
   customCodexModels: readonly string[];
   customCopilotModels: readonly string[];
   customClaudeModels: readonly string[];
@@ -247,7 +247,6 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   provider: ProviderKind;
   model: string;
   lockedProvider: ProviderKind | null;
-  providers?: ReadonlyArray<ServerProvider>;
   modelOptionsByProvider: Record<ProviderKind, ReadonlyArray<ModelOptionEntry>>;
   ultrathinkActive?: boolean;
   activeProviderIconClassName?: string;

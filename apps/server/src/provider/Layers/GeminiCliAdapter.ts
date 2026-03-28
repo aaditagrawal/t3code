@@ -2,60 +2,20 @@ import { type ProviderRuntimeEvent } from "@t3tools/contracts";
 import { Effect, Layer, Queue, Stream } from "effect";
 
 import { GeminiCliServerManager } from "../../geminiCliServerManager.ts";
-import {
-  ProviderAdapterRequestError,
-  ProviderAdapterSessionClosedError,
-  ProviderAdapterSessionNotFoundError,
-  ProviderAdapterValidationError,
-  type ProviderAdapterError,
-} from "../Errors.ts";
+import { ProviderAdapterProcessError, ProviderAdapterValidationError } from "../Errors.ts";
 import { getProviderCapabilities } from "../Services/ProviderAdapter.ts";
 import { GeminiCliAdapter, type GeminiCliAdapterShape } from "../Services/GeminiCliAdapter.ts";
+import { makeErrorHelpers } from "./ProviderAdapterUtils.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
 
 const PROVIDER = "geminiCli" as const;
+const { toRequestError } = makeErrorHelpers(PROVIDER, {
+  sessionNotFoundHints: ["unknown gemini cli session", "unknown session"],
+});
 
 export interface GeminiCliAdapterLiveOptions {
   readonly manager?: GeminiCliServerManager;
   readonly makeManager?: () => GeminiCliServerManager;
-}
-
-function toMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof Error && cause.message.length > 0) {
-    return cause.message;
-  }
-  return fallback;
-}
-
-function toSessionError(threadId: string, cause: unknown) {
-  const normalized = toMessage(cause, "").toLowerCase();
-  if (normalized.includes("unknown gemini cli session") || normalized.includes("unknown session")) {
-    return new ProviderAdapterSessionNotFoundError({
-      provider: PROVIDER,
-      threadId,
-      cause,
-    });
-  }
-  if (normalized.includes("closed")) {
-    return new ProviderAdapterSessionClosedError({
-      provider: PROVIDER,
-      threadId,
-      cause,
-    });
-  }
-  return undefined;
-}
-
-function toRequestError(threadId: string, method: string, cause: unknown): ProviderAdapterError {
-  const sessionError = toSessionError(threadId, cause);
-  if (sessionError) {
-    return sessionError;
-  }
-  return new ProviderAdapterRequestError({
-    provider: PROVIDER,
-    method,
-    detail: toMessage(cause, `${method} failed`),
-    cause,
-  });
 }
 
 export function makeGeminiCliAdapterLive(options: GeminiCliAdapterLiveOptions = {}) {
@@ -64,6 +24,7 @@ export function makeGeminiCliAdapterLive(options: GeminiCliAdapterLiveOptions = 
     Effect.gen(function* () {
       const manager = options.manager ?? options.makeManager?.() ?? new GeminiCliServerManager();
       const runtimeEventQueue = yield* Queue.unbounded<ProviderRuntimeEvent>();
+      const serverSettingsService = yield* ServerSettingsService;
 
       yield* Effect.acquireRelease(
         Effect.sync(() => {
@@ -85,9 +46,32 @@ export function makeGeminiCliAdapterLive(options: GeminiCliAdapterLiveOptions = 
         provider: PROVIDER,
         capabilities: getProviderCapabilities(PROVIDER),
         startSession: (input) =>
-          Effect.tryPromise({
-            try: () => manager.startSession(input),
-            catch: (cause) => toRequestError(input.threadId, "session/start", cause),
+          Effect.gen(function* () {
+            const providerSettings = yield* serverSettingsService.getSettings.pipe(
+              Effect.map((s) => s.providers.geminiCli),
+              Effect.mapError(
+                (error) =>
+                  new ProviderAdapterProcessError({
+                    provider: PROVIDER,
+                    threadId: input.threadId,
+                    detail: error.message,
+                    cause: error,
+                  }),
+              ),
+            );
+            if (!providerSettings.enabled) {
+              return yield* new ProviderAdapterValidationError({
+                provider: PROVIDER,
+                operation: "startSession",
+                issue: "Gemini CLI provider is disabled in server settings.",
+              });
+            }
+            const _binaryPath = providerSettings.binaryPath.trim() || "gemini";
+            void _binaryPath;
+            return yield* Effect.tryPromise({
+              try: () => manager.startSession(input),
+              catch: (cause) => toRequestError(input.threadId, "session/start", cause),
+            });
           }),
         sendTurn: (input) => {
           if ((input.attachments?.length ?? 0) > 0) {

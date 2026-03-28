@@ -15,9 +15,9 @@ import {
 import { it, vi } from "@effect/vitest";
 import { Effect, Layer, Stream } from "effect";
 
-import { OpenCodeServerManager } from "../../opencodeServerManager.ts";
-import { OpenCodeAdapter } from "../Services/OpenCodeAdapter.ts";
-import { makeOpenCodeAdapterLive } from "./OpenCodeAdapter.ts";
+import { AmpServerManager } from "../../ampServerManager.ts";
+import { AmpAdapter } from "../Services/AmpAdapter.ts";
+import { makeAmpAdapterLive } from "./AmpAdapter.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 
 const asThreadId = (value: string): ThreadId => ThreadId.makeUnsafe(value);
@@ -25,11 +25,11 @@ const asTurnId = (value: string): TurnId => TurnId.makeUnsafe(value);
 const asEventId = (value: string): EventId => EventId.makeUnsafe(value);
 const asItemId = (value: string): RuntimeItemId => RuntimeItemId.makeUnsafe(value);
 
-class FakeOpenCodeManager extends OpenCodeServerManager {
+class FakeAmpManager extends AmpServerManager {
   public startSessionImpl = vi.fn(async (threadId: ThreadId): Promise<ProviderSession> => {
     const now = new Date().toISOString();
     return {
-      provider: "opencode",
+      provider: "amp",
       status: "ready",
       runtimeMode: "full-access",
       threadId,
@@ -105,30 +105,30 @@ class FakeOpenCodeManager extends OpenCodeServerManager {
   }
 }
 
-const manager = new FakeOpenCodeManager();
+const manager = new FakeAmpManager();
 const layer = it.layer(
-  makeOpenCodeAdapterLive({ manager }).pipe(Layer.provideMerge(ServerSettingsService.layerTest())),
+  makeAmpAdapterLive({ manager }).pipe(Layer.provideMerge(ServerSettingsService.layerTest())),
 );
 
-layer("OpenCodeAdapterLive", (it) => {
+layer("AmpAdapterLive", (it) => {
   it.effect("delegates session startup to the manager", () =>
     Effect.gen(function* () {
       manager.startSessionImpl.mockClear();
-      const adapter = yield* OpenCodeAdapter;
+      const adapter = yield* AmpAdapter;
 
       const session = yield* adapter.startSession({
         threadId: asThreadId("thread-1"),
         runtimeMode: "full-access",
       });
 
-      assert.equal(session.provider, "opencode");
+      assert.equal(session.provider, "amp");
       assert.equal(manager.startSessionImpl.mock.calls[0]?.[0], asThreadId("thread-1"));
     }),
   );
 
-  it.effect("rejects attachments until OpenCode attachment wiring exists", () =>
+  it.effect("rejects attachments until AMP attachment wiring exists", () =>
     Effect.gen(function* () {
-      const adapter = yield* OpenCodeAdapter;
+      const adapter = yield* AmpAdapter;
       const result = yield* adapter
         .sendTurn({
           threadId: asThreadId("thread-attachments"),
@@ -147,12 +147,12 @@ layer("OpenCodeAdapterLive", (it) => {
 
   it.effect("forwards manager runtime events through the adapter stream", () =>
     Effect.gen(function* () {
-      const adapter = yield* OpenCodeAdapter;
+      const adapter = yield* AmpAdapter;
 
       const event = {
         type: "content.delta",
-        eventId: asEventId("evt-opencode-delta"),
-        provider: "opencode",
+        eventId: asEventId("evt-amp-delta"),
+        provider: "amp",
         createdAt: new Date().toISOString(),
         threadId: asThreadId("thread-1"),
         turnId: asTurnId("turn-1"),

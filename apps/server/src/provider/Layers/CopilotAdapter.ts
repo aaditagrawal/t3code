@@ -27,6 +27,7 @@ import { Effect, Layer, Queue, Stream } from "effect";
 
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
 import {
   ProviderAdapterProcessError,
   ProviderAdapterRequestError,
@@ -447,6 +448,7 @@ function createSessionRecord(input: {
 const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
   Effect.gen(function* () {
     const serverConfig = yield* ServerConfig;
+    const serverSettingsService = yield* ServerSettingsService;
     const nativeEventLogger = options?.nativeEventLogger;
     const runtimeEventQueue = yield* Queue.unbounded<ProviderRuntimeEvent>();
     const sessions = new Map<ThreadId, ActiveCopilotSession>();
@@ -1266,6 +1268,25 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
           });
         }
 
+        const copilotSettings = yield* serverSettingsService.getSettings.pipe(
+          Effect.map((s) => s.providers.copilot),
+          Effect.mapError(
+            (error) =>
+              new ProviderAdapterProcessError({
+                provider: PROVIDER,
+                threadId: input.threadId,
+                detail: error.message,
+                cause: error,
+              }),
+          ),
+        );
+        if (!copilotSettings.enabled) {
+          return yield* new ProviderAdapterValidationError({
+            provider: PROVIDER,
+            operation: "startSession",
+            issue: "Copilot provider is disabled in server settings.",
+          });
+        }
         const existing = sessions.get(input.threadId);
         if (existing) {
           return {
@@ -1282,7 +1303,8 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
           } satisfies ProviderSession;
         }
 
-        const cliPath = resolveBundledCopilotCliPath();
+        const settingsBinaryPath = copilotSettings.binaryPath.trim();
+        const cliPath = settingsBinaryPath || resolveBundledCopilotCliPath();
         const configDir: string | undefined = undefined;
         const resumeSessionId = extractResumeSessionId(input.resumeCursor);
         const clientOptions: CopilotClientOptions = {

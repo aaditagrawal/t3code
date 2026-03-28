@@ -13,11 +13,12 @@ import {
   type ProviderUserInputAnswers,
 } from "@t3tools/contracts";
 import { it, vi } from "@effect/vitest";
-import { Effect, Stream } from "effect";
+import { Effect, Layer, Stream } from "effect";
 
 import { KiloServerManager } from "../../kiloServerManager.ts";
 import { KiloAdapter } from "../Services/KiloAdapter.ts";
 import { makeKiloAdapterLive } from "./KiloAdapter.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
 
 const asThreadId = (value: string): ThreadId => ThreadId.makeUnsafe(value);
 const asTurnId = (value: string): TurnId => TurnId.makeUnsafe(value);
@@ -105,7 +106,9 @@ class FakeKiloManager extends KiloServerManager {
 }
 
 const manager = new FakeKiloManager();
-const layer = it.layer(makeKiloAdapterLive({ manager }));
+const layer = it.layer(
+  makeKiloAdapterLive({ manager }).pipe(Layer.provideMerge(ServerSettingsService.layerTest())),
+);
 
 layer("KiloAdapterLive", (it) => {
   it.effect("delegates session startup to the manager", () =>

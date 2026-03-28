@@ -4,11 +4,12 @@ import readline from "node:readline";
 
 import { ApprovalRequestId, ThreadId } from "@t3tools/contracts";
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Fiber, Stream } from "effect";
+import { Effect, Fiber, Layer, Stream } from "effect";
 
 import { ProviderAdapterValidationError } from "../Errors.ts";
 import { CursorAdapter } from "../Services/CursorAdapter.ts";
 import { makeCursorAdapterLive, parseCursorModelCommandOutput } from "./CursorAdapter.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
 
 const THREAD_ID = ThreadId.makeUnsafe("thread-cursor-1");
 const RESUME_THREAD_ID = ThreadId.makeUnsafe("thread-cursor-resume");
@@ -305,7 +306,7 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
           issue: "Expected provider 'cursor' but received 'codex'.",
         }),
       );
-    }).pipe(Effect.provide(layer));
+    }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(ServerSettingsService.layerTest()))));
   });
 
   it.effect("maps ACP prompt/update events into canonical runtime events", () => {
@@ -371,7 +372,7 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
           total_tokens: 46,
         });
       }
-    }).pipe(Effect.provide(layer));
+    }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(ServerSettingsService.layerTest()))));
   });
 
   it.effect("extracts assistant text from structured Cursor chunk envelopes", () => {
@@ -419,7 +420,7 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
           event.payload.delta === "hello",
       );
       assert.equal(assistantDelta?.type, "content.delta");
-    }).pipe(Effect.provide(layer));
+    }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(ServerSettingsService.layerTest()))));
   });
 
   it.effect("passes requested model to ACP process startup", () => {
@@ -449,7 +450,7 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
       });
 
       assert.deepEqual(createProcessInput?.model, "composer-1.5");
-    }).pipe(Effect.provide(layer));
+    }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(ServerSettingsService.layerTest()))));
   });
 
   it.effect("writes provider-native observability records when enabled", () => {
@@ -495,7 +496,7 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
         nativeEvents.some((record) => record.event?.method === "cursor/acp/response"),
         true,
       );
-    }).pipe(Effect.provide(layer));
+    }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(ServerSettingsService.layerTest()))));
   });
 
   it.effect("resumes ACP session using resumeCursor.acpSessionId", () => {
@@ -530,7 +531,7 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
       assert.deepEqual(session.resumeCursor, {
         acpSessionId: "acp-session-resume",
       });
-    }).pipe(Effect.provide(layer));
+    }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(ServerSettingsService.layerTest()))));
   });
 
   it.effect("accepts legacy resumeCursor.sessionId for ACP session resume", () => {
@@ -561,7 +562,7 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
       assert.deepEqual(session.resumeCursor, {
         acpSessionId: "acp-session-legacy",
       });
-    }).pipe(Effect.provide(layer));
+    }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(ServerSettingsService.layerTest()))));
   });
 
   it.effect("bridges permission requests to request.opened/request.resolved", () => {
@@ -616,7 +617,7 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
       }
       assert.equal(resolved.value.payload.decision, "acceptForSession");
       assert.equal(fake.lastPermissionSelection, "allow-always");
-    }).pipe(Effect.provide(layer));
+    }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(ServerSettingsService.layerTest()))));
   });
 
   it.effect("auto-approves cursor permission requests when approval policy is never", () => {
@@ -652,7 +653,7 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
 
       assert.equal(resolved.value.payload.decision, "acceptForSession");
       assert.equal(fake.lastPermissionSelection, "allow-always");
-    }).pipe(Effect.provide(layer));
+    }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(ServerSettingsService.layerTest()))));
   });
 
   it.effect("rejects empty prompt input before starting a turn", () => {
@@ -696,7 +697,7 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
         fake.requests.some((request) => request.method === "session/prompt"),
         false,
       );
-    }).pipe(Effect.provide(layer));
+    }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(ServerSettingsService.layerTest()))));
   });
 
   it.effect("keeps tool_call item types consistent through tool_call_update", () => {
@@ -741,7 +742,7 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
 
       assert.equal(started.payload.itemType, "command_execution");
       assert.equal(completed.payload.itemType, "command_execution");
-    }).pipe(Effect.provide(layer));
+    }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(ServerSettingsService.layerTest()))));
   });
 
   it.effect("completes the turn when Cursor prompt completion lacks a stop reason", () => {
@@ -791,6 +792,6 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
       const sessions = yield* adapter.listSessions();
       assert.equal(sessions[0]?.status, "ready");
       assert.equal(sessions[0]?.activeTurnId, undefined);
-    }).pipe(Effect.provide(layer));
+    }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(ServerSettingsService.layerTest()))));
   });
 });

@@ -56,6 +56,7 @@ const copilotLayer = makeCopilotAdapterLive({
     }) as never,
 }).pipe(
   Layer.provideMerge(ServerConfig.layerTest(process.cwd(), process.cwd())),
+  Layer.provideMerge(ServerSettingsService.layerTest()),
   Layer.provideMerge(NodeServices.layer),
 );
 
@@ -79,15 +80,18 @@ const claudeLayer = makeClaudeAdapterLive({
 
 const cursorLayer = makeCursorAdapterLive({
   createProcess: () => ({}) as never,
-}).pipe(Layer.provideMerge(NodeServices.layer));
+}).pipe(
+  Layer.provideMerge(ServerSettingsService.layerTest()),
+  Layer.provideMerge(NodeServices.layer),
+);
 
 const geminiLayer = makeGeminiCliAdapterLive({
   manager: new GeminiCliServerManager(),
-});
+}).pipe(Layer.provideMerge(ServerSettingsService.layerTest()));
 
 const ampLayer = makeAmpAdapterLive({
   manager: new AmpServerManager(),
-});
+}).pipe(Layer.provideMerge(ServerSettingsService.layerTest()));
 
 describe("provider adapter conformance", () => {
   const cases = [
