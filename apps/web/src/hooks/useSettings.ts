@@ -200,6 +200,27 @@ export function buildLegacyServerSettingsMigrationPatch(legacySettings: Record<s
     );
   }
 
+  if (Predicate.isString(legacySettings.copilotCliPath)) {
+    patch.providers ??= {};
+    patch.providers.copilot ??= {};
+    patch.providers.copilot.binaryPath = legacySettings.copilotCliPath;
+  }
+
+  if (Predicate.isString(legacySettings.copilotConfigDir)) {
+    patch.providers ??= {};
+    patch.providers.copilot ??= {};
+    patch.providers.copilot.configDir = legacySettings.copilotConfigDir;
+  }
+
+  if (Array.isArray(legacySettings.customCopilotModels)) {
+    patch.providers ??= {};
+    patch.providers.copilot ??= {};
+    patch.providers.copilot.customModels = normalizeCustomModelSlugs(
+      legacySettings.customCopilotModels,
+      "copilot",
+    );
+  }
+
   return patch;
 }
 
@@ -207,6 +228,10 @@ export function buildLegacyClientSettingsMigrationPatch(
   legacySettings: Record<string, unknown>,
 ): Partial<DeepMutable<ClientSettings>> {
   const patch: Partial<DeepMutable<ClientSettings>> = {};
+
+  if (Predicate.isBoolean(legacySettings.confirmThreadArchive)) {
+    patch.confirmThreadArchive = legacySettings.confirmThreadArchive;
+  }
 
   if (Predicate.isBoolean(legacySettings.confirmThreadDelete)) {
     patch.confirmThreadDelete = legacySettings.confirmThreadDelete;

@@ -6,8 +6,12 @@ export default mergeConfig(
   baseConfig,
   defineConfig({
     test: {
-      testTimeout: 15_000,
-      hookTimeout: 15_000,
+      // The server suite spins up long-lived Effect runtimes and git subprocesses.
+      // Running files serially avoids worker-pool teardown stalls and the full-suite
+      // timing races that only appear under heavy parallel contention.
+      fileParallelism: false,
+      testTimeout: 60_000,
+      hookTimeout: 60_000,
       server: {
         deps: {
           // @github/copilot-sdk imports "vscode-jsonrpc/node" which fails

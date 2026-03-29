@@ -20,7 +20,7 @@ import * as Stream from "effect/Stream";
 import * as Reactivity from "effect/unstable/reactivity/Reactivity";
 import * as Client from "effect/unstable/sql/SqlClient";
 import type { Connection } from "effect/unstable/sql/SqlConnection";
-import { SqlError } from "effect/unstable/sql/SqlError";
+import { classifySqliteError, SqlError } from "effect/unstable/sql/SqlError";
 import * as Statement from "effect/unstable/sql/Statement";
 
 const ATTR_DB_SYSTEM_NAME = "db.system.name";
@@ -49,6 +49,11 @@ export interface SqliteMemoryClientConfig extends Omit<
   SqliteClientConfig,
   "filename" | "readonly"
 > {}
+
+const makeSqlError = (cause: unknown, message: string) =>
+  new SqlError({
+    reason: classifySqliteError(cause, { message }),
+  } as unknown as ConstructorParameters<typeof SqlError>[0]);
 
 /**
  * Verify that the current Node.js version includes the `node:sqlite` APIs
@@ -113,7 +118,7 @@ const makeWithDatabase = (
         lookup: (sql: string) =>
           Effect.try({
             try: () => db.prepare(sql),
-            catch: (cause) => new SqlError({ cause, message: "Failed to prepare statement" }),
+            catch: (cause) => makeSqlError(cause, "Failed to prepare statement"),
           }),
       });
 
@@ -131,7 +136,7 @@ const makeWithDatabase = (
             const result = statement.run(...(params as SQLInputValue[]));
             return Effect.succeed(raw ? (result as unknown as ReadonlyArray<any>) : []);
           } catch (cause) {
-            return Effect.fail(new SqlError({ cause, message: "Failed to execute statement" }));
+            return Effect.fail(makeSqlError(cause, "Failed to execute statement"));
           }
         });
 
@@ -154,7 +159,7 @@ const makeWithDatabase = (
                 statement.run(...(params as SQLInputValue[]));
                 return [];
               },
-              catch: (cause) => new SqlError({ cause, message: "Failed to execute statement" }),
+              catch: (cause) => makeSqlError(cause, "Failed to execute statement"),
             }),
           (statement) =>
             Effect.sync(() => {

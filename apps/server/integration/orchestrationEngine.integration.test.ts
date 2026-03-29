@@ -57,7 +57,7 @@ function waitForSync<A>(
   read: () => A,
   predicate: (value: A) => boolean,
   description: string,
-  timeoutMs = 3000,
+  timeoutMs = 10_000,
 ): Effect.Effect<A, never> {
   return Effect.gen(function* () {
     const deadline = Date.now() + timeoutMs;
@@ -745,6 +745,18 @@ it.live("reverts to an earlier checkpoint and trims checkpoint projections + git
         messageId: "msg-user-revert-1",
         text: "First edit",
       });
+      yield* harness.waitForReceipt(
+        (receipt): receipt is CheckpointDiffFinalizedReceipt =>
+          receipt.type === "checkpoint.diff.finalized" &&
+          receipt.threadId === THREAD_ID &&
+          receipt.checkpointTurnCount === 1,
+      );
+      yield* harness.waitForReceipt(
+        (receipt): receipt is TurnProcessingQuiescedReceipt =>
+          receipt.type === "turn.processing.quiesced" &&
+          receipt.threadId === THREAD_ID &&
+          receipt.checkpointTurnCount === 1,
+      );
 
       yield* harness.waitForThread(
         THREAD_ID,
@@ -803,6 +815,18 @@ it.live("reverts to an earlier checkpoint and trims checkpoint projections + git
         messageId: "msg-user-revert-2",
         text: "Second edit",
       });
+      yield* harness.waitForReceipt(
+        (receipt): receipt is CheckpointDiffFinalizedReceipt =>
+          receipt.type === "checkpoint.diff.finalized" &&
+          receipt.threadId === THREAD_ID &&
+          receipt.checkpointTurnCount === 2,
+      );
+      yield* harness.waitForReceipt(
+        (receipt): receipt is TurnProcessingQuiescedReceipt =>
+          receipt.type === "turn.processing.quiesced" &&
+          receipt.threadId === THREAD_ID &&
+          receipt.checkpointTurnCount === 2,
+      );
 
       yield* harness.waitForThread(
         THREAD_ID,
@@ -810,7 +834,6 @@ it.live("reverts to an earlier checkpoint and trims checkpoint projections + git
           entry.latestTurn?.turnId === "turn-2" &&
           entry.checkpoints.length === 2 &&
           entry.activities.some((activity) => activity.turnId === "turn-2"),
-        8000,
       );
 
       yield* harness.engine.dispatch({

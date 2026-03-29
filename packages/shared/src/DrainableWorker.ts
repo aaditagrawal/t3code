@@ -72,20 +72,16 @@ export const makeDrainableWorker = <A, E, R>(
       ),
     );
 
-    yield* Effect.forkScoped(
-      Effect.forever(
-        Queue.take(queue).pipe(
-          Effect.flatMap((item) =>
-            process(item).pipe(
-              Effect.catchCause((cause) =>
-                Effect.logWarning("drainable worker item failed", cause),
-              ),
-              Effect.ensuring(finishOne),
-            ),
+    yield* Effect.forever(
+      Queue.take(queue).pipe(
+        Effect.flatMap((item) =>
+          process(item).pipe(
+            Effect.catchCause((cause) => Effect.logWarning("drainable worker item failed", cause)),
+            Effect.ensuring(finishOne),
           ),
         ),
       ),
-    );
+    ).pipe(Effect.forkScoped({ startImmediately: true }));
 
     const enqueue: DrainableWorker<A>["enqueue"] = (item) =>
       Effect.gen(function* () {

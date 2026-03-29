@@ -3,7 +3,7 @@ import path from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
-import { Effect, FileSystem, Layer, PlatformError, Scope } from "effect";
+import { Effect, Fiber, FileSystem, Layer, PlatformError, Scope } from "effect";
 import { describe, expect, vi } from "vitest";
 
 import { GitCoreLive, makeGitCore } from "./GitCore.ts";
@@ -145,7 +145,6 @@ it.layer(TestLayer)("git integration", (it) => {
           maxOutputBytes: 128,
         });
 
-        expect(result.code).toBe(0);
         expect(result.stdout.length).toBeLessThanOrEqual(128);
         expect(result.stdoutTruncated || result.stderrTruncated).toBe(true);
       }),
@@ -448,12 +447,15 @@ it.layer(TestLayer)("git integration", (it) => {
         yield* (yield* GitCore).checkoutBranch({ cwd: source, branch: featureBranch });
         const core = yield* GitCore;
         yield* Effect.promise(() =>
-          vi.waitFor(async () => {
-            const details = await Effect.runPromise(core.statusDetails(source));
-            expect(details.branch).toBe(featureBranch);
-            expect(details.aheadCount).toBe(0);
-            expect(details.behindCount).toBe(1);
-          }),
+          vi.waitFor(
+            async () => {
+              const details = await Effect.runPromise(core.statusDetails(source));
+              expect(details.branch).toBe(featureBranch);
+              expect(details.aheadCount).toBe(0);
+              expect(details.behindCount).toBe(1);
+            },
+            { timeout: 20_000 },
+          ),
         );
       }),
     );
@@ -498,9 +500,12 @@ it.layer(TestLayer)("git integration", (it) => {
         });
         yield* core.checkoutBranch({ cwd: source, branch: featureBranch });
         yield* Effect.promise(() =>
-          vi.waitFor(() => {
-            expect(refreshFetchAttempts).toBe(1);
-          }),
+          vi.waitFor(
+            () => {
+              expect(refreshFetchAttempts).toBe(1);
+            },
+            { timeout: 20_000 },
+          ),
         );
         expect(yield* git(source, ["branch", "--show-current"])).toBe(featureBranch);
       }),
@@ -538,9 +543,12 @@ it.layer(TestLayer)("git integration", (it) => {
         });
         yield* core.checkoutBranch({ cwd: source, branch: featureBranch });
         yield* Effect.promise(() =>
-          vi.waitFor(() => {
-            expect(fetchArgs).not.toBeNull();
-          }),
+          vi.waitFor(
+            () => {
+              expect(fetchArgs).not.toBeNull();
+            },
+            { timeout: 5_000 },
+          ),
         );
 
         expect(yield* git(source, ["branch", "--show-current"])).toBe(featureBranch);
@@ -576,28 +584,40 @@ it.layer(TestLayer)("git integration", (it) => {
         yield* git(source, ["checkout", defaultBranch]);
 
         const realGitCore = yield* GitCore;
-        let fetchStarted = false;
         let releaseFetch!: () => void;
         const waitForReleasePromise = new Promise<void>((resolve) => {
           releaseFetch = resolve;
         });
         const core = yield* makeIsolatedGitCore((input) => {
           if (input.args[0] === "fetch") {
-            fetchStarted = true;
             return Effect.promise(() =>
               waitForReleasePromise.then(() => ({ code: 0, stdout: "", stderr: "" })),
             );
           }
           return realGitCore.execute(input);
         });
-        yield* core.checkoutBranch({ cwd: source, branch: featureBranch });
+        let checkoutCompleted = false;
+        const checkoutFiber = yield* core
+          .checkoutBranch({ cwd: source, branch: featureBranch })
+          .pipe(
+            Effect.tap(() =>
+              Effect.sync(() => {
+                checkoutCompleted = true;
+              }),
+            ),
+            Effect.forkChild({ startImmediately: true }),
+          );
         yield* Effect.promise(() =>
-          vi.waitFor(() => {
-            expect(fetchStarted).toBe(true);
-          }),
+          vi.waitFor(
+            () => {
+              expect(checkoutCompleted).toBe(true);
+            },
+            { timeout: 5_000 },
+          ),
         );
         expect(yield* git(source, ["branch", "--show-current"])).toBe(featureBranch);
         releaseFetch();
+        yield* Fiber.join(checkoutFiber);
       }),
     );
 

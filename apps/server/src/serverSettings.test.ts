@@ -24,6 +24,24 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       assert.deepEqual(decodePatch({ providers: { codex: { binaryPath: "/tmp/codex" } } }), {
         providers: { codex: { binaryPath: "/tmp/codex" } },
       });
+      assert.deepEqual(
+        decodePatch({
+          providers: {
+            copilot: {
+              binaryPath: "/tmp/copilot",
+              configDir: "/tmp/copilot-config",
+            },
+          },
+        }),
+        {
+          providers: {
+            copilot: {
+              binaryPath: "/tmp/copilot",
+              configDir: "/tmp/copilot-config",
+            },
+          },
+        },
+      );
 
       assert.deepEqual(
         decodePatch({
@@ -117,6 +135,10 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           claudeAgent: {
             binaryPath: "  /opt/homebrew/bin/claude  ",
           },
+          copilot: {
+            binaryPath: "  /opt/homebrew/bin/copilot  ",
+            configDir: "  /Users/julius/.config/copilot  ",
+          },
         },
       });
 
@@ -129,6 +151,12 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       assert.deepEqual(next.providers.claudeAgent, {
         enabled: true,
         binaryPath: "/opt/homebrew/bin/claude",
+        customModels: [],
+      });
+      assert.deepEqual(next.providers.copilot, {
+        enabled: true,
+        binaryPath: "/opt/homebrew/bin/copilot",
+        configDir: "/Users/julius/.config/copilot",
         customModels: [],
       });
     }).pipe(Effect.provide(makeServerSettingsLayer())),

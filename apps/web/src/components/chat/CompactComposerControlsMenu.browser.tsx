@@ -220,7 +220,7 @@ describe("CompactComposerControlsMenu", () => {
     });
   });
 
-  it("shows prompt-controlled Ultrathink messaging with disabled effort controls", async () => {
+  it("shows prompt-controlled Ultrathink state with selectable effort controls", async () => {
     await using _ = await mountMenu({
       modelSelection: {
         provider: "claudeAgent",
@@ -235,8 +235,25 @@ describe("CompactComposerControlsMenu", () => {
     await vi.waitFor(() => {
       const text = document.body.textContent ?? "";
       expect(text).toContain("Effort");
+      expect(text).not.toContain("ultrathink");
+    });
+  });
+
+  it("warns when ultrathink appears in prompt body text", async () => {
+    await using _ = await mountMenu({
+      modelSelection: {
+        provider: "claudeAgent",
+        model: "claude-opus-4-6",
+        options: { effort: "high" },
+      },
+      prompt: "Ultrathink:\nplease ultrathink about this problem",
+    });
+
+    await page.getByLabelText("More composer controls").click();
+
+    await vi.waitFor(() => {
+      const text = document.body.textContent ?? "";
       expect(text).toContain("Remove Ultrathink from the prompt to change effort.");
-      expect(text).not.toContain("Fallback Effort");
     });
   });
 });

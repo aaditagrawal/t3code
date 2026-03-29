@@ -384,7 +384,32 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
         assert.strictEqual(haveProvidersChanged(providers, [...providers]), false);
       });
 
-      it.effect("reruns codex health when codex provider settings change", () =>
+      it("ignores checkedAt-only changes when comparing provider snapshots", () => {
+        const previousProviders = [
+          {
+            provider: "codex",
+            status: "ready",
+            enabled: true,
+            installed: true,
+            authStatus: "authenticated",
+            checkedAt: "2026-03-25T00:00:00.000Z",
+            version: "1.0.0",
+            message: "Ready",
+            models: [{ slug: "gpt-5", name: "GPT-5", isCustom: false, capabilities: null }],
+          },
+        ] as const satisfies ReadonlyArray<ServerProvider>;
+        const nextProviders = [
+          {
+            ...previousProviders[0],
+            checkedAt: "2026-03-25T00:01:00.000Z",
+            models: [...previousProviders[0].models],
+          },
+        ] as const satisfies ReadonlyArray<ServerProvider>;
+
+        assert.strictEqual(haveProvidersChanged(previousProviders, nextProviders), false);
+      });
+
+      it.effect("refreshes codex health when codex provider settings change", () =>
         Effect.gen(function* () {
           const serverSettings = yield* makeMutableServerSettingsService();
           const scope = yield* Scope.make();
@@ -431,20 +456,185 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
               },
             });
 
-            for (let attempt = 0; attempt < 20; attempt += 1) {
-              const updated = yield* registry.getProviders;
-              if (updated.find((status) => status.provider === "codex")?.status === "error") {
-                return;
-              }
-              yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 0)));
-            }
-
-            const updated = yield* registry.getProviders;
+            const updated = yield* registry.refresh("codex");
             assert.strictEqual(
               updated.find((status) => status.provider === "codex")?.status,
               "error",
             );
           }).pipe(Effect.provide(runtimeServices));
+        }),
+      );
+
+      it.effect("returns snapshots for all supported providers", () =>
+        Effect.gen(function* () {
+          const serverSettingsLayer = ServerSettingsService.layerTest();
+          const providerRegistryLayer = ProviderRegistryLive.pipe(
+            Layer.provideMerge(serverSettingsLayer),
+            Layer.provideMerge(
+              mockCommandSpawnerLayer((command, args) => {
+                const joined = args.join(" ");
+                if (joined === "--version") {
+                  if (command === "codex") {
+                    return { stdout: "codex 1.0.0\n", stderr: "", code: 0 };
+                  }
+                  if (command === "claude") {
+                    return { stdout: "claude 1.0.0\n", stderr: "", code: 0 };
+                  }
+                  return { stdout: "", stderr: "spawn ENOENT", code: 1 };
+                }
+                if (joined === "login status") {
+                  return { stdout: "Logged in\n", stderr: "", code: 0 };
+                }
+                if (joined === "auth status") {
+                  return { stdout: "Authenticated\n", stderr: "", code: 0 };
+                }
+                throw new Error(`Unexpected args: ${joined}`);
+              }),
+            ),
+          );
+          const providers = yield* Effect.gen(function* () {
+            const registry = yield* ProviderRegistry;
+            return yield* registry.getProviders;
+          }).pipe(Effect.provide(providerRegistryLayer));
+
+          assert.deepStrictEqual(
+            providers.map((provider) => provider.provider),
+            ["codex", "copilot", "claudeAgent", "cursor", "opencode", "geminiCli", "amp", "kilo"],
+          );
+        }),
+      );
+
+      it.effect("probes Copilot from its default command when binary path is unset", () =>
+        Effect.gen(function* () {
+          const serverSettingsLayer = ServerSettingsService.layerTest();
+          const providerRegistryLayer = ProviderRegistryLive.pipe(
+            Layer.provideMerge(serverSettingsLayer),
+            Layer.provideMerge(
+              mockCommandSpawnerLayer((command, args) => {
+                const joined = args.join(" ");
+                if (joined === "--version") {
+                  if (command === "codex") {
+                    return { stdout: "codex 1.0.0\n", stderr: "", code: 0 };
+                  }
+                  if (command === "claude") {
+                    return { stdout: "claude 1.0.0\n", stderr: "", code: 0 };
+                  }
+                  if (command === "copilot") {
+                    return { stdout: "copilot 2.3.4\n", stderr: "", code: 0 };
+                  }
+                  return { stdout: "", stderr: "spawn ENOENT", code: 1 };
+                }
+                if (joined === "login status") {
+                  return { stdout: "Logged in\n", stderr: "", code: 0 };
+                }
+                if (joined === "auth status") {
+                  return { stdout: "Authenticated\n", stderr: "", code: 0 };
+                }
+                throw new Error(`Unexpected command: ${command} ${joined}`);
+              }),
+            ),
+          );
+
+          const providers = yield* Effect.gen(function* () {
+            const registry = yield* ProviderRegistry;
+            return yield* registry.getProviders;
+          }).pipe(Effect.provide(providerRegistryLayer));
+
+          const copilot = providers.find((provider) => provider.provider === "copilot");
+          assert.isDefined(copilot);
+          assert.strictEqual(copilot?.status, "ready");
+          assert.strictEqual(copilot?.installed, true);
+          assert.notStrictEqual(
+            copilot?.message,
+            "Copilot is enabled, but no binary path is configured for probing.",
+          );
+        }),
+      );
+
+      it.effect("reports cursor as unavailable when its CLI command is missing", () =>
+        Effect.gen(function* () {
+          const serverSettingsLayer = ServerSettingsService.layerTest({
+            providers: {
+              cursor: {
+                enabled: true,
+                binaryPath: "/tmp/t3-missing-cursor-cli",
+              },
+            },
+          });
+          const providerRegistryLayer = ProviderRegistryLive.pipe(
+            Layer.provideMerge(serverSettingsLayer),
+            Layer.provideMerge(
+              mockCommandSpawnerLayer((command, args) => {
+                const joined = args.join(" ");
+                if (joined === "--version") {
+                  if (command === "codex") {
+                    return { stdout: "codex 1.0.0\n", stderr: "", code: 0 };
+                  }
+                  if (command === "claude") {
+                    return { stdout: "claude 1.0.0\n", stderr: "", code: 0 };
+                  }
+                  return { stdout: "", stderr: "spawn ENOENT", code: 1 };
+                }
+                if (joined === "login status") {
+                  return { stdout: "Logged in\n", stderr: "", code: 0 };
+                }
+                if (joined === "auth status") {
+                  return { stdout: "Authenticated\n", stderr: "", code: 0 };
+                }
+                throw new Error(`Unexpected command: ${command} ${joined}`);
+              }),
+            ),
+          );
+
+          const providers = yield* Effect.gen(function* () {
+            const registry = yield* ProviderRegistry;
+            return yield* registry.getProviders;
+          }).pipe(Effect.provide(providerRegistryLayer));
+
+          const cursor = providers.find((provider) => provider.provider === "cursor");
+          assert.isDefined(cursor);
+          assert.strictEqual(cursor?.status, "warning");
+          assert.strictEqual(cursor?.installed, false);
+          assert.strictEqual(cursor?.message, "Cursor CLI not found on PATH.");
+        }),
+      );
+
+      it.effect("serves cached provider snapshots from getProviders without re-probing", () =>
+        Effect.gen(function* () {
+          let probeCount = 0;
+          const providerRegistryLayer = ProviderRegistryLive.pipe(
+            Layer.provideMerge(ServerSettingsService.layerTest()),
+            Layer.provideMerge(
+              mockCommandSpawnerLayer((command, args) => {
+                probeCount += 1;
+                const joined = args.join(" ");
+                if (joined === "--version") {
+                  if (command === "codex") {
+                    return { stdout: "codex 1.0.0\n", stderr: "", code: 0 };
+                  }
+                  if (command === "claude") {
+                    return { stdout: "claude 1.0.0\n", stderr: "", code: 0 };
+                  }
+                  return { stdout: "", stderr: "spawn ENOENT", code: 1 };
+                }
+                if (joined === "login status") {
+                  return { stdout: "Logged in\n", stderr: "", code: 0 };
+                }
+                if (joined === "auth status") {
+                  return { stdout: "Authenticated\n", stderr: "", code: 0 };
+                }
+                throw new Error(`Unexpected command: ${command} ${joined}`);
+              }),
+            ),
+          );
+
+          yield* Effect.gen(function* () {
+            const registry = yield* ProviderRegistry;
+            yield* registry.getProviders;
+            const initialProbeCount = probeCount;
+            yield* registry.getProviders;
+            assert.strictEqual(probeCount, initialProbeCount);
+          }).pipe(Effect.provide(providerRegistryLayer));
         }),
       );
 

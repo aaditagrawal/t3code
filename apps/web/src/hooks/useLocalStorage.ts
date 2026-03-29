@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 function getStorage(): Storage {
   if (typeof window !== "undefined") {
     try {
-      return window.localStorage;
+      const storage = window.localStorage;
+      if (storage) {
+        return storage;
+      }
     } catch {
       // localStorage blocked (e.g. sandboxed iframe, privacy mode)
     }

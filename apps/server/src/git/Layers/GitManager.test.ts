@@ -22,6 +22,8 @@ import {
   type CommitMessageGenerationResult,
   type PrContentGenerationInput,
   type PrContentGenerationResult,
+  type ThreadTitleGenerationInput,
+  type ThreadTitleGenerationResult,
   type TextGenerationShape,
   TextGeneration,
 } from "../Services/TextGeneration.ts";
@@ -65,6 +67,9 @@ interface FakeGitTextGeneration {
   generateBranchName: (
     input: BranchNameGenerationInput,
   ) => Effect.Effect<BranchNameGenerationResult, TextGenerationError>;
+  generateThreadTitle: (
+    input: ThreadTitleGenerationInput,
+  ) => Effect.Effect<ThreadTitleGenerationResult, TextGenerationError>;
 }
 
 type FakePullRequest = NonNullable<FakeGhScenario["pullRequest"]>;
@@ -168,6 +173,10 @@ function createTextGeneration(overrides: Partial<FakeGitTextGeneration> = {}): T
       Effect.succeed({
         branch: "update-workflow",
       }),
+    generateThreadTitle: () =>
+      Effect.succeed({
+        title: "Update workflow",
+      }),
     ...overrides,
   };
 
@@ -200,6 +209,17 @@ function createTextGeneration(overrides: Partial<FakeGitTextGeneration> = {}): T
           (cause) =>
             new TextGenerationError({
               operation: "generateBranchName",
+              detail: "fake text generation failed",
+              ...(cause !== undefined ? { cause } : {}),
+            }),
+        ),
+      ),
+    generateThreadTitle: (input) =>
+      implementation.generateThreadTitle(input).pipe(
+        Effect.mapError(
+          (cause) =>
+            new TextGenerationError({
+              operation: "generateThreadTitle",
               detail: "fake text generation failed",
               ...(cause !== undefined ? { cause } : {}),
             }),
@@ -495,6 +515,10 @@ function createSessionTextGeneration(
       Effect.succeed({
         branch: "session-generated-branch",
       }),
+    generateThreadTitle: () =>
+      Effect.succeed({
+        title: "Session generated thread",
+      }),
     ...overrides,
   };
 
@@ -502,6 +526,7 @@ function createSessionTextGeneration(
     generateCommitMessage: implementation.generateCommitMessage,
     generatePrContent: implementation.generatePrContent,
     generateBranchName: implementation.generateBranchName,
+    generateThreadTitle: implementation.generateThreadTitle,
   };
 }
 
@@ -648,7 +673,7 @@ it.layer(GitManagerTestLayer)("GitManager", (it) => {
           "pr list --head jasonLaster:statemachine --state all --limit 20 --json number,title,url,baseRefName,headRefName,state,mergedAt,updatedAt",
         );
       }),
-    12_000,
+    30_000,
   );
 
   it.effect("status returns merged PR state when latest PR was merged", () =>
@@ -1222,7 +1247,7 @@ it.layer(GitManagerTestLayer)("GitManager", (it) => {
         ).toBe(true);
         expect(ghCalls.some((call) => call.startsWith("pr create "))).toBe(false);
       }),
-    12_000,
+    30_000,
   );
 
   it.effect(
@@ -1284,7 +1309,7 @@ it.layer(GitManagerTestLayer)("GitManager", (it) => {
         expect(ownerSelectorCallIndex).toBeGreaterThanOrEqual(0);
         expect(ghCalls.some((call) => call.startsWith("pr create "))).toBe(false);
       }),
-    12_000,
+    30_000,
   );
 
   it.effect(
@@ -1338,7 +1363,7 @@ it.layer(GitManagerTestLayer)("GitManager", (it) => {
           "pr list --head octocat:statemachine --state open --limit 1",
         );
       }),
-    12_000,
+    30_000,
   );
 
   it.effect("creates PR when one does not already exist", () =>

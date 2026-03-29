@@ -74,19 +74,17 @@ export const makeServerPushBus = (input: {
       );
     });
 
-    yield* Effect.forkScoped(
-      Effect.forever(
-        Queue.take(queue).pipe(
-          Effect.flatMap((job) =>
-            send(job).pipe(
-              Effect.tap((delivered) => settleDelivery(job, delivered)),
-              Effect.tapCause(() => settleDelivery(job, false)),
-              Effect.ignoreCause({ log: true }),
-            ),
+    yield* Effect.forever(
+      Queue.take(queue).pipe(
+        Effect.flatMap((job) =>
+          send(job).pipe(
+            Effect.tap((delivered) => settleDelivery(job, delivered)),
+            Effect.tapCause(() => settleDelivery(job, false)),
+            Effect.ignoreCause({ log: true }),
           ),
         ),
       ),
-    );
+    ).pipe(Effect.forkScoped({ startImmediately: true }));
 
     const publish =
       (target: PushTarget) =>

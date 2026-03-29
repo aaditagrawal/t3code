@@ -1097,7 +1097,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
           continue;
         }
 
-        this.emitErrorEvent(context, "process/stderr", classified.message);
+        this.emitNotificationEvent(context, "process/stderr", classified.message);
       }
     });
 
@@ -1397,6 +1397,22 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
     this.emitEvent({
       id: EventId.makeUnsafe(randomUUID()),
       kind: "error",
+      provider: "codex",
+      threadId: context.session.threadId,
+      createdAt: new Date().toISOString(),
+      method,
+      message,
+    });
+  }
+
+  private emitNotificationEvent(
+    context: CodexSessionContext,
+    method: string,
+    message: string,
+  ): void {
+    this.emitEvent({
+      id: EventId.makeUnsafe(randomUUID()),
+      kind: "notification",
       provider: "codex",
       threadId: context.session.threadId,
       createdAt: new Date().toISOString(),

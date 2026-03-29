@@ -46,11 +46,7 @@ import {
   recordTurnUsage,
   type CopilotTurnTrackingState,
 } from "./copilotTurnTracking.ts";
-import {
-  normalizeCopilotCliPathOverride,
-  resolveBundledCopilotCliPath,
-  withSanitizedCopilotDesktopEnv,
-} from "./copilotCliPath.ts";
+import { resolveBundledCopilotCliPath, withSanitizedCopilotDesktopEnv } from "./copilotCliPath.ts";
 import { CopilotAdapter, type CopilotAdapterShape } from "../Services/CopilotAdapter.ts";
 import { toMessage } from "../toMessage.ts";
 import type {
@@ -1308,7 +1304,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
         const settingsBinaryPath = copilotSettings.binaryPath.trim();
         const cliPath = settingsBinaryPath || resolveBundledCopilotCliPath();
         resolvedCliPath = cliPath;
-        const configDir: string | undefined = undefined;
+        const configDir = trimToUndefined(copilotSettings.configDir);
         const resumeSessionId = extractResumeSessionId(input.resumeCursor);
         const clientOptions: CopilotClientOptions = {
           ...(cliPath ? { cliPath } : {}),

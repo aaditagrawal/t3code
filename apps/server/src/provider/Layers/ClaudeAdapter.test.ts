@@ -1104,13 +1104,11 @@ describe("ClaudeAdapterLive", () => {
       const adapter = yield* ClaudeAdapter;
       const runtimeEvents: Array<ProviderRuntimeEvent> = [];
 
-      const runtimeEventsFiber = Effect.runFork(
-        Stream.runForEach(adapter.streamEvents, (event) =>
-          Effect.sync(() => {
-            runtimeEvents.push(event);
-          }),
-        ),
-      );
+      const runtimeEventsFiber = yield* Stream.runForEach(adapter.streamEvents, (event) =>
+        Effect.sync(() => {
+          runtimeEvents.push(event);
+        }),
+      ).pipe(Effect.forkChild);
 
       yield* adapter.startSession({
         threadId: THREAD_ID,
@@ -1200,9 +1198,10 @@ describe("ClaudeAdapterLive", () => {
     return Effect.gen(function* () {
       const adapter = yield* ClaudeAdapter;
 
-      const runtimeEventsFiber = Effect.runFork(
-        Stream.runForEach(adapter.streamEvents, () => Effect.void),
-      );
+      const runtimeEventsFiber = yield* Stream.runForEach(
+        adapter.streamEvents,
+        () => Effect.void,
+      ).pipe(Effect.forkChild);
 
       yield* adapter.startSession({
         threadId: THREAD_ID,

@@ -13,7 +13,6 @@ github:adityavardhansharma
 github:binbandit
 github:chuks-qua
 github:cursoragent
-github:eggfriedrice24
 github:gbarros-dev
 github:github-actions[bot]
 github:hwanseoc
@@ -28,4 +27,6 @@ github:PatrickBauer
 github:realAhmedRoach
 github:shiroyasha9
 github:Yash-Singh1
+github:eggfriedrice24
 github:Ymit24
+github:shivamhwp

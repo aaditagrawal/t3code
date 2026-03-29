@@ -193,12 +193,12 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
     const worker = Effect.forever(
       Queue.take(runtimeEventQueue).pipe(Effect.flatMap(processRuntimeEvent)),
     );
-    yield* Effect.forkScoped(worker);
+    yield* worker.pipe(Effect.forkScoped({ startImmediately: true }));
 
     yield* Effect.forEach(adapters, (adapter) =>
       Stream.runForEach(adapter.streamEvents, (event) =>
         Queue.offer(runtimeEventQueue, event).pipe(Effect.asVoid),
-      ).pipe(Effect.forkScoped),
+      ).pipe(Effect.forkScoped({ startImmediately: true })),
     ).pipe(Effect.asVoid);
 
     const recoverSessionForThread = (input: {
