@@ -526,6 +526,54 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
         }),
       );
 
+      it.effect("reports cursor as unavailable when its CLI command is missing", () =>
+        Effect.gen(function* () {
+          const serverSettingsLayer = ServerSettingsService.layerTest({
+            providers: {
+              cursor: {
+                enabled: true,
+                binaryPath: "/tmp/t3-missing-cursor-cli",
+              },
+            },
+          });
+          const providerRegistryLayer = ProviderRegistryLive.pipe(
+            Layer.provideMerge(serverSettingsLayer),
+            Layer.provideMerge(
+              mockCommandSpawnerLayer((command, args) => {
+                const joined = args.join(" ");
+                if (joined === "--version") {
+                  if (command === "codex") {
+                    return { stdout: "codex 1.0.0\n", stderr: "", code: 0 };
+                  }
+                  if (command === "claude") {
+                    return { stdout: "claude 1.0.0\n", stderr: "", code: 0 };
+                  }
+                  return { stdout: "", stderr: "spawn ENOENT", code: 1 };
+                }
+                if (joined === "login status") {
+                  return { stdout: "Logged in\n", stderr: "", code: 0 };
+                }
+                if (joined === "auth status") {
+                  return { stdout: "Authenticated\n", stderr: "", code: 0 };
+                }
+                throw new Error(`Unexpected command: ${command} ${joined}`);
+              }),
+            ),
+          );
+
+          const providers = yield* Effect.gen(function* () {
+            const registry = yield* ProviderRegistry;
+            return yield* registry.getProviders;
+          }).pipe(Effect.provide(providerRegistryLayer));
+
+          const cursor = providers.find((provider) => provider.provider === "cursor");
+          assert.isDefined(cursor);
+          assert.strictEqual(cursor?.status, "warning");
+          assert.strictEqual(cursor?.installed, false);
+          assert.strictEqual(cursor?.message, "Cursor CLI not found on PATH.");
+        }),
+      );
+
       it.effect("serves cached provider snapshots from getProviders without re-probing", () =>
         Effect.gen(function* () {
           let probeCount = 0;

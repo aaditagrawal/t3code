@@ -261,15 +261,7 @@ const runBinaryBackedSnapshot = (
       ? yield* Effect.tryPromise({
           try: () => options.fetchDiscoveredModels?.(binaryPath) ?? Promise.resolve([]),
           catch: wrapProbeError,
-        }).pipe(
-          Effect.catchCause((cause) => {
-            const error = unwrapProbeError(Cause.squash(cause));
-            if (isCommandMissingCause(error)) {
-              return Effect.succeed<ReadonlyArray<{ slug: string; name: string }>>([]);
-            }
-            return Effect.failCause(cause);
-          }),
-        )
+        })
       : [];
 
     const baseModels =
@@ -367,16 +359,19 @@ const loadProviderSnapshot = (
         return yield* runBinaryBackedSnapshot("cursor", settings.providers.cursor, {
           fetchDiscoveredModels: (binaryPath) =>
             fetchCursorModels(binaryPath ? { binaryPath } : {}).then((models) => [...models]),
+          resolveProbeBinaryPath: (binaryPath) => binaryPath ?? "agent",
         });
       case "opencode":
         return yield* runBinaryBackedSnapshot("opencode", settings.providers.opencode, {
           fetchDiscoveredModels: (binaryPath) =>
             fetchOpenCodeModels(binaryPath ? { binaryPath } : {}).then((models) => [...models]),
+          resolveProbeBinaryPath: (binaryPath) => binaryPath ?? "opencode",
         });
       case "kilo":
         return yield* runBinaryBackedSnapshot("kilo", settings.providers.kilo, {
           fetchDiscoveredModels: (binaryPath) =>
             fetchKiloModels(binaryPath ? { binaryPath } : {}).then((models) => [...models]),
+          resolveProbeBinaryPath: (binaryPath) => binaryPath ?? "kilo",
         });
       case "geminiCli":
         if (settings.providers.geminiCli.enabled) {

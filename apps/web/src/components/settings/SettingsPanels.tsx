@@ -382,7 +382,7 @@ function AboutVersionSection() {
 
   const updateState = updateStateQuery.data ?? null;
 
-  const handleButtonClick = useCallback(() => {
+  const handleButtonClick = useCallback(async () => {
     const bridge = window.desktopBridge;
     if (!bridge) return;
 
@@ -405,7 +405,8 @@ function AboutVersionSection() {
     }
 
     if (action === "install") {
-      const confirmed = window.confirm(
+      const api = readNativeApi();
+      const confirmed = await (api ?? ensureNativeApi()).dialogs.confirm(
         getDesktopUpdateInstallConfirmationMessage(
           updateState ?? { availableVersion: null, downloadedVersion: null },
         ),
@@ -586,6 +587,19 @@ export function GeneralSettingsPanel() {
   const refreshingRef = useRef(false);
   const queryClient = useQueryClient();
   const modelListRefs = useRef<Partial<Record<ProviderKind, HTMLDivElement | null>>>({});
+  const modelListObserverRef = useRef<MutationObserver | null>(null);
+  const modelListObserverTimeoutRef = useRef<number | null>(null);
+  const clearModelListObserver = useCallback(() => {
+    modelListObserverRef.current?.disconnect();
+    modelListObserverRef.current = null;
+    if (modelListObserverTimeoutRef.current !== null) {
+      window.clearTimeout(modelListObserverTimeoutRef.current);
+      modelListObserverTimeoutRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => clearModelListObserver, [clearModelListObserver]);
+
   const refreshProviders = useCallback(() => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;
@@ -708,14 +722,16 @@ export function GeneralSettingsPanel() {
       if (!el) return;
       const scrollToEnd = () => el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
       requestAnimationFrame(scrollToEnd);
+      clearModelListObserver();
       const observer = new MutationObserver(() => {
         scrollToEnd();
-        observer.disconnect();
+        clearModelListObserver();
       });
+      modelListObserverRef.current = observer;
       observer.observe(el, { childList: true, subtree: true });
-      setTimeout(() => observer.disconnect(), 2_000);
+      modelListObserverTimeoutRef.current = window.setTimeout(clearModelListObserver, 2_000);
     },
-    [customModelInputByProvider, serverProviders, settings, updateSettings],
+    [clearModelListObserver, customModelInputByProvider, serverProviders, settings, updateSettings],
   );
 
   const removeCustomModel = useCallback(
