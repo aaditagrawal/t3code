@@ -204,7 +204,7 @@ const makeOrchestrationEngine = Effect.gen(function* () {
   );
 
   const worker = Effect.forever(Queue.take(commandQueue).pipe(Effect.flatMap(processEnvelope)));
-  yield* Effect.forkScoped(worker);
+  yield* worker.pipe(Effect.forkScoped({ startImmediately: true }));
   yield* Effect.log("orchestration engine started").pipe(
     Effect.annotateLogs({ sequence: readModel.snapshotSequence }),
   );

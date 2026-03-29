@@ -69,7 +69,7 @@ const toBuiltInServerProviderModel = (
   slug: model.slug,
   name: model.name,
   isCustom: false,
-  capabilities: "capabilities" in model ? model.capabilities ?? null : null,
+  capabilities: "capabilities" in model ? (model.capabilities ?? null) : null,
 });
 
 const BUILT_IN_MODELS_BY_PROVIDER = ALL_PROVIDERS.reduce(
@@ -237,18 +237,22 @@ const runBinaryBackedSnapshot = (
     | undefined,
 ) =>
   Effect.gen(function* () {
-    const discoveredModels = yield* Effect.tryPromise({
-      try: () => fetchDiscoveredModels?.(trimToUndefined(settings.binaryPath)) ?? Promise.resolve([]),
-      catch: wrapProbeError,
-    }).pipe(
-      Effect.catchCause((cause) => {
-        const error = unwrapProbeError(Cause.squash(cause));
-        if (isCommandMissingCause(error)) {
-          return Effect.succeed<ReadonlyArray<{ slug: string; name: string }>>([]);
-        }
-        return Effect.failCause(cause);
-      }),
-    );
+    const binaryPath = trimToUndefined(settings.binaryPath);
+    const discoveredModels =
+      binaryPath && fetchDiscoveredModels
+        ? yield* Effect.tryPromise({
+            try: () => fetchDiscoveredModels(binaryPath),
+            catch: wrapProbeError,
+          }).pipe(
+            Effect.catchCause((cause) => {
+              const error = unwrapProbeError(Cause.squash(cause));
+              if (isCommandMissingCause(error)) {
+                return Effect.succeed<ReadonlyArray<{ slug: string; name: string }>>([]);
+              }
+              return Effect.failCause(cause);
+            }),
+          )
+        : [];
 
     const baseModels =
       discoveredModels.length > 0
@@ -260,7 +264,6 @@ const runBinaryBackedSnapshot = (
       return buildDisabledSnapshot(provider, settings, models);
     }
 
-    const binaryPath = trimToUndefined(settings.binaryPath);
     if (!binaryPath && !fetchDiscoveredModels) {
       return buildWarningSnapshot({
         provider,
@@ -271,13 +274,13 @@ const runBinaryBackedSnapshot = (
       });
     }
 
-    if (!binaryPath && discoveredModels.length === 0 && fetchDiscoveredModels) {
+    if (!binaryPath && fetchDiscoveredModels) {
       return buildWarningSnapshot({
         provider,
         settings,
         models,
         installed: true,
-        message: `${PROVIDER_LABELS[provider]} is enabled, but the CLI did not report any models.`,
+        message: `${PROVIDER_LABELS[provider]} is enabled, but no binary path is configured for probing.`,
       });
     }
 
@@ -321,15 +324,18 @@ const runBinaryBackedSnapshot = (
         );
       }
       return Effect.succeed(
-          buildWarningSnapshot({
-            provider,
-            settings,
-            models,
-            installed: true,
-            message: error instanceof Error ? error.message : `Could not probe ${PROVIDER_LABELS[provider]}.`,
-          }),
-        );
-      }),
+        buildWarningSnapshot({
+          provider,
+          settings,
+          models,
+          installed: true,
+          message:
+            error instanceof Error
+              ? error.message
+              : `Could not probe ${PROVIDER_LABELS[provider]}.`,
+        }),
+      );
+    }),
   );
 
 const loadProviderSnapshot = (deps: ProviderRegistryDeps, provider: ProviderKind) =>
@@ -417,7 +423,10 @@ export const ProviderRegistryLive = Layer.effect(
         ).filter((provider): provider is ServerProvider => provider !== undefined);
         yield* Ref.set(providersRef, mergedProviders);
 
-        if (options?.publish !== false && haveProvidersChanged(previousProviders, mergedProviders)) {
+        if (
+          options?.publish !== false &&
+          haveProvidersChanged(previousProviders, mergedProviders)
+        ) {
           yield* PubSub.publish(changesPubSub, mergedProviders);
         }
 
@@ -427,9 +436,9 @@ export const ProviderRegistryLive = Layer.effect(
     yield* Stream.runForEach(serverSettings.streamChanges, () => syncProviders()).pipe(
       Effect.forkScoped,
     );
-    yield* Effect.forever(Effect.sleep("60 seconds").pipe(Effect.flatMap(() => syncProviders()))).pipe(
-      Effect.forkScoped,
-    );
+    yield* Effect.forever(
+      Effect.sleep("60 seconds").pipe(Effect.flatMap(() => syncProviders())),
+    ).pipe(Effect.forkScoped);
 
     return {
       getProviders: syncProviders(ALL_PROVIDERS, { publish: false }).pipe(

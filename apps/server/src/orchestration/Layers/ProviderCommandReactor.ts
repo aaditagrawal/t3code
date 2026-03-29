@@ -774,8 +774,9 @@ const make = Effect.gen(function* () {
 
   const worker = yield* makeDrainableWorker(processDomainEventSafely);
 
-  const start: ProviderCommandReactorShape["start"] = Effect.forkScoped(
-    Stream.runForEach(orchestrationEngine.streamDomainEvents, (event) => {
+  const start: ProviderCommandReactorShape["start"] = Stream.runForEach(
+    orchestrationEngine.streamDomainEvents,
+    (event) => {
       if (
         event.type !== "thread.deleted" &&
         event.type !== "thread.runtime-mode-set" &&
@@ -789,8 +790,8 @@ const make = Effect.gen(function* () {
       }
 
       return worker.enqueue(event);
-    }),
-  ).pipe(Effect.asVoid);
+    },
+  ).pipe(Effect.forkScoped({ startImmediately: true }), Effect.asVoid);
 
   return {
     start,

@@ -208,6 +208,10 @@ export function buildLegacyClientSettingsMigrationPatch(
 ): Partial<DeepMutable<ClientSettings>> {
   const patch: Partial<DeepMutable<ClientSettings>> = {};
 
+  if (Predicate.isBoolean(legacySettings.confirmThreadArchive)) {
+    patch.confirmThreadArchive = legacySettings.confirmThreadArchive;
+  }
+
   if (Predicate.isBoolean(legacySettings.confirmThreadDelete)) {
     patch.confirmThreadDelete = legacySettings.confirmThreadDelete;
   }

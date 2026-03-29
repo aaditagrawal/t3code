@@ -1655,19 +1655,15 @@ const make = Effect.gen(function* () {
   const worker = yield* makeDrainableWorker(processInputSafely);
 
   const start: ProviderRuntimeIngestionShape["start"] = Effect.gen(function* () {
-    yield* Effect.forkScoped(
-      Stream.runForEach(providerService.streamEvents, (event) =>
-        worker.enqueue({ source: "runtime", event }),
-      ),
-    );
-    yield* Effect.forkScoped(
-      Stream.runForEach(orchestrationEngine.streamDomainEvents, (event) => {
-        if (event.type !== "thread.turn-start-requested") {
-          return Effect.void;
-        }
-        return worker.enqueue({ source: "domain", event });
-      }),
-    );
+    yield* Stream.runForEach(providerService.streamEvents, (event) =>
+      worker.enqueue({ source: "runtime", event }),
+    ).pipe(Effect.forkScoped({ startImmediately: true }));
+    yield* Stream.runForEach(orchestrationEngine.streamDomainEvents, (event) => {
+      if (event.type !== "thread.turn-start-requested") {
+        return Effect.void;
+      }
+      return worker.enqueue({ source: "domain", event });
+    }).pipe(Effect.forkScoped({ startImmediately: true }));
   });
 
   return {

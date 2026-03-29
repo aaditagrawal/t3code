@@ -638,6 +638,7 @@ export function syncServerReadModel(state: AppState, readModel: OrchestrationRea
         proposedPlans,
         error: thread.session?.lastError ?? null,
         createdAt: thread.createdAt,
+        archivedAt: thread.archivedAt ?? null,
         updatedAt: thread.updatedAt,
         latestTurn,
         lastVisitedAt: existing?.lastVisitedAt ?? thread.updatedAt,

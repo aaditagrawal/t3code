@@ -1,4 +1,5 @@
 import { MessageId } from "@t3tools/contracts";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -11,6 +12,12 @@ function matchMedia() {
 }
 
 beforeAll(() => {
+  const localStorage = {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+    clear: () => {},
+  };
   const classList = {
     add: () => {},
     remove: () => {},
@@ -18,17 +25,13 @@ beforeAll(() => {
     contains: () => false,
   };
 
-  vi.stubGlobal("localStorage", {
-    getItem: () => null,
-    setItem: () => {},
-    removeItem: () => {},
-    clear: () => {},
-  });
+  vi.stubGlobal("localStorage", localStorage);
   vi.stubGlobal("window", {
     matchMedia,
     addEventListener: () => {},
     removeEventListener: () => {},
     desktopBridge: undefined,
+    localStorage,
   });
   vi.stubGlobal("document", {
     documentElement: {
@@ -45,51 +48,54 @@ beforeAll(() => {
 describe("MessagesTimeline", () => {
   it("renders inline terminal labels with the composer chip UI", async () => {
     const { MessagesTimeline } = await import("./MessagesTimeline");
+    const queryClient = new QueryClient();
     const markup = renderToStaticMarkup(
-      <MessagesTimeline
-        hasMessages
-        isWorking={false}
-        activeTurnInProgress={false}
-        activeTurnStartedAt={null}
-        scrollContainer={null}
-        timelineEntries={[
-          {
-            id: "entry-1",
-            kind: "message",
-            createdAt: "2026-03-17T19:12:28.000Z",
-            message: {
-              id: MessageId.makeUnsafe("message-2"),
-              role: "user",
-              text: [
-                "yoo what's @terminal-1:1-5 mean",
-                "",
-                "<terminal_context>",
-                "- Terminal 1 lines 1-5:",
-                "  1 | julius@mac effect-http-ws-cli % bun i",
-                "  2 | bun install v1.3.9 (cf6cdbbb)",
-                "</terminal_context>",
-              ].join("\n"),
+      <QueryClientProvider client={queryClient}>
+        <MessagesTimeline
+          hasMessages
+          isWorking={false}
+          activeTurnInProgress={false}
+          activeTurnStartedAt={null}
+          scrollContainer={null}
+          timelineEntries={[
+            {
+              id: "entry-1",
+              kind: "message",
               createdAt: "2026-03-17T19:12:28.000Z",
-              streaming: false,
+              message: {
+                id: MessageId.makeUnsafe("message-2"),
+                role: "user",
+                text: [
+                  "yoo what's @terminal-1:1-5 mean",
+                  "",
+                  "<terminal_context>",
+                  "- Terminal 1 lines 1-5:",
+                  "  1 | julius@mac effect-http-ws-cli % bun i",
+                  "  2 | bun install v1.3.9 (cf6cdbbb)",
+                  "</terminal_context>",
+                ].join("\n"),
+                createdAt: "2026-03-17T19:12:28.000Z",
+                streaming: false,
+              },
             },
-          },
-        ]}
-        completionDividerBeforeEntryId={null}
-        completionSummary={null}
-        turnDiffSummaryByAssistantMessageId={new Map()}
-        nowIso="2026-03-17T19:12:30.000Z"
-        expandedWorkGroups={{}}
-        onToggleWorkGroup={() => {}}
-        onOpenTurnDiff={() => {}}
-        revertTurnCountByUserMessageId={new Map()}
-        onRevertUserMessage={() => {}}
-        isRevertingCheckpoint={false}
-        onImageExpand={() => {}}
-        markdownCwd={undefined}
-        resolvedTheme="light"
-        timestampFormat="locale"
-        workspaceRoot={undefined}
-      />,
+          ]}
+          completionDividerBeforeEntryId={null}
+          completionSummary={null}
+          turnDiffSummaryByAssistantMessageId={new Map()}
+          nowIso="2026-03-17T19:12:30.000Z"
+          expandedWorkGroups={{}}
+          onToggleWorkGroup={() => {}}
+          onOpenTurnDiff={() => {}}
+          revertTurnCountByUserMessageId={new Map()}
+          onRevertUserMessage={() => {}}
+          isRevertingCheckpoint={false}
+          onImageExpand={() => {}}
+          markdownCwd={undefined}
+          resolvedTheme="light"
+          timestampFormat="locale"
+          workspaceRoot={undefined}
+        />
+      </QueryClientProvider>,
     );
 
     expect(markup).toContain("Terminal 1 lines 1-5");
@@ -99,43 +105,46 @@ describe("MessagesTimeline", () => {
 
   it("renders context compaction entries in the normal work log", async () => {
     const { MessagesTimeline } = await import("./MessagesTimeline");
+    const queryClient = new QueryClient();
     const markup = renderToStaticMarkup(
-      <MessagesTimeline
-        hasMessages
-        isWorking={false}
-        activeTurnInProgress={false}
-        activeTurnStartedAt={null}
-        scrollContainer={null}
-        timelineEntries={[
-          {
-            id: "entry-1",
-            kind: "work",
-            createdAt: "2026-03-17T19:12:28.000Z",
-            entry: {
-              id: "work-1",
+      <QueryClientProvider client={queryClient}>
+        <MessagesTimeline
+          hasMessages
+          isWorking={false}
+          activeTurnInProgress={false}
+          activeTurnStartedAt={null}
+          scrollContainer={null}
+          timelineEntries={[
+            {
+              id: "entry-1",
+              kind: "work",
               createdAt: "2026-03-17T19:12:28.000Z",
-              label: "Context compacted",
-              tone: "info",
-              activityKind: "context.compacted",
+              entry: {
+                id: "work-1",
+                createdAt: "2026-03-17T19:12:28.000Z",
+                label: "Context compacted",
+                tone: "info",
+                activityKind: "context.compacted",
+              },
             },
-          },
-        ]}
-        completionDividerBeforeEntryId={null}
-        completionSummary={null}
-        turnDiffSummaryByAssistantMessageId={new Map()}
-        nowIso="2026-03-17T19:12:30.000Z"
-        expandedWorkGroups={{}}
-        onToggleWorkGroup={() => {}}
-        onOpenTurnDiff={() => {}}
-        revertTurnCountByUserMessageId={new Map()}
-        onRevertUserMessage={() => {}}
-        isRevertingCheckpoint={false}
-        onImageExpand={() => {}}
-        markdownCwd={undefined}
-        resolvedTheme="light"
-        timestampFormat="locale"
-        workspaceRoot={undefined}
-      />,
+          ]}
+          completionDividerBeforeEntryId={null}
+          completionSummary={null}
+          turnDiffSummaryByAssistantMessageId={new Map()}
+          nowIso="2026-03-17T19:12:30.000Z"
+          expandedWorkGroups={{}}
+          onToggleWorkGroup={() => {}}
+          onOpenTurnDiff={() => {}}
+          revertTurnCountByUserMessageId={new Map()}
+          onRevertUserMessage={() => {}}
+          isRevertingCheckpoint={false}
+          onImageExpand={() => {}}
+          markdownCwd={undefined}
+          resolvedTheme="light"
+          timestampFormat="locale"
+          workspaceRoot={undefined}
+        />
+      </QueryClientProvider>,
     );
 
     expect(markup).toContain("Context compacted");

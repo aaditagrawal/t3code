@@ -478,22 +478,11 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
           const providers = yield* Effect.gen(function* () {
             const registry = yield* ProviderRegistry;
             return yield* registry.getProviders;
-          }).pipe(
-            Effect.provide(providerRegistryLayer),
-          );
+          }).pipe(Effect.provide(providerRegistryLayer));
 
           assert.deepStrictEqual(
             providers.map((provider) => provider.provider),
-            [
-              "codex",
-              "copilot",
-              "claudeAgent",
-              "cursor",
-              "opencode",
-              "geminiCli",
-              "amp",
-              "kilo",
-            ],
+            ["codex", "copilot", "claudeAgent", "cursor", "opencode", "geminiCli", "amp", "kilo"],
           );
         }),
       );

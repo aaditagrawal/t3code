@@ -12,6 +12,8 @@ import {
   type BranchNameGenerationResult,
   type CommitMessageGenerationResult,
   type PrContentGenerationResult,
+  type ThreadTitleGenerationInput,
+  type ThreadTitleGenerationResult,
 } from "../Services/TextGeneration.ts";
 import {
   SessionTextGeneration,
@@ -28,6 +30,11 @@ function limitSection(value: string, maxChars: number): string {
 function sanitizePrTitle(raw: string): string {
   const singleLine = raw.trim().split(/\r?\n/g)[0]?.trim() ?? "";
   return singleLine.length > 0 ? singleLine : "Update project changes";
+}
+
+function sanitizeThreadTitle(raw: string): string {
+  const singleLine = raw.trim().split(/\r?\n/g)[0]?.trim() ?? "";
+  return singleLine.length > 0 ? singleLine : "New thread";
 }
 
 function extractJsonObject(raw: string): string {
@@ -49,7 +56,11 @@ function toThreadId(value: string): ThreadId {
 }
 
 function normalizeProviderTextGenerationError(
-  operation: "generateCommitMessage" | "generatePrContent" | "generateBranchName",
+  operation:
+    | "generateCommitMessage"
+    | "generatePrContent"
+    | "generateBranchName"
+    | "generateThreadTitle",
   error: unknown,
   fallback: string,
 ): TextGenerationError {
@@ -73,7 +84,11 @@ function normalizeProviderTextGenerationError(
 }
 
 function decodeJsonResponse<S extends Schema.Top>(
-  operation: "generateCommitMessage" | "generatePrContent" | "generateBranchName",
+  operation:
+    | "generateCommitMessage"
+    | "generatePrContent"
+    | "generateBranchName"
+    | "generateThreadTitle",
   raw: string,
   schema: S,
 ): Effect.Effect<S["Type"], TextGenerationError, S["DecodingServices"]> {
@@ -129,7 +144,11 @@ const makeSessionTextGeneration = Effect.gen(function* () {
     attachments,
     schema,
   }: {
-    operation: "generateCommitMessage" | "generatePrContent" | "generateBranchName";
+    operation:
+      | "generateCommitMessage"
+      | "generatePrContent"
+      | "generateBranchName"
+      | "generateThreadTitle";
     cwd: string;
     provider: BranchNameGenerationInput["provider"];
     model: BranchNameGenerationInput["model"];
@@ -414,10 +433,56 @@ const makeSessionTextGeneration = Effect.gen(function* () {
     );
   };
 
+  const generateThreadTitle: SessionTextGenerationShape["generateThreadTitle"] = (input) => {
+    const attachmentLines = (input.attachments ?? []).map(
+      (attachment) =>
+        `- ${attachment.name} (${attachment.mimeType}, ${attachment.sizeBytes} bytes)`,
+    );
+    const promptSections = [
+      "You generate concise thread titles.",
+      "Answer using only valid JSON. Do not use tools, do not ask for approvals, and do not add markdown fences or prose.",
+      'Return a JSON object with key: "title".',
+      "Rules:",
+      "- Keep the title short and specific.",
+      "- Use the user's request as the main signal.",
+      "- If images are attached, use them as primary context for visual/UI issues.",
+      "",
+      "User message:",
+      limitSection(input.message, 8_000),
+    ];
+    if (attachmentLines.length > 0) {
+      promptSections.push(
+        "",
+        "Attachment metadata:",
+        limitSection(attachmentLines.join("\n"), 4_000),
+      );
+    }
+
+    return runProviderJson({
+      operation: "generateThreadTitle",
+      cwd: input.cwd,
+      provider: input.modelSelection.provider,
+      model: input.modelSelection.model,
+      prompt: promptSections.join("\n"),
+      attachments: input.attachments,
+      schema: Schema.Struct({
+        title: Schema.String,
+      }),
+    }).pipe(
+      Effect.map(
+        (generated) =>
+          ({
+            title: sanitizeThreadTitle(generated.title),
+          }) satisfies ThreadTitleGenerationResult,
+      ),
+    );
+  };
+
   return {
     generateCommitMessage,
     generatePrContent,
     generateBranchName,
+    generateThreadTitle,
   } satisfies SessionTextGenerationShape;
 });
 
