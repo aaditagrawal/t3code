@@ -418,18 +418,37 @@ export const ProviderRegistryLive = Layer.effect(
     const providersRef = yield* Ref.make<ReadonlyArray<ServerProvider>>(
       yield* loadProviders(deps, ALL_PROVIDERS),
     );
+    const mergeProvidersAtomically = (
+      merge: (
+        currentProviders: ReadonlyArray<ServerProvider>,
+        currentByProvider: ReadonlyMap<ProviderKind, ServerProvider>,
+      ) => ReadonlyArray<ServerProvider>,
+    ) =>
+      Ref.modify(providersRef, (currentProviders) => {
+        const currentByProvider = new Map(
+          currentProviders.map((provider) => [provider.provider, provider] as const),
+        );
+        const mergedProviders = merge(currentProviders, currentByProvider);
+
+        return [
+          {
+            previousProviders: currentProviders,
+            mergedProviders,
+          },
+          mergedProviders,
+        ] as const;
+      });
 
     const applyManagedProviderSnapshot = (snapshot: ServerProvider) =>
       Effect.gen(function* () {
-        const previousProviders = yield* Ref.get(providersRef);
-        const mergedProviders = ALL_PROVIDERS.map(
-          (provider) =>
-            (provider === snapshot.provider
-              ? snapshot
-              : previousProviders.find((candidate) => candidate.provider === provider)) ??
-            undefined,
-        ).filter((provider): provider is ServerProvider => provider !== undefined);
-        yield* Ref.set(providersRef, mergedProviders);
+        const { previousProviders, mergedProviders } = yield* mergeProvidersAtomically(
+          (_, currentByProvider) =>
+            ALL_PROVIDERS.map(
+              (provider) =>
+                (provider === snapshot.provider ? snapshot : currentByProvider.get(provider)) ??
+                undefined,
+            ).filter((provider): provider is ServerProvider => provider !== undefined),
+        );
 
         if (haveProvidersChanged(previousProviders, mergedProviders)) {
           yield* PubSub.publish(changesPubSub, mergedProviders);
@@ -441,19 +460,19 @@ export const ProviderRegistryLive = Layer.effect(
       options?: { readonly publish?: boolean },
     ) =>
       Effect.gen(function* () {
-        const previousProviders = yield* Ref.get(providersRef);
-        const previousByProvider = new Map(
-          previousProviders.map((provider) => [provider.provider, provider]),
-        );
         const nextSnapshots = yield* loadProviders(deps, providers, {
           forceRefreshManagedProviders: true,
         });
-        const mergedProviders = ALL_PROVIDERS.map(
-          (provider) =>
-            nextSnapshots.find((snapshot) => snapshot.provider === provider) ??
-            previousByProvider.get(provider),
-        ).filter((provider): provider is ServerProvider => provider !== undefined);
-        yield* Ref.set(providersRef, mergedProviders);
+        const nextSnapshotsByProvider = new Map(
+          nextSnapshots.map((provider) => [provider.provider, provider] as const),
+        );
+        const { previousProviders, mergedProviders } = yield* mergeProvidersAtomically(
+          (_, currentByProvider) =>
+            ALL_PROVIDERS.map(
+              (provider) =>
+                nextSnapshotsByProvider.get(provider) ?? currentByProvider.get(provider),
+            ).filter((provider): provider is ServerProvider => provider !== undefined),
+        );
 
         if (
           options?.publish !== false &&
