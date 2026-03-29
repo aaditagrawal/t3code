@@ -16,7 +16,7 @@ import {
   type ServerProvider,
   type ServerProviderModel,
 } from "@t3tools/contracts";
-import { Cause, Effect, Equal, Layer, PubSub, Ref, Stream } from "effect";
+import { Cause, Effect, Layer, PubSub, Ref, Stream } from "effect";
 
 import { fetchAmpUsage } from "../../ampServerManager";
 import { fetchGeminiCliUsage } from "../../geminiCliServerManager";
@@ -398,7 +398,35 @@ const loadProviders = (
 export const haveProvidersChanged = (
   previousProviders: ReadonlyArray<ServerProvider>,
   nextProviders: ReadonlyArray<ServerProvider>,
-): boolean => !Equal.equals(previousProviders, nextProviders);
+): boolean => {
+  if (previousProviders.length !== nextProviders.length) {
+    return true;
+  }
+
+  return previousProviders.some((previousProvider, index) => {
+    const nextProvider = nextProviders[index];
+    if (!nextProvider) {
+      return true;
+    }
+
+    return (
+      JSON.stringify(toComparableProviderSnapshot(previousProvider)) !==
+      JSON.stringify(toComparableProviderSnapshot(nextProvider))
+    );
+  });
+};
+
+const toComparableProviderSnapshot = (provider: ServerProvider) => ({
+  provider: provider.provider,
+  enabled: provider.enabled,
+  installed: provider.installed,
+  version: provider.version,
+  status: provider.status,
+  authStatus: provider.authStatus,
+  message: provider.message ?? null,
+  models: provider.models,
+  quotaSnapshots: provider.quotaSnapshots ?? null,
+});
 
 export const ProviderRegistryLive = Layer.effect(
   ProviderRegistry,

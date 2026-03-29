@@ -52,7 +52,7 @@ function decodeForEvent<A>(
   field: string,
 ): Effect.Effect<A, OrchestrationProjectorDecodeError> {
   return Effect.try({
-    try: () => Schema.decodeUnknownSync(schema)(value),
+    try: () => Schema.decodeUnknownSync(schema as never)(value) as A,
     catch: (error) => toProjectorDecodeError(`${eventType}:${field}`)(error as Schema.SchemaError),
   });
 }

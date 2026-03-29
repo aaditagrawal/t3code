@@ -384,6 +384,31 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
         assert.strictEqual(haveProvidersChanged(providers, [...providers]), false);
       });
 
+      it("ignores checkedAt-only changes when comparing provider snapshots", () => {
+        const previousProviders = [
+          {
+            provider: "codex",
+            status: "ready",
+            enabled: true,
+            installed: true,
+            authStatus: "authenticated",
+            checkedAt: "2026-03-25T00:00:00.000Z",
+            version: "1.0.0",
+            message: "Ready",
+            models: [{ slug: "gpt-5", name: "GPT-5", isCustom: false, capabilities: null }],
+          },
+        ] as const satisfies ReadonlyArray<ServerProvider>;
+        const nextProviders = [
+          {
+            ...previousProviders[0],
+            checkedAt: "2026-03-25T00:01:00.000Z",
+            models: [...previousProviders[0].models],
+          },
+        ] as const satisfies ReadonlyArray<ServerProvider>;
+
+        assert.strictEqual(haveProvidersChanged(previousProviders, nextProviders), false);
+      });
+
       it.effect("refreshes codex health when codex provider settings change", () =>
         Effect.gen(function* () {
           const serverSettings = yield* makeMutableServerSettingsService();
