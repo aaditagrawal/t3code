@@ -448,6 +448,56 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
         }),
       );
 
+      it.effect("returns snapshots for all supported providers", () =>
+        Effect.gen(function* () {
+          const serverSettingsLayer = ServerSettingsService.layerTest();
+          const providerRegistryLayer = ProviderRegistryLive.pipe(
+            Layer.provideMerge(serverSettingsLayer),
+            Layer.provideMerge(
+              mockCommandSpawnerLayer((command, args) => {
+                const joined = args.join(" ");
+                if (joined === "--version") {
+                  if (command === "codex") {
+                    return { stdout: "codex 1.0.0\n", stderr: "", code: 0 };
+                  }
+                  if (command === "claude") {
+                    return { stdout: "claude 1.0.0\n", stderr: "", code: 0 };
+                  }
+                  return { stdout: "", stderr: "spawn ENOENT", code: 1 };
+                }
+                if (joined === "login status") {
+                  return { stdout: "Logged in\n", stderr: "", code: 0 };
+                }
+                if (joined === "auth status") {
+                  return { stdout: "Authenticated\n", stderr: "", code: 0 };
+                }
+                throw new Error(`Unexpected args: ${joined}`);
+              }),
+            ),
+          );
+          const providers = yield* Effect.gen(function* () {
+            const registry = yield* ProviderRegistry;
+            return yield* registry.getProviders;
+          }).pipe(
+            Effect.provide(providerRegistryLayer),
+          );
+
+          assert.deepStrictEqual(
+            providers.map((provider) => provider.provider),
+            [
+              "codex",
+              "copilot",
+              "claudeAgent",
+              "cursor",
+              "opencode",
+              "geminiCli",
+              "amp",
+              "kilo",
+            ],
+          );
+        }),
+      );
+
       it.effect("skips codex probes entirely when the provider is disabled", () =>
         Effect.gen(function* () {
           const serverSettingsLayer = ServerSettingsService.layerTest({

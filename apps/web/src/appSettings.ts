@@ -1,8 +1,14 @@
 import { useCallback, useMemo } from "react";
 import { Option, Schema } from "effect";
-import type { ProviderStartOptions } from "@t3tools/contracts";
+import {
+  DEFAULT_SERVER_SETTINGS,
+  type ProviderStartOptions,
+  type ProviderKind,
+} from "@t3tools/contracts";
+import { DEFAULT_CLIENT_SETTINGS, type UnifiedSettings } from "@t3tools/contracts/settings";
 import { DEFAULT_ACCENT_COLOR, isValidAccentColor, normalizeAccentColor } from "./accentColor";
 import { useLocalStorage } from "./hooks/useLocalStorage";
+import { useSettings, useUpdateSettings } from "./hooks/useSettings";
 
 // Domain modules
 import {
@@ -55,6 +61,38 @@ export {
 } from "./gitTextGeneration";
 
 const APP_SETTINGS_STORAGE_KEY = "t3code:app-settings:v1";
+const APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS = {
+  codex: "customCodexModels",
+  copilot: "customCopilotModels",
+  claudeAgent: "customClaudeModels",
+  cursor: "customCursorModels",
+  opencode: "customOpencodeModels",
+  geminiCli: "customGeminiCliModels",
+  amp: "customAmpModels",
+  kilo: "customKiloModels",
+} as const satisfies Record<ProviderKind, keyof AppSettings>;
+const MIRRORED_CLIENT_KEYS = new Set<keyof AppSettings>([
+  "confirmThreadDelete",
+  "diffWordWrap",
+  "sidebarProjectSortOrder",
+  "sidebarThreadSortOrder",
+  "timestampFormat",
+]);
+const MIRRORED_SERVER_KEYS = new Set<keyof AppSettings>([
+  "claudeBinaryPath",
+  "codexBinaryPath",
+  "codexHomePath",
+  "defaultThreadEnvMode",
+  "enableAssistantStreaming",
+  "customCodexModels",
+  "customCopilotModels",
+  "customClaudeModels",
+  "customCursorModels",
+  "customOpencodeModels",
+  "customGeminiCliModels",
+  "customAmpModels",
+  "customKiloModels",
+]);
 
 const withDefaults =
   <
@@ -222,6 +260,110 @@ function parsePersistedSettings(value: string | null): AppSettings {
   }
 }
 
+function withUnifiedCompatSettings(
+  localSettings: AppSettings,
+  unifiedSettings: Pick<
+    UnifiedSettings,
+    | "confirmThreadDelete"
+    | "defaultThreadEnvMode"
+    | "diffWordWrap"
+    | "enableAssistantStreaming"
+    | "providers"
+    | "sidebarProjectSortOrder"
+    | "sidebarThreadSortOrder"
+    | "timestampFormat"
+  >,
+): AppSettings {
+  return normalizeAppSettings({
+    ...localSettings,
+    claudeBinaryPath: unifiedSettings.providers.claudeAgent.binaryPath,
+    codexBinaryPath: unifiedSettings.providers.codex.binaryPath,
+    codexHomePath: unifiedSettings.providers.codex.homePath,
+    defaultThreadEnvMode: unifiedSettings.defaultThreadEnvMode,
+    confirmThreadDelete: unifiedSettings.confirmThreadDelete,
+    diffWordWrap: unifiedSettings.diffWordWrap,
+    enableAssistantStreaming: unifiedSettings.enableAssistantStreaming,
+    sidebarProjectSortOrder: unifiedSettings.sidebarProjectSortOrder,
+    sidebarThreadSortOrder: unifiedSettings.sidebarThreadSortOrder,
+    timestampFormat: unifiedSettings.timestampFormat,
+    customCodexModels: [...unifiedSettings.providers.codex.customModels],
+    customCopilotModels: [...unifiedSettings.providers.copilot.customModels],
+    customClaudeModels: [...unifiedSettings.providers.claudeAgent.customModels],
+    customCursorModels: [...unifiedSettings.providers.cursor.customModels],
+    customOpencodeModels: [...unifiedSettings.providers.opencode.customModels],
+    customGeminiCliModels: [...unifiedSettings.providers.geminiCli.customModels],
+    customAmpModels: [...unifiedSettings.providers.amp.customModels],
+    customKiloModels: [...unifiedSettings.providers.kilo.customModels],
+  });
+}
+
+function toUnifiedPatch(patch: Partial<AppSettings>): Partial<UnifiedSettings> {
+  const providersPatch: Partial<
+    Record<
+      ProviderKind,
+      {
+        binaryPath?: string;
+        homePath?: string;
+        customModels?: ReadonlyArray<string>;
+      }
+    >
+  > = {};
+  if (patch.codexBinaryPath !== undefined || patch.codexHomePath !== undefined) {
+    providersPatch.codex = {
+      ...(patch.codexBinaryPath !== undefined ? { binaryPath: patch.codexBinaryPath } : {}),
+      ...(patch.codexHomePath !== undefined ? { homePath: patch.codexHomePath } : {}),
+    };
+  }
+  if (patch.claudeBinaryPath !== undefined) {
+    providersPatch.claudeAgent = {
+      binaryPath: patch.claudeBinaryPath,
+    };
+  }
+  const providerModelEntries = Object.entries(APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS) as Array<
+    [ProviderKind, (typeof APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS)[ProviderKind]]
+  >;
+  for (const [provider, settingsKey] of providerModelEntries) {
+    const models = patch[settingsKey];
+    if (!Array.isArray(models)) {
+      continue;
+    }
+    providersPatch[provider] = {
+      ...(providersPatch[provider] ?? {}),
+      customModels: normalizeCustomModelSlugs(models, provider),
+    };
+  }
+  return {
+    ...(patch.confirmThreadDelete !== undefined
+      ? { confirmThreadDelete: patch.confirmThreadDelete }
+      : {}),
+    ...(patch.diffWordWrap !== undefined ? { diffWordWrap: patch.diffWordWrap } : {}),
+    ...(patch.sidebarProjectSortOrder !== undefined
+      ? { sidebarProjectSortOrder: patch.sidebarProjectSortOrder }
+      : {}),
+    ...(patch.sidebarThreadSortOrder !== undefined
+      ? { sidebarThreadSortOrder: patch.sidebarThreadSortOrder }
+      : {}),
+    ...(patch.timestampFormat !== undefined ? { timestampFormat: patch.timestampFormat } : {}),
+    ...(patch.defaultThreadEnvMode !== undefined
+      ? { defaultThreadEnvMode: patch.defaultThreadEnvMode }
+      : {}),
+    ...(patch.enableAssistantStreaming !== undefined
+      ? { enableAssistantStreaming: patch.enableAssistantStreaming }
+      : {}),
+    ...(Object.keys(providersPatch).length > 0
+      ? { providers: providersPatch as Partial<UnifiedSettings["providers"]> }
+      : {}),
+  } as Partial<UnifiedSettings>;
+}
+
+function stripMirroredKeys(patch: Partial<AppSettings>): Partial<AppSettings> {
+  const nextPatch = { ...patch };
+  for (const key of [...MIRRORED_CLIENT_KEYS, ...MIRRORED_SERVER_KEYS]) {
+    delete nextPatch[key];
+  }
+  return nextPatch;
+}
+
 export function getAppSettingsSnapshot(): AppSettings {
   if (typeof window === "undefined") {
     return DEFAULT_APP_SETTINGS;
@@ -238,10 +380,38 @@ export function getAppSettingsSnapshot(): AppSettings {
 }
 
 export function useAppSettings() {
-  const [settings, setSettings] = useLocalStorage(
+  const [localSettings, setLocalSettings] = useLocalStorage(
     APP_SETTINGS_STORAGE_KEY,
     DEFAULT_APP_SETTINGS,
     AppSettingsSchema,
+  );
+  const unifiedSettings = useSettings();
+  const compatUnifiedSettings = useMemo(
+    () => ({
+      confirmThreadDelete: unifiedSettings.confirmThreadDelete,
+      defaultThreadEnvMode: unifiedSettings.defaultThreadEnvMode,
+      diffWordWrap: unifiedSettings.diffWordWrap,
+      enableAssistantStreaming: unifiedSettings.enableAssistantStreaming,
+      providers: unifiedSettings.providers,
+      sidebarProjectSortOrder: unifiedSettings.sidebarProjectSortOrder,
+      sidebarThreadSortOrder: unifiedSettings.sidebarThreadSortOrder,
+      timestampFormat: unifiedSettings.timestampFormat,
+    }),
+    [unifiedSettings],
+  );
+  const { updateSettings: updateUnifiedSettings, resetSettings: resetUnifiedSettings } =
+    useUpdateSettings();
+  const settings = useMemo(
+    () => withUnifiedCompatSettings(localSettings, compatUnifiedSettings),
+    [compatUnifiedSettings, localSettings],
+  );
+  const defaults = useMemo(
+    () =>
+      withUnifiedCompatSettings(DEFAULT_APP_SETTINGS, {
+        ...DEFAULT_SERVER_SETTINGS,
+        ...DEFAULT_CLIENT_SETTINGS,
+      }),
+    [],
   );
 
   // Apply legacy key migration that the schema decode path doesn't handle
@@ -265,19 +435,30 @@ export function useAppSettings() {
 
   const updateSettings = useCallback(
     (patch: Partial<AppSettings>) => {
-      setSettings((prev) => normalizeAppSettings({ ...prev, ...patch }));
+      const unifiedPatch = toUnifiedPatch(patch);
+      if (Object.keys(unifiedPatch).length > 0) {
+        updateUnifiedSettings(unifiedPatch);
+      }
+
+      const localPatch = stripMirroredKeys(patch);
+      if (Object.keys(localPatch).length === 0) {
+        return;
+      }
+
+      setLocalSettings((prev) => normalizeAppSettings({ ...prev, ...localPatch }));
     },
-    [setSettings],
+    [setLocalSettings, updateUnifiedSettings],
   );
 
   const resetSettings = useCallback(() => {
-    setSettings(DEFAULT_APP_SETTINGS);
-  }, [setSettings]);
+    resetUnifiedSettings();
+    setLocalSettings(DEFAULT_APP_SETTINGS);
+  }, [resetUnifiedSettings, setLocalSettings]);
 
   return {
     settings: migratedSettings,
     updateSettings,
     resetSettings,
-    defaults: DEFAULT_APP_SETTINGS,
+    defaults,
   } as const;
 }
