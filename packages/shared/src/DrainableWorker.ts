@@ -8,8 +8,8 @@
  *
  * @module DrainableWorker
  */
-import { Deferred, Effect, Queue, Ref } from "effect";
 import type { Scope } from "effect";
+import { Effect, TxQueue, TxRef } from "effect";
 
 export interface DrainableWorker<A> {
   /**
@@ -33,86 +33,36 @@ export interface DrainableWorker<A> {
  * the scope closes. A finalizer shuts down the queue.
  *
  * @param process - The effect to run for each queued item.
- * @returns A `DrainableWorker` with `enqueue` and `drain`.
+ * @returns A `DrainableWorker` with `queue` and `drain`.
  */
 export const makeDrainableWorker = <A, E, R>(
   process: (item: A) => Effect.Effect<void, E, R>,
 ): Effect.Effect<DrainableWorker<A>, never, Scope.Scope | R> =>
   Effect.gen(function* () {
-    const queue = yield* Queue.unbounded<A>();
-    const initialIdle = yield* Deferred.make<void>();
-    yield* Deferred.succeed(initialIdle, undefined).pipe(Effect.orDie);
-    const state = yield* Ref.make({
-      outstanding: 0,
-      idle: initialIdle,
-      closed: false,
-    });
+    const queue = yield* Effect.acquireRelease(TxQueue.unbounded<A>(), TxQueue.shutdown);
+    const outstanding = yield* TxRef.make(0);
 
-    yield* Effect.addFinalizer(() =>
-      Ref.modify(state, (current) => {
-        return [current.idle, { ...current, closed: true }] as const;
-      }).pipe(
-        Effect.flatMap((idle) => Deferred.succeed(idle, undefined).pipe(Effect.orDie)),
-        Effect.andThen(Queue.shutdown(queue).pipe(Effect.asVoid)),
-      ),
-    );
-
-    const finishOne = Ref.modify(state, (current) => {
-      const remaining = Math.max(0, current.outstanding - 1);
-      return [
-        remaining === 0 ? current.idle : null,
-        {
-          ...current,
-          outstanding: remaining,
-        },
-      ] as const;
-    }).pipe(
-      Effect.flatMap((idle) =>
-        idle === null ? Effect.void : Deferred.succeed(idle, undefined).pipe(Effect.orDie),
-      ),
-    );
-
-    yield* Effect.forever(
-      Queue.take(queue).pipe(
-        Effect.flatMap((item) =>
-          process(item).pipe(
-            Effect.catchCause((cause) => Effect.logWarning("drainable worker item failed", cause)),
-            Effect.ensuring(finishOne),
-          ),
+    yield* TxQueue.take(queue).pipe(
+      Effect.tap((a) =>
+        Effect.ensuring(
+          process(a),
+          TxRef.update(outstanding, (n) => n - 1),
         ),
       ),
-    ).pipe(Effect.forkScoped({ startImmediately: true }));
-
-    const enqueue: DrainableWorker<A>["enqueue"] = (item) =>
-      Effect.gen(function* () {
-        const { closed } = yield* Ref.get(state);
-        if (closed) {
-          return;
-        }
-
-        const nextIdle = yield* Deferred.make<void>();
-        yield* Ref.update(state, (current) =>
-          current.outstanding === 0
-            ? {
-                ...current,
-                outstanding: 1,
-                idle: nextIdle,
-              }
-            : {
-                ...current,
-                outstanding: current.outstanding + 1,
-              },
-        );
-
-        const accepted = yield* Queue.offer(queue, item);
-        if (!accepted) {
-          yield* finishOne;
-        }
-      });
-
-    const drain: DrainableWorker<A>["drain"] = Ref.get(state).pipe(
-      Effect.flatMap(({ idle, closed }) => (closed ? Effect.void : Deferred.await(idle))),
+      Effect.forever,
+      Effect.forkScoped,
     );
+
+    const drain: DrainableWorker<A>["drain"] = TxRef.get(outstanding).pipe(
+      Effect.tap((n) => (n > 0 ? Effect.txRetry : Effect.void)),
+      Effect.tx,
+    );
+
+    const enqueue = (element: A): Effect.Effect<boolean, never, never> =>
+      TxQueue.offer(queue, element).pipe(
+        Effect.tap(() => TxRef.update(outstanding, (n) => n + 1)),
+        Effect.tx,
+      );
 
     return { enqueue, drain } satisfies DrainableWorker<A>;
   });

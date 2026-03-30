@@ -766,25 +766,29 @@ const make = Effect.gen(function* () {
 
   const worker = yield* makeDrainableWorker(processInputSafely);
 
-  const start: CheckpointReactorShape["start"] = Effect.gen(function* () {
-    yield* Stream.runForEach(orchestrationEngine.streamDomainEvents, (event) => {
-      if (
-        event.type !== "thread.turn-start-requested" &&
-        event.type !== "thread.message-sent" &&
-        event.type !== "thread.checkpoint-revert-requested" &&
-        event.type !== "thread.turn-diff-completed"
-      ) {
-        return Effect.void;
-      }
-      return worker.enqueue({ source: "domain", event });
-    }).pipe(Effect.forkScoped({ startImmediately: true }));
+  const start: CheckpointReactorShape["start"] = Effect.fn("start")(function* () {
+    yield* Effect.forkScoped(
+      Stream.runForEach(orchestrationEngine.streamDomainEvents, (event) => {
+        if (
+          event.type !== "thread.turn-start-requested" &&
+          event.type !== "thread.message-sent" &&
+          event.type !== "thread.checkpoint-revert-requested" &&
+          event.type !== "thread.turn-diff-completed"
+        ) {
+          return Effect.void;
+        }
+        return worker.enqueue({ source: "domain", event });
+      }),
+    );
 
-    yield* Stream.runForEach(providerService.streamEvents, (event) => {
-      if (event.type !== "turn.started" && event.type !== "turn.completed") {
-        return Effect.void;
-      }
-      return worker.enqueue({ source: "runtime", event });
-    }).pipe(Effect.forkScoped({ startImmediately: true }));
+    yield* Effect.forkScoped(
+      Stream.runForEach(providerService.streamEvents, (event) => {
+        if (event.type !== "turn.started" && event.type !== "turn.completed") {
+          return Effect.void;
+        }
+        return worker.enqueue({ source: "runtime", event });
+      }),
+    );
   });
 
   return {

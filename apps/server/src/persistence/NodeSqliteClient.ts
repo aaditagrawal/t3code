@@ -50,9 +50,9 @@ export interface SqliteMemoryClientConfig extends Omit<
   "filename" | "readonly"
 > {}
 
-const makeSqlError = (cause: unknown, message: string) =>
+const makeSqlError = (cause: unknown, message: string, operation?: string) =>
   new SqlError({
-    reason: classifySqliteError(cause, { message }),
+    reason: classifySqliteError(cause, { message, operation }),
   } as unknown as ConstructorParameters<typeof SqlError>[0]);
 
 /**
@@ -118,7 +118,7 @@ const makeWithDatabase = (
         lookup: (sql: string) =>
           Effect.try({
             try: () => db.prepare(sql),
-            catch: (cause) => makeSqlError(cause, "Failed to prepare statement"),
+            catch: (cause) => makeSqlError(cause, "Failed to prepare statement", "prepare"),
           }),
       });
 
@@ -136,7 +136,7 @@ const makeWithDatabase = (
             const result = statement.run(...(params as SQLInputValue[]));
             return Effect.succeed(raw ? (result as unknown as ReadonlyArray<any>) : []);
           } catch (cause) {
-            return Effect.fail(makeSqlError(cause, "Failed to execute statement"));
+            return Effect.fail(makeSqlError(cause, "Failed to execute statement", "execute"));
           }
         });
 
@@ -159,7 +159,7 @@ const makeWithDatabase = (
                 statement.run(...(params as SQLInputValue[]));
                 return [];
               },
-              catch: (cause) => makeSqlError(cause, "Failed to execute statement"),
+              catch: (cause) => makeSqlError(cause, "Failed to execute statement", "execute"),
             }),
           (statement) =>
             Effect.sync(() => {

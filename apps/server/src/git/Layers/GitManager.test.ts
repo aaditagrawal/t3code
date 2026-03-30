@@ -568,7 +568,7 @@ function makeManager(input?: {
     serverSettingsLayer,
   ).pipe(Layer.provideMerge(NodeServices.layer));
 
-  return makeGitManager.pipe(
+  return makeGitManager().pipe(
     Effect.provide(managerLayer),
     Effect.map((manager) => ({ manager, ghCalls })),
   );

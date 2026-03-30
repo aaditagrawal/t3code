@@ -1,15 +1,134 @@
-import { type ProviderKind } from "@t3tools/contracts";
+import { type ProviderKind, type ServerProvider } from "@t3tools/contracts";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 
 import { ProviderModelPicker, buildModelOptionsByProvider } from "./ProviderModelPicker";
+import { getCustomModelOptionsByProvider } from "../../modelSelection";
+import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
+
+function effort(value: string, isDefault = false) {
+  return {
+    value,
+    label: value,
+    ...(isDefault ? { isDefault: true } : {}),
+  };
+}
+
+const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
+  {
+    provider: "codex",
+    enabled: true,
+    installed: true,
+    version: "0.116.0",
+    status: "ready",
+    auth: { status: "authenticated" },
+    checkedAt: new Date().toISOString(),
+    models: [
+      {
+        slug: "gpt-5-codex",
+        name: "GPT-5 Codex",
+        isCustom: false,
+        capabilities: {
+          reasoningEffortLevels: [effort("low"), effort("medium", true), effort("high")],
+          supportsFastMode: true,
+          supportsThinkingToggle: false,
+          contextWindowOptions: [],
+          promptInjectedEffortLevels: [],
+        },
+      },
+      {
+        slug: "gpt-5.3-codex",
+        name: "GPT-5.3 Codex",
+        isCustom: false,
+        capabilities: {
+          reasoningEffortLevels: [effort("low"), effort("medium", true), effort("high")],
+          supportsFastMode: true,
+          supportsThinkingToggle: false,
+          contextWindowOptions: [],
+          promptInjectedEffortLevels: [],
+        },
+      },
+    ],
+  },
+  {
+    provider: "claudeAgent",
+    enabled: true,
+    installed: true,
+    version: "1.0.0",
+    status: "ready",
+    auth: { status: "authenticated" },
+    checkedAt: new Date().toISOString(),
+    models: [
+      {
+        slug: "claude-opus-4-6",
+        name: "Claude Opus 4.6",
+        isCustom: false,
+        capabilities: {
+          reasoningEffortLevels: [
+            effort("low"),
+            effort("medium", true),
+            effort("high"),
+            effort("max"),
+          ],
+          supportsFastMode: false,
+          supportsThinkingToggle: true,
+          contextWindowOptions: [],
+          promptInjectedEffortLevels: [],
+        },
+      },
+      {
+        slug: "claude-sonnet-4-6",
+        name: "Claude Sonnet 4.6",
+        isCustom: false,
+        capabilities: {
+          reasoningEffortLevels: [
+            effort("low"),
+            effort("medium", true),
+            effort("high"),
+            effort("max"),
+          ],
+          supportsFastMode: false,
+          supportsThinkingToggle: true,
+          contextWindowOptions: [],
+          promptInjectedEffortLevels: [],
+        },
+      },
+      {
+        slug: "claude-haiku-4-5",
+        name: "Claude Haiku 4.5",
+        isCustom: false,
+        capabilities: {
+          reasoningEffortLevels: [effort("low"), effort("medium", true), effort("high")],
+          supportsFastMode: false,
+          supportsThinkingToggle: true,
+          contextWindowOptions: [],
+          promptInjectedEffortLevels: [],
+        },
+      },
+    ],
+  },
+];
+
+function buildCodexProvider(models: ServerProvider["models"]): ServerProvider {
+  return {
+    provider: "codex",
+    enabled: true,
+    installed: true,
+    version: "0.116.0",
+    status: "ready",
+    auth: { status: "authenticated" },
+    checkedAt: new Date().toISOString(),
+    models,
+  };
+}
 
 async function mountPicker(props: {
   provider: ProviderKind;
   model: string;
   lockedProvider: ProviderKind | null;
   triggerVariant?: "ghost" | "outline";
+  providers?: ReadonlyArray<ServerProvider>;
 }) {
   const host = document.createElement("div");
   document.body.append(host);
@@ -137,9 +256,94 @@ describe("ProviderModelPicker", () => {
     }
   });
 
-  // Skip: upstream test expects menuitemradio elements but our multi-provider
-  // picker uses sub-provider grouping with a different menu structure.
-  it.skip("dispatches the canonical slug when a model is selected", async () => {
+  it("only shows codex spark when the server reports it for the account", async () => {
+    const providersWithoutSpark: ReadonlyArray<ServerProvider> = [
+      buildCodexProvider([
+        {
+          slug: "gpt-5.3-codex",
+          name: "GPT-5.3 Codex",
+          isCustom: false,
+          capabilities: {
+            reasoningEffortLevels: [effort("low"), effort("medium", true), effort("high")],
+            supportsFastMode: true,
+            supportsThinkingToggle: false,
+            contextWindowOptions: [],
+            promptInjectedEffortLevels: [],
+          },
+        },
+      ]),
+      TEST_PROVIDERS[1]!,
+    ];
+    const providersWithSpark: ReadonlyArray<ServerProvider> = [
+      buildCodexProvider([
+        {
+          slug: "gpt-5.3-codex",
+          name: "GPT-5.3 Codex",
+          isCustom: false,
+          capabilities: {
+            reasoningEffortLevels: [effort("low"), effort("medium", true), effort("high")],
+            supportsFastMode: true,
+            supportsThinkingToggle: false,
+            contextWindowOptions: [],
+            promptInjectedEffortLevels: [],
+          },
+        },
+        {
+          slug: "gpt-5.3-codex-spark",
+          name: "GPT-5.3 Codex Spark",
+          isCustom: false,
+          capabilities: {
+            reasoningEffortLevels: [effort("low"), effort("medium", true), effort("high")],
+            supportsFastMode: true,
+            supportsThinkingToggle: false,
+            contextWindowOptions: [],
+            promptInjectedEffortLevels: [],
+          },
+        },
+      ]),
+      TEST_PROVIDERS[1]!,
+    ];
+
+    const hidden = await mountPicker({
+      provider: "claudeAgent",
+      model: "claude-opus-4-6",
+      lockedProvider: null,
+      providers: providersWithoutSpark,
+    });
+
+    try {
+      await page.getByRole("button").click();
+      await page.getByRole("menuitem", { name: "Codex" }).hover();
+
+      await vi.waitFor(() => {
+        const text = document.body.textContent ?? "";
+        expect(text).toContain("GPT-5.3 Codex");
+        expect(text).not.toContain("GPT-5.3 Codex Spark");
+      });
+    } finally {
+      await hidden.cleanup();
+    }
+
+    const visible = await mountPicker({
+      provider: "claudeAgent",
+      model: "claude-opus-4-6",
+      lockedProvider: null,
+      providers: providersWithSpark,
+    });
+
+    try {
+      await page.getByRole("button").click();
+      await page.getByRole("menuitem", { name: "Codex" }).hover();
+
+      await vi.waitFor(() => {
+        expect(document.body.textContent ?? "").toContain("GPT-5.3 Codex Spark");
+      });
+    } finally {
+      await visible.cleanup();
+    }
+  });
+
+  it("dispatches the canonical slug when a model is selected", async () => {
     const mounted = await mountPicker({
       provider: "claudeAgent",
       model: "claude-opus-4-6",

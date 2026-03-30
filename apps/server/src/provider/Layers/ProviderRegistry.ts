@@ -180,7 +180,7 @@ function buildDisabledSnapshot(
       installed: true,
       version: null,
       status: "ready",
-      authStatus: "unknown",
+      auth: { status: "unknown" },
     },
   });
 }
@@ -202,7 +202,7 @@ function buildWarningSnapshot(input: {
       installed: input.installed,
       version: input.version ?? null,
       status: "warning",
-      authStatus: "unknown",
+      auth: { status: "unknown" },
       message: input.message,
     },
   });
@@ -213,7 +213,7 @@ function buildReadySnapshot(input: {
   settings: ProviderSettingsShape;
   models: ReadonlyArray<ServerProviderModel>;
   version?: string | null;
-  authStatus?: ProviderProbeResult["authStatus"];
+  auth?: ProviderProbeResult["auth"];
   message?: string;
 }): ServerProvider {
   return buildServerProvider({
@@ -225,7 +225,7 @@ function buildReadySnapshot(input: {
       installed: true,
       version: input.version ?? null,
       status: "ready",
-      authStatus: input.authStatus ?? "unknown",
+      auth: input.auth ?? { status: "unknown" },
       ...(input.message ? { message: input.message } : {}),
     },
   });
@@ -422,7 +422,7 @@ const toComparableProviderSnapshot = (provider: ServerProvider) => ({
   installed: provider.installed,
   version: provider.version,
   status: provider.status,
-  authStatus: provider.authStatus,
+  auth: provider.auth,
   message: provider.message ?? null,
   models: provider.models,
   quotaSnapshots: provider.quotaSnapshots ?? null,

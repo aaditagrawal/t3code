@@ -132,6 +132,7 @@ const ClaudeModelOptionsPatch = Schema.Struct({
   thinking: Schema.optionalKey(ClaudeModelOptions.fields.thinking),
   effort: Schema.optionalKey(ClaudeModelOptions.fields.effort),
   fastMode: Schema.optionalKey(ClaudeModelOptions.fields.fastMode),
+  contextWindow: Schema.optionalKey(ClaudeModelOptions.fields.contextWindow),
 });
 
 const CopilotModelOptionsPatch = Schema.Struct({
