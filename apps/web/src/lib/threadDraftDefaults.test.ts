@@ -18,7 +18,6 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     error: null,
     createdAt: "2026-03-01T00:00:00.000Z",
     latestTurn: null,
-    lastVisitedAt: undefined,
     branch: null,
     worktreePath: null,
     turnDiffSummaries: [],
@@ -97,7 +96,7 @@ describe("resolveDraftThreadDefaults", () => {
           id: ThreadId.makeUnsafe("thread-revisited"),
           modelSelection: { provider: "cursor", model: "composer-1.5" },
           createdAt: "2026-03-01T10:00:00.000Z",
-          lastVisitedAt: "2026-03-09T11:00:00.000Z",
+          updatedAt: "2026-03-09T11:00:00.000Z",
           latestTurn: completedTurn("2026-03-09T10:59:00.000Z"),
         }),
         makeThread({
