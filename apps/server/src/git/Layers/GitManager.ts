@@ -702,7 +702,7 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
     upstreamRef: string | null,
     headContext: Pick<BranchHeadContext, "isCrossRepository">,
   ) {
-    const configured = yield* gitCore.readConfigValue(cwd, `branch.${branch}.gh-merge-base`);
+    const configured = yield* readConfigValueNullable(cwd, `branch.${branch}.gh-merge-base`);
     if (configured) return configured;
 
     if (upstreamRef && !headContext.isCrossRepository) {
@@ -1113,7 +1113,7 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
       yield* ensureExistingWorktreeUpstream(existingBranchBeforeFetch.worktreePath);
       return {
         pullRequest,
-        branch: localPullRequestBranch,
+        branch: existingBranchBeforeFetch.name,
         worktreePath: existingBranchBeforeFetch.worktreePath,
       };
     }
@@ -1141,7 +1141,7 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
       yield* ensureExistingWorktreeUpstream(existingBranchAfterFetch.worktreePath);
       return {
         pullRequest,
-        branch: localPullRequestBranch,
+        branch: existingBranchAfterFetch.name,
         worktreePath: existingBranchAfterFetch.worktreePath,
       };
     }

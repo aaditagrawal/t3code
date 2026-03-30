@@ -544,34 +544,16 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     });
   }
 
-  // ── Auth check + subscription detection ────────────────────────────
+  // ── Auth check ────────────────────────────────────────────────────
 
   const authProbe = yield* runClaudeCommand(["auth", "status"]).pipe(
     Effect.timeoutOption(DEFAULT_TIMEOUT_MS),
     Effect.result,
   );
 
-  // Determine subscription type from multiple sources (cheapest first):
-  // 1. `claude auth status` JSON output (may or may not contain it)
-  // 2. Cached SDK probe (spawns a Claude process on miss, reads
-  //    `initializationResult()` for account metadata, then aborts
-  //    immediately — no API tokens are consumed)
-
-  let subscriptionType: string | undefined;
-  let authMethod: string | undefined;
-
-  if (Result.isSuccess(authProbe) && Option.isSome(authProbe.success)) {
-    subscriptionType = extractSubscriptionTypeFromOutput(authProbe.success.value);
-    authMethod = extractClaudeAuthMethodFromOutput(authProbe.success.value);
-  }
-
-  if (!subscriptionType && resolveSubscriptionType) {
-    subscriptionType = yield* resolveSubscriptionType(claudeSettings.binaryPath);
-  }
-
-  const resolvedModels = adjustModelsForSubscription(models, subscriptionType);
-
-  // ── Handle auth results (same logic as before, adjusted models) ──
+  // ── Handle auth results ──
+  // Gate subscription resolution on successful authentication to avoid
+  // keeping stale cached account metadata after logout / account changes.
 
   if (Result.isFailure(authProbe)) {
     const error = authProbe.failure;
@@ -579,7 +561,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
       provider: PROVIDER,
       enabled: claudeSettings.enabled,
       checkedAt,
-      models: resolvedModels,
+      models,
       probe: {
         installed: true,
         version: parsedVersion,
@@ -598,7 +580,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
       provider: PROVIDER,
       enabled: claudeSettings.enabled,
       checkedAt,
-      models: resolvedModels,
+      models,
       probe: {
         installed: true,
         version: parsedVersion,
@@ -610,6 +592,22 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   }
 
   const parsed = parseClaudeAuthStatusFromOutput(authProbe.success.value);
+
+  // Only resolve subscription type when auth is confirmed — prevents
+  // stale cached SDK metadata from surviving logout / account changes.
+  let subscriptionType: string | undefined;
+  let authMethod: string | undefined;
+
+  if (parsed.auth.status === "authenticated") {
+    subscriptionType = extractSubscriptionTypeFromOutput(authProbe.success.value);
+    authMethod = extractClaudeAuthMethodFromOutput(authProbe.success.value);
+
+    if (!subscriptionType && resolveSubscriptionType) {
+      subscriptionType = yield* resolveSubscriptionType(claudeSettings.binaryPath);
+    }
+  }
+
+  const resolvedModels = adjustModelsForSubscription(models, subscriptionType);
   const authMetadata = claudeAuthMetadata({ subscriptionType, authMethod });
   return buildServerProvider({
     provider: PROVIDER,

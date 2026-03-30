@@ -33,7 +33,7 @@ export interface DrainableWorker<A> {
  * the scope closes. A finalizer shuts down the queue.
  *
  * @param process - The effect to run for each queued item.
- * @returns A `DrainableWorker` with `queue` and `drain`.
+ * @returns A `DrainableWorker` with `enqueue` and `drain`.
  */
 export const makeDrainableWorker = <A, E, R>(
   process: (item: A) => Effect.Effect<void, E, R>,

@@ -468,21 +468,13 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
     Effect.timeoutOption(DEFAULT_TIMEOUT_MS),
     Effect.result,
   );
-  const account = resolveAccount
-    ? yield* resolveAccount({
-        binaryPath: codexSettings.binaryPath,
-        homePath: codexSettings.homePath,
-      })
-    : undefined;
-  const resolvedModels = adjustCodexModelsForAccount(models, account);
-
   if (Result.isFailure(authProbe)) {
     const error = authProbe.failure;
     return buildServerProvider({
       provider: PROVIDER,
       enabled: codexSettings.enabled,
       checkedAt,
-      models: resolvedModels,
+      models,
       probe: {
         installed: true,
         version: parsedVersion,
@@ -501,7 +493,7 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
       provider: PROVIDER,
       enabled: codexSettings.enabled,
       checkedAt,
-      models: resolvedModels,
+      models,
       probe: {
         installed: true,
         version: parsedVersion,
@@ -511,6 +503,14 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
       },
     });
   }
+
+  const account = resolveAccount
+    ? yield* resolveAccount({
+        binaryPath: codexSettings.binaryPath,
+        homePath: codexSettings.homePath,
+      })
+    : undefined;
+  const resolvedModels = adjustCodexModelsForAccount(models, account);
 
   const parsed = parseAuthStatusFromOutput(authProbe.success.value);
   const authType = codexAuthSubType(account);

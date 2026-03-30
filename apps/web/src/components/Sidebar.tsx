@@ -1688,7 +1688,11 @@ export default function Sidebar() {
         const renderedThreads = pinnedCollapsedThread
           ? [pinnedCollapsedThread]
           : visibleProjectThreads;
+        const totalProjectThreadCount = threads.filter(
+          (thread) => thread.projectId === project.id,
+        ).length;
         const showEmptyThreadState = project.expanded && projectThreads.length === 0;
+        const showAllArchivedState = showEmptyThreadState && totalProjectThreadCount > 0;
 
         return {
           hasHiddenThreads,
@@ -1700,6 +1704,7 @@ export default function Sidebar() {
           threadStatuses,
           renderedThreads,
           showEmptyThreadState,
+          showAllArchivedState,
           shouldShowThreadPanel,
           isThreadListExpanded,
         };
@@ -1709,6 +1714,7 @@ export default function Sidebar() {
       expandedThreadListsByProject,
       routeThreadId,
       sortedProjects,
+      threads,
       visibleThreads,
     ],
   );
@@ -1845,6 +1851,7 @@ export default function Sidebar() {
       threadStatuses,
       renderedThreads,
       showEmptyThreadState,
+      showAllArchivedState,
       shouldShowThreadPanel,
       isThreadListExpanded,
     } = renderedProject;
@@ -2103,7 +2110,7 @@ export default function Sidebar() {
                       <TooltipTrigger
                         render={
                           <span
-                            className={`inline-flex shrink-0 items-center justify-center ${
+                            className={`pointer-events-auto inline-flex shrink-0 items-center justify-center ${
                               isHighlighted ? "text-foreground/55" : "text-muted-foreground/50"
                             } ${forkAppSettings.grayscaleProviderLogos ? "grayscale" : ""}`}
                           >
@@ -2214,7 +2221,7 @@ export default function Sidebar() {
                 data-thread-selection-safe
                 className="flex h-6 w-full translate-x-0 items-center px-2 text-left text-[10px] text-muted-foreground/60"
               >
-                <span>No threads yet</span>
+                <span>{showAllArchivedState ? "All threads archived" : "No threads yet"}</span>
               </div>
             </SidebarMenuSubItem>
           ) : null}

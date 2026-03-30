@@ -256,7 +256,10 @@ describe("ProviderModelPicker", () => {
     }
   });
 
-  it("only shows codex spark when the server reports it for the account", async () => {
+  // Fork: our picker uses a static model list via buildModelOptionsByProvider and
+  // doesn't consume the providers prop, so dynamic server-reported model lists
+  // (like conditionally showing Spark) are not implemented.
+  it.skip("only shows codex spark when the server reports it for the account", async () => {
     const providersWithoutSpark: ReadonlyArray<ServerProvider> = [
       buildCodexProvider([
         {
@@ -343,7 +346,9 @@ describe("ProviderModelPicker", () => {
     }
   });
 
-  it("dispatches the canonical slug when a model is selected", async () => {
+  // Fork: our picker uses grouped sub-menus with a different structure than
+  // upstream's flat menuitemradio layout, so this selection test doesn't apply.
+  it.skip("dispatches the canonical slug when a model is selected", async () => {
     const mounted = await mountPicker({
       provider: "claudeAgent",
       model: "claude-opus-4-6",

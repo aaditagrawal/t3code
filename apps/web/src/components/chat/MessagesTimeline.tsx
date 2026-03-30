@@ -269,9 +269,8 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
       const viewportHeight = instance.scrollRect?.height ?? 0;
       const scrollOffset = instance.scrollOffset ?? 0;
-      const itemIntersectsViewport =
-        item.end > scrollOffset && item.start < scrollOffset + viewportHeight;
-      if (itemIntersectsViewport) {
+      const itemIsAboveViewport = item.end <= scrollOffset;
+      if (!itemIsAboveViewport) {
         return false;
       }
       const remainingDistance = instance.getTotalSize() - (scrollOffset + viewportHeight);
