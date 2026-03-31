@@ -1,4 +1,7 @@
+import type { ThreadId } from "@t3tools/contracts";
 import type { Thread } from "./types";
+
+type WorktreeThreadInfo = Pick<Thread, "id" | "worktreePath">;
 
 function normalizeWorktreePath(path: string | null): string | null {
   const trimmed = path?.trim();
@@ -9,8 +12,8 @@ function normalizeWorktreePath(path: string | null): string | null {
 }
 
 export function getOrphanedWorktreePathForThread(
-  threads: readonly Thread[],
-  threadId: Thread["id"],
+  threads: readonly WorktreeThreadInfo[],
+  threadId: ThreadId,
 ): string | null {
   const targetThread = threads.find((thread) => thread.id === threadId);
   if (!targetThread) {

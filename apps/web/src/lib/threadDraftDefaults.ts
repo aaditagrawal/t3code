@@ -14,10 +14,10 @@ function timestampOrNaN(value: string | null | undefined): number {
 }
 
 function threadRecencyTimestamp(
-  thread: Pick<Thread, "createdAt" | "lastVisitedAt" | "latestTurn">,
+  thread: Pick<Thread, "createdAt" | "updatedAt" | "latestTurn">,
 ): number {
   return (
-    [thread.lastVisitedAt, thread.latestTurn?.completedAt, thread.createdAt]
+    [thread.updatedAt, thread.latestTurn?.completedAt, thread.createdAt]
       .map((value) => timestampOrNaN(value))
       .find((value) => Number.isFinite(value)) ?? 0
   );
