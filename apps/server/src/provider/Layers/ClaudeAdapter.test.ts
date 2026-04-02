@@ -208,8 +208,10 @@ async function readFirstPromptText(
   if (next.done) {
     return undefined;
   }
-  const content = (next.value.message as { content?: Array<{ type?: string; text?: string }> })
-    ?.content?.[0];
+  if (typeof next.value.message.content === "string") {
+    return next.value.message.content;
+  }
+  const content = next.value.message.content[0];
   if (!content || content.type !== "text") {
     return undefined;
   }
@@ -587,7 +589,7 @@ describe("ClaudeAdapterLive", () => {
       const createInput = harness.getLastCreateQueryInput();
       const promptMessage = yield* Effect.promise(() => readFirstPromptMessage(createInput));
       assert.isDefined(promptMessage);
-      assert.deepEqual((promptMessage?.message as Record<string, unknown>)?.content, [
+      assert.deepEqual(promptMessage?.message.content, [
         {
           type: "text",
           text: "What's in this image?",
@@ -1101,14 +1103,19 @@ describe("ClaudeAdapterLive", () => {
   it.effect("closes the session when the Claude stream aborts after a turn starts", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
+      const services = yield* Effect.services();
+      const runFork = Effect.runForkWith(services);
+
       const adapter = yield* ClaudeAdapter;
       const runtimeEvents: Array<ProviderRuntimeEvent> = [];
 
-      const runtimeEventsFiber = yield* Stream.runForEach(adapter.streamEvents, (event) =>
-        Effect.sync(() => {
-          runtimeEvents.push(event);
-        }),
-      ).pipe(Effect.forkChild);
+      const runtimeEventsFiber = runFork(
+        Stream.runForEach(adapter.streamEvents, (event) =>
+          Effect.sync(() => {
+            runtimeEvents.push(event);
+          }),
+        ),
+      );
 
       yield* adapter.startSession({
         threadId: THREAD_ID,
@@ -1196,12 +1203,14 @@ describe("ClaudeAdapterLive", () => {
     );
 
     return Effect.gen(function* () {
+      const services = yield* Effect.services();
+      const runFork = Effect.runForkWith(services);
+
       const adapter = yield* ClaudeAdapter;
 
-      const runtimeEventsFiber = yield* Stream.runForEach(
-        adapter.streamEvents,
-        () => Effect.void,
-      ).pipe(Effect.forkChild);
+      const runtimeEventsFiber = runFork(
+        Stream.runForEach(adapter.streamEvents, () => Effect.void),
+      );
 
       yield* adapter.startSession({
         threadId: THREAD_ID,

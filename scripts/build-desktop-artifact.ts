@@ -514,8 +514,14 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   if (platform === "linux") {
     buildConfig.linux = {
       target: [target],
+      executableName: "t3code",
       icon: "icon.png",
       category: "Development",
+      desktop: {
+        entry: {
+          StartupWMClass: "t3code",
+        },
+      },
     };
   }
 
@@ -675,7 +681,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   yield* fs.copy(stageResourcesDir, path.join(stageAppDir, "apps/desktop/prod-resources"));
 
   const stagePackageJson: StagePackageJson = {
-    name: "t3-code-desktop",
+    name: "t3code",
     version: appVersion,
     buildVersion: appVersion,
     t3codeCommitHash: commitHash,

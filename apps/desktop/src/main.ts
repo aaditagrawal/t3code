@@ -69,6 +69,8 @@ const ROOT_DIR = Path.resolve(__dirname, "../../..");
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 const APP_DISPLAY_NAME = isDevelopment ? "T3 Code (Dev)" : "T3 Code (Alpha)";
 const APP_USER_MODEL_ID = "com.t3tools.t3code";
+const LINUX_DESKTOP_ENTRY_NAME = isDevelopment ? "t3code-dev.desktop" : "t3code.desktop";
+const LINUX_WM_CLASS = isDevelopment ? "t3code-dev" : "t3code";
 const USER_DATA_DIR_NAME = isDevelopment ? "t3code-dev" : "t3code";
 const LEGACY_USER_DATA_DIR_NAME = isDevelopment ? "T3 Code (Dev)" : "T3 Code (Alpha)";
 const COMMIT_HASH_PATTERN = /^[0-9a-f]{7,40}$/i;
@@ -83,6 +85,9 @@ const DESKTOP_UPDATE_CHANNEL = "latest";
 const DESKTOP_UPDATE_ALLOW_PRERELEASE = false;
 
 type DesktopUpdateErrorContext = DesktopUpdateState["errorContext"];
+type LinuxDesktopNamedApp = Electron.App & {
+  setDesktopName?: (desktopName: string) => void;
+};
 
 let mainWindow: BrowserWindow | null = null;
 let backendProcess: ChildProcess.ChildProcess | null = null;
@@ -266,6 +271,10 @@ function captureBackendOutput(child: ChildProcess.ChildProcess): void {
 
 initializePackagedLogging();
 
+if (process.platform === "linux") {
+  app.commandLine.appendSwitch("class", LINUX_WM_CLASS);
+}
+
 function getDestructiveMenuIcon(): Electron.NativeImage | undefined {
   if (process.platform !== "darwin") return undefined;
   if (destructiveMenuIconCache !== undefined) {
@@ -391,7 +400,7 @@ function resolveAboutCommitHash(): string | null {
 }
 
 function resolveBackendEntry(): string {
-  return Path.join(resolveAppRoot(), "apps/server/dist/index.mjs");
+  return Path.join(resolveAppRoot(), "apps/server/dist/bin.mjs");
 }
 
 function resolveBackendCwd(): string {
@@ -714,6 +723,10 @@ function configureAppIdentity(): void {
 
   if (process.platform === "win32") {
     app.setAppUserModelId(APP_USER_MODEL_ID);
+  }
+
+  if (process.platform === "linux") {
+    (app as LinuxDesktopNamedApp).setDesktopName?.(LINUX_DESKTOP_ENTRY_NAME);
   }
 
   if (process.platform === "darwin" && app.dock) {

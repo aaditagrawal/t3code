@@ -1,14 +1,5 @@
 import { Option, Schema, SchemaIssue, Struct } from "effect";
-import {
-  AmpModelOptions,
-  ClaudeModelOptions,
-  CodexModelOptions,
-  CopilotModelOptions,
-  CursorModelOptions,
-  GeminiCliModelOptions,
-  KiloModelOptions,
-  OpencodeModelOptions,
-} from "./model";
+import { ClaudeModelOptions, CodexModelOptions } from "./model";
 import {
   ApprovalRequestId,
   CheckpointRef,
@@ -17,7 +8,6 @@ import {
   IsoDateTime,
   MessageId,
   NonNegativeInt,
-  PositiveInt,
   ProjectId,
   ProviderItemId,
   ThreadId,
@@ -33,20 +23,7 @@ export const ORCHESTRATION_WS_METHODS = {
   replayEvents: "orchestration.replayEvents",
 } as const;
 
-export const ORCHESTRATION_WS_CHANNELS = {
-  domainEvent: "orchestration.domainEvent",
-} as const;
-
-export const ProviderKind = Schema.Union([
-  Schema.Literal("codex"),
-  Schema.Literal("copilot"),
-  Schema.Literal("claudeAgent"),
-  Schema.Literal("cursor"),
-  Schema.Literal("opencode"),
-  Schema.Literal("geminiCli"),
-  Schema.Literal("amp"),
-  Schema.Literal("kilo"),
-]);
+export const ProviderKind = Schema.Literals(["codex", "claudeAgent"]);
 export type ProviderKind = typeof ProviderKind.Type;
 export const ProviderApprovalPolicy = Schema.Literals([
   "untrusted",
@@ -61,6 +38,7 @@ export const ProviderSandboxMode = Schema.Literals([
   "danger-full-access",
 ]);
 export type ProviderSandboxMode = typeof ProviderSandboxMode.Type;
+
 export const DEFAULT_PROVIDER_KIND: ProviderKind = "codex";
 
 export const CodexModelSelection = Schema.Struct({
@@ -77,158 +55,8 @@ export const ClaudeModelSelection = Schema.Struct({
 });
 export type ClaudeModelSelection = typeof ClaudeModelSelection.Type;
 
-export const CopilotModelSelection = Schema.Struct({
-  provider: Schema.Literal("copilot"),
-  model: TrimmedNonEmptyString,
-  options: Schema.optionalKey(CopilotModelOptions),
-});
-export type CopilotModelSelection = typeof CopilotModelSelection.Type;
-
-export const CursorModelSelection = Schema.Struct({
-  provider: Schema.Literal("cursor"),
-  model: TrimmedNonEmptyString,
-  options: Schema.optionalKey(CursorModelOptions),
-});
-export type CursorModelSelection = typeof CursorModelSelection.Type;
-
-export const OpencodeModelSelection = Schema.Struct({
-  provider: Schema.Literal("opencode"),
-  model: TrimmedNonEmptyString,
-  options: Schema.optionalKey(OpencodeModelOptions),
-});
-export type OpencodeModelSelection = typeof OpencodeModelSelection.Type;
-
-export const GeminiCliModelSelection = Schema.Struct({
-  provider: Schema.Literal("geminiCli"),
-  model: TrimmedNonEmptyString,
-  options: Schema.optionalKey(GeminiCliModelOptions),
-});
-export type GeminiCliModelSelection = typeof GeminiCliModelSelection.Type;
-
-export const AmpModelSelection = Schema.Struct({
-  provider: Schema.Literal("amp"),
-  model: TrimmedNonEmptyString,
-  options: Schema.optionalKey(AmpModelOptions),
-});
-export type AmpModelSelection = typeof AmpModelSelection.Type;
-
-export const KiloModelSelection = Schema.Struct({
-  provider: Schema.Literal("kilo"),
-  model: TrimmedNonEmptyString,
-  options: Schema.optionalKey(KiloModelOptions),
-});
-export type KiloModelSelection = typeof KiloModelSelection.Type;
-
-export const ModelSelection = Schema.Union([
-  CodexModelSelection,
-  ClaudeModelSelection,
-  CopilotModelSelection,
-  CursorModelSelection,
-  OpencodeModelSelection,
-  GeminiCliModelSelection,
-  AmpModelSelection,
-  KiloModelSelection,
-]);
+export const ModelSelection = Schema.Union([CodexModelSelection, ClaudeModelSelection]);
 export type ModelSelection = typeof ModelSelection.Type;
-
-export const CodexProviderStartOptions = Schema.Struct({
-  binaryPath: Schema.optional(TrimmedNonEmptyString),
-  homePath: Schema.optional(TrimmedNonEmptyString),
-});
-export type CodexProviderStartOptions = typeof CodexProviderStartOptions.Type;
-
-export const CopilotProviderStartOptions = Schema.Struct({
-  cliPath: Schema.optional(TrimmedNonEmptyString),
-  configDir: Schema.optional(TrimmedNonEmptyString),
-});
-export type CopilotProviderStartOptions = typeof CopilotProviderStartOptions.Type;
-
-export const ClaudeProviderStartOptions = Schema.Struct({
-  binaryPath: Schema.optional(TrimmedNonEmptyString),
-  permissionMode: Schema.optional(TrimmedNonEmptyString),
-  maxThinkingTokens: Schema.optional(NonNegativeInt),
-});
-export type ClaudeProviderStartOptions = typeof ClaudeProviderStartOptions.Type;
-
-export const CursorProviderStartOptions = Schema.Struct({
-  binaryPath: Schema.optional(TrimmedNonEmptyString),
-});
-export type CursorProviderStartOptions = typeof CursorProviderStartOptions.Type;
-
-export const GeminiCliProviderStartOptions = Schema.Struct({
-  binaryPath: Schema.optional(TrimmedNonEmptyString),
-});
-export type GeminiCliProviderStartOptions = typeof GeminiCliProviderStartOptions.Type;
-
-export const AmpProviderStartOptions = Schema.Struct({
-  binaryPath: Schema.optional(TrimmedNonEmptyString),
-});
-export type AmpProviderStartOptions = typeof AmpProviderStartOptions.Type;
-
-export const OpencodeProviderStartOptions = Schema.Struct({
-  serverUrl: Schema.optional(TrimmedNonEmptyString),
-  binaryPath: Schema.optional(TrimmedNonEmptyString),
-  hostname: Schema.optional(TrimmedNonEmptyString),
-  port: Schema.optional(PositiveInt),
-  workspace: Schema.optional(TrimmedNonEmptyString),
-  username: Schema.optional(TrimmedNonEmptyString),
-  password: Schema.optional(TrimmedNonEmptyString),
-});
-export type OpencodeProviderStartOptions = typeof OpencodeProviderStartOptions.Type;
-
-export const KiloProviderStartOptions = Schema.Struct({
-  serverUrl: Schema.optional(TrimmedNonEmptyString),
-  binaryPath: Schema.optional(TrimmedNonEmptyString),
-  hostname: Schema.optional(TrimmedNonEmptyString),
-  port: Schema.optional(PositiveInt),
-  workspace: Schema.optional(TrimmedNonEmptyString),
-  username: Schema.optional(TrimmedNonEmptyString),
-  password: Schema.optional(TrimmedNonEmptyString),
-});
-export type KiloProviderStartOptions = typeof KiloProviderStartOptions.Type;
-
-export const ProviderStartOptions = Schema.Struct({
-  codex: Schema.optional(CodexProviderStartOptions),
-  copilot: Schema.optional(CopilotProviderStartOptions),
-  claudeAgent: Schema.optional(ClaudeProviderStartOptions),
-  cursor: Schema.optional(CursorProviderStartOptions),
-  amp: Schema.optional(AmpProviderStartOptions),
-  geminiCli: Schema.optional(GeminiCliProviderStartOptions),
-  opencode: Schema.optional(OpencodeProviderStartOptions),
-  kilo: Schema.optional(KiloProviderStartOptions),
-});
-export type ProviderStartOptions = typeof ProviderStartOptions.Type;
-
-/** Opencode options with credentials stripped for safe persistence in events. */
-const OpencodeProviderStartOptionsRedacted = Schema.Struct({
-  serverUrl: Schema.optional(TrimmedNonEmptyString),
-  binaryPath: Schema.optional(TrimmedNonEmptyString),
-  hostname: Schema.optional(TrimmedNonEmptyString),
-  port: Schema.optional(PositiveInt),
-  workspace: Schema.optional(TrimmedNonEmptyString),
-});
-
-/** Kilo options with credentials stripped for safe persistence in events. */
-const KiloProviderStartOptionsRedacted = Schema.Struct({
-  serverUrl: Schema.optional(TrimmedNonEmptyString),
-  binaryPath: Schema.optional(TrimmedNonEmptyString),
-  hostname: Schema.optional(TrimmedNonEmptyString),
-  port: Schema.optional(PositiveInt),
-  workspace: Schema.optional(TrimmedNonEmptyString),
-});
-
-/** ProviderStartOptions without sensitive fields (username/password). Use in persisted events. */
-export const ProviderStartOptionsRedacted = Schema.Struct({
-  codex: Schema.optional(CodexProviderStartOptions),
-  copilot: Schema.optional(CopilotProviderStartOptions),
-  claudeAgent: Schema.optional(ClaudeProviderStartOptions),
-  cursor: Schema.optional(CursorProviderStartOptions),
-  amp: Schema.optional(AmpProviderStartOptions),
-  geminiCli: Schema.optional(GeminiCliProviderStartOptions),
-  opencode: Schema.optional(OpencodeProviderStartOptionsRedacted),
-  kilo: Schema.optional(KiloProviderStartOptionsRedacted),
-});
-export type ProviderStartOptionsRedacted = typeof ProviderStartOptionsRedacted.Type;
 
 export const RuntimeMode = Schema.Literals(["approval-required", "full-access"]);
 export type RuntimeMode = typeof RuntimeMode.Type;
@@ -427,16 +255,6 @@ const OrchestrationLatestTurnState = Schema.Literals([
 ]);
 export type OrchestrationLatestTurnState = typeof OrchestrationLatestTurnState.Type;
 
-export const OrchestrationTurnUsage = Schema.Struct({
-  input_tokens: Schema.optional(Schema.Number),
-  output_tokens: Schema.optional(Schema.Number),
-  total_tokens: Schema.optional(Schema.Number),
-  cached_tokens: Schema.optional(Schema.Number),
-  duration_ms: Schema.optional(Schema.Number),
-  tool_calls: Schema.optional(Schema.Number),
-});
-export type OrchestrationTurnUsage = typeof OrchestrationTurnUsage.Type;
-
 export const OrchestrationLatestTurn = Schema.Struct({
   turnId: TurnId,
   state: OrchestrationLatestTurnState,
@@ -444,7 +262,6 @@ export const OrchestrationLatestTurn = Schema.Struct({
   startedAt: Schema.NullOr(IsoDateTime),
   completedAt: Schema.NullOr(IsoDateTime),
   assistantMessageId: Schema.NullOr(MessageId),
-  usage: Schema.optional(OrchestrationTurnUsage),
   sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
 });
 export type OrchestrationLatestTurn = typeof OrchestrationLatestTurn.Type;
@@ -462,10 +279,8 @@ export const OrchestrationThread = Schema.Struct({
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
   latestTurn: Schema.NullOr(OrchestrationLatestTurn),
   createdAt: IsoDateTime,
-  archivedAt: Schema.optional(Schema.NullOr(IsoDateTime)).pipe(
-    Schema.withDecodingDefault(() => null),
-  ),
   updatedAt: IsoDateTime,
+  archivedAt: Schema.NullOr(IsoDateTime).pipe(Schema.withDecodingDefault(() => null)),
   deletedAt: Schema.NullOr(IsoDateTime),
   messages: Schema.Array(OrchestrationMessage),
   proposedPlans: Schema.Array(OrchestrationProposedPlan).pipe(Schema.withDecodingDefault(() => [])),
@@ -535,14 +350,12 @@ const ThreadArchiveCommand = Schema.Struct({
   type: Schema.Literal("thread.archive"),
   commandId: CommandId,
   threadId: ThreadId,
-  createdAt: IsoDateTime,
 });
 
 const ThreadUnarchiveCommand = Schema.Struct({
   type: Schema.Literal("thread.unarchive"),
   commandId: CommandId,
   threadId: ThreadId,
-  createdAt: IsoDateTime,
 });
 
 const ThreadMetaUpdateCommand = Schema.Struct({
@@ -582,6 +395,7 @@ export const ThreadTurnStartCommand = Schema.Struct({
     attachments: Schema.Array(ChatAttachment),
   }),
   modelSelection: Schema.optional(ModelSelection),
+  titleSeed: Schema.optional(TrimmedNonEmptyString),
   runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(() => DEFAULT_RUNTIME_MODE)),
   interactionMode: ProviderInteractionMode.pipe(
     Schema.withDecodingDefault(() => DEFAULT_PROVIDER_INTERACTION_MODE),
@@ -601,6 +415,7 @@ const ClientThreadTurnStartCommand = Schema.Struct({
     attachments: Schema.Array(UploadChatAttachment),
   }),
   modelSelection: Schema.optional(ModelSelection),
+  titleSeed: Schema.optional(TrimmedNonEmptyString),
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
@@ -694,7 +509,6 @@ const ThreadSessionSetCommand = Schema.Struct({
   commandId: CommandId,
   threadId: ThreadId,
   session: OrchestrationSession,
-  turnUsage: Schema.optional(OrchestrationTurnUsage),
   createdAt: IsoDateTime,
 });
 
@@ -896,10 +710,7 @@ export const ThreadTurnStartRequestedPayload = Schema.Struct({
   threadId: ThreadId,
   messageId: MessageId,
   modelSelection: Schema.optional(ModelSelection),
-  /** Runtime events carry full ProviderStartOptions (including credentials).
-   *  Redaction to ProviderStartOptionsRedacted happens at persistence and broadcast boundaries. */
-  providerOptions: Schema.optional(ProviderStartOptions),
-  assistantDeliveryMode: Schema.optional(AssistantDeliveryMode),
+  titleSeed: Schema.optional(TrimmedNonEmptyString),
   runtimeMode: RuntimeMode.pipe(Schema.withDecodingDefault(() => DEFAULT_RUNTIME_MODE)),
   interactionMode: ProviderInteractionMode.pipe(
     Schema.withDecodingDefault(() => DEFAULT_PROVIDER_INTERACTION_MODE),
@@ -947,7 +758,6 @@ export const ThreadSessionStopRequestedPayload = Schema.Struct({
 export const ThreadSessionSetPayload = Schema.Struct({
   threadId: ThreadId,
   session: OrchestrationSession,
-  turnUsage: Schema.optional(OrchestrationTurnUsage),
 });
 
 export const ThreadProposedPlanUpsertedPayload = Schema.Struct({
@@ -1223,3 +1033,43 @@ export const OrchestrationRpcSchemas = {
     output: OrchestrationReplayEventsResult,
   },
 } as const;
+
+export class OrchestrationGetSnapshotError extends Schema.TaggedErrorClass<OrchestrationGetSnapshotError>()(
+  "OrchestrationGetSnapshotError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export class OrchestrationDispatchCommandError extends Schema.TaggedErrorClass<OrchestrationDispatchCommandError>()(
+  "OrchestrationDispatchCommandError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export class OrchestrationGetTurnDiffError extends Schema.TaggedErrorClass<OrchestrationGetTurnDiffError>()(
+  "OrchestrationGetTurnDiffError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export class OrchestrationGetFullThreadDiffError extends Schema.TaggedErrorClass<OrchestrationGetFullThreadDiffError>()(
+  "OrchestrationGetFullThreadDiffError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export class OrchestrationReplayEventsError extends Schema.TaggedErrorClass<OrchestrationReplayEventsError>()(
+  "OrchestrationReplayEventsError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}

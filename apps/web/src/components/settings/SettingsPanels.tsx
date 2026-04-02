@@ -9,11 +9,10 @@ import {
   Undo2Icon,
   XIcon,
 } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   PROVIDER_DISPLAY_NAMES,
-  type ModelSelection,
   type ProviderKind,
   type ServerProvider,
   type ServerProviderModel,
@@ -41,7 +40,6 @@ import {
   setDesktopUpdateStateQueryData,
   useDesktopUpdateState,
 } from "../../lib/desktopUpdateReactQuery";
-import { serverConfigQueryOptions, serverQueryKeys } from "../../lib/serverReactQuery";
 import {
   MAX_CUSTOM_MODEL_LENGTH,
   getCustomModelOptionsByProvider,
@@ -60,6 +58,11 @@ import { Switch } from "../ui/switch";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ProjectFavicon } from "../ProjectFavicon";
+import {
+  useServerAvailableEditors,
+  useServerKeybindingsConfigPath,
+  useServerProviders,
+} from "../../rpc/serverState";
 
 const THEME_OPTIONS = [
   {
@@ -82,8 +85,6 @@ const TIMESTAMP_FORMAT_LABELS = {
   "24-hour": "24-hour",
 } as const;
 
-const EMPTY_SERVER_PROVIDERS: ReadonlyArray<ServerProvider> = [];
-
 type InstallProviderSettings = {
   provider: ProviderKind;
   title: string;
@@ -92,80 +93,25 @@ type InstallProviderSettings = {
   homePathKey?: "codexHomePath";
   homePlaceholder?: string;
   homeDescription?: ReactNode;
-  configDirKey?: "configDir";
-  configDirPlaceholder?: string;
-  configDirDescription?: ReactNode;
 };
 
-const PROVIDER_ORDER = [
-  "codex",
-  "copilot",
-  "claudeAgent",
-  "cursor",
-  "opencode",
-  "geminiCli",
-  "amp",
-  "kilo",
-] as const satisfies ReadonlyArray<ProviderKind>;
-
-const PROVIDER_SETTINGS_OVERRIDES: Partial<
-  Record<ProviderKind, Omit<InstallProviderSettings, "provider" | "title">>
-> = {
-  codex: {
+const PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
+  {
+    provider: "codex",
+    title: "Codex",
     binaryPlaceholder: "Codex binary path",
     binaryDescription: "Path to the Codex binary",
     homePathKey: "codexHomePath",
     homePlaceholder: "CODEX_HOME",
     homeDescription: "Optional custom Codex home and config directory.",
   },
-  copilot: {
-    binaryPlaceholder: "Copilot CLI path",
-    binaryDescription: "Path to the GitHub Copilot CLI binary",
-    configDirKey: "configDir",
-    configDirPlaceholder: "Copilot config directory",
-    configDirDescription: "Optional custom GitHub Copilot config directory.",
-  },
-  claudeAgent: {
+  {
+    provider: "claudeAgent",
+    title: "Claude",
     binaryPlaceholder: "Claude binary path",
     binaryDescription: "Path to the Claude binary",
   },
-};
-
-function getInstallProviderSettings(provider: ProviderKind): InstallProviderSettings {
-  const title = PROVIDER_DISPLAY_NAMES[provider] ?? provider;
-  const override = PROVIDER_SETTINGS_OVERRIDES[provider];
-  return {
-    provider,
-    title,
-    binaryPlaceholder: override?.binaryPlaceholder ?? `${title} binary path`,
-    binaryDescription: override?.binaryDescription ?? `Path to the ${title} binary`,
-    ...(override?.homePathKey ? { homePathKey: override.homePathKey } : {}),
-    ...(override?.homePlaceholder ? { homePlaceholder: override.homePlaceholder } : {}),
-    ...(override?.homeDescription ? { homeDescription: override.homeDescription } : {}),
-    ...(override?.configDirKey ? { configDirKey: override.configDirKey } : {}),
-    ...(override?.configDirPlaceholder
-      ? { configDirPlaceholder: override.configDirPlaceholder }
-      : {}),
-    ...(override?.configDirDescription
-      ? { configDirDescription: override.configDirDescription }
-      : {}),
-  };
-}
-
-function getProviderSettingsForDisplay(
-  serverProviders: ReadonlyArray<ServerProvider>,
-): ReadonlyArray<InstallProviderSettings> {
-  const orderedProviders =
-    serverProviders.length > 0
-      ? [
-          ...serverProviders.map((provider) => provider.provider),
-          ...PROVIDER_ORDER.filter(
-            (provider) => !serverProviders.some((entry) => entry.provider === provider),
-          ),
-        ]
-      : [...PROVIDER_ORDER];
-  return orderedProviders.map(getInstallProviderSettings);
-}
+] as const;
 
 const PROVIDER_STATUS_STYLES = {
   disabled: {
@@ -383,7 +329,7 @@ function AboutVersionSection() {
 
   const updateState = updateStateQuery.data ?? null;
 
-  const handleButtonClick = useCallback(async () => {
+  const handleButtonClick = useCallback(() => {
     const bridge = window.desktopBridge;
     if (!bridge) return;
 
@@ -406,8 +352,7 @@ function AboutVersionSection() {
     }
 
     if (action === "install") {
-      const api = readNativeApi();
-      const confirmed = await (api ?? ensureNativeApi()).dialogs.confirm(
+      const confirmed = window.confirm(
         getDesktopUpdateInstallConfirmationMessage(
           updateState ?? { availableVersion: null, downloadedVersion: null },
         ),
@@ -431,8 +376,16 @@ function AboutVersionSection() {
     if (typeof bridge.checkForUpdate !== "function") return;
     void bridge
       .checkForUpdate()
-      .then((state) => {
-        setDesktopUpdateStateQueryData(queryClient, state);
+      .then((result) => {
+        setDesktopUpdateStateQueryData(queryClient, result.state);
+        if (!result.checked) {
+          toastManager.add({
+            type: "error",
+            title: "Could not check for updates",
+            description:
+              result.state.message ?? "Automatic updates are not available in this build.",
+          });
+        }
       })
       .catch((error: unknown) => {
         toastManager.add({
@@ -497,9 +450,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     settings.textGenerationModelSelection ?? null,
     DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection ?? null,
   );
-  const areProviderSettingsDirty = PROVIDER_ORDER.some((provider) => {
-    const currentSettings = settings.providers[provider];
-    const defaultSettings = DEFAULT_UNIFIED_SETTINGS.providers[provider];
+  const areProviderSettingsDirty = PROVIDER_SETTINGS.some((providerSettings) => {
+    const currentSettings = settings.providers[providerSettings.provider];
+    const defaultSettings = DEFAULT_UNIFIED_SETTINGS.providers[providerSettings.provider];
     return !Equal.equals(currentSettings, defaultSettings);
   });
 
@@ -565,49 +518,38 @@ export function GeneralSettingsPanel() {
   const { theme, setTheme } = useTheme();
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
-  const serverConfigQuery = useQuery(serverConfigQueryOptions());
   const [isOpeningKeybindings, setIsOpeningKeybindings] = useState(false);
   const [openKeybindingsError, setOpenKeybindingsError] = useState<string | null>(null);
-  const [openProviderDetails, setOpenProviderDetails] = useState<
-    Partial<Record<ProviderKind, boolean>>
-  >(() =>
-    Object.fromEntries(
-      PROVIDER_ORDER.map((provider) => [
-        provider,
-        !Equal.equals(settings.providers[provider], DEFAULT_UNIFIED_SETTINGS.providers[provider]),
-      ]),
+  const [openProviderDetails, setOpenProviderDetails] = useState<Record<ProviderKind, boolean>>({
+    codex: Boolean(
+      settings.providers.codex.binaryPath !== DEFAULT_UNIFIED_SETTINGS.providers.codex.binaryPath ||
+      settings.providers.codex.homePath !== DEFAULT_UNIFIED_SETTINGS.providers.codex.homePath ||
+      settings.providers.codex.customModels.length > 0,
     ),
-  );
+    claudeAgent: Boolean(
+      settings.providers.claudeAgent.binaryPath !==
+        DEFAULT_UNIFIED_SETTINGS.providers.claudeAgent.binaryPath ||
+      settings.providers.claudeAgent.customModels.length > 0,
+    ),
+  });
   const [customModelInputByProvider, setCustomModelInputByProvider] = useState<
-    Partial<Record<ProviderKind, string>>
-  >(() => Object.fromEntries(PROVIDER_ORDER.map((provider) => [provider, ""])));
+    Record<ProviderKind, string>
+  >({
+    codex: "",
+    claudeAgent: "",
+  });
   const [customModelErrorByProvider, setCustomModelErrorByProvider] = useState<
     Partial<Record<ProviderKind, string | null>>
   >({});
   const [isRefreshingProviders, setIsRefreshingProviders] = useState(false);
   const refreshingRef = useRef(false);
-  const queryClient = useQueryClient();
   const modelListRefs = useRef<Partial<Record<ProviderKind, HTMLDivElement | null>>>({});
-  const modelListObserverRef = useRef<MutationObserver | null>(null);
-  const modelListObserverTimeoutRef = useRef<number | null>(null);
-  const clearModelListObserver = useCallback(() => {
-    modelListObserverRef.current?.disconnect();
-    modelListObserverRef.current = null;
-    if (modelListObserverTimeoutRef.current !== null) {
-      window.clearTimeout(modelListObserverTimeoutRef.current);
-      modelListObserverTimeoutRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => clearModelListObserver, [clearModelListObserver]);
-
   const refreshProviders = useCallback(() => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;
     setIsRefreshingProviders(true);
     void ensureNativeApi()
       .server.refreshProviders()
-      .then(() => queryClient.invalidateQueries({ queryKey: serverQueryKeys.config() }))
       .catch((error: unknown) => {
         console.warn("Failed to refresh providers", error);
       })
@@ -615,15 +557,11 @@ export function GeneralSettingsPanel() {
         refreshingRef.current = false;
         setIsRefreshingProviders(false);
       });
-  }, [queryClient]);
+  }, []);
 
-  const keybindingsConfigPath = serverConfigQuery.data?.keybindingsConfigPath ?? null;
-  const availableEditors = serverConfigQuery.data?.availableEditors;
-  const serverProviders = serverConfigQuery.data?.providers ?? EMPTY_SERVER_PROVIDERS;
-  const providerSettings = useMemo(
-    () => getProviderSettingsForDisplay(serverProviders),
-    [serverProviders],
-  );
+  const keybindingsConfigPath = useServerKeybindingsConfigPath();
+  const availableEditors = useServerAvailableEditors();
+  const serverProviders = useServerProviders();
   const codexHomePath = settings.providers.codex.homePath;
 
   const textGenerationModelSelection = resolveAppModelSelectionState(settings, serverProviders);
@@ -723,43 +661,38 @@ export function GeneralSettingsPanel() {
       if (!el) return;
       const scrollToEnd = () => el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
       requestAnimationFrame(scrollToEnd);
-      clearModelListObserver();
       const observer = new MutationObserver(() => {
         scrollToEnd();
-        clearModelListObserver();
+        observer.disconnect();
       });
-      modelListObserverRef.current = observer;
       observer.observe(el, { childList: true, subtree: true });
-      modelListObserverTimeoutRef.current = window.setTimeout(clearModelListObserver, 2_000);
+      setTimeout(() => observer.disconnect(), 2_000);
     },
-    [clearModelListObserver, customModelInputByProvider, serverProviders, settings, updateSettings],
+    [customModelInputByProvider, serverProviders, settings, updateSettings],
   );
 
   const removeCustomModel = useCallback(
     (provider: ProviderKind, slug: string) => {
-      const nextProviders = {
-        ...settings.providers,
-        [provider]: {
-          ...settings.providers[provider],
-          customModels: settings.providers[provider].customModels.filter((model) => model !== slug),
-        },
-      };
       updateSettings({
-        providers: nextProviders,
-        textGenerationModelSelection: resolveAppModelSelectionState(
-          { ...settings, providers: nextProviders },
-          serverProviders,
-        ),
+        providers: {
+          ...settings.providers,
+          [provider]: {
+            ...settings.providers[provider],
+            customModels: settings.providers[provider].customModels.filter(
+              (model) => model !== slug,
+            ),
+          },
+        },
       });
       setCustomModelErrorByProvider((existing) => ({
         ...existing,
         [provider]: null,
       }));
     },
-    [serverProviders, settings, updateSettings],
+    [settings, updateSettings],
   );
 
-  const providerCards = providerSettings.map((providerSettings) => {
+  const providerCards = PROVIDER_SETTINGS.map((providerSettings) => {
     const liveProvider = serverProviders.find(
       (candidate) => candidate.provider === providerSettings.provider,
     );
@@ -784,11 +717,7 @@ export function GeneralSettingsPanel() {
       homePathKey: providerSettings.homePathKey,
       homePlaceholder: providerSettings.homePlaceholder,
       homeDescription: providerSettings.homeDescription,
-      configDirKey: providerSettings.configDirKey,
-      configDirPlaceholder: providerSettings.configDirPlaceholder,
-      configDirDescription: providerSettings.configDirDescription,
       binaryPathValue: providerConfig.binaryPath,
-      configDirValue: "configDir" in providerConfig ? providerConfig.configDir : "",
       isDirty: !Equal.equals(providerConfig, defaultProviderConfig),
       liveProvider,
       models,
@@ -1050,6 +979,7 @@ export function GeneralSettingsPanel() {
                 provider={textGenProvider}
                 model={textGenModel}
                 lockedProvider={null}
+                providers={serverProviders}
                 modelOptionsByProvider={gitModelOptionsByProvider}
                 triggerVariant="outline"
                 triggerClassName="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"
@@ -1087,7 +1017,7 @@ export function GeneralSettingsPanel() {
                           provider: textGenProvider,
                           model: textGenModel,
                           ...(nextOptions ? { options: nextOptions } : {}),
-                        } as ModelSelection,
+                        },
                       },
                       serverProviders,
                     ),
@@ -1296,42 +1226,6 @@ export function GeneralSettingsPanel() {
                           {providerCard.homeDescription ? (
                             <span className="mt-1 block text-xs text-muted-foreground">
                               {providerCard.homeDescription}
-                            </span>
-                          ) : null}
-                        </label>
-                      </div>
-                    ) : null}
-
-                    {providerCard.configDirKey ? (
-                      <div className="border-t border-border/60 px-4 py-3 sm:px-5">
-                        <label
-                          htmlFor={`provider-install-${providerCard.provider}-config-dir`}
-                          className="block"
-                        >
-                          <span className="text-xs font-medium text-foreground">
-                            {providerDisplayName} config directory
-                          </span>
-                          <Input
-                            id={`provider-install-${providerCard.provider}-config-dir`}
-                            className="mt-1.5"
-                            value={providerCard.configDirValue}
-                            onChange={(event) =>
-                              updateSettings({
-                                providers: {
-                                  ...settings.providers,
-                                  [providerCard.provider]: {
-                                    ...settings.providers[providerCard.provider],
-                                    configDir: event.target.value,
-                                  },
-                                },
-                              })
-                            }
-                            placeholder={providerCard.configDirPlaceholder}
-                            spellCheck={false}
-                          />
-                          {providerCard.configDirDescription ? (
-                            <span className="mt-1 block text-xs text-muted-foreground">
-                              {providerCard.configDirDescription}
                             </span>
                           ) : null}
                         </label>
@@ -1565,15 +1459,7 @@ export function ArchivedThreadsPanel() {
       }
 
       if (clicked === "delete") {
-        try {
-          await confirmAndDeleteThread(threadId);
-        } catch (error) {
-          toastManager.add({
-            type: "error",
-            title: "Failed to delete thread",
-            description: error instanceof Error ? error.message : "An error occurred.",
-          });
-        }
+        await confirmAndDeleteThread(threadId);
       }
     },
     [confirmAndDeleteThread, unarchiveThread],
@@ -1620,45 +1506,24 @@ export function ArchivedThreadsPanel() {
                     {formatRelativeTimeLabel(thread.createdAt)}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 cursor-pointer gap-1.5 px-2.5"
-                    onClick={() =>
-                      void unarchiveThread(thread.id).catch((error) => {
-                        toastManager.add({
-                          type: "error",
-                          title: "Failed to unarchive thread",
-                          description:
-                            error instanceof Error ? error.message : "An error occurred.",
-                        });
-                      })
-                    }
-                  >
-                    <ArchiveX className="size-3.5" />
-                    <span>Unarchive</span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive-outline"
-                    size="sm"
-                    className="h-7 cursor-pointer gap-1.5 px-2.5"
-                    onClick={() =>
-                      void confirmAndDeleteThread(thread.id).catch((error) => {
-                        toastManager.add({
-                          type: "error",
-                          title: "Failed to delete thread",
-                          description:
-                            error instanceof Error ? error.message : "An error occurred.",
-                        });
-                      })
-                    }
-                  >
-                    <span>Delete</span>
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 shrink-0 cursor-pointer gap-1.5 px-2.5"
+                  onClick={() =>
+                    void unarchiveThread(thread.id).catch((error) => {
+                      toastManager.add({
+                        type: "error",
+                        title: "Failed to unarchive thread",
+                        description: error instanceof Error ? error.message : "An error occurred.",
+                      });
+                    })
+                  }
+                >
+                  <ArchiveX className="size-3.5" />
+                  <span>Unarchive</span>
+                </Button>
               </div>
             ))}
           </SettingsSection>

@@ -23,13 +23,13 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import {
   buildServerProvider,
-  collectStreamAsString,
   DEFAULT_TIMEOUT_MS,
   detailFromResult,
   extractAuthBoolean,
   isCommandMissingCause,
   parseGenericCliVersion,
   providerModelsFromSettings,
+  spawnAndCollect,
   type CommandResult,
 } from "../providerSnapshot";
 import { makeManagedServerProvider } from "../makeManagedServerProvider";
@@ -46,7 +46,8 @@ import {
 } from "../codexAccount";
 import { probeCodexAccount } from "../codexAppServer";
 import { CodexProvider } from "../Services/CodexProvider";
-import { ServerSettingsError, ServerSettingsService } from "../../serverSettings";
+import { ServerSettingsService } from "../../serverSettings";
+import { ServerSettingsError } from "@t3tools/contracts";
 
 const PROVIDER = "codex" as const;
 const OPENAI_AUTH_PROVIDERS = new Set(["openai"]);
@@ -305,33 +306,20 @@ const probeCodexCapabilities = (input: {
     }),
   );
 
-const runCodexCommand = (args: ReadonlyArray<string>) =>
-  Effect.gen(function* () {
-    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-    const settingsService = yield* ServerSettingsService;
-    const codexSettings = yield* settingsService.getSettings.pipe(
-      Effect.map((settings) => settings.providers.codex),
-    );
-    const command = ChildProcess.make(codexSettings.binaryPath, [...args], {
-      shell: process.platform === "win32",
-      env: {
-        ...process.env,
-        ...(codexSettings.homePath ? { CODEX_HOME: codexSettings.homePath } : {}),
-      },
-    });
-
-    const child = yield* spawner.spawn(command);
-    const [stdout, stderr, exitCode] = yield* Effect.all(
-      [
-        collectStreamAsString(child.stdout),
-        collectStreamAsString(child.stderr),
-        child.exitCode.pipe(Effect.map(Number)),
-      ],
-      { concurrency: "unbounded" },
-    );
-
-    return { stdout, stderr, code: exitCode } satisfies CommandResult;
-  }).pipe(Effect.scoped);
+const runCodexCommand = Effect.fn("runCodexCommand")(function* (args: ReadonlyArray<string>) {
+  const settingsService = yield* ServerSettingsService;
+  const codexSettings = yield* settingsService.getSettings.pipe(
+    Effect.map((settings) => settings.providers.codex),
+  );
+  const command = ChildProcess.make(codexSettings.binaryPath, [...args], {
+    shell: process.platform === "win32",
+    env: {
+      ...process.env,
+      ...(codexSettings.homePath ? { CODEX_HOME: codexSettings.homePath } : {}),
+    },
+  });
+  return yield* spawnAndCollect(codexSettings.binaryPath, command);
+});
 
 export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(function* (
   resolveAccount?: (input: {
@@ -468,13 +456,21 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
     Effect.timeoutOption(DEFAULT_TIMEOUT_MS),
     Effect.result,
   );
+  const account = resolveAccount
+    ? yield* resolveAccount({
+        binaryPath: codexSettings.binaryPath,
+        homePath: codexSettings.homePath,
+      })
+    : undefined;
+  const resolvedModels = adjustCodexModelsForAccount(models, account);
+
   if (Result.isFailure(authProbe)) {
     const error = authProbe.failure;
     return buildServerProvider({
       provider: PROVIDER,
       enabled: codexSettings.enabled,
       checkedAt,
-      models,
+      models: resolvedModels,
       probe: {
         installed: true,
         version: parsedVersion,
@@ -493,7 +489,7 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
       provider: PROVIDER,
       enabled: codexSettings.enabled,
       checkedAt,
-      models,
+      models: resolvedModels,
       probe: {
         installed: true,
         version: parsedVersion,
@@ -503,14 +499,6 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
       },
     });
   }
-
-  const account = resolveAccount
-    ? yield* resolveAccount({
-        binaryPath: codexSettings.binaryPath,
-        homePath: codexSettings.homePath,
-      })
-    : undefined;
-  const resolvedModels = adjustCodexModelsForAccount(models, account);
 
   const parsed = parseAuthStatusFromOutput(authProbe.success.value);
   const authType = codexAuthSubType(account);

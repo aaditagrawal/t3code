@@ -6,20 +6,13 @@ export default mergeConfig(
   baseConfig,
   defineConfig({
     test: {
-      // The server suite spins up long-lived Effect runtimes and git subprocesses.
-      // Running files serially avoids worker-pool teardown stalls and the full-suite
-      // timing races that only appear under heavy parallel contention.
+      // The server suite exercises sqlite, git, temp worktrees, and orchestration
+      // runtimes heavily. Running files in parallel introduces load-sensitive flakes.
       fileParallelism: false,
+      // Server integration tests exercise sqlite, git, and orchestration together.
+      // Under package-wide parallel runs they regularly exceed the default 15s budget.
       testTimeout: 60_000,
       hookTimeout: 60_000,
-      server: {
-        deps: {
-          // @github/copilot-sdk imports "vscode-jsonrpc/node" which fails
-          // under Node ESM because the package lacks an "exports" map.
-          // Inlining the SDK lets Vite's bundler resolve the bare specifier.
-          inline: ["@github/copilot-sdk"],
-        },
-      },
     },
   }),
 );

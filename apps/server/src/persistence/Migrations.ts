@@ -29,9 +29,9 @@ import Migration0013 from "./Migrations/013_ProjectionThreadProposedPlans.ts";
 import Migration0014 from "./Migrations/014_ProjectionThreadProposedPlanImplementation.ts";
 import Migration0015 from "./Migrations/015_ProjectionTurnsSourceProposedPlan.ts";
 import Migration0016 from "./Migrations/016_CanonicalizeModelSelections.ts";
-import Migration0017 from "./Migrations/017_NormalizeLegacyClaudeCodeProvider.ts";
-import Migration0018 from "./Migrations/017_ProjectionThreadsArchivedAt.ts";
-import Migration0019 from "./Migrations/018_ProjectionThreadsArchivedAtIndex.ts";
+import Migration0017 from "./Migrations/017_ProjectionThreadsArchivedAt.ts";
+import Migration0018 from "./Migrations/018_ProjectionThreadsArchivedAtIndex.ts";
+import Migration0019 from "./Migrations/019_ProjectionSnapshotLookupIndexes.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -60,9 +60,9 @@ export const migrationEntries = [
   [14, "ProjectionThreadProposedPlanImplementation", Migration0014],
   [15, "ProjectionTurnsSourceProposedPlan", Migration0015],
   [16, "CanonicalizeModelSelections", Migration0016],
-  [17, "NormalizeLegacyClaudeCodeProvider", Migration0017],
-  [18, "ProjectionThreadsArchivedAt", Migration0018],
-  [19, "ProjectionThreadsArchivedAtIndex", Migration0019],
+  [17, "ProjectionThreadsArchivedAt", Migration0017],
+  [18, "ProjectionThreadsArchivedAtIndex", Migration0018],
+  [19, "ProjectionSnapshotLookupIndexes", Migration0019],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>
@@ -94,19 +94,20 @@ export interface RunMigrationsOptions {
  *
  * @returns Effect containing array of executed migrations
  */
-export const runMigrations = ({ toMigrationInclusive }: RunMigrationsOptions = {}) =>
-  Effect.gen(function* () {
-    yield* Effect.log(
-      toMigrationInclusive === undefined
-        ? "Running all migrations..."
-        : `Running migrations 1 through ${toMigrationInclusive}...`,
-    );
-    const executedMigrations = yield* run({ loader: makeMigrationLoader(toMigrationInclusive) });
-    yield* Effect.log("Migrations ran successfully").pipe(
-      Effect.annotateLogs({ migrations: executedMigrations.map(([id, name]) => `${id}_${name}`) }),
-    );
-    return executedMigrations;
-  });
+export const runMigrations = Effect.fn("runMigrations")(function* ({
+  toMigrationInclusive,
+}: RunMigrationsOptions = {}) {
+  yield* Effect.log(
+    toMigrationInclusive === undefined
+      ? "Running all migrations..."
+      : `Running migrations 1 through ${toMigrationInclusive}...`,
+  );
+  const executedMigrations = yield* run({ loader: makeMigrationLoader(toMigrationInclusive) });
+  yield* Effect.log("Migrations ran successfully").pipe(
+    Effect.annotateLogs({ migrations: executedMigrations.map(([id, name]) => `${id}_${name}`) }),
+  );
+  return executedMigrations;
+});
 
 /**
  * Layer that runs migrations when the layer is built.

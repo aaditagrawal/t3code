@@ -23,6 +23,7 @@ import { GitCoreLive } from "../../git/Layers/GitCore.ts";
 import { CheckpointReactorLive } from "./CheckpointReactor.ts";
 import { OrchestrationEngineLive } from "./OrchestrationEngine.ts";
 import { OrchestrationProjectionPipelineLive } from "./ProjectionPipeline.ts";
+import { OrchestrationProjectionSnapshotQueryLive } from "./ProjectionSnapshotQuery.ts";
 import { RuntimeReceiptBusLive } from "./RuntimeReceiptBus.ts";
 import { OrchestrationEventStoreLive } from "../../persistence/Layers/OrchestrationEventStore.ts";
 import { OrchestrationCommandReceiptRepositoryLive } from "../../persistence/Layers/OrchestrationCommandReceipts.ts";
@@ -36,10 +37,10 @@ import {
   ProviderService,
   type ProviderServiceShape,
 } from "../../provider/Services/ProviderService.ts";
-import { getProviderCapabilities } from "../../provider/Services/ProviderAdapter.ts";
 import { checkpointRefForThreadTurn } from "../../checkpointing/Utils.ts";
 import { ServerConfig } from "../../config.ts";
 import { WorkspaceEntriesLive } from "../../workspace/Layers/WorkspaceEntries.ts";
+import { WorkspacePathsLive } from "../../workspace/Layers/WorkspacePaths.ts";
 
 const asProjectId = (value: string): ProjectId => ProjectId.makeUnsafe(value);
 const asTurnId = (value: string): TurnId => TurnId.makeUnsafe(value);
@@ -61,7 +62,7 @@ function createProviderServiceHarness(
   cwd: string,
   hasSession = true,
   sessionCwd = cwd,
-  providerName: "codex" | "claudeAgent" = "codex",
+  providerName: ProviderSession["provider"] = "codex",
 ) {
   const now = new Date().toISOString();
   const runtimeEventPubSub = Effect.runSync(PubSub.unbounded<ProviderRuntimeEvent>());
@@ -93,7 +94,7 @@ function createProviderServiceHarness(
     respondToUserInput: () => unsupported(),
     stopSession: () => unsupported(),
     listSessions,
-    getCapabilities: () => Effect.succeed(getProviderCapabilities(providerName)),
+    getCapabilities: () => Effect.succeed({ sessionModelSwitch: "in-session" }),
     rollbackConversation,
     streamEvents: Stream.fromPubSub(runtimeEventPubSub),
   };
@@ -116,7 +117,7 @@ async function waitForThread(
     checkpoints: ReadonlyArray<{ checkpointTurnCount: number }>;
     activities: ReadonlyArray<{ kind: string }>;
   }) => boolean,
-  timeoutMs = 20_000,
+  timeoutMs = 15_000,
 ) {
   const deadline = Date.now() + timeoutMs;
   const poll = async (): Promise<{
@@ -141,7 +142,7 @@ async function waitForThread(
 async function waitForEvent(
   engine: OrchestrationEngineShape,
   predicate: (event: { type: string }) => boolean,
-  timeoutMs = 20_000,
+  timeoutMs = 15_000,
 ) {
   const deadline = Date.now() + timeoutMs;
   const poll = async () => {
@@ -192,7 +193,7 @@ function gitShowFileAtRef(cwd: string, ref: string, filePath: string): string {
   return runGit(cwd, ["show", `${ref}:${filePath}`]);
 }
 
-async function waitForGitRefExists(cwd: string, ref: string, timeoutMs = 20_000) {
+async function waitForGitRefExists(cwd: string, ref: string, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
   const poll = async (): Promise<void> => {
     if (gitRefExists(cwd, ref)) {
@@ -238,7 +239,7 @@ describe("CheckpointReactor", () => {
     readonly projectWorkspaceRoot?: string;
     readonly threadWorktreePath?: string | null;
     readonly providerSessionCwd?: string;
-    readonly providerName?: "codex" | "claudeAgent";
+    readonly providerName?: ProviderKind;
   }) {
     const cwd = createGitRepository();
     tempDirs.push(cwd);
@@ -249,6 +250,7 @@ describe("CheckpointReactor", () => {
       options?.providerName ?? "codex",
     );
     const orchestrationLayer = OrchestrationEngineLive.pipe(
+      Layer.provide(OrchestrationProjectionSnapshotQueryLive),
       Layer.provide(OrchestrationProjectionPipelineLive),
       Layer.provide(OrchestrationEventStoreLive),
       Layer.provide(OrchestrationCommandReceiptRepositoryLive),
@@ -264,7 +266,8 @@ describe("CheckpointReactor", () => {
       Layer.provideMerge(RuntimeReceiptBusLive),
       Layer.provideMerge(Layer.succeed(ProviderService, provider.service)),
       Layer.provideMerge(CheckpointStoreLive),
-      Layer.provideMerge(WorkspaceEntriesLive),
+      Layer.provideMerge(WorkspaceEntriesLive.pipe(Layer.provide(WorkspacePathsLive))),
+      Layer.provideMerge(WorkspacePathsLive),
       Layer.provideMerge(GitCoreLive),
       Layer.provideMerge(ServerConfigLayer),
       Layer.provideMerge(NodeServices.layer),
@@ -493,7 +496,7 @@ describe("CheckpointReactor", () => {
     expect(thread.checkpoints[0]?.checkpointTurnCount).toBe(1);
   });
 
-  it("captures pre-turn and completion checkpoints for claudeAgent runtime events", async () => {
+  it("captures pre-turn and completion checkpoints for claude runtime events", async () => {
     const harness = await createHarness({
       seedFilesystemCheckpoints: false,
       providerName: "claudeAgent",
@@ -869,7 +872,7 @@ describe("CheckpointReactor", () => {
     ).toBe(false);
   });
 
-  it("executes provider revert and emits thread.reverted for claudeAgent sessions", async () => {
+  it("executes provider revert and emits thread.reverted for claude sessions", async () => {
     const harness = await createHarness({ providerName: "claudeAgent" });
     const createdAt = new Date().toISOString();
 
@@ -1008,18 +1011,7 @@ describe("CheckpointReactor", () => {
       }),
     );
 
-    const deadline = Date.now() + 20_000;
-    const waitForRollbackCalls = async (): Promise<void> => {
-      if (harness.provider.rollbackConversation.mock.calls.length >= 2) {
-        return;
-      }
-      if (Date.now() >= deadline) {
-        throw new Error("Timed out waiting for rollbackConversation calls.");
-      }
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      return waitForRollbackCalls();
-    };
-    await waitForRollbackCalls();
+    await harness.drain();
 
     expect(harness.provider.rollbackConversation).toHaveBeenCalledTimes(2);
     expect(harness.provider.rollbackConversation.mock.calls[0]?.[0]).toEqual({

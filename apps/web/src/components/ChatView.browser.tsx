@@ -4,15 +4,14 @@ import "../index.css";
 import {
   EventId,
   ORCHESTRATION_WS_METHODS,
-  ORCHESTRATION_WS_CHANNELS,
   type MessageId,
   type OrchestrationEvent,
   type OrchestrationReadModel,
   type ProjectId,
   type ServerConfig,
+  type ServerLifecycleWelcomePayload,
   type ThreadId,
-  type WsWelcomePayload,
-  WS_CHANNELS,
+  type TurnId,
   WS_METHODS,
   OrchestrationSessionStatus,
   DEFAULT_SERVER_SETTINGS,
@@ -31,8 +30,10 @@ import {
   removeInlineTerminalContextPlaceholder,
 } from "../lib/terminalContext";
 import { isMacPlatform } from "../lib/utils";
+import { __resetNativeApiForTests } from "../nativeApi";
 import { getRouter } from "../router";
 import { useStore } from "../store";
+import { BrowserWsRpcHarness, type NormalizedWsRpcRequestBody } from "../../test/wsRpcHarness";
 import { estimateTimelineMessageHeight } from "./timelineHeight";
 import { DEFAULT_CLIENT_SETTINGS } from "@t3tools/contracts/settings";
 
@@ -43,25 +44,16 @@ const NOW_ISO = "2026-03-04T12:00:00.000Z";
 const BASE_TIME_MS = Date.parse(NOW_ISO);
 const ATTACHMENT_SVG = "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='300'></svg>";
 
-interface WsRequestEnvelope {
-  id: string;
-  body: {
-    _tag: string;
-    [key: string]: unknown;
-  };
-}
-
 interface TestFixture {
   snapshot: OrchestrationReadModel;
   serverConfig: ServerConfig;
-  welcome: WsWelcomePayload;
+  welcome: ServerLifecycleWelcomePayload;
 }
 
 let fixture: TestFixture;
-const wsRequests: WsRequestEnvelope["body"][] = [];
-let customWsRpcResolver: ((body: WsRequestEnvelope["body"]) => unknown | undefined) | null = null;
-let wsClient: { send: (message: string) => void } | null = null;
-let pushSequence = 1;
+const rpcHarness = new BrowserWsRpcHarness();
+const wsRequests = rpcHarness.requests;
+let customWsRpcResolver: ((body: NormalizedWsRpcRequestBody) => unknown | undefined) | null = null;
 const wsLink = ws.link(/ws(s)?:\/\/.*/);
 
 interface ViewportSpec {
@@ -77,6 +69,20 @@ const DEFAULT_VIEWPORT: ViewportSpec = {
   width: 960,
   height: 1_100,
   textTolerancePx: 44,
+  attachmentTolerancePx: 56,
+};
+const WIDE_FOOTER_VIEWPORT: ViewportSpec = {
+  name: "wide-footer",
+  width: 1_400,
+  height: 1_100,
+  textTolerancePx: 44,
+  attachmentTolerancePx: 56,
+};
+const COMPACT_FOOTER_VIEWPORT: ViewportSpec = {
+  name: "compact-footer",
+  width: 430,
+  height: 932,
+  textTolerancePx: 56,
   attachmentTolerancePx: 56,
 };
 const TEXT_VIEWPORT_MATRIX = [
@@ -102,6 +108,7 @@ interface MountedChatView {
   cleanup: () => Promise<void>;
   measureUserRow: (targetMessageId: MessageId) => Promise<UserRowMeasurement>;
   setViewport: (viewport: ViewportSpec) => Promise<void>;
+  setContainerSize: (viewport: Pick<ViewportSpec, "width" | "height">) => Promise<void>;
   router: ReturnType<typeof getRouter>;
 }
 
@@ -263,6 +270,7 @@ function createSnapshotForTargetUser(options: {
         latestTurn: null,
         createdAt: NOW_ISO,
         updatedAt: NOW_ISO,
+        archivedAt: null,
         deletedAt: null,
         messages,
         activities: [],
@@ -320,6 +328,7 @@ function addThreadToSnapshot(
         latestTurn: null,
         createdAt: NOW_ISO,
         updatedAt: NOW_ISO,
+        archivedAt: null,
         deletedAt: null,
         messages: [],
         activities: [],
@@ -370,32 +379,20 @@ function createThreadCreatedEvent(threadId: ThreadId, sequence: number): Orchest
 }
 
 function sendOrchestrationDomainEvent(event: OrchestrationEvent): void {
-  if (!wsClient) {
-    throw new Error("WebSocket client not connected");
-  }
-  wsClient.send(
-    JSON.stringify({
-      type: "push",
-      sequence: pushSequence++,
-      channel: ORCHESTRATION_WS_CHANNELS.domainEvent,
-      data: event,
-    }),
-  );
+  rpcHarness.emitStreamValue(WS_METHODS.subscribeOrchestrationDomainEvents, event);
 }
 
-async function waitForWsClient(): Promise<{ send: (message: string) => void }> {
-  let client: { send: (message: string) => void } | null = null;
+async function waitForWsClient(): Promise<void> {
   await vi.waitFor(
     () => {
-      client = wsClient;
-      expect(client).toBeTruthy();
+      expect(
+        wsRequests.some(
+          (request) => request._tag === WS_METHODS.subscribeOrchestrationDomainEvents,
+        ),
+      ).toBe(true);
     },
     { timeout: 8_000, interval: 16 },
   );
-  if (!client) {
-    throw new Error("WebSocket client not connected");
-  }
-  return client;
 }
 
 async function promoteDraftThreadViaDomainEvent(threadId: ThreadId): Promise<void> {
@@ -511,7 +508,115 @@ function createSnapshotWithLongProposedPlan(): OrchestrationReadModel {
   };
 }
 
-function resolveWsRpc(body: WsRequestEnvelope["body"]): unknown {
+function createSnapshotWithPendingUserInput(): OrchestrationReadModel {
+  const snapshot = createSnapshotForTargetUser({
+    targetMessageId: "msg-user-pending-input-target" as MessageId,
+    targetText: "question thread",
+  });
+
+  return {
+    ...snapshot,
+    threads: snapshot.threads.map((thread) =>
+      thread.id === THREAD_ID
+        ? Object.assign({}, thread, {
+            interactionMode: "plan",
+            activities: [
+              {
+                id: EventId.makeUnsafe("activity-user-input-requested"),
+                tone: "info",
+                kind: "user-input.requested",
+                summary: "User input requested",
+                payload: {
+                  requestId: "req-browser-user-input",
+                  questions: [
+                    {
+                      id: "scope",
+                      header: "Scope",
+                      question: "What should this change cover?",
+                      options: [
+                        {
+                          label: "Tight",
+                          description: "Touch only the footer layout logic.",
+                        },
+                        {
+                          label: "Broad",
+                          description: "Also adjust the related composer controls.",
+                        },
+                      ],
+                    },
+                    {
+                      id: "risk",
+                      header: "Risk",
+                      question: "How aggressive should the imaginary plan be?",
+                      options: [
+                        {
+                          label: "Conservative",
+                          description: "Favor reliability and low-risk changes.",
+                        },
+                        {
+                          label: "Balanced",
+                          description: "Mix quick wins with one structural improvement.",
+                        },
+                      ],
+                    },
+                  ],
+                },
+                turnId: null,
+                sequence: 1,
+                createdAt: isoAt(1_000),
+              },
+            ],
+            updatedAt: isoAt(1_000),
+          })
+        : thread,
+    ),
+  };
+}
+
+function createSnapshotWithPlanFollowUpPrompt(): OrchestrationReadModel {
+  const snapshot = createSnapshotForTargetUser({
+    targetMessageId: "msg-user-plan-follow-up-target" as MessageId,
+    targetText: "plan follow-up thread",
+  });
+
+  return {
+    ...snapshot,
+    threads: snapshot.threads.map((thread) =>
+      thread.id === THREAD_ID
+        ? Object.assign({}, thread, {
+            interactionMode: "plan",
+            latestTurn: {
+              turnId: "turn-plan-follow-up" as TurnId,
+              state: "completed",
+              requestedAt: isoAt(1_000),
+              startedAt: isoAt(1_001),
+              completedAt: isoAt(1_010),
+              assistantMessageId: null,
+            },
+            proposedPlans: [
+              {
+                id: "plan-follow-up-browser-test",
+                turnId: "turn-plan-follow-up" as TurnId,
+                planMarkdown: "# Follow-up plan\n\n- Keep the composer footer stable on resize.",
+                implementedAt: null,
+                implementationThreadId: null,
+                createdAt: isoAt(1_002),
+                updatedAt: isoAt(1_003),
+              },
+            ],
+            session: {
+              ...thread.session,
+              status: "ready",
+              updatedAt: isoAt(1_010),
+            },
+            updatedAt: isoAt(1_010),
+          })
+        : thread,
+    ),
+  };
+}
+
+function resolveWsRpc(body: NormalizedWsRpcRequestBody): unknown {
   const customResult = customWsRpcResolver?.(body);
   if (customResult !== undefined) {
     return customResult;
@@ -552,17 +657,14 @@ function resolveWsRpc(body: WsRequestEnvelope["body"]): unknown {
       pr: null,
     };
   }
-  if (tag === WS_METHODS.providerListModels) {
-    return { models: [] };
-  }
-  if (tag === WS_METHODS.providerGetUsage) {
-    return { quotaSnapshots: [] };
-  }
   if (tag === WS_METHODS.projectsSearchEntries) {
     return {
       entries: [],
       truncated: false,
     };
+  }
+  if (tag === WS_METHODS.shellOpenInEditor) {
+    return null;
   }
   if (tag === WS_METHODS.terminalOpen) {
     return {
@@ -582,37 +684,11 @@ function resolveWsRpc(body: WsRequestEnvelope["body"]): unknown {
 
 const worker = setupWorker(
   wsLink.addEventListener("connection", ({ client }) => {
-    wsClient = client;
-    pushSequence = 1;
-    client.addEventListener("close", () => {
-      if (wsClient === client) wsClient = null;
-    });
-    client.send(
-      JSON.stringify({
-        type: "push",
-        sequence: pushSequence++,
-        channel: WS_CHANNELS.serverWelcome,
-        data: fixture.welcome,
-      }),
-    );
+    void rpcHarness.connect(client);
     client.addEventListener("message", (event) => {
       const rawData = event.data;
       if (typeof rawData !== "string") return;
-      let request: WsRequestEnvelope;
-      try {
-        request = JSON.parse(rawData) as WsRequestEnvelope;
-      } catch {
-        return;
-      }
-      const method = request.body?._tag;
-      if (typeof method !== "string") return;
-      wsRequests.push(request.body);
-      client.send(
-        JSON.stringify({
-          id: request.id,
-          result: resolveWsRpc(request.body),
-        }),
-      );
+      void rpcHarness.onMessage(rawData);
     });
   }),
   http.get("*/attachments/:attachmentId", () =>
@@ -701,10 +777,73 @@ async function waitForComposerEditor(): Promise<HTMLElement> {
   );
 }
 
+async function waitForComposerMenuItem(itemId: string): Promise<HTMLElement> {
+  return waitForElement(
+    () => document.querySelector<HTMLElement>(`[data-composer-item-id="${itemId}"]`),
+    `Unable to find composer menu item "${itemId}".`,
+  );
+}
+
 async function waitForSendButton(): Promise<HTMLButtonElement> {
   return waitForElement(
     () => document.querySelector<HTMLButtonElement>('button[aria-label="Send message"]'),
     "Unable to find send button.",
+  );
+}
+
+function findComposerProviderModelPicker(): HTMLButtonElement | null {
+  return document.querySelector<HTMLButtonElement>('[data-chat-provider-model-picker="true"]');
+}
+
+function findButtonByText(text: string): HTMLButtonElement | null {
+  return (Array.from(document.querySelectorAll("button")).find(
+    (button) => button.textContent?.trim() === text,
+  ) ?? null) as HTMLButtonElement | null;
+}
+
+async function waitForButtonByText(text: string): Promise<HTMLButtonElement> {
+  return waitForElement(() => findButtonByText(text), `Unable to find "${text}" button.`);
+}
+
+function findButtonContainingText(text: string): HTMLButtonElement | null {
+  return (Array.from(document.querySelectorAll("button")).find((button) =>
+    button.textContent?.includes(text),
+  ) ?? null) as HTMLButtonElement | null;
+}
+
+async function waitForButtonContainingText(text: string): Promise<HTMLButtonElement> {
+  return waitForElement(
+    () => findButtonContainingText(text),
+    `Unable to find button containing "${text}".`,
+  );
+}
+
+async function expectComposerActionsContained(): Promise<void> {
+  const footer = await waitForElement(
+    () => document.querySelector<HTMLElement>('[data-chat-composer-footer="true"]'),
+    "Unable to find composer footer.",
+  );
+  const actions = await waitForElement(
+    () => document.querySelector<HTMLElement>('[data-chat-composer-actions="right"]'),
+    "Unable to find composer actions container.",
+  );
+
+  await vi.waitFor(
+    () => {
+      const footerRect = footer.getBoundingClientRect();
+      const actionButtons = Array.from(actions.querySelectorAll<HTMLButtonElement>("button"));
+      expect(actionButtons.length).toBeGreaterThanOrEqual(1);
+
+      const buttonRects = actionButtons.map((button) => button.getBoundingClientRect());
+      const firstTop = buttonRects[0]?.top ?? 0;
+
+      for (const rect of buttonRects) {
+        expect(rect.right).toBeLessThanOrEqual(footerRect.right + 0.5);
+        expect(rect.bottom).toBeLessThanOrEqual(footerRect.bottom + 0.5);
+        expect(Math.abs(rect.top - firstTop)).toBeLessThanOrEqual(1.5);
+      }
+    },
+    { timeout: 8_000, interval: 16 },
   );
 }
 
@@ -723,7 +862,9 @@ async function waitForInteractionModeButton(
 async function waitForServerConfigToApply(): Promise<void> {
   await vi.waitFor(
     () => {
-      expect(wsRequests.some((request) => request._tag === WS_METHODS.serverGetConfig)).toBe(true);
+      expect(wsRequests.some((request) => request._tag === WS_METHODS.subscribeServerConfig)).toBe(
+        true,
+      );
     },
     { timeout: 8_000, interval: 16 },
   );
@@ -861,7 +1002,7 @@ async function mountChatView(options: {
   viewport: ViewportSpec;
   snapshot: OrchestrationReadModel;
   configureFixture?: (fixture: TestFixture) => void;
-  resolveRpc?: (body: WsRequestEnvelope["body"]) => unknown | undefined;
+  resolveRpc?: (body: NormalizedWsRpcRequestBody) => unknown | undefined;
 }): Promise<MountedChatView> {
   fixture = buildFixture(options.snapshot);
   options.configureFixture?.(fixture);
@@ -871,7 +1012,8 @@ async function mountChatView(options: {
 
   const host = document.createElement("div");
   host.style.position = "fixed";
-  host.style.inset = "0";
+  host.style.top = "0";
+  host.style.left = "0";
   host.style.width = "100vw";
   host.style.height = "100vh";
   host.style.display = "grid";
@@ -903,6 +1045,11 @@ async function mountChatView(options: {
     setViewport: async (viewport: ViewportSpec) => {
       await setViewport(viewport);
       await waitForProductionStyles();
+    },
+    setContainerSize: async (viewport) => {
+      host.style.width = `${viewport.width}px`;
+      host.style.height = `${viewport.height}px`;
+      await waitForLayout();
     },
     router,
   };
@@ -943,10 +1090,37 @@ describe("ChatView timeline estimator parity (full app)", () => {
   });
 
   afterAll(async () => {
+    await rpcHarness.disconnect();
     await worker.stop();
   });
 
   beforeEach(async () => {
+    await rpcHarness.reset({
+      resolveUnary: resolveWsRpc,
+      getInitialStreamValues: (request) => {
+        if (request._tag === WS_METHODS.subscribeServerLifecycle) {
+          return [
+            {
+              version: 1,
+              sequence: 1,
+              type: "welcome",
+              payload: fixture.welcome,
+            },
+          ];
+        }
+        if (request._tag === WS_METHODS.subscribeServerConfig) {
+          return [
+            {
+              version: 1,
+              type: "snapshot",
+              config: fixture.serverConfig,
+            },
+          ];
+        }
+        return [];
+      },
+    });
+    __resetNativeApiForTests();
     await setViewport(DEFAULT_VIEWPORT);
     localStorage.clear();
     document.body.innerHTML = "";
@@ -967,7 +1141,6 @@ describe("ChatView timeline estimator parity (full app)", () => {
   });
 
   afterEach(() => {
-    wsClient = null;
     customWsRpcResolver = null;
     document.body.innerHTML = "";
   });
@@ -1157,6 +1330,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     });
 
     try {
+      await waitForServerConfigToApply();
       const openButton = await waitForElement(
         () =>
           Array.from(document.querySelectorAll("button")).find(
@@ -1164,6 +1338,9 @@ describe("ChatView timeline estimator parity (full app)", () => {
           ) as HTMLButtonElement | null,
         "Unable to find Open button.",
       );
+      await vi.waitFor(() => {
+        expect(openButton.disabled).toBe(false);
+      });
       openButton.click();
 
       await vi.waitFor(
@@ -1199,6 +1376,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     });
 
     try {
+      await waitForServerConfigToApply();
       const openButton = await waitForElement(
         () =>
           Array.from(document.querySelectorAll("button")).find(
@@ -1206,6 +1384,9 @@ describe("ChatView timeline estimator parity (full app)", () => {
           ) as HTMLButtonElement | null,
         "Unable to find Open button.",
       );
+      await vi.waitFor(() => {
+        expect(openButton.disabled).toBe(false);
+      });
       openButton.click();
 
       await vi.waitFor(
@@ -1226,9 +1407,53 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  // Fork: chat header renders OpenInPicker with different aria-labels/layout
-  // than upstream's CompactComposerControlsMenu. The editor list itself works.
-  it.skip("filters the open picker menu and opens VSCodium from the menu", async () => {
+  it("opens the project cwd with Trae when it is the only available editor", async () => {
+    setDraftThreadWithoutWorktree();
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createDraftOnlySnapshot(),
+      configureFixture: (nextFixture) => {
+        nextFixture.serverConfig = {
+          ...nextFixture.serverConfig,
+          availableEditors: ["trae"],
+        };
+      },
+    });
+
+    try {
+      await waitForServerConfigToApply();
+      const openButton = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent?.trim() === "Open",
+          ) as HTMLButtonElement | null,
+        "Unable to find Open button.",
+      );
+      await vi.waitFor(() => {
+        expect(openButton.disabled).toBe(false);
+      });
+      openButton.click();
+
+      await vi.waitFor(
+        () => {
+          const openRequest = wsRequests.find(
+            (request) => request._tag === WS_METHODS.shellOpenInEditor,
+          );
+          expect(openRequest).toMatchObject({
+            _tag: WS_METHODS.shellOpenInEditor,
+            cwd: "/repo/project",
+            editor: "trae",
+          });
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("filters the open picker menu and opens VSCodium from the menu", async () => {
     setDraftThreadWithoutWorktree();
 
     const mounted = await mountChatView({
@@ -1243,6 +1468,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     });
 
     try {
+      await waitForServerConfigToApply();
       const menuButton = await waitForElement(
         () => document.querySelector('button[aria-label="Copy options"]'),
         "Unable to find Open picker button.",
@@ -1291,7 +1517,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
   });
 
   it("falls back to the first installed editor when the stored favorite is unavailable", async () => {
-    localStorage.setItem("t3code:last-editor", "vscodium");
+    localStorage.setItem("t3code:last-editor", JSON.stringify("vscodium"));
     setDraftThreadWithoutWorktree();
 
     const mounted = await mountChatView({
@@ -1306,6 +1532,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     });
 
     try {
+      await waitForServerConfigToApply();
       const openButton = await waitForElement(
         () =>
           Array.from(document.querySelectorAll("button")).find(
@@ -1313,6 +1540,9 @@ describe("ChatView timeline estimator parity (full app)", () => {
           ) as HTMLButtonElement | null,
         "Unable to find Open button.",
       );
+      await vi.waitFor(() => {
+        expect(openButton.disabled).toBe(false);
+      });
       openButton.click();
 
       await vi.waitFor(
@@ -1931,30 +2161,20 @@ describe("ChatView timeline estimator parity (full app)", () => {
       await expect.element(threadRow).toBeInTheDocument();
       await threadRow.hover();
 
-      // Use programmatic click to bypass pointer-events-none wrapper
-      const archiveButton = await waitForElement(
-        () =>
-          document.querySelector<HTMLButtonElement>(`[data-testid="thread-archive-${THREAD_ID}"]`),
-        "Unable to find archive button.",
-      );
-      archiveButton.click();
+      const archiveButton = page.getByTestId(`thread-archive-${THREAD_ID}`);
+      await expect.element(archiveButton).toBeInTheDocument();
+      await archiveButton.click();
 
-      const confirmButton = await waitForElement(
-        () =>
-          document.querySelector<HTMLButtonElement>(
-            `[data-testid="thread-archive-confirm-${THREAD_ID}"]`,
-          ),
-        "Unable to find confirm archive button.",
-      );
-      expect(confirmButton).toBeVisible();
+      const confirmButton = page.getByTestId(`thread-archive-confirm-${THREAD_ID}`);
+      await expect.element(confirmButton).toBeInTheDocument();
+      await expect.element(confirmButton).toBeVisible();
     } finally {
       localStorage.removeItem("t3code:client-settings:v1");
       await mounted.cleanup();
     }
   });
 
-  // Skip: fork's extra provider model queries flood WS before connection is stable
-  it.skip("keeps the new thread selected after clicking the new-thread button", async () => {
+  it("keeps the new thread selected after clicking the new-thread button", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
       snapshot: createSnapshotForTargetUser({
@@ -2267,8 +2487,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
       await mounted.cleanup();
     }
   });
-  // Skip: fork's extra provider model queries flood WS before connection is stable
-  it.skip("creates a fresh draft after the previous draft thread is promoted", async () => {
+  it("creates a fresh draft after the previous draft thread is promoted", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
       snapshot: createSnapshotForTargetUser({
@@ -2355,6 +2574,127 @@ describe("ChatView timeline estimator parity (full app)", () => {
       await vi.waitFor(
         () => {
           expect(document.body.textContent).toContain("deep hidden detail only after expand");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("keeps pending-question footer actions inside the composer after a real resize", async () => {
+    const mounted = await mountChatView({
+      viewport: WIDE_FOOTER_VIEWPORT,
+      snapshot: createSnapshotWithPendingUserInput(),
+    });
+
+    try {
+      const firstOption = await waitForButtonContainingText("Tight");
+      firstOption.click();
+
+      await waitForButtonByText("Previous");
+      await waitForButtonByText("Submit answers");
+
+      await mounted.setContainerSize(COMPACT_FOOTER_VIEWPORT);
+      await expectComposerActionsContained();
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("keeps plan follow-up footer actions fused and aligned after a real resize", async () => {
+    const mounted = await mountChatView({
+      viewport: WIDE_FOOTER_VIEWPORT,
+      snapshot: createSnapshotWithPlanFollowUpPrompt(),
+    });
+
+    try {
+      const footer = await waitForElement(
+        () => document.querySelector<HTMLElement>('[data-chat-composer-footer="true"]'),
+        "Unable to find composer footer.",
+      );
+      const initialModelPicker = await waitForElement(
+        findComposerProviderModelPicker,
+        "Unable to find provider model picker.",
+      );
+      const initialModelPickerOffset =
+        initialModelPicker.getBoundingClientRect().left - footer.getBoundingClientRect().left;
+
+      await waitForButtonByText("Implement");
+      await waitForElement(
+        () =>
+          document.querySelector<HTMLButtonElement>('button[aria-label="Implementation actions"]'),
+        "Unable to find implementation actions trigger.",
+      );
+
+      await mounted.setContainerSize({
+        width: 440,
+        height: WIDE_FOOTER_VIEWPORT.height,
+      });
+      await expectComposerActionsContained();
+
+      const implementButton = await waitForButtonByText("Implement");
+      const implementActionsButton = await waitForElement(
+        () =>
+          document.querySelector<HTMLButtonElement>('button[aria-label="Implementation actions"]'),
+        "Unable to find implementation actions trigger.",
+      );
+
+      await vi.waitFor(
+        () => {
+          const implementRect = implementButton.getBoundingClientRect();
+          const implementActionsRect = implementActionsButton.getBoundingClientRect();
+          const compactModelPicker = findComposerProviderModelPicker();
+          expect(compactModelPicker).toBeTruthy();
+
+          const compactModelPickerOffset =
+            compactModelPicker!.getBoundingClientRect().left - footer.getBoundingClientRect().left;
+
+          expect(Math.abs(implementRect.right - implementActionsRect.left)).toBeLessThanOrEqual(1);
+          expect(Math.abs(implementRect.top - implementActionsRect.top)).toBeLessThanOrEqual(1);
+          expect(Math.abs(compactModelPickerOffset - initialModelPickerOffset)).toBeLessThanOrEqual(
+            1,
+          );
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("keeps the slash-command menu visible above the composer", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-command-menu-target" as MessageId,
+        targetText: "command menu thread",
+      }),
+    });
+
+    try {
+      await waitForComposerEditor();
+      await page.getByTestId("composer-editor").fill("/");
+
+      const menuItem = await waitForComposerMenuItem("slash:model");
+      const composerForm = await waitForElement(
+        () => document.querySelector<HTMLElement>('[data-chat-composer-form="true"]'),
+        "Unable to find composer form.",
+      );
+
+      await vi.waitFor(
+        () => {
+          const menuRect = menuItem.getBoundingClientRect();
+          const composerRect = composerForm.getBoundingClientRect();
+          const hitTarget = document.elementFromPoint(
+            menuRect.left + menuRect.width / 2,
+            menuRect.top + menuRect.height / 2,
+          );
+
+          expect(menuRect.width).toBeGreaterThan(0);
+          expect(menuRect.height).toBeGreaterThan(0);
+          expect(menuRect.bottom).toBeLessThanOrEqual(composerRect.bottom);
+          expect(hitTarget instanceof Element && menuItem.contains(hitTarget)).toBe(true);
         },
         { timeout: 8_000, interval: 16 },
       );

@@ -1,11 +1,7 @@
 import {
   type ApprovalRequestId,
-  type ClaudeCodeEffort,
   DEFAULT_MODEL_BY_PROVIDER,
-  type EditorId,
-  type KeybindingCommand,
-  type CodexReasoningEffort,
-  type CursorReasoningOption,
+  type ClaudeCodeEffort,
   type MessageId,
   type ModelSelection,
   type ProjectScript,
@@ -15,31 +11,23 @@ import {
   type ProviderApprovalDecision,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
-  type ResolvedKeybindingsConfig,
   type ServerProvider,
   type ThreadId,
   type TurnId,
+  type KeybindingCommand,
   OrchestrationThreadActivity,
   ProviderInteractionMode,
   RuntimeMode,
   TerminalOpenInput,
 } from "@t3tools/contracts";
-import {
-  applyClaudePromptEffortPrefix,
-  getCursorModelCapabilities,
-  getModelCapabilities,
-  normalizeModelSlug,
-  parseCursorModelSelection,
-  resolveCursorModelFromSelection,
-} from "@t3tools/shared/model";
+import { applyClaudePromptEffortPrefix, normalizeModelSlug } from "@t3tools/shared/model";
+import { truncate } from "@t3tools/shared/String";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { gitBranchesQueryOptions, gitCreateWorktreeMutationOptions } from "~/lib/gitReactQuery";
 import { projectSearchEntriesQueryOptions } from "~/lib/projectReactQuery";
-import { providerListModelsQueryOptions } from "~/lib/providerReactQuery";
-import { serverConfigQueryOptions, serverQueryKeys } from "~/lib/serverReactQuery";
 import { isElectron } from "../env";
 import { parseDiffRouteSearch, stripDiffSearchParams } from "../diffRouteSearch";
 import {
@@ -61,11 +49,9 @@ import {
   deriveActivePlanState,
   findSidebarProposedPlan,
   findLatestProposedPlan,
-  PROVIDER_OPTIONS,
   deriveWorkLogEntries,
   hasActionableProposedPlan,
   hasToolActivityForTurn,
-  hasToolActivitySince,
   isLatestTurnSettled,
   formatElapsed,
 } from "../session-logic";
@@ -85,7 +71,6 @@ import {
   proposedPlanTitle,
   resolvePlanFollowUpSubmission,
 } from "../proposedPlan";
-import { truncateTitle } from "../truncateTitle";
 import {
   DEFAULT_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
@@ -118,7 +103,6 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
 import { cn, randomUUID } from "~/lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { toastManager } from "./ui/toast";
@@ -135,14 +119,13 @@ import {
 import { SidebarTrigger } from "./ui/sidebar";
 import { newCommandId, newMessageId, newThreadId } from "~/lib/utils";
 import { readNativeApi } from "~/nativeApi";
-import { useAppSettings } from "../appSettings";
-import { useSettings } from "../hooks/useSettings";
 import {
   getProviderModelCapabilities,
   getProviderModels,
   resolveSelectableProvider,
 } from "../providerModels";
-import { getCustomModelsByProvider, resolveAppModelSelection } from "../customModels";
+import { useSettings } from "../hooks/useSettings";
+import { resolveAppModelSelection } from "../modelSelection";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import {
   type ComposerImageAttachment,
@@ -161,7 +144,12 @@ import {
   type TerminalContextSelection,
 } from "../lib/terminalContext";
 import { deriveLatestContextWindowSnapshot } from "../lib/contextWindow";
-import { shouldUseCompactComposerFooter } from "./composerFooterLayout";
+import {
+  resolveComposerFooterContentWidth,
+  shouldForceCompactComposerFooterForFit,
+  shouldUseCompactComposerPrimaryActions,
+  shouldUseCompactComposerFooter,
+} from "./composerFooterLayout";
 import { selectThreadTerminalState, useTerminalStateStore } from "../terminalStateStore";
 import { ComposerPromptEditor, type ComposerPromptEditorHandle } from "./ComposerPromptEditor";
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
@@ -169,15 +157,11 @@ import { MessagesTimeline } from "./chat/MessagesTimeline";
 import { ChatHeader } from "./chat/ChatHeader";
 import { ContextWindowMeter } from "./chat/ContextWindowMeter";
 import { buildExpandedImagePreview, ExpandedImagePreview } from "./chat/ExpandedImagePreview";
-import {
-  buildModelOptionsByProvider,
-  mergeDiscoveredModels,
-  ProviderModelPicker,
-} from "./chat/ProviderModelPicker";
+import { AVAILABLE_PROVIDER_OPTIONS, ProviderModelPicker } from "./chat/ProviderModelPicker";
 import { ComposerCommandItem, ComposerCommandMenu } from "./chat/ComposerCommandMenu";
 import { ComposerPendingApprovalActions } from "./chat/ComposerPendingApprovalActions";
-import { CursorTraitsPicker } from "./chat/CursorTraitsPicker";
 import { CompactComposerControlsMenu } from "./chat/CompactComposerControlsMenu";
+import { ComposerPrimaryActions } from "./chat/ComposerPrimaryActions";
 import { ComposerPendingApprovalPanel } from "./chat/ComposerPendingApprovalPanel";
 import { ComposerPendingUserInputPanel } from "./chat/ComposerPendingUserInputPanel";
 import { ComposerPlanFollowUpBanner } from "./chat/ComposerPlanFollowUpBanner";
@@ -196,29 +180,30 @@ import {
   collectUserMessageBlobPreviewUrls,
   createLocalDispatchSnapshot,
   deriveComposerSendState,
-  deriveVisibleThreadWorkLogEntries,
   hasServerAcknowledgedLocalDispatch,
   LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
   LastInvokedScriptByProjectSchema,
   type LocalDispatchSnapshot,
   PullRequestDialogState,
   readFileAsDataUrl,
-  resolveProviderHealthBannerProvider,
   revokeBlobPreviewUrl,
   revokeUserMessagePreviewUrls,
   threadHasStarted,
   waitForStartedServerThread,
 } from "./ChatView.logic";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
+import {
+  useServerAvailableEditors,
+  useServerConfig,
+  useServerKeybindings,
+} from "~/rpc/serverState";
 
 const ATTACHMENT_PREVIEW_HANDOFF_TTL_MS = 5000;
 const IMAGE_SIZE_LIMIT_LABEL = `${Math.round(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES / (1024 * 1024))}MB`;
 const IMAGE_ONLY_BOOTSTRAP_PROMPT =
   "[User attached one or more images without additional text. Respond using the conversation context and the attached image(s).]";
 const EMPTY_ACTIVITIES: OrchestrationThreadActivity[] = [];
-const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
 const EMPTY_PROJECT_ENTRIES: ProjectEntry[] = [];
-const EMPTY_AVAILABLE_EDITORS: EditorId[] = [];
 const EMPTY_PROVIDERS: ServerProvider[] = [];
 const EMPTY_PENDING_USER_INPUT_ANSWERS: Record<string, PendingUserInputDraftAnswer> = {};
 
@@ -428,7 +413,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
     (store) => store.threadLastVisitedAtById[threadId],
   );
   const settings = useSettings();
-  const { settings: appSettings } = useAppSettings();
   const setStickyComposerModelSelection = useComposerDraftStore(
     (store) => store.setStickyModelSelection,
   );
@@ -461,7 +445,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const setComposerDraftInteractionMode = useComposerDraftStore(
     (store) => store.setInteractionMode,
   );
-  const setComposerDraftModelOptions = useComposerDraftStore((store) => store.setModelOptions);
   const addComposerDraftImage = useComposerDraftStore((store) => store.addImage);
   const addComposerDraftImages = useComposerDraftStore((store) => store.addImages);
   const removeComposerDraftImage = useComposerDraftStore((store) => store.removeImage);
@@ -521,6 +504,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const [expandedWorkGroups, setExpandedWorkGroups] = useState<Record<string, boolean>>({});
   const [planSidebarOpen, setPlanSidebarOpen] = useState(false);
   const [isComposerFooterCompact, setIsComposerFooterCompact] = useState(false);
+  const [isComposerPrimaryActionsCompact, setIsComposerPrimaryActionsCompact] = useState(false);
   // Tracks whether the user explicitly dismissed the sidebar for the active turn.
   const planSidebarDismissedForTurnRef = useRef<string | null>(null);
   // When set, the thread-change reset effect will open the sidebar instead of closing it.
@@ -563,6 +547,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const composerEditorRef = useRef<ComposerPromptEditorHandle>(null);
   const composerFormRef = useRef<HTMLFormElement>(null);
   const composerFormHeightRef = useRef(0);
+  const composerFooterRef = useRef<HTMLDivElement>(null);
+  const composerFooterLeadingRef = useRef<HTMLDivElement>(null);
+  const composerFooterActionsRef = useRef<HTMLDivElement>(null);
   const composerImagesRef = useRef<ComposerImageAttachment[]>([]);
   const composerSelectLockRef = useRef(false);
   const composerMenuOpenRef = useRef(false);
@@ -807,8 +794,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const lockedProvider: ProviderKind | null = hasThreadStarted
     ? (sessionProvider ?? threadProvider ?? selectedProviderByThreadId ?? null)
     : null;
-  const serverConfigQuery = useQuery(serverConfigQueryOptions());
-  const providerStatuses = serverConfigQuery.data?.providers ?? EMPTY_PROVIDERS;
+  const serverConfig = useServerConfig();
+  const providerStatuses = serverConfig?.providers ?? EMPTY_PROVIDERS;
   const unlockedSelectedProvider = resolveSelectableProvider(
     providerStatuses,
     selectedProviderByThreadId ?? threadProvider ?? "codex",
@@ -836,114 +823,24 @@ export default function ChatView({ threadId }: ChatViewProps) {
   );
   const selectedPromptEffort = composerProviderState.promptEffort;
   const selectedModelOptionsForDispatch = composerProviderState.modelOptionsForDispatch;
-  const selectedCursorModel = useMemo(
-    () => (selectedProvider === "cursor" ? parseCursorModelSelection(selectedModel) : null),
-    [selectedModel, selectedProvider],
-  );
-  const selectedCursorModelCapabilities = useMemo(
-    () => (selectedCursorModel ? getCursorModelCapabilities(selectedCursorModel.family) : null),
-    [selectedCursorModel],
-  );
-  const hasSelectedCursorTraits = Boolean(
-    selectedCursorModelCapabilities &&
-    (selectedCursorModelCapabilities.supportsReasoning ||
-      selectedCursorModelCapabilities.supportsFast ||
-      selectedCursorModelCapabilities.supportsThinking),
-  );
-  const selectedModelSelection = useMemo<ModelSelection | undefined>(
-    () =>
-      selectedModel
-        ? ({
-            provider: selectedProvider,
-            model: selectedModel,
-            ...(selectedModelOptionsForDispatch
-              ? { options: selectedModelOptionsForDispatch }
-              : {}),
-          } as ModelSelection)
-        : undefined,
+  const selectedModelSelection = useMemo<ModelSelection>(
+    () => ({
+      provider: selectedProvider,
+      model: selectedModel,
+      ...(selectedModelOptionsForDispatch ? { options: selectedModelOptionsForDispatch } : {}),
+    }),
     [selectedModel, selectedModelOptionsForDispatch, selectedProvider],
   );
-  const selectedModelForPicker =
-    selectedProvider === "cursor" && selectedCursorModel
-      ? selectedCursorModel.family
-      : selectedModel;
-  const copilotModelsQuery = useQuery(providerListModelsQueryOptions("copilot"));
-  const cursorModelsQuery = useQuery(providerListModelsQueryOptions("cursor"));
-  const opencodeModelsQuery = useQuery(providerListModelsQueryOptions("opencode"));
-  const kiloModelsQuery = useQuery(providerListModelsQueryOptions("kilo"));
-  const geminiCliModelsQuery = useQuery(providerListModelsQueryOptions("geminiCli"));
-  const ampModelsQuery = useQuery(providerListModelsQueryOptions("amp"));
-  const modelOptionsByProvider = useMemo(
-    () =>
-      mergeDiscoveredModels(buildModelOptionsByProvider(appSettings), {
-        copilot: copilotModelsQuery.data,
-        cursor: cursorModelsQuery.data,
-        opencode: opencodeModelsQuery.data,
-        kilo: kiloModelsQuery.data,
-        geminiCli: geminiCliModelsQuery.data,
-        amp: ampModelsQuery.data,
-      }),
-    [
-      appSettings,
-      copilotModelsQuery.data,
-      cursorModelsQuery.data,
-      opencodeModelsQuery.data,
-      kiloModelsQuery.data,
-      geminiCliModelsQuery.data,
-      ampModelsQuery.data,
-    ],
-  );
-  const selectedModelForPickerWithCustomFallback = useMemo(() => {
-    if (selectedProvider !== "cursor") {
-      const currentOptions = modelOptionsByProvider[selectedProvider];
-      return currentOptions.some((option) => option.slug === selectedModelForPicker)
-        ? selectedModelForPicker
-        : (normalizeModelSlug(selectedModelForPicker, selectedProvider) ?? selectedModelForPicker);
-    }
-
-    const currentOptions = modelOptionsByProvider.cursor;
-    return currentOptions.some((option) => option.slug === selectedModelForPicker)
-      ? selectedModelForPicker
-      : selectedModelForPicker;
-  }, [modelOptionsByProvider, selectedModelForPicker, selectedProvider]);
-  const searchableModelOptions = useMemo(
-    () =>
-      PROVIDER_OPTIONS.filter(
-        (option) =>
-          option.available && (lockedProvider === null || option.value === lockedProvider),
-      ).flatMap((option) =>
-        modelOptionsByProvider[option.value].map(({ slug, name, pricingTier }) => ({
-          provider: option.value,
-          providerLabel: option.label,
-          slug,
-          name,
-          pricingTier,
-          searchSlug: slug.toLowerCase(),
-          searchName: name.toLowerCase(),
-          searchProvider: option.label.toLowerCase(),
-        })),
-      ),
-    [lockedProvider, modelOptionsByProvider],
-  );
+  const selectedModelForPicker = selectedModel;
   const phase = derivePhase(activeThread?.session ?? null);
   const threadActivities = activeThread?.activities ?? EMPTY_ACTIVITIES;
-  const activeLatestTurnId = activeLatestTurn?.turnId;
-  const latestUserMessageCreatedAt = useMemo(
-    () =>
-      [...(activeThread?.messages ?? [])].toReversed().find((message) => message.role === "user")
-        ?.createdAt,
-    [activeThread?.messages],
-  );
   const workLogEntries = useMemo(
-    () => deriveVisibleThreadWorkLogEntries(threadActivities),
-    [threadActivities],
+    () => deriveWorkLogEntries(threadActivities, activeLatestTurn?.turnId ?? undefined),
+    [activeLatestTurn?.turnId, threadActivities],
   );
   const latestTurnHasToolActivity = useMemo(
-    () =>
-      activeLatestTurnId
-        ? hasToolActivityForTurn(threadActivities, activeLatestTurnId)
-        : hasToolActivitySince(threadActivities, latestUserMessageCreatedAt),
-    [activeLatestTurnId, latestUserMessageCreatedAt, threadActivities],
+    () => hasToolActivityForTurn(threadActivities, activeLatestTurn?.turnId),
+    [activeLatestTurn?.turnId, threadActivities],
   );
   const pendingApprovals = useMemo(
     () => derivePendingApprovals(threadActivities),
@@ -1042,6 +939,28 @@ export default function ChatView({ threadId }: ChatViewProps) {
     pendingUserInputs.length > 0 ||
     (showPlanFollowUpPrompt && activeProposedPlan !== null);
   const composerFooterHasWideActions = showPlanFollowUpPrompt || activePendingProgress !== null;
+  const composerFooterActionLayoutKey = useMemo(() => {
+    if (activePendingProgress) {
+      return `pending:${activePendingProgress.questionIndex}:${activePendingProgress.isLastQuestion}:${activePendingIsResponding}`;
+    }
+    if (phase === "running") {
+      return "running";
+    }
+    if (showPlanFollowUpPrompt) {
+      return prompt.trim().length > 0 ? "plan:refine" : "plan:implement";
+    }
+    return `idle:${composerSendState.hasSendableContent}:${isSendBusy}:${isConnecting}:${isPreparingWorktree}`;
+  }, [
+    activePendingIsResponding,
+    activePendingProgress,
+    composerSendState.hasSendableContent,
+    isConnecting,
+    isPreparingWorktree,
+    isSendBusy,
+    phase,
+    prompt,
+    showPlanFollowUpPrompt,
+  ]);
   const lastSyncedPendingInputRef = useRef<{
     requestId: string | null;
     questionId: string | null;
@@ -1283,8 +1202,39 @@ export default function ChatView({ threadId }: ChatViewProps) {
   );
   const effectivePathQuery = pathTriggerQuery.length > 0 ? debouncedPathQuery : "";
   const branchesQuery = useQuery(gitBranchesQueryOptions(gitCwd));
-  const keybindings = serverConfigQuery.data?.keybindings ?? EMPTY_KEYBINDINGS;
-  const availableEditors = serverConfigQuery.data?.availableEditors ?? EMPTY_AVAILABLE_EDITORS;
+  const keybindings = useServerKeybindings();
+  const availableEditors = useServerAvailableEditors();
+  const modelOptionsByProvider = useMemo(
+    () => ({
+      codex: providerStatuses.find((provider) => provider.provider === "codex")?.models ?? [],
+      claudeAgent:
+        providerStatuses.find((provider) => provider.provider === "claudeAgent")?.models ?? [],
+    }),
+    [providerStatuses],
+  );
+  const selectedModelForPickerWithCustomFallback = useMemo(() => {
+    const currentOptions = modelOptionsByProvider[selectedProvider];
+    return currentOptions.some((option) => option.slug === selectedModelForPicker)
+      ? selectedModelForPicker
+      : (normalizeModelSlug(selectedModelForPicker, selectedProvider) ?? selectedModelForPicker);
+  }, [modelOptionsByProvider, selectedModelForPicker, selectedProvider]);
+  const searchableModelOptions = useMemo(
+    () =>
+      AVAILABLE_PROVIDER_OPTIONS.filter(
+        (option) => lockedProvider === null || option.value === lockedProvider,
+      ).flatMap((option) =>
+        modelOptionsByProvider[option.value].map(({ slug, name }) => ({
+          provider: option.value,
+          providerLabel: option.label,
+          slug,
+          name,
+          searchSlug: slug.toLowerCase(),
+          searchName: name.toLowerCase(),
+          searchProvider: option.label.toLowerCase(),
+        })),
+      ),
+    [lockedProvider, modelOptionsByProvider],
+  );
   const workspaceEntriesQuery = useQuery(
     projectSearchEntriesQueryOptions({
       cwd: gitCwd,
@@ -1348,12 +1298,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
           searchSlug.includes(query) || searchName.includes(query) || searchProvider.includes(query)
         );
       })
-      .map(({ provider, providerLabel, slug, name, pricingTier }) => ({
+      .map(({ provider, providerLabel, slug, name }) => ({
         id: `model:${provider}:${slug}`,
         type: "model",
         provider,
         model: slug,
-        label: pricingTier ? `${name}  ${pricingTier}` : name,
+        label: name,
         description: `${providerLabel} · ${slug}`,
       }));
   }, [composerTrigger, searchableModelOptions, workspaceEntries]);
@@ -1389,25 +1339,43 @@ export default function ChatView({ threadId }: ChatViewProps) {
   }, [activeProjectCwd, activeThreadWorktreePath]);
   // Default true while loading to avoid toolbar flicker.
   const isGitRepo = branchesQuery.data?.isRepo ?? true;
+  const terminalShortcutLabelOptions = useMemo(
+    () => ({
+      context: {
+        terminalFocus: true,
+        terminalOpen: Boolean(terminalState.terminalOpen),
+      },
+    }),
+    [terminalState.terminalOpen],
+  );
+  const nonTerminalShortcutLabelOptions = useMemo(
+    () => ({
+      context: {
+        terminalFocus: false,
+        terminalOpen: Boolean(terminalState.terminalOpen),
+      },
+    }),
+    [terminalState.terminalOpen],
+  );
   const terminalToggleShortcutLabel = useMemo(
     () => shortcutLabelForCommand(keybindings, "terminal.toggle"),
     [keybindings],
   );
   const splitTerminalShortcutLabel = useMemo(
-    () => shortcutLabelForCommand(keybindings, "terminal.split"),
-    [keybindings],
+    () => shortcutLabelForCommand(keybindings, "terminal.split", terminalShortcutLabelOptions),
+    [keybindings, terminalShortcutLabelOptions],
   );
   const newTerminalShortcutLabel = useMemo(
-    () => shortcutLabelForCommand(keybindings, "terminal.new"),
-    [keybindings],
+    () => shortcutLabelForCommand(keybindings, "terminal.new", terminalShortcutLabelOptions),
+    [keybindings, terminalShortcutLabelOptions],
   );
   const closeTerminalShortcutLabel = useMemo(
-    () => shortcutLabelForCommand(keybindings, "terminal.close"),
-    [keybindings],
+    () => shortcutLabelForCommand(keybindings, "terminal.close", terminalShortcutLabelOptions),
+    [keybindings, terminalShortcutLabelOptions],
   );
   const diffPanelShortcutLabel = useMemo(
-    () => shortcutLabelForCommand(keybindings, "diff.toggle"),
-    [keybindings],
+    () => shortcutLabelForCommand(keybindings, "diff.toggle", nonTerminalShortcutLabelOptions),
+    [keybindings, nonTerminalShortcutLabelOptions],
   );
   const onToggleDiff = useCallback(() => {
     void navigate({
@@ -1730,10 +1698,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
       if (isElectron && keybindingRule) {
         await api.server.upsertKeybinding(keybindingRule);
-        await queryClient.invalidateQueries({ queryKey: serverQueryKeys.all });
       }
     },
-    [queryClient],
+    [],
   );
   const saveProjectScript = useCallback(
     async (input: NewProjectScriptInput) => {
@@ -1951,14 +1918,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const messageCount = timelineMessages.length;
   const scrollMessagesToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     const scrollContainer = messagesScrollRef.current;
-    if (!scrollContainer) {
-      setShowScrollToBottom(false);
-      return;
-    }
+    if (!scrollContainer) return;
     scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior });
     lastKnownScrollTopRef.current = scrollContainer.scrollTop;
     shouldAutoScrollRef.current = true;
-    setShowScrollToBottom(false);
   }, []);
   const cancelPendingStickToBottom = useCallback(() => {
     const pendingFrame = pendingAutoScrollFrameRef.current;
@@ -2105,23 +2068,56 @@ export default function ChatView({ threadId }: ChatViewProps) {
     const composerForm = composerFormRef.current;
     if (!composerForm) return;
     const measureComposerFormWidth = () => composerForm.clientWidth;
+    const measureFooterCompactness = () => {
+      const composerFormWidth = measureComposerFormWidth();
+      const heuristicFooterCompact = shouldUseCompactComposerFooter(composerFormWidth, {
+        hasWideActions: composerFooterHasWideActions,
+      });
+      const footer = composerFooterRef.current;
+      const footerStyle = footer ? window.getComputedStyle(footer) : null;
+      const footerContentWidth = resolveComposerFooterContentWidth({
+        footerWidth: footer?.clientWidth ?? null,
+        paddingLeft: footerStyle ? Number.parseFloat(footerStyle.paddingLeft) : null,
+        paddingRight: footerStyle ? Number.parseFloat(footerStyle.paddingRight) : null,
+      });
+      const fitInput = {
+        footerContentWidth,
+        leadingContentWidth: composerFooterLeadingRef.current?.scrollWidth ?? null,
+        actionsWidth: composerFooterActionsRef.current?.scrollWidth ?? null,
+      };
+      const nextFooterCompact =
+        heuristicFooterCompact || shouldForceCompactComposerFooterForFit(fitInput);
+      const nextPrimaryActionsCompact =
+        nextFooterCompact &&
+        shouldUseCompactComposerPrimaryActions(composerFormWidth, {
+          hasWideActions: composerFooterHasWideActions,
+        });
+
+      return {
+        primaryActionsCompact: nextPrimaryActionsCompact,
+        footerCompact: nextFooterCompact,
+      };
+    };
 
     composerFormHeightRef.current = composerForm.getBoundingClientRect().height;
-    setIsComposerFooterCompact(
-      shouldUseCompactComposerFooter(measureComposerFormWidth(), {
-        hasWideActions: composerFooterHasWideActions,
-      }),
-    );
+    const initialCompactness = measureFooterCompactness();
+    setIsComposerPrimaryActionsCompact(initialCompactness.primaryActionsCompact);
+    setIsComposerFooterCompact(initialCompactness.footerCompact);
     if (typeof ResizeObserver === "undefined") return;
 
     const observer = new ResizeObserver((entries) => {
       const [entry] = entries;
       if (!entry) return;
 
-      const nextCompact = shouldUseCompactComposerFooter(measureComposerFormWidth(), {
-        hasWideActions: composerFooterHasWideActions,
-      });
-      setIsComposerFooterCompact((previous) => (previous === nextCompact ? previous : nextCompact));
+      const nextCompactness = measureFooterCompactness();
+      setIsComposerPrimaryActionsCompact((previous) =>
+        previous === nextCompactness.primaryActionsCompact
+          ? previous
+          : nextCompactness.primaryActionsCompact,
+      );
+      setIsComposerFooterCompact((previous) =>
+        previous === nextCompactness.footerCompact ? previous : nextCompactness.footerCompact,
+      );
 
       const nextHeight = entry.contentRect.height;
       const previousHeight = composerFormHeightRef.current;
@@ -2136,7 +2132,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
     return () => {
       observer.disconnect();
     };
-  }, [activeThread?.id, composerFooterHasWideActions, scheduleStickToBottom]);
+  }, [
+    activeThread?.id,
+    composerFooterActionLayoutKey,
+    composerFooterHasWideActions,
+    scheduleStickToBottom,
+  ]);
   useEffect(() => {
     if (!shouldAutoScrollRef.current) return;
     scheduleStickToBottom();
@@ -2824,15 +2825,15 @@ export default function ChatView({ threadId }: ChatViewProps) {
           titleSeed = "New thread";
         }
       }
-      const title = truncateTitle(titleSeed);
-      const threadCreateModelSelection = {
+      const title = truncate(titleSeed);
+      const threadCreateModelSelection: ModelSelection = {
         provider: selectedProvider,
         model:
           selectedModel ||
           activeProject.defaultModelSelection?.model ||
           DEFAULT_MODEL_BY_PROVIDER.codex,
-        ...(selectedModelSelection?.options ? { options: selectedModelSelection.options } : {}),
-      } as ModelSelection;
+        ...(selectedModelSelection.options ? { options: selectedModelSelection.options } : {}),
+      };
 
       if (isLocalDraftThread) {
         await api.orchestration.dispatchCommand({
@@ -2890,7 +2891,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         await persistThreadSettingsForNextTurn({
           threadId: threadIdForSend,
           createdAt: messageCreatedAt,
-          ...(selectedModelSelection ? { modelSelection: selectedModelSelection } : {}),
+          ...(selectedModel ? { modelSelection: selectedModelSelection } : {}),
           runtimeMode,
           interactionMode,
         });
@@ -2908,7 +2909,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
           text: outgoingMessageText,
           attachments: turnAttachments,
         },
-        ...(selectedModelSelection ? { modelSelection: selectedModelSelection } : {}),
+        modelSelection: selectedModelSelection,
+        titleSeed: title,
         runtimeMode,
         interactionMode,
         createdAt: messageCreatedAt,
@@ -3170,7 +3172,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         await persistThreadSettingsForNextTurn({
           threadId: threadIdForSend,
           createdAt: messageCreatedAt,
-          ...(selectedModelSelection ? { modelSelection: selectedModelSelection } : {}),
+          modelSelection: selectedModelSelection,
           runtimeMode,
           interactionMode: nextInteractionMode,
         });
@@ -3190,6 +3192,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
             attachments: [],
           },
           modelSelection: selectedModelSelection,
+          titleSeed: activeThread.title,
           runtimeMode,
           interactionMode: nextInteractionMode,
           ...(nextInteractionMode === "default" && activeProposedPlan
@@ -3269,8 +3272,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
       effort: selectedPromptEffort,
       text: implementationPrompt,
     });
-    const nextThreadTitle = truncateTitle(buildPlanImplementationThreadTitle(planMarkdown));
-    const nextThreadModelSelection = selectedModelSelection;
+    const nextThreadTitle = truncate(buildPlanImplementationThreadTitle(planMarkdown));
+    const nextThreadModelSelection: ModelSelection = selectedModelSelection;
 
     sendInFlightRef.current = true;
     beginLocalDispatch({ preparingWorktree: false });
@@ -3286,10 +3289,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         threadId: nextThreadId,
         projectId: activeProject.id,
         title: nextThreadTitle,
-        modelSelection: (nextThreadModelSelection ?? {
-          provider: selectedProvider,
-          model: activeProject.defaultModelSelection?.model || DEFAULT_MODEL_BY_PROVIDER.codex,
-        }) as ModelSelection,
+        modelSelection: nextThreadModelSelection,
         runtimeMode,
         interactionMode: "default",
         branch: activeThread.branch,
@@ -3307,9 +3307,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
             text: outgoingImplementationPrompt,
             attachments: [],
           },
-          ...(selectedModelSelection ? { modelSelection: selectedModelSelection } : {}),
+          modelSelection: selectedModelSelection,
+          titleSeed: nextThreadTitle,
           runtimeMode,
           interactionMode: "default",
+          sourceProposedPlan: {
+            threadId: activeThread.id,
+            planId: activeProposedPlan.id,
+          },
           createdAt,
         });
       })
@@ -3368,7 +3373,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
       const resolvedProvider = resolveSelectableProvider(providerStatuses, provider);
       const resolvedModel = resolveAppModelSelection(
         resolvedProvider,
-        getCustomModelsByProvider(appSettings),
+        settings,
+        providerStatuses,
         model,
       );
       const nextModelSelection: ModelSelection = {
@@ -3386,7 +3392,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       setComposerDraftModelSelection,
       setStickyComposerModelSelection,
       providerStatuses,
-      appSettings,
+      settings,
     ],
   );
   const setPromptFromTraits = useCallback(
@@ -3404,48 +3410,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
       scheduleComposerFocus();
     },
     [scheduleComposerFocus, setPrompt],
-  );
-  const onCursorReasoningSelect = useCallback(
-    (reasoning: CursorReasoningOption) => {
-      if (selectedProvider !== "cursor") return;
-      const cursorSelection = parseCursorModelSelection(selectedModel);
-      const nextModel = resolveCursorModelFromSelection({
-        family: cursorSelection.family,
-        reasoning,
-        fast: cursorSelection.fast,
-        thinking: cursorSelection.thinking,
-      });
-      onProviderModelSelect("cursor", nextModel);
-    },
-    [onProviderModelSelect, selectedModel, selectedProvider],
-  );
-  const onCursorFastModeChange = useCallback(
-    (enabled: boolean) => {
-      if (selectedProvider !== "cursor") return;
-      const cursorSelection = parseCursorModelSelection(selectedModel);
-      const nextModel = resolveCursorModelFromSelection({
-        family: cursorSelection.family,
-        reasoning: cursorSelection.reasoning,
-        fast: enabled,
-        thinking: cursorSelection.thinking,
-      });
-      onProviderModelSelect("cursor", nextModel);
-    },
-    [onProviderModelSelect, selectedModel, selectedProvider],
-  );
-  const onCursorThinkingModeChange = useCallback(
-    (enabled: boolean) => {
-      if (selectedProvider !== "cursor") return;
-      const cursorSelection = parseCursorModelSelection(selectedModel);
-      const nextModel = resolveCursorModelFromSelection({
-        family: cursorSelection.family,
-        reasoning: cursorSelection.reasoning,
-        fast: cursorSelection.fast,
-        thinking: enabled,
-      });
-      onProviderModelSelect("cursor", nextModel);
-    },
-    [onProviderModelSelect, selectedModel, selectedProvider],
   );
   const providerTraitsMenuContent = renderProviderTraitsMenuContent({
     provider: selectedProvider,
@@ -3811,8 +3775,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
           terminalToggleShortcutLabel={terminalToggleShortcutLabel}
           diffToggleShortcutLabel={diffPanelShortcutLabel}
           gitCwd={gitCwd}
-          gitProvider={selectedProvider}
-          gitModel={selectedModel}
           diffOpen={diffOpen}
           onRunProjectScript={(script) => {
             void runProjectScript(script);
@@ -3898,7 +3860,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
             <form
               ref={composerFormRef}
               onSubmit={onSend}
-              className="mx-auto w-full min-w-0 max-w-3xl"
+              className="mx-auto w-full min-w-0 max-w-[52rem]"
               data-chat-composer-form="true"
             >
               <div
@@ -3929,7 +3891,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                     <div className="rounded-t-[19px] border-b border-border/65 bg-muted/20">
                       <ComposerPendingUserInputPanel
                         pendingUserInputs={pendingUserInputs}
-                        respondingRequestIds={respondingUserInputRequestIds}
+                        respondingRequestIds={respondingRequestIds}
                         answers={activePendingDraftAnswers}
                         questionIndex={activePendingQuestionIndex}
                         onSelectOption={onSelectActivePendingUserInputOption}
@@ -4081,19 +4043,20 @@ export default function ChatView({ threadId }: ChatViewProps) {
                     </div>
                   ) : (
                     <div
+                      ref={composerFooterRef}
                       data-chat-composer-footer="true"
+                      data-chat-composer-footer-compact={isComposerFooterCompact ? "true" : "false"}
                       className={cn(
-                        "flex items-center justify-between px-2.5 pb-2.5 sm:px-3 sm:pb-3",
-                        isComposerFooterCompact
-                          ? "gap-1.5"
-                          : "flex-wrap gap-2 sm:flex-nowrap sm:gap-0",
+                        "flex min-w-0 flex-nowrap items-center justify-between gap-2 overflow-hidden px-2.5 pb-2.5 sm:px-3 sm:pb-3",
+                        isComposerFooterCompact ? "gap-1.5" : "gap-2 sm:gap-0",
                       )}
                     >
                       <div
+                        ref={composerFooterLeadingRef}
                         className={cn(
                           "flex min-w-0 flex-1 items-center",
                           isComposerFooterCompact
-                            ? "gap-1 overflow-hidden"
+                            ? "gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                             : "gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:min-w-max sm:overflow-visible",
                         )}
                       >
@@ -4103,6 +4066,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                           provider={selectedProvider}
                           model={selectedModelForPickerWithCustomFallback}
                           lockedProvider={lockedProvider}
+                          providers={providerStatuses}
                           modelOptionsByProvider={modelOptionsByProvider}
                           {...(composerProviderState.modelPickerIconClassName
                             ? {
@@ -4128,27 +4092,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                           />
                         ) : (
                           <>
-                            {selectedProvider === "cursor" ? (
-                              <>
-                                {hasSelectedCursorTraits && (
-                                  <Separator
-                                    orientation="vertical"
-                                    className="mx-0.5 hidden h-4 sm:block"
-                                  />
-                                )}
-                                {selectedCursorModel &&
-                                  selectedCursorModelCapabilities &&
-                                  hasSelectedCursorTraits && (
-                                    <CursorTraitsPicker
-                                      selection={selectedCursorModel}
-                                      capabilities={selectedCursorModelCapabilities}
-                                      onReasoningChange={onCursorReasoningSelect}
-                                      onFastModeChange={onCursorFastModeChange}
-                                      onThinkingModeChange={onCursorThinkingModeChange}
-                                    />
-                                  )}
-                              </>
-                            ) : providerTraitsPicker ? (
+                            {providerTraitsPicker ? (
                               <>
                                 <Separator
                                   orientation="vertical"
@@ -4242,8 +4186,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
                       {/* Right side: send / stop button */}
                       <div
+                        ref={composerFooterActionsRef}
                         data-chat-composer-actions="right"
-                        className="flex shrink-0 items-center gap-2"
+                        data-chat-composer-primary-actions-compact={
+                          isComposerPrimaryActionsCompact ? "true" : "false"
+                        }
+                        className="flex shrink-0 flex-nowrap items-center justify-end gap-2"
                       >
                         {activeContextWindow ? (
                           <ContextWindowMeter usage={activeContextWindow} />
@@ -4253,156 +4201,32 @@ export default function ChatView({ threadId }: ChatViewProps) {
                             Preparing worktree...
                           </span>
                         ) : null}
-                        {activePendingProgress ? (
-                          <div className="flex items-center gap-2">
-                            {activePendingProgress.questionIndex > 0 ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="rounded-full"
-                                onClick={onPreviousActivePendingUserInputQuestion}
-                                disabled={activePendingIsResponding}
-                              >
-                                Previous
-                              </Button>
-                            ) : null}
-                            <Button
-                              type="submit"
-                              size="sm"
-                              className="rounded-full px-4"
-                              disabled={
-                                activePendingIsResponding ||
-                                (activePendingProgress.isLastQuestion
-                                  ? !activePendingResolvedAnswers
-                                  : !activePendingProgress.canAdvance)
-                              }
-                            >
-                              {activePendingIsResponding
-                                ? "Submitting..."
-                                : activePendingProgress.isLastQuestion
-                                  ? "Submit answers"
-                                  : "Next question"}
-                            </Button>
-                          </div>
-                        ) : phase === "running" ? (
-                          <button
-                            type="button"
-                            className="flex size-8 cursor-pointer items-center justify-center rounded-full bg-rose-500/90 text-white transition-all duration-150 hover:bg-rose-500 hover:scale-105 sm:h-8 sm:w-8"
-                            onClick={() => void onInterrupt()}
-                            aria-label="Stop generation"
-                          >
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 12 12"
-                              fill="currentColor"
-                              aria-hidden="true"
-                            >
-                              <rect x="2" y="2" width="8" height="8" rx="1.5" />
-                            </svg>
-                          </button>
-                        ) : pendingUserInputs.length === 0 ? (
-                          showPlanFollowUpPrompt ? (
-                            prompt.trim().length > 0 ? (
-                              <Button
-                                type="submit"
-                                size="sm"
-                                className="h-9 rounded-full px-4 sm:h-8"
-                                disabled={isSendBusy || isConnecting}
-                              >
-                                {isConnecting || isSendBusy ? "Sending..." : "Refine"}
-                              </Button>
-                            ) : (
-                              <div className="flex items-center">
-                                <Button
-                                  type="submit"
-                                  size="sm"
-                                  className="h-9 rounded-l-full rounded-r-none px-4 sm:h-8"
-                                  disabled={isSendBusy || isConnecting}
-                                >
-                                  {isConnecting || isSendBusy ? "Sending..." : "Implement"}
-                                </Button>
-                                <Menu>
-                                  <MenuTrigger
-                                    render={
-                                      <Button
-                                        size="sm"
-                                        variant="default"
-                                        className="h-9 rounded-l-none rounded-r-full border-l-white/12 px-2 sm:h-8"
-                                        aria-label="Implementation actions"
-                                        disabled={isSendBusy || isConnecting}
-                                      />
-                                    }
-                                  >
-                                    <ChevronDownIcon className="size-3.5" />
-                                  </MenuTrigger>
-                                  <MenuPopup align="end" side="top">
-                                    <MenuItem
-                                      disabled={isSendBusy || isConnecting}
-                                      onClick={() => void onImplementPlanInNewThread()}
-                                    >
-                                      Implement in a new thread
-                                    </MenuItem>
-                                  </MenuPopup>
-                                </Menu>
-                              </div>
-                            )
-                          ) : (
-                            <button
-                              type="submit"
-                              className="flex h-9 w-9 enabled:cursor-pointer items-center justify-center rounded-full bg-primary/90 text-primary-foreground transition-all duration-150 hover:bg-primary hover:scale-105 disabled:pointer-events-none disabled:opacity-30 disabled:hover:scale-100 sm:h-8 sm:w-8"
-                              disabled={
-                                isSendBusy || isConnecting || !composerSendState.hasSendableContent
-                              }
-                              aria-label={
-                                isConnecting
-                                  ? "Connecting"
-                                  : isPreparingWorktree
-                                    ? "Preparing worktree"
-                                    : isSendBusy
-                                      ? "Sending"
-                                      : "Send message"
-                              }
-                            >
-                              {isConnecting || isSendBusy ? (
-                                <svg
-                                  width="14"
-                                  height="14"
-                                  viewBox="0 0 14 14"
-                                  fill="none"
-                                  className="animate-spin"
-                                  aria-hidden="true"
-                                >
-                                  <circle
-                                    cx="7"
-                                    cy="7"
-                                    r="5.5"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                    strokeLinecap="round"
-                                    strokeDasharray="20 12"
-                                  />
-                                </svg>
-                              ) : (
-                                <svg
-                                  width="14"
-                                  height="14"
-                                  viewBox="0 0 14 14"
-                                  fill="none"
-                                  aria-hidden="true"
-                                >
-                                  <path
-                                    d="M7 11.5V2.5M7 2.5L3 6.5M7 2.5L11 6.5"
-                                    stroke="currentColor"
-                                    strokeWidth="1.8"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                              )}
-                            </button>
-                          )
-                        ) : null}
+                        <ComposerPrimaryActions
+                          compact={isComposerPrimaryActionsCompact}
+                          pendingAction={
+                            activePendingProgress
+                              ? {
+                                  questionIndex: activePendingProgress.questionIndex,
+                                  isLastQuestion: activePendingProgress.isLastQuestion,
+                                  canAdvance: activePendingProgress.canAdvance,
+                                  isResponding: activePendingIsResponding,
+                                  isComplete: Boolean(activePendingResolvedAnswers),
+                                }
+                              : null
+                          }
+                          isRunning={phase === "running"}
+                          showPlanFollowUpPrompt={
+                            pendingUserInputs.length === 0 && showPlanFollowUpPrompt
+                          }
+                          promptHasText={prompt.trim().length > 0}
+                          isSendBusy={isSendBusy}
+                          isConnecting={isConnecting}
+                          isPreparingWorktree={isPreparingWorktree}
+                          hasSendableContent={composerSendState.hasSendableContent}
+                          onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
+                          onInterrupt={() => void onInterrupt()}
+                          onImplementPlanInNewThread={() => void onImplementPlanInNewThread()}
+                        />
                       </div>
                     </div>
                   )}

@@ -25,6 +25,7 @@ import {
 } from "../ui/dialog";
 import { toastManager } from "../ui/toast";
 import { readNativeApi } from "~/nativeApi";
+import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 
 export const ProposedPlanCard = memo(function ProposedPlanCard({
   planMarkdown,
@@ -39,6 +40,15 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [savePath, setSavePath] = useState("");
   const [isSavingToWorkspace, setIsSavingToWorkspace] = useState(false);
+  const { copyToClipboard, isCopied } = useCopyToClipboard({
+    onError: (error) => {
+      toastManager.add({
+        type: "error",
+        title: "Could not copy plan",
+        description: error instanceof Error ? error.message : "An error occurred while copying.",
+      });
+    },
+  });
   const savePathInputId = useId();
   const title = proposedPlanTitle(planMarkdown) ?? "Proposed plan";
   const lineCount = planMarkdown.split("\n").length;
@@ -54,16 +64,16 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
     downloadPlanAsTextFile(downloadFilename, saveContents);
   };
 
-  const canSaveToWorkspace = () => Boolean(workspaceRoot && readNativeApi());
+  const handleCopyPlan = () => {
+    copyToClipboard(saveContents);
+  };
 
   const openSaveDialog = () => {
-    if (!canSaveToWorkspace()) {
+    if (!workspaceRoot) {
       toastManager.add({
         type: "error",
-        title: !workspaceRoot ? "Workspace path is unavailable" : "Native API unavailable",
-        description: !workspaceRoot
-          ? "This thread does not have a workspace path to save into."
-          : "Saving to workspace requires the native desktop app.",
+        title: "Workspace path is unavailable",
+        description: "This thread does not have a workspace path to save into.",
       });
       return;
     }
@@ -81,15 +91,6 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
       toastManager.add({
         type: "warning",
         title: "Enter a workspace path",
-      });
-      return;
-    }
-    const hasTraversalSegment = relativePath.split("/").some((segment) => segment === "..");
-    if (relativePath.startsWith("/") || hasTraversalSegment) {
-      toastManager.add({
-        type: "warning",
-        title: "Invalid path",
-        description: "Path must be relative and cannot contain '..' segments.",
       });
       return;
     }
@@ -116,9 +117,14 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
           description: error instanceof Error ? error.message : "An error occurred while saving.",
         });
       })
-      .finally(() => {
-        setIsSavingToWorkspace(false);
-      });
+      .then(
+        () => {
+          setIsSavingToWorkspace(false);
+        },
+        () => {
+          setIsSavingToWorkspace(false);
+        },
+      );
   };
 
   return (
@@ -135,11 +141,11 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
             <EllipsisIcon aria-hidden="true" className="size-4" />
           </MenuTrigger>
           <MenuPopup align="end">
+            <MenuItem onClick={handleCopyPlan}>
+              {isCopied ? "Copied!" : "Copy to clipboard"}
+            </MenuItem>
             <MenuItem onClick={handleDownload}>Download as markdown</MenuItem>
-            <MenuItem
-              onClick={openSaveDialog}
-              disabled={!canSaveToWorkspace() || isSavingToWorkspace}
-            >
+            <MenuItem onClick={openSaveDialog} disabled={!workspaceRoot || isSavingToWorkspace}>
               Save to workspace
             </MenuItem>
           </MenuPopup>
