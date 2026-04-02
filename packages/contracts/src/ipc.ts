@@ -44,8 +44,6 @@ import type {
   TerminalWriteInput,
 } from "./terminal";
 import type {
-  ServerRemoveKeybindingInput,
-  ServerRemoveKeybindingResult,
   ServerUpsertKeybindingInput,
 } from "./server";
 import type {
@@ -187,7 +185,6 @@ export interface NativeApi {
     getConfig: () => Promise<ServerConfig>;
     refreshProviders: () => Promise<ServerProviderUpdatedPayload>;
     upsertKeybinding: (input: ServerUpsertKeybindingInput) => Promise<ServerUpsertKeybindingResult>;
-    removeKeybinding: (input: ServerRemoveKeybindingInput) => Promise<ServerRemoveKeybindingResult>;
     getSettings: () => Promise<ServerSettings>;
     updateSettings: (patch: ServerSettingsPatch) => Promise<ServerSettings>;
   };
