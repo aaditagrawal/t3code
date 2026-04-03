@@ -1365,11 +1365,15 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
       : undefined);
 
   const acquireManager = Effect.fn("acquireManager")(function* () {
+    let mgr: CodexAppServerManager;
     if (options?.manager) {
-      return options.manager;
+      mgr = options.manager;
+    } else {
+      const services = yield* Effect.services<never>();
+      mgr = options?.makeManager?.(services) ?? new CodexAppServerManager(services);
     }
-    const services = yield* Effect.services<never>();
-    return options?.makeManager?.(services) ?? new CodexAppServerManager(services);
+    _codexManagerRef = mgr;
+    return mgr;
   });
 
   const manager = yield* Effect.acquireRelease(acquireManager(), (manager) =>
@@ -1384,7 +1388,6 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
       }
     }),
   );
-  _codexManagerRef = manager;
   const serverSettingsService = yield* ServerSettingsService;
 
   const startSession: CodexAdapterShape["startSession"] = Effect.fn("startSession")(
