@@ -4480,7 +4480,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
         <PersistentThreadTerminalDrawer
           key={mountedThreadId}
           threadId={mountedThreadId}
-          visible={mountedThreadId === activeThreadId && terminalState.terminalOpen}
+          visible={
+            mountedThreadId === activeThreadId &&
+            (terminalStateByThreadId[mountedThreadId]?.terminalOpen ?? false)
+          }
           focusRequestId={mountedThreadId === activeThreadId ? terminalFocusRequestId : 0}
           splitShortcutLabel={splitTerminalShortcutLabel ?? undefined}
           newShortcutLabel={newTerminalShortcutLabel ?? undefined}
