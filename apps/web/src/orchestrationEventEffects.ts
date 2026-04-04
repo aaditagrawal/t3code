@@ -47,6 +47,28 @@ export function deriveOrchestrationBatchEffects(
         break;
       }
 
+      case "thread.archived": {
+        const existingArchived = threadLifecycleEffects.get(event.payload.threadId);
+        threadLifecycleEffects.set(event.payload.threadId, {
+          ...existingArchived,
+          clearPromotedDraft: existingArchived?.clearPromotedDraft ?? false,
+          clearDeletedThread: existingArchived?.clearDeletedThread ?? false,
+          removeTerminalState: true,
+        });
+        break;
+      }
+
+      case "thread.unarchived": {
+        const existingUnarchived = threadLifecycleEffects.get(event.payload.threadId);
+        threadLifecycleEffects.set(event.payload.threadId, {
+          ...existingUnarchived,
+          clearPromotedDraft: existingUnarchived?.clearPromotedDraft ?? false,
+          clearDeletedThread: existingUnarchived?.clearDeletedThread ?? false,
+          removeTerminalState: false,
+        });
+        break;
+      }
+
       default: {
         break;
       }

@@ -108,11 +108,11 @@ it.layer(NodeServices.layer)("resolveEditorLaunch", (it) => {
         args: ["/tmp/workspace"],
       });
 
-      const intellijLaunch = yield* resolveEditorLaunch(
-        { cwd: "/tmp/workspace", editor: "intellij" },
+      const ideaLaunch = yield* resolveEditorLaunch(
+        { cwd: "/tmp/workspace", editor: "idea" },
         "linux",
       );
-      assert.deepEqual(intellijLaunch, {
+      assert.deepEqual(ideaLaunch, {
         command: "idea",
         args: ["/tmp/workspace"],
       });
@@ -178,8 +178,7 @@ it.layer(NodeServices.layer)("resolveEditorLaunch", (it) => {
     }),
   );
 
-  it.effect("uses --goto when editor supports line/column suffixes", () =>
-    // Use "linux" to avoid macOS .app fallback logic for deterministic results.
+  it.effect("applies launch-style-specific navigation arguments", () =>
     Effect.gen(function* () {
       const lineOnly = yield* resolveEditorLaunch(
         { cwd: "/tmp/workspace/AGENTS.md:48", editor: "cursor" },
@@ -260,6 +259,33 @@ it.layer(NodeServices.layer)("resolveEditorLaunch", (it) => {
       assert.deepEqual(positronLineAndColumn, {
         command: "positron",
         args: ["--goto", "/tmp/workspace/src/open.ts:71:5"],
+      });
+
+      const zedLineOnly = yield* resolveEditorLaunch(
+        { cwd: "/tmp/workspace/AGENTS.md:48", editor: "zed" },
+        "darwin",
+      );
+      assert.deepEqual(zedLineOnly, {
+        command: "zed",
+        args: ["/tmp/workspace/AGENTS.md:48"],
+      });
+
+      const ideaLineOnly = yield* resolveEditorLaunch(
+        { cwd: "/tmp/workspace/AGENTS.md:48", editor: "idea" },
+        "linux",
+      );
+      assert.deepEqual(ideaLineOnly, {
+        command: "idea",
+        args: ["--line", "48", "/tmp/workspace/AGENTS.md"],
+      });
+
+      const ideaLineAndColumn = yield* resolveEditorLaunch(
+        { cwd: "/tmp/workspace/src/open.ts:71:5", editor: "idea" },
+        "linux",
+      );
+      assert.deepEqual(ideaLineAndColumn, {
+        command: "idea",
+        args: ["--line", "71", "--column", "5", "/tmp/workspace/src/open.ts"],
       });
     }),
   );

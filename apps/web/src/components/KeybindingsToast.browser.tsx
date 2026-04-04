@@ -1,6 +1,7 @@
 import "../index.css";
 
 import {
+  DEFAULT_SERVER_SETTINGS,
   ORCHESTRATION_WS_METHODS,
   type MessageId,
   type OrchestrationReadModel,
@@ -56,7 +57,14 @@ function createBaseServerConfig(): ServerConfig {
       },
     ],
     availableEditors: [],
+    observability: {
+      logsDirectoryPath: "/repo/project/.t3/logs",
+      localTracingEnabled: true,
+      otlpTracesEnabled: false,
+      otlpMetricsEnabled: false,
+    },
     settings: {
+      ...DEFAULT_SERVER_SETTINGS,
       enableAssistantStreaming: false,
       defaultThreadEnvMode: "local" as const,
       textGenerationModelSelection: { provider: "codex" as const, model: "gpt-5.4-mini" },
@@ -163,11 +171,16 @@ function resolveWsRpc(tag: string): unknown {
     return {
       isRepo: true,
       hasOriginRemote: true,
+      nextCursor: null,
+      totalCount: 1,
       branches: [{ name: "main", current: true, isDefault: true, worktreePath: null }],
     };
   }
   if (tag === WS_METHODS.gitStatus) {
     return {
+      isRepo: true,
+      hasOriginRemote: true,
+      isDefaultBranch: true,
       branch: "main",
       hasWorkingTreeChanges: false,
       workingTree: { files: [], insertions: 0, deletions: 0 },

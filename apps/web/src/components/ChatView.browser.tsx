@@ -135,6 +135,12 @@ function createBaseServerConfig(): ServerConfig {
       },
     ],
     availableEditors: [],
+    observability: {
+      logsDirectoryPath: "/repo/project/.t3/logs",
+      localTracingEnabled: true,
+      otlpTracesEnabled: false,
+      otlpMetricsEnabled: false,
+    },
     settings: {
       ...DEFAULT_SERVER_SETTINGS,
       ...DEFAULT_CLIENT_SETTINGS,
@@ -632,6 +638,8 @@ function resolveWsRpc(body: NormalizedWsRpcRequestBody): unknown {
     return {
       isRepo: true,
       hasOriginRemote: true,
+      nextCursor: null,
+      totalCount: 1,
       branches: [
         {
           name: "main",
@@ -644,6 +652,9 @@ function resolveWsRpc(body: NormalizedWsRpcRequestBody): unknown {
   }
   if (tag === WS_METHODS.gitStatus) {
     return {
+      isRepo: true,
+      hasOriginRemote: true,
+      isDefaultBranch: true,
       branch: "main",
       hasWorkingTreeChanges: false,
       workingTree: {

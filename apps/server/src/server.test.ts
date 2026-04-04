@@ -139,8 +139,17 @@ const buildAppUnderTest = (options?: {
     const baseDir = options?.config?.baseDir ?? tempBaseDir;
     const devUrl = options?.config?.devUrl;
     const derivedPaths = yield* deriveServerPaths(baseDir, devUrl);
-    const config = {
+    const config: ServerConfigShape = {
       logLevel: "Info",
+      traceMinLevel: "Info",
+      traceTimingEnabled: true,
+      traceBatchWindowMs: 200,
+      traceMaxBytes: 10 * 1024 * 1024,
+      traceMaxFiles: 10,
+      otlpTracesUrl: undefined,
+      otlpMetricsUrl: undefined,
+      otlpExportIntervalMs: 10_000,
+      otlpServiceName: "t3-server",
       mode: "web",
       port: 0,
       host: "127.0.0.1",
@@ -154,7 +163,7 @@ const buildAppUnderTest = (options?: {
       autoBootstrapProjectFromCwd: false,
       logWebSocketEvents: false,
       ...options?.config,
-    } satisfies ServerConfigShape;
+    };
     const layerConfig = Layer.succeed(ServerConfig, config);
 
     const appLayer = HttpRouter.serve(makeRoutesLayer, {
@@ -533,6 +542,10 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       } as const;
 
       yield* buildAppUnderTest({
+        config: {
+          otlpTracesUrl: "http://localhost:4318/v1/traces",
+          otlpMetricsUrl: "http://localhost:4318/v1/metrics",
+        },
         layers: {
           keybindings: {
             loadConfigState: Effect.succeed({
@@ -561,6 +574,12 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         assert.deepEqual(first.config.keybindings, []);
         assert.deepEqual(first.config.issues, []);
         assert.deepEqual(first.config.providers, providers);
+        assert.equal(first.config.observability.logsDirectoryPath.split(/[\\/]/).at(-1), "logs");
+        assert.equal(first.config.observability.localTracingEnabled, true);
+        assert.equal(first.config.observability.otlpTracesUrl, "http://localhost:4318/v1/traces");
+        assert.equal(first.config.observability.otlpTracesEnabled, true);
+        assert.equal(first.config.observability.otlpMetricsUrl, "http://localhost:4318/v1/metrics");
+        assert.equal(first.config.observability.otlpMetricsEnabled, true);
         assert.deepEqual(first.config.settings, DEFAULT_SERVER_SETTINGS);
       }
       assert.deepEqual(second, {
@@ -822,6 +841,9 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
           gitManager: {
             status: () =>
               Effect.succeed({
+                isRepo: true,
+                hasOriginRemote: true,
+                isDefaultBranch: true,
                 branch: "main",
                 hasWorkingTreeChanges: false,
                 workingTree: { files: [], insertions: 0, deletions: 0 },
@@ -922,6 +944,8 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
                 ],
                 isRepo: true,
                 hasOriginRemote: true,
+                nextCursor: null,
+                totalCount: 1,
               }),
             createWorktree: () =>
               Effect.succeed({
@@ -1185,6 +1209,41 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         ),
       );
       assert.deepEqual(replayResult, []);
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect("closes thread terminals after a successful archive command", () =>
+    Effect.gen(function* () {
+      const threadId = ThreadId.makeUnsafe("thread-archive");
+      const closeInputs: Array<Parameters<TerminalManagerShape["close"]>[0]> = [];
+
+      yield* buildAppUnderTest({
+        layers: {
+          terminalManager: {
+            close: (input) =>
+              Effect.sync(() => {
+                closeInputs.push(input);
+              }),
+          },
+          orchestrationEngine: {
+            dispatch: () => Effect.succeed({ sequence: 8 }),
+          },
+        },
+      });
+
+      const wsUrl = yield* getWsServerUrl("/ws");
+      const dispatchResult = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[ORCHESTRATION_WS_METHODS.dispatchCommand]({
+            type: "thread.archive",
+            commandId: CommandId.makeUnsafe("cmd-thread-archive"),
+            threadId,
+          }),
+        ),
+      );
+
+      assert.equal(dispatchResult.sequence, 8);
+      assert.deepEqual(closeInputs, [{ threadId }]);
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
