@@ -3130,7 +3130,9 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
       listSessions,
       hasSession,
       stopAll,
-      streamEvents: Stream.fromQueue(runtimeEventQueue),
+      get streamEvents() {
+        return Stream.fromQueue(runtimeEventQueue);
+      },
     } satisfies ClaudeAdapterShape;
   });
 }
