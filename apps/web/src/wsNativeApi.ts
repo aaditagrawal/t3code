@@ -8,9 +8,9 @@ import { __resetWsRpcClientForTests, getWsRpcClient } from "./wsRpcClient";
 
 let instance: { api: NativeApi } | null = null;
 
-export function __resetWsNativeApiForTests() {
+export async function __resetWsNativeApiForTests() {
   instance = null;
-  __resetWsRpcClientForTests();
+  await __resetWsRpcClientForTests();
   resetRequestLatencyStateForTests();
   resetServerStateForTests();
   resetWsConnectionStateForTests();

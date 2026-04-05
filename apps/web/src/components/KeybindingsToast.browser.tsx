@@ -328,7 +328,7 @@ describe("Keybindings update toast", () => {
         return [];
       },
     });
-    __resetNativeApiForTests();
+    await __resetNativeApiForTests();
     localStorage.clear();
     document.body.innerHTML = "";
     useComposerDraftStore.setState({
