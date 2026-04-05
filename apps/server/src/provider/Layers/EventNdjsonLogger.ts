@@ -43,6 +43,7 @@ interface ThreadWriter {
 interface LoggerState {
   readonly threadWriters: Map<string, ThreadWriter>;
   readonly failedSegments: Set<string>;
+  readonly closed: boolean;
 }
 
 function logWarning(message: string, context: Record<string, unknown>): Effect.Effect<void> {
@@ -201,6 +202,7 @@ export const makeEventNdjsonLogger = Effect.fn("makeEventNdjsonLogger")(function
   const stateRef = yield* SynchronizedRef.make<LoggerState>({
     threadWriters: new Map(),
     failedSegments: new Set(),
+    closed: false,
   });
 
   const resolveThreadWriter = Effect.fn("resolveThreadWriter")(function* (
@@ -251,6 +253,11 @@ export const makeEventNdjsonLogger = Effect.fn("makeEventNdjsonLogger")(function
   });
 
   const write = Effect.fn("write")(function* (event: unknown, threadId: ThreadId | null) {
+    const state = yield* SynchronizedRef.get(stateRef);
+    if (state.closed) {
+      return;
+    }
+
     const threadSegment = resolveThreadSegment(threadId);
     const message = yield* toLogMessage(event);
     if (!message) {
@@ -277,6 +284,7 @@ export const makeEventNdjsonLogger = Effect.fn("makeEventNdjsonLogger")(function
           {
             threadWriters: new Map<string, ThreadWriter>(),
             failedSegments: new Set<string>(),
+            closed: true,
           },
         ] as const;
       }),

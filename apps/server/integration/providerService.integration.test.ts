@@ -86,7 +86,7 @@ const collectEventsDuring = <A, E, R>(
       Effect.forkScoped,
     );
 
-    yield* Effect.sleep("50 millis");
+    yield* Effect.yieldNow;
     yield* action;
 
     return yield* Effect.forEach(
