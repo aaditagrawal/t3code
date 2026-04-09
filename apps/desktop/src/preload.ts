@@ -17,11 +17,19 @@ const LOG_LIST_CHANNEL = "desktop:log-list";
 const LOG_READ_CHANNEL = "desktop:log-read";
 const LOG_OPEN_DIR_CHANNEL = "desktop:log-open-dir";
 const GET_WS_URL_CHANNEL = "desktop:get-ws-url";
+const GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL = "desktop:get-local-environment-bootstrap";
 
 contextBridge.exposeInMainWorld("desktopBridge", {
   getWsUrl: () => {
     const result = ipcRenderer.sendSync(GET_WS_URL_CHANNEL);
     return typeof result === "string" && result !== "" ? result : null;
+  },
+  getLocalEnvironmentBootstrap: () => {
+    const result = ipcRenderer.sendSync(GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL);
+    if (typeof result !== "object" || result === null) {
+      return null;
+    }
+    return result as ReturnType<DesktopBridge["getLocalEnvironmentBootstrap"]>;
   },
   pickFolder: () => ipcRenderer.invoke(PICK_FOLDER_CHANNEL),
   confirm: (message) => ipcRenderer.invoke(CONFIRM_CHANNEL, message),

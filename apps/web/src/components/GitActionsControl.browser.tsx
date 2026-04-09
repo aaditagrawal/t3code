@@ -1,3 +1,4 @@
+import { scopeThreadRef } from "@t3tools/client-runtime";
 import { ThreadId } from "@t3tools/contracts";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -5,12 +6,26 @@ import { render } from "vitest-browser-react";
 
 const THREAD_A = ThreadId.makeUnsafe("thread-a");
 const THREAD_B = ThreadId.makeUnsafe("thread-b");
+const ENVIRONMENT_ID = "environment-local" as never;
 const GIT_CWD = "/repo/project";
 const BRANCH_NAME = "feature/toast-scope";
 
+function createDeferredPromise<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return { promise, resolve, reject };
+}
+
 const {
+  activeRunStackedActionDeferredRef,
   invalidateGitQueriesSpy,
-  invalidateGitStatusQuerySpy,
+  refreshGitStatusSpy,
   runStackedActionMutateAsyncSpy,
   setThreadBranchSpy,
   toastAddSpy,
@@ -18,9 +33,10 @@ const {
   toastPromiseSpy,
   toastUpdateSpy,
 } = vi.hoisted(() => ({
+  activeRunStackedActionDeferredRef: { current: createDeferredPromise<never>() },
   invalidateGitQueriesSpy: vi.fn(() => Promise.resolve()),
-  invalidateGitStatusQuerySpy: vi.fn(() => Promise.resolve()),
-  runStackedActionMutateAsyncSpy: vi.fn(() => new Promise<never>(() => undefined)),
+  refreshGitStatusSpy: vi.fn(() => Promise.resolve(null)),
+  runStackedActionMutateAsyncSpy: vi.fn(() => activeRunStackedActionDeferredRef.current.promise),
   setThreadBranchSpy: vi.fn(),
   toastAddSpy: vi.fn(() => "toast-1"),
   toastCloseSpy: vi.fn(),
@@ -28,12 +44,8 @@ const {
   toastUpdateSpy: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-query", async () => {
-  const actual =
-    await vi.importActual<typeof import("@tanstack/react-query")>("@tanstack/react-query");
-
+vi.mock("@tanstack/react-query", () => {
   return {
-    ...actual,
     useIsMutating: vi.fn(() => 0),
     useMutation: vi.fn((options: { __kind?: string }) => {
       if (options.__kind === "run-stacked-action") {
@@ -56,42 +68,7 @@ vi.mock("@tanstack/react-query", async () => {
         isPending: false,
       };
     }),
-    useQuery: vi.fn((options: { queryKey?: string[] }) => {
-      if (options.queryKey?.[0] === "git-status") {
-        return {
-          data: {
-            branch: BRANCH_NAME,
-            hasWorkingTreeChanges: false,
-            workingTree: { files: [], insertions: 0, deletions: 0 },
-            hasUpstream: true,
-            aheadCount: 1,
-            behindCount: 0,
-            pr: null,
-          },
-          error: null,
-        };
-      }
-
-      if (options.queryKey?.[0] === "git-branches") {
-        return {
-          data: {
-            isRepo: true,
-            hasOriginRemote: true,
-            branches: [
-              {
-                name: BRANCH_NAME,
-                current: true,
-                isDefault: false,
-                worktreePath: null,
-              },
-            ],
-          },
-          error: null,
-        };
-      }
-
-      return { data: null, error: null };
-    }),
+    useQuery: vi.fn(() => ({ data: null, error: null })),
     useQueryClient: vi.fn(() => ({})),
   };
 });
@@ -110,7 +87,6 @@ vi.mock("~/editorPreferences", () => ({
 }));
 
 vi.mock("~/lib/gitReactQuery", () => ({
-  gitBranchesQueryOptions: vi.fn(() => ({ queryKey: ["git-branches"] })),
   gitInitMutationOptions: vi.fn(() => ({ __kind: "init" })),
   gitMutationKeys: {
     pull: vi.fn(() => ["pull"]),
@@ -118,9 +94,25 @@ vi.mock("~/lib/gitReactQuery", () => ({
   },
   gitPullMutationOptions: vi.fn(() => ({ __kind: "pull" })),
   gitRunStackedActionMutationOptions: vi.fn(() => ({ __kind: "run-stacked-action" })),
-  gitStatusQueryOptions: vi.fn(() => ({ queryKey: ["git-status"] })),
   invalidateGitQueries: invalidateGitQueriesSpy,
-  invalidateGitStatusQuery: invalidateGitStatusQuerySpy,
+}));
+
+vi.mock("~/lib/gitStatusState", () => ({
+  refreshGitStatus: refreshGitStatusSpy,
+  resetGitStatusStateForTests: () => undefined,
+  useGitStatus: vi.fn(() => ({
+    data: {
+      branch: BRANCH_NAME,
+      hasWorkingTreeChanges: false,
+      workingTree: { files: [], insertions: 0, deletions: 0 },
+      hasUpstream: true,
+      aheadCount: 1,
+      behindCount: 0,
+      pr: null,
+    },
+    error: null,
+    isPending: false,
+  })),
 }));
 
 vi.mock("~/lib/utils", async () => {
@@ -133,21 +125,45 @@ vi.mock("~/lib/utils", async () => {
   };
 });
 
-vi.mock("~/nativeApi", () => ({
-  readNativeApi: vi.fn(() => null),
-  ensureNativeApi: vi.fn(() => {
-    throw new Error("ensureNativeApi not available in test");
-  }),
+vi.mock("~/localApi", () => ({
+  readLocalApi: vi.fn(() => null),
 }));
 
 vi.mock("~/store", () => ({
+  selectEnvironmentState: (
+    state: { environmentStateById: Record<string, unknown> },
+    environmentId: string | null,
+  ) => {
+    if (!environmentId) {
+      throw new Error("Missing environment id");
+    }
+    const environmentState = state.environmentStateById[environmentId];
+    if (!environmentState) {
+      throw new Error(`Unknown environment: ${environmentId}`);
+    }
+    return environmentState;
+  },
   useStore: (selector: (state: unknown) => unknown) =>
     selector({
       setThreadBranch: setThreadBranchSpy,
-      threads: [
-        { id: THREAD_A, branch: BRANCH_NAME, worktreePath: null },
-        { id: THREAD_B, branch: BRANCH_NAME, worktreePath: null },
-      ],
+      environmentStateById: {
+        [ENVIRONMENT_ID]: {
+          threadShellById: {
+            [THREAD_A]: { id: THREAD_A, branch: BRANCH_NAME, worktreePath: null },
+            [THREAD_B]: { id: THREAD_B, branch: BRANCH_NAME, worktreePath: null },
+          },
+          threadSessionById: {},
+          threadTurnStateById: {},
+          messageIdsByThreadId: {},
+          messageByThreadId: {},
+          activityIdsByThreadId: {},
+          activityByThreadId: {},
+          proposedPlanIdsByThreadId: {},
+          proposedPlanByThreadId: {},
+          turnDiffIdsByThreadId: {},
+          turnDiffSummaryByThreadId: {},
+        },
+      },
     }),
 }));
 
@@ -173,7 +189,7 @@ function Harness() {
       </button>
       <GitActionsControl
         gitCwd={GIT_CWD}
-        activeThreadId={activeThreadId}
+        activeThreadRef={scopeThreadRef(ENVIRONMENT_ID, activeThreadId)}
         provider="codex"
         model="o3-pro"
       />
@@ -185,6 +201,7 @@ describe("GitActionsControl thread-scoped progress toast", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+    activeRunStackedActionDeferredRef.current = createDeferredPromise<never>();
     document.body.innerHTML = "";
   });
 
@@ -239,6 +256,57 @@ describe("GitActionsControl thread-scoped progress toast", () => {
         }),
       );
     } finally {
+      activeRunStackedActionDeferredRef.current.reject(new Error("test cleanup"));
+      await Promise.resolve();
+      vi.useRealTimers();
+      await screen.unmount();
+      host.remove();
+    }
+  });
+
+  it("debounces focus-driven git status refreshes", async () => {
+    vi.useFakeTimers();
+
+    const originalVisibilityState = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    let visibilityState: DocumentVisibilityState = "hidden";
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => visibilityState,
+    });
+
+    const host = document.createElement("div");
+    document.body.append(host);
+    const screen = await render(
+      <GitActionsControl
+        gitCwd={GIT_CWD}
+        activeThreadRef={scopeThreadRef(ENVIRONMENT_ID, THREAD_A)}
+      />,
+      {
+        container: host,
+      },
+    );
+
+    try {
+      window.dispatchEvent(new Event("focus"));
+      visibilityState = "visible";
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      expect(refreshGitStatusSpy).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(249);
+      expect(refreshGitStatusSpy).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(refreshGitStatusSpy).toHaveBeenCalledTimes(1);
+      expect(refreshGitStatusSpy).toHaveBeenCalledWith({
+        environmentId: ENVIRONMENT_ID,
+        cwd: GIT_CWD,
+      });
+    } finally {
+      if (originalVisibilityState) {
+        Object.defineProperty(document, "visibilityState", originalVisibilityState);
+      }
+      vi.useRealTimers();
       await screen.unmount();
       host.remove();
     }

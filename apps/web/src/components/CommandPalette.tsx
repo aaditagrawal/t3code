@@ -13,6 +13,7 @@ import {
   StopCircleIcon,
   GhostIcon,
 } from "lucide-react";
+import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime";
 import { useNavigate } from "@tanstack/react-router";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -32,7 +33,12 @@ import {
 import { useComposerDraftStore } from "../composerDraftStore";
 import { useProjectThreadNavigation } from "../hooks/useProjectThreadNavigation";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
-import { useStore } from "../store";
+import { buildThreadRouteParams } from "../threadRoutes";
+import {
+  selectProjectsAcrossEnvironments,
+  selectThreadsAcrossEnvironments,
+  useStore,
+} from "../store";
 import { type Project, type ProjectScript, type Thread } from "../types";
 import { CommandDialog, CommandDialogPopup, CommandFooter } from "./ui/command";
 import { ScrollArea } from "./ui/scroll-area";
@@ -158,10 +164,12 @@ export default function CommandPalette({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const navigate = useNavigate();
-  const threads = useStore((store) => store.threads);
-  const projects = useStore((store) => store.projects);
-  const draftThreadsByThreadId = useComposerDraftStore((store) => store.draftThreadsByThreadId);
-  const { openOrCreateThread, openProject } = useProjectThreadNavigation(threadId);
+  const threads = useStore(selectThreadsAcrossEnvironments);
+  const projects = useStore(selectProjectsAcrossEnvironments);
+  const draftThreadsByThreadKey = useComposerDraftStore((store) => store.draftThreadsByThreadKey);
+  const { openOrCreateThread, openProject } = useProjectThreadNavigation(
+    scopeThreadRef(activeThread.environmentId, threadId),
+  );
   const projectNameById = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name] as const)),
     [projects],
@@ -220,7 +228,7 @@ export default function CommandPalette({
           shortcut: newThreadShortcutLabel,
           icon: <MessageSquareIcon className="size-4" />,
           onSelect: () =>
-            openOrCreateThread(activeProject.id, {
+            openOrCreateThread(scopeProjectRef(activeProject.environmentId, activeProject.id), {
               branch: activeThread.branch ?? null,
               worktreePath: activeThread.worktreePath ?? null,
               envMode: activeThread.worktreePath ? "worktree" : "local",
@@ -235,7 +243,7 @@ export default function CommandPalette({
           shortcut: newLocalThreadShortcutLabel,
           icon: <SparklesIcon className="size-4" />,
           onSelect: () =>
-            openOrCreateThread(activeProject.id, {
+            openOrCreateThread(scopeProjectRef(activeProject.environmentId, activeProject.id), {
               branch: null,
               worktreePath: null,
               envMode: "local",
@@ -395,15 +403,20 @@ export default function CommandPalette({
         .toSorted((left, right) => left.name.localeCompare(right.name))
         .map((project) => {
           const latestThread = threads
-            .filter((thread) => thread.projectId === project.id)
+            .filter(
+              (thread) =>
+                thread.projectId === project.id && thread.environmentId === project.environmentId,
+            )
             .toSorted((left, right) => {
               const byDate =
                 new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
               if (byDate !== 0) return byDate;
               return right.id.localeCompare(left.id);
             })[0];
-          const hasDraft = Object.values(draftThreadsByThreadId).some(
-            (draftThread) => draftThread.projectId === project.id,
+          const hasDraft = Object.values(draftThreadsByThreadKey).some(
+            (draftThread) =>
+              draftThread.projectId === project.id &&
+              draftThread.environmentId === project.environmentId,
           );
           const projectSubtitle = latestThread
             ? `Latest thread: ${latestThread.title}`
@@ -417,10 +430,10 @@ export default function CommandPalette({
             subtitle: projectSubtitle,
             keywords: [project.cwd, project.name, latestThread?.title ?? ""],
             icon: <FolderIcon className="size-4" />,
-            onSelect: () => openProject(project.id),
+            onSelect: () => openProject(scopeProjectRef(project.environmentId, project.id)),
           } satisfies PaletteItem;
         }),
-    [draftThreadsByThreadId, openProject, projects, threads],
+    [draftThreadsByThreadKey, openProject, projects, threads],
   );
 
   const threadItems = useMemo<PaletteItem[]>(
@@ -444,8 +457,8 @@ export default function CommandPalette({
           icon: <MessageSquareIcon className="size-4" />,
           onSelect: () =>
             navigate({
-              to: "/$threadId",
-              params: { threadId: thread.id },
+              to: "/$environmentId/$threadId",
+              params: buildThreadRouteParams(scopeThreadRef(thread.environmentId, thread.id)),
             }),
         })),
     [navigate, projectNameById, threads],

@@ -5,7 +5,11 @@ import {
   __resetClientTracingForTests,
   configureClientTracing,
 } from "./observability/clientTracing";
-import { getSlowRpcAckRequests, resetRequestLatencyStateForTests } from "./rpc/requestLatencyState";
+import {
+  getSlowRpcAckRequests,
+  resetRequestLatencyStateForTests,
+  setSlowRpcAckThresholdMsForTests,
+} from "./rpc/requestLatencyState";
 import {
   getWsConnectionStatus,
   getWsConnectionUiState,
@@ -292,6 +296,8 @@ describe("WsTransport", () => {
   });
 
   it("marks unary requests as slow until the first server ack arrives", async () => {
+    const slowAckThresholdMs = 25;
+    setSlowRpcAckThresholdMsForTests(slowAckThresholdMs);
     const transport = new WsTransport("ws://localhost:3020");
 
     const requestPromise = transport.request((client) =>
@@ -320,7 +326,7 @@ describe("WsTransport", () => {
           tag: WS_METHODS.serverUpsertKeybinding,
         },
       ]);
-    }, 5_000);
+    }, 1_000);
 
     socket.serverMessage(
       JSON.stringify({
@@ -343,7 +349,7 @@ describe("WsTransport", () => {
     expect(getSlowRpcAckRequests()).toEqual([]);
 
     await transport.dispose();
-  }, 10_000);
+  }, 5_000);
 
   it("sends unary RPC requests and resolves successful exits", async () => {
     const transport = new WsTransport("ws://localhost:3020");
@@ -430,6 +436,13 @@ describe("WsTransport", () => {
       sequence: 1,
       type: "welcome",
       payload: {
+        environment: {
+          environmentId: "environment-local",
+          label: "Local environment",
+          platform: { os: "darwin", arch: "arm64" },
+          serverVersion: "0.0.0-test",
+          capabilities: { repositoryIdentity: true },
+        },
         cwd: "/tmp/workspace",
         projectName: "workspace",
       },
@@ -483,6 +496,13 @@ describe("WsTransport", () => {
             sequence: 1,
             type: "welcome",
             payload: {
+              environment: {
+                environmentId: "environment-local",
+                label: "Local environment",
+                platform: { os: "darwin", arch: "arm64" },
+                serverVersion: "0.0.0-test",
+                capabilities: { repositoryIdentity: true },
+              },
               cwd: "/tmp/one",
               projectName: "one",
             },
@@ -526,6 +546,13 @@ describe("WsTransport", () => {
       sequence: 2,
       type: "welcome",
       payload: {
+        environment: {
+          environmentId: "environment-local",
+          label: "Local environment",
+          platform: { os: "darwin", arch: "arm64" },
+          serverVersion: "0.0.0-test",
+          capabilities: { repositoryIdentity: true },
+        },
         cwd: "/tmp/two",
         projectName: "two",
       },

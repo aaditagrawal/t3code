@@ -1,5 +1,6 @@
 import type {
   GitCheckoutInput,
+  GitCheckoutResult,
   GitCreateBranchInput,
   GitPreparePullRequestThreadInput,
   GitPreparePullRequestThreadResult,
@@ -15,6 +16,7 @@ import type {
   GitResolvePullRequestResult,
   GitStatusInput,
   GitStatusResult,
+  GitCreateBranchResult,
 } from "./git";
 import type {
   ProjectSearchEntriesInput,
@@ -104,8 +106,18 @@ export interface DesktopUpdateActionResult {
   state: DesktopUpdateState;
 }
 
+export interface DesktopUpdateCheckResult {
+  checked: boolean;
+  state: DesktopUpdateState;
+}
+
+export interface DesktopEnvironmentBootstrap {
+  label: string;
+  wsUrl: string | null;
+}
 export interface DesktopBridge {
   getWsUrl: () => string | null;
+  getLocalEnvironmentBootstrap: () => DesktopEnvironmentBootstrap | null;
   pickFolder: () => Promise<string | null>;
   confirm: (message: string) => Promise<boolean>;
   setTheme: (theme: DesktopTheme) => Promise<void>;
@@ -126,7 +138,17 @@ export interface DesktopBridge {
   openLogDir: () => Promise<void>;
 }
 
-export interface NativeApi {
+/**
+ * APIs bound to the local app shell, not to any particular backend environment.
+ *
+ * These capabilities describe the desktop/browser host that the user is
+ * currently running: dialogs, editor/external-link opening, context menus, and
+ * app-level settings/config access. They must not be used as a proxy for
+ * "whatever environment the user is targeting", because in a multi-environment
+ * world the local shell and a selected backend environment are distinct
+ * concepts.
+ */
+export interface LocalApi {
   dialogs: {
     pickFolder: () => Promise<string | null>;
     confirm: (message: string) => Promise<boolean>;
@@ -153,22 +175,6 @@ export interface NativeApi {
     openInEditor: (cwd: string, editor: EditorId) => Promise<void>;
     openExternal: (url: string) => Promise<void>;
   };
-  git: {
-    // Existing branch/worktree API
-    listBranches: (input: GitListBranchesInput) => Promise<GitListBranchesResult>;
-    createWorktree: (input: GitCreateWorktreeInput) => Promise<GitCreateWorktreeResult>;
-    removeWorktree: (input: GitRemoveWorktreeInput) => Promise<void>;
-    createBranch: (input: GitCreateBranchInput) => Promise<void>;
-    checkout: (input: GitCheckoutInput) => Promise<void>;
-    init: (input: GitInitInput) => Promise<void>;
-    resolvePullRequest: (input: GitPullRequestRefInput) => Promise<GitResolvePullRequestResult>;
-    preparePullRequestThread: (
-      input: GitPreparePullRequestThreadInput,
-    ) => Promise<GitPreparePullRequestThreadResult>;
-    // Stacked action API
-    pull: (input: GitPullInput) => Promise<GitPullResult>;
-    status: (input: GitStatusInput) => Promise<GitStatusResult>;
-  };
   contextMenu: {
     show: <T extends string>(
       items: readonly ContextMenuItem<T>[],
@@ -185,6 +191,52 @@ export interface NativeApi {
     upsertKeybinding: (input: ServerUpsertKeybindingInput) => Promise<ServerUpsertKeybindingResult>;
     getSettings: () => Promise<ServerSettings>;
     updateSettings: (patch: ServerSettingsPatch) => Promise<ServerSettings>;
+  };
+}
+
+/**
+ * APIs bound to a specific backend environment connection.
+ *
+ * These operations must always be routed with explicit environment context.
+ * They represent remote stateful capabilities such as orchestration, terminal,
+ * project, and git operations. In multi-environment mode, each environment gets
+ * its own instance of this surface, and callers should resolve it by
+ * `environmentId` rather than reaching through the local desktop bridge.
+ */
+export interface EnvironmentApi {
+  terminal: {
+    open: (input: typeof TerminalOpenInput.Encoded) => Promise<TerminalSessionSnapshot>;
+    write: (input: typeof TerminalWriteInput.Encoded) => Promise<void>;
+    resize: (input: typeof TerminalResizeInput.Encoded) => Promise<void>;
+    clear: (input: typeof TerminalClearInput.Encoded) => Promise<void>;
+    restart: (input: typeof TerminalRestartInput.Encoded) => Promise<TerminalSessionSnapshot>;
+    close: (input: typeof TerminalCloseInput.Encoded) => Promise<void>;
+    onEvent: (callback: (event: TerminalEvent) => void) => () => void;
+  };
+  projects: {
+    searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
+    writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
+  };
+  git: {
+    listBranches: (input: GitListBranchesInput) => Promise<GitListBranchesResult>;
+    createWorktree: (input: GitCreateWorktreeInput) => Promise<GitCreateWorktreeResult>;
+    removeWorktree: (input: GitRemoveWorktreeInput) => Promise<void>;
+    createBranch: (input: GitCreateBranchInput) => Promise<GitCreateBranchResult>;
+    checkout: (input: GitCheckoutInput) => Promise<GitCheckoutResult>;
+    init: (input: GitInitInput) => Promise<void>;
+    resolvePullRequest: (input: GitPullRequestRefInput) => Promise<GitResolvePullRequestResult>;
+    preparePullRequestThread: (
+      input: GitPreparePullRequestThreadInput,
+    ) => Promise<GitPreparePullRequestThreadResult>;
+    pull: (input: GitPullInput) => Promise<GitPullResult>;
+    refreshStatus: (input: GitStatusInput) => Promise<GitStatusResult>;
+    onStatus: (
+      input: GitStatusInput,
+      callback: (status: GitStatusResult) => void,
+      options?: {
+        onResubscribe?: () => void;
+      },
+    ) => () => void;
   };
   orchestration: {
     getSnapshot: () => Promise<OrchestrationReadModel>;

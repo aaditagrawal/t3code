@@ -1,9 +1,12 @@
-import { DEFAULT_RUNTIME_MODE, type ProjectId, ThreadId } from "@t3tools/contracts";
+import { scopeThreadRef } from "@t3tools/client-runtime";
+import type { ScopedProjectRef, ScopedThreadRef, ThreadId } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
-import { type DraftThreadEnvMode, useComposerDraftStore } from "../composerDraftStore";
-import { newThreadId } from "../lib/utils";
-import { useStore } from "../store";
+
+import { type DraftThreadEnvMode } from "../composerDraftStore";
+import { selectThreadsAcrossEnvironments, useStore } from "../store";
+import { buildThreadRouteParams } from "../threadRoutes";
+import { useHandleNewThread } from "./useHandleNewThread";
 
 interface OpenProjectThreadOptions {
   branch?: string | null;
@@ -12,11 +15,20 @@ interface OpenProjectThreadOptions {
 }
 
 function latestThreadIdForProject(
-  projectId: ProjectId,
-  threadIdsByProject: ReadonlyArray<{ id: ThreadId; projectId: ProjectId; createdAt: string }>,
+  projectRef: ScopedProjectRef,
+  threads: ReadonlyArray<{
+    id: ThreadId;
+    projectId: ScopedProjectRef["projectId"];
+    environmentId: ScopedProjectRef["environmentId"];
+    createdAt: string;
+  }>,
 ): ThreadId | null {
-  const latestThread = threadIdsByProject
-    .filter((thread) => thread.projectId === projectId)
+  const latestThread = threads
+    .filter(
+      (thread) =>
+        thread.projectId === projectRef.projectId &&
+        thread.environmentId === projectRef.environmentId,
+    )
     .toSorted((left, right) => {
       const byDate = new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
       if (byDate !== 0) return byDate;
@@ -26,111 +38,47 @@ function latestThreadIdForProject(
   return latestThread?.id ?? null;
 }
 
-export function useProjectThreadNavigation(routeThreadId: ThreadId | null) {
-  const threads = useStore((store) => store.threads);
+export function useProjectThreadNavigation(routeThreadRef: ScopedThreadRef | null) {
+  const threads = useStore(selectThreadsAcrossEnvironments);
   const navigate = useNavigate();
-  const getDraftThreadByProjectId = useComposerDraftStore(
-    (store) => store.getDraftThreadByProjectId,
-  );
-  const getDraftThread = useComposerDraftStore((store) => store.getDraftThread);
-  const setProjectDraftThreadId = useComposerDraftStore((store) => store.setProjectDraftThreadId);
-  const setDraftThreadContext = useComposerDraftStore((store) => store.setDraftThreadContext);
-  const clearProjectDraftThreadId = useComposerDraftStore(
-    (store) => store.clearProjectDraftThreadId,
-  );
+  const { handleNewThread } = useHandleNewThread();
 
   const navigateToThread = useCallback(
-    async (threadId: ThreadId) => {
-      if (routeThreadId === threadId) return;
+    async (threadRef: ScopedThreadRef) => {
+      if (
+        routeThreadRef &&
+        routeThreadRef.threadId === threadRef.threadId &&
+        routeThreadRef.environmentId === threadRef.environmentId
+      ) {
+        return;
+      }
+
       await navigate({
-        to: "/$threadId",
-        params: { threadId },
+        to: "/$environmentId/$threadId",
+        params: buildThreadRouteParams(threadRef),
       });
     },
-    [navigate, routeThreadId],
+    [navigate, routeThreadRef],
   );
 
   const openOrCreateThread = useCallback(
-    async (projectId: ProjectId, options?: OpenProjectThreadOptions) => {
-      const hasBranchOption = options?.branch !== undefined;
-      const hasWorktreePathOption = options?.worktreePath !== undefined;
-      const hasEnvModeOption = options?.envMode !== undefined;
-      const storedDraftThread = getDraftThreadByProjectId(projectId);
-
-      if (storedDraftThread) {
-        if (hasBranchOption || hasWorktreePathOption || hasEnvModeOption) {
-          setDraftThreadContext(storedDraftThread.threadId, {
-            ...(hasBranchOption ? { branch: options?.branch ?? null } : {}),
-            ...(hasWorktreePathOption ? { worktreePath: options?.worktreePath ?? null } : {}),
-            ...(hasEnvModeOption ? { envMode: options?.envMode } : {}),
-          });
-        }
-        setProjectDraftThreadId(projectId, storedDraftThread.threadId);
-        await navigateToThread(storedDraftThread.threadId);
-        return;
-      }
-
-      clearProjectDraftThreadId(projectId);
-
-      const activeDraftThread = routeThreadId ? getDraftThread(routeThreadId) : null;
-      if (activeDraftThread && routeThreadId && activeDraftThread.projectId === projectId) {
-        if (hasBranchOption || hasWorktreePathOption || hasEnvModeOption) {
-          setDraftThreadContext(routeThreadId, {
-            ...(hasBranchOption ? { branch: options?.branch ?? null } : {}),
-            ...(hasWorktreePathOption ? { worktreePath: options?.worktreePath ?? null } : {}),
-            ...(hasEnvModeOption ? { envMode: options?.envMode } : {}),
-          });
-        }
-        setProjectDraftThreadId(projectId, routeThreadId);
-        return;
-      }
-
-      const nextThreadId = newThreadId();
-      setProjectDraftThreadId(projectId, nextThreadId, {
-        createdAt: new Date().toISOString(),
-        branch: options?.branch ?? null,
-        worktreePath: options?.worktreePath ?? null,
-        envMode: options?.envMode ?? "local",
-        runtimeMode: DEFAULT_RUNTIME_MODE,
-      });
-
-      await navigateToThread(nextThreadId);
+    async (projectRef: ScopedProjectRef, options?: OpenProjectThreadOptions) => {
+      await handleNewThread(projectRef, options);
     },
-    [
-      clearProjectDraftThreadId,
-      getDraftThread,
-      getDraftThreadByProjectId,
-      navigateToThread,
-      routeThreadId,
-      setDraftThreadContext,
-      setProjectDraftThreadId,
-    ],
+    [handleNewThread],
   );
 
   const openProject = useCallback(
-    async (projectId: ProjectId) => {
-      const latestThreadId = latestThreadIdForProject(projectId, threads);
+    async (projectRef: ScopedProjectRef) => {
+      const latestThreadId = latestThreadIdForProject(projectRef, threads);
       if (latestThreadId) {
-        await navigateToThread(latestThreadId);
+        await navigateToThread(scopeThreadRef(projectRef.environmentId, latestThreadId));
         return;
       }
 
-      const draftThread = getDraftThreadByProjectId(projectId);
-      if (draftThread) {
-        setProjectDraftThreadId(projectId, draftThread.threadId);
-        await navigateToThread(draftThread.threadId);
-        return;
-      }
-
-      await openOrCreateThread(projectId);
+      await handleNewThread(projectRef);
     },
-    [
-      getDraftThreadByProjectId,
-      navigateToThread,
-      openOrCreateThread,
-      setProjectDraftThreadId,
-      threads,
-    ],
+    [handleNewThread, navigateToThread, threads],
   );
 
   return {

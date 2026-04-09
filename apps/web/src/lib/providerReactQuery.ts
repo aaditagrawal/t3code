@@ -1,4 +1,5 @@
 import {
+  type EnvironmentId,
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetTurnDiffInput,
   ThreadId,
@@ -8,9 +9,11 @@ import {
 } from "@t3tools/contracts";
 import { queryOptions } from "@tanstack/react-query";
 import { Option, Schema } from "effect";
-import { ensureNativeApi } from "../nativeApi";
+import { ensureEnvironmentApi } from "../environmentApi";
+import { ensureLocalApi } from "../localApi";
 
 interface CheckpointDiffQueryInput {
+  environmentId: EnvironmentId | null;
   threadId: ThreadId | null;
   fromTurnCount: number | null;
   toTurnCount: number | null;
@@ -26,6 +29,7 @@ export const providerQueryKeys = {
     [
       "providers",
       "checkpointDiff",
+      input.environmentId ?? null,
       input.threadId,
       input.fromTurnCount,
       input.toTurnCount,
@@ -98,7 +102,7 @@ export function providerListModelsQueryOptions(provider: ProviderKind) {
   return queryOptions<ReadonlyArray<ProviderModelOption>>({
     queryKey: providerQueryKeys.listModels(provider),
     queryFn: async () => {
-      const api = ensureNativeApi();
+      const api = ensureLocalApi();
       const result = await api.provider.listModels({ provider });
       return result.models;
     },
@@ -111,7 +115,7 @@ export function providerGetUsageQueryOptions(provider: ProviderKind) {
   return queryOptions<ProviderUsageResult>({
     queryKey: providerQueryKeys.getUsage(provider),
     queryFn: async () => {
-      const api = ensureNativeApi();
+      const api = ensureLocalApi();
       return api.provider.getUsage({ provider });
     },
     staleTime: 2 * 60_000, // Cache for 2 minutes
@@ -125,10 +129,10 @@ export function checkpointDiffQueryOptions(input: CheckpointDiffQueryInput) {
   return queryOptions({
     queryKey: providerQueryKeys.checkpointDiff(input),
     queryFn: async () => {
-      const api = ensureNativeApi();
-      if (!input.threadId || decodedRequest._tag === "None") {
+      if (!input.environmentId || !input.threadId || decodedRequest._tag === "None") {
         throw new Error("Checkpoint diff is unavailable.");
       }
+      const api = ensureEnvironmentApi(input.environmentId);
       try {
         if (decodedRequest.value.kind === "fullThreadDiff") {
           return await api.orchestration.getFullThreadDiff(decodedRequest.value.input);
@@ -138,7 +142,11 @@ export function checkpointDiffQueryOptions(input: CheckpointDiffQueryInput) {
         throw new Error(normalizeCheckpointErrorMessage(error), { cause: error });
       }
     },
-    enabled: (input.enabled ?? true) && !!input.threadId && decodedRequest._tag === "Some",
+    enabled:
+      (input.enabled ?? true) &&
+      !!input.environmentId &&
+      !!input.threadId &&
+      decodedRequest._tag === "Some",
     staleTime: Infinity,
     retry: (failureCount, error) => {
       if (isCheckpointTemporarilyUnavailable(error)) {

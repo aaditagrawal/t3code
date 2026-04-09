@@ -1,31 +1,10 @@
-import type { NativeApi } from "@t3tools/contracts";
+import type { LocalApi } from "@t3tools/contracts";
 
-import { __resetWsNativeApiForTests, createWsNativeApi } from "./wsNativeApi";
+import { __resetLocalApiForTests, createLocalApi, ensureLocalApi, readLocalApi } from "./localApi";
 
-let cachedApi: NativeApi | undefined;
+export type NativeApi = LocalApi;
 
-export function readNativeApi(): NativeApi | undefined {
-  if (typeof window === "undefined") return undefined;
-  if (cachedApi) return cachedApi;
-
-  if (window.nativeApi) {
-    cachedApi = window.nativeApi;
-    return cachedApi;
-  }
-
-  cachedApi = createWsNativeApi();
-  return cachedApi;
-}
-
-export function ensureNativeApi(): NativeApi {
-  const api = readNativeApi();
-  if (!api) {
-    throw new Error("Native API not found");
-  }
-  return api;
-}
-
-export async function __resetNativeApiForTests() {
-  cachedApi = undefined;
-  await __resetWsNativeApiForTests();
-}
+export const createNativeApi = createLocalApi;
+export const readNativeApi = readLocalApi;
+export const ensureNativeApi = ensureLocalApi;
+export const __resetNativeApiForTests = __resetLocalApiForTests;

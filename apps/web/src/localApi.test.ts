@@ -2,7 +2,9 @@ import {
   CommandId,
   DEFAULT_SERVER_SETTINGS,
   type DesktopBridge,
+  EnvironmentId,
   EventId,
+  type GitStatusResult,
   ProjectId,
   type OrchestrationEvent,
   type ServerConfig,
@@ -31,6 +33,7 @@ function registerListener<T>(listeners: Set<(event: T) => void>, listener: (even
 
 const terminalEventListeners = new Set<(event: TerminalEvent) => void>();
 const orchestrationEventListeners = new Set<(event: OrchestrationEvent) => void>();
+const gitStatusListeners = new Set<(event: GitStatusResult) => void>();
 
 const rpcClientMock = {
   dispose: vi.fn(),
@@ -54,7 +57,10 @@ const rpcClientMock = {
   },
   git: {
     pull: vi.fn(),
-    status: vi.fn(),
+    refreshStatus: vi.fn(),
+    onStatus: vi.fn((input: { cwd: string }, listener: (event: GitStatusResult) => void) =>
+      registerListener(gitStatusListeners, listener),
+    ),
     runStackedAction: vi.fn(),
     listBranches: vi.fn(),
     createWorktree: vi.fn(),
@@ -89,6 +95,17 @@ const rpcClientMock = {
 vi.mock("./wsRpcClient", () => {
   return {
     getWsRpcClient: () => rpcClientMock,
+    getPrimaryWsRpcClientEntry: () => ({
+      key: "primary",
+      knownEnvironment: {
+        id: "primary",
+        label: "Primary",
+        source: "manual",
+        target: { type: "ws", wsUrl: "ws://localhost:3000" },
+      },
+      client: rpcClientMock,
+      environmentId: null,
+    }),
     __resetWsRpcClientForTests: vi.fn(),
   };
 });
@@ -116,6 +133,7 @@ function getWindowForTest(): Window & typeof globalThis & { desktopBridge?: unkn
 function makeDesktopBridge(overrides: Partial<DesktopBridge> = {}): DesktopBridge {
   return {
     getWsUrl: () => null,
+    getLocalEnvironmentBootstrap: () => null,
     pickFolder: async () => null,
     confirm: async () => true,
     setTheme: async () => undefined,
@@ -156,7 +174,21 @@ const defaultProviders: ReadonlyArray<ServerProvider> = [
   },
 ];
 
+const baseEnvironment = {
+  environmentId: EnvironmentId.makeUnsafe("environment-local"),
+  label: "Local environment",
+  platform: {
+    os: "darwin" as const,
+    arch: "arm64" as const,
+  },
+  serverVersion: "0.0.0-test",
+  capabilities: {
+    repositoryIdentity: true,
+  },
+};
+
 const baseServerConfig: ServerConfig = {
+  environment: baseEnvironment,
   cwd: "/tmp/workspace",
   keybindingsConfigPath: "/tmp/workspace/.config/keybindings.json",
   keybindings: [],
@@ -172,12 +204,26 @@ const baseServerConfig: ServerConfig = {
   settings: DEFAULT_SERVER_SETTINGS,
 };
 
+const baseGitStatus: GitStatusResult = {
+  isRepo: true,
+  hasOriginRemote: true,
+  isDefaultBranch: false,
+  branch: "feature/streamed",
+  hasWorkingTreeChanges: false,
+  workingTree: { files: [], insertions: 0, deletions: 0 },
+  hasUpstream: true,
+  aheadCount: 0,
+  behindCount: 0,
+  pr: null,
+};
+
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   showContextMenuFallbackMock.mockReset();
   terminalEventListeners.clear();
   orchestrationEventListeners.clear();
+  gitStatusListeners.clear();
   Reflect.deleteProperty(getWindowForTest(), "desktopBridge");
 });
 
@@ -185,12 +231,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("wsNativeApi", () => {
+describe("wsApi", () => {
   it("forwards server config fetches directly to the RPC client", async () => {
     rpcClientMock.server.getConfig.mockResolvedValue(baseServerConfig);
-    const { createWsNativeApi } = await import("./wsNativeApi");
+    const { createLocalApi } = await import("./localApi");
 
-    const api = createWsNativeApi();
+    const api = createLocalApi();
 
     await expect(api.server.getConfig()).resolves.toEqual(baseServerConfig);
     expect(rpcClientMock.server.getConfig).toHaveBeenCalledWith();
@@ -199,9 +245,9 @@ describe("wsNativeApi", () => {
   });
 
   it("forwards terminal and orchestration stream events", async () => {
-    const { createWsNativeApi } = await import("./wsNativeApi");
+    const { createEnvironmentApi } = await import("./environmentApi");
 
-    const api = createWsNativeApi();
+    const api = createEnvironmentApi(rpcClientMock as never);
     const onTerminalEvent = vi.fn();
     const onDomainEvent = vi.fn();
 
@@ -247,10 +293,36 @@ describe("wsNativeApi", () => {
     expect(onDomainEvent).toHaveBeenCalledWith(orchestrationEvent);
   });
 
-  it("forwards orchestration stream subscription options to the RPC client", async () => {
-    const { createWsNativeApi } = await import("./wsNativeApi");
+  it("forwards git status stream events", async () => {
+    const { createEnvironmentApi } = await import("./environmentApi");
 
-    const api = createWsNativeApi();
+    const api = createEnvironmentApi(rpcClientMock as never);
+    const onStatus = vi.fn();
+
+    api.git.onStatus({ cwd: "/repo" }, onStatus);
+
+    const gitStatus = baseGitStatus;
+    emitEvent(gitStatusListeners, gitStatus);
+
+    expect(rpcClientMock.git.onStatus).toHaveBeenCalledWith({ cwd: "/repo" }, onStatus, undefined);
+    expect(onStatus).toHaveBeenCalledWith(gitStatus);
+  });
+
+  it("forwards git status refreshes directly to the RPC client", async () => {
+    rpcClientMock.git.refreshStatus.mockResolvedValue(baseGitStatus);
+    const { createEnvironmentApi } = await import("./environmentApi");
+
+    const api = createEnvironmentApi(rpcClientMock as never);
+
+    await api.git.refreshStatus({ cwd: "/repo" });
+
+    expect(rpcClientMock.git.refreshStatus).toHaveBeenCalledWith({ cwd: "/repo" });
+  });
+
+  it("forwards orchestration stream subscription options to the RPC client", async () => {
+    const { createEnvironmentApi } = await import("./environmentApi");
+
+    const api = createEnvironmentApi(rpcClientMock as never);
     const onDomainEvent = vi.fn();
     const onResubscribe = vi.fn();
 
@@ -263,9 +335,9 @@ describe("wsNativeApi", () => {
 
   it("sends orchestration dispatch commands as the direct RPC payload", async () => {
     rpcClientMock.orchestration.dispatchCommand.mockResolvedValue({ sequence: 1 });
-    const { createWsNativeApi } = await import("./wsNativeApi");
+    const { createEnvironmentApi } = await import("./environmentApi");
 
-    const api = createWsNativeApi();
+    const api = createEnvironmentApi(rpcClientMock as never);
     const command = {
       type: "project.create",
       commandId: CommandId.makeUnsafe("cmd-1"),
@@ -285,9 +357,9 @@ describe("wsNativeApi", () => {
 
   it("forwards workspace file writes to the project RPC", async () => {
     rpcClientMock.projects.writeFile.mockResolvedValue({ relativePath: "plan.md" });
-    const { createWsNativeApi } = await import("./wsNativeApi");
+    const { createEnvironmentApi } = await import("./environmentApi");
 
-    const api = createWsNativeApi();
+    const api = createEnvironmentApi(rpcClientMock as never);
     await api.projects.writeFile({
       cwd: "/tmp/project",
       relativePath: "plan.md",
@@ -303,9 +375,9 @@ describe("wsNativeApi", () => {
 
   it("forwards full-thread diff requests to the orchestration RPC", async () => {
     rpcClientMock.orchestration.getFullThreadDiff.mockResolvedValue({ diff: "patch" });
-    const { createWsNativeApi } = await import("./wsNativeApi");
+    const { createEnvironmentApi } = await import("./environmentApi");
 
-    const api = createWsNativeApi();
+    const api = createEnvironmentApi(rpcClientMock as never);
     await api.orchestration.getFullThreadDiff({
       threadId: ThreadId.makeUnsafe("thread-1"),
       toTurnCount: 1,
@@ -325,12 +397,49 @@ describe("wsNativeApi", () => {
       },
     ];
     rpcClientMock.server.refreshProviders.mockResolvedValue({ providers: nextProviders });
-    const { createWsNativeApi } = await import("./wsNativeApi");
+    const { createLocalApi } = await import("./localApi");
 
-    const api = createWsNativeApi();
+    const api = createLocalApi();
 
     await expect(api.server.refreshProviders()).resolves.toEqual({ providers: nextProviders });
     expect(rpcClientMock.server.refreshProviders).toHaveBeenCalledWith();
+  });
+
+  it("derives provider model options from the latest server config snapshot", async () => {
+    rpcClientMock.server.getConfig.mockResolvedValue({
+      ...baseServerConfig,
+      providers: [
+        {
+          ...defaultProviders[0]!,
+          models: [
+            {
+              slug: "gpt-5-codex",
+              name: "GPT-5 Codex",
+              isCustom: false,
+              capabilities: null,
+            },
+          ],
+        },
+      ],
+    });
+    const { createLocalApi } = await import("./localApi");
+
+    const api = createLocalApi();
+
+    await expect(api.provider.listModels({ provider: "codex" })).resolves.toEqual({
+      models: [{ slug: "gpt-5-codex", name: "GPT-5 Codex", connected: true }],
+    });
+    expect(rpcClientMock.server.getConfig).toHaveBeenCalledWith();
+  });
+
+  it("returns a provider-scoped usage placeholder when live usage is not exposed over the local API", async () => {
+    const { createLocalApi } = await import("./localApi");
+
+    const api = createLocalApi();
+
+    await expect(api.provider.getUsage({ provider: "cursor" })).resolves.toEqual({
+      provider: "cursor",
+    });
   });
 
   it("forwards server settings updates directly to the RPC client", async () => {
@@ -339,9 +448,9 @@ describe("wsNativeApi", () => {
       enableAssistantStreaming: true,
     };
     rpcClientMock.server.updateSettings.mockResolvedValue(nextSettings);
-    const { createWsNativeApi } = await import("./wsNativeApi");
+    const { createLocalApi } = await import("./localApi");
 
-    const api = createWsNativeApi();
+    const api = createLocalApi();
 
     await expect(api.server.updateSettings({ enableAssistantStreaming: true })).resolves.toEqual(
       nextSettings,
@@ -355,8 +464,8 @@ describe("wsNativeApi", () => {
     const showContextMenu = vi.fn().mockResolvedValue("delete");
     getWindowForTest().desktopBridge = makeDesktopBridge({ showContextMenu });
 
-    const { createWsNativeApi } = await import("./wsNativeApi");
-    const api = createWsNativeApi();
+    const { createLocalApi } = await import("./localApi");
+    const api = createLocalApi();
     const items = [{ id: "delete", label: "Delete" }] as const;
 
     await expect(api.contextMenu.show(items)).resolves.toBe("delete");
@@ -365,9 +474,9 @@ describe("wsNativeApi", () => {
 
   it("falls back to the browser context menu helper when the desktop bridge is missing", async () => {
     showContextMenuFallbackMock.mockResolvedValue("rename");
-    const { createWsNativeApi } = await import("./wsNativeApi");
+    const { createLocalApi } = await import("./localApi");
 
-    const api = createWsNativeApi();
+    const api = createLocalApi();
     const items = [{ id: "rename", label: "Rename" }] as const;
 
     await expect(api.contextMenu.show(items, { x: 4, y: 5 })).resolves.toBe("rename");

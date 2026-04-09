@@ -7,31 +7,31 @@ export type EditorLaunchStyle = typeof EditorLaunchStyle.Type;
 type EditorDefinition = {
   readonly id: string;
   readonly label: string;
-  readonly command: string | null;
+  readonly commands: readonly [string, ...string[]] | null;
   readonly launchStyle: EditorLaunchStyle;
 };
 
 export const EDITORS = [
-  { id: "cursor", label: "Cursor", command: "cursor", launchStyle: "goto" },
-  { id: "trae", label: "Trae", command: "trae", launchStyle: "goto" },
-  { id: "windsurf", label: "Windsurf", command: "windsurf", launchStyle: "goto" },
-  { id: "vscode", label: "VS Code", command: "code", launchStyle: "goto" },
+  { id: "cursor", label: "Cursor", commands: ["cursor"], launchStyle: "goto" },
+  { id: "trae", label: "Trae", commands: ["trae"], launchStyle: "goto" },
+  { id: "windsurf", label: "Windsurf", commands: ["windsurf"], launchStyle: "goto" },
+  { id: "vscode", label: "VS Code", commands: ["code"], launchStyle: "goto" },
   {
     id: "vscode-insiders",
     label: "VS Code Insiders",
-    command: "code-insiders",
+    commands: ["code-insiders"],
     launchStyle: "goto",
   },
-  { id: "vscodium", label: "VSCodium", command: "codium", launchStyle: "goto" },
-  { id: "zed", label: "Zed", command: "zed", launchStyle: "direct-path" },
-  { id: "positron", label: "Positron", command: "positron", launchStyle: "goto" },
-  { id: "sublime", label: "Sublime Text", command: "subl", launchStyle: "direct-path" },
-  { id: "webstorm", label: "WebStorm", command: "webstorm", launchStyle: "direct-path" },
-  { id: "idea", label: "IntelliJ IDEA", command: "idea", launchStyle: "line-column" },
-  { id: "fleet", label: "Fleet", command: "fleet", launchStyle: "direct-path" },
-  { id: "ghostty", label: "Ghostty", command: "ghostty", launchStyle: "direct-path" },
-  { id: "antigravity", label: "Antigravity", command: "agy", launchStyle: "goto" },
-  { id: "file-manager", label: "File Manager", command: null, launchStyle: "direct-path" },
+  { id: "vscodium", label: "VSCodium", commands: ["codium"], launchStyle: "goto" },
+  { id: "zed", label: "Zed", commands: ["zed", "zeditor"], launchStyle: "direct-path" },
+  { id: "positron", label: "Positron", commands: ["positron"], launchStyle: "goto" },
+  { id: "sublime", label: "Sublime Text", commands: ["subl"], launchStyle: "direct-path" },
+  { id: "webstorm", label: "WebStorm", commands: ["webstorm"], launchStyle: "direct-path" },
+  { id: "antigravity", label: "Antigravity", commands: ["agy"], launchStyle: "goto" },
+  { id: "idea", label: "IntelliJ IDEA", commands: ["idea"], launchStyle: "line-column" },
+  { id: "fleet", label: "Fleet", commands: ["fleet"], launchStyle: "direct-path" },
+  { id: "ghostty", label: "Ghostty", commands: ["ghostty"], launchStyle: "direct-path" },
+  { id: "file-manager", label: "File Manager", commands: null, launchStyle: "direct-path" },
 ] as const satisfies ReadonlyArray<EditorDefinition>;
 
 export const EditorId = Schema.Literals(EDITORS.map((e) => e.id));

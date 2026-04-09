@@ -1,5 +1,5 @@
-import type { GitBranch } from "@t3tools/contracts";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { EnvironmentId, GitBranch } from "@t3tools/contracts";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDownIcon } from "lucide-react";
 import {
@@ -14,13 +14,9 @@ import {
   useTransition,
 } from "react";
 
-import {
-  gitBranchSearchInfiniteQueryOptions,
-  gitQueryKeys,
-  gitStatusQueryOptions,
-  invalidateGitQueries,
-} from "../lib/gitReactQuery";
-import { readNativeApi } from "../nativeApi";
+import { gitBranchSearchInfiniteQueryOptions, gitQueryKeys } from "../lib/gitReactQuery";
+import { useGitStatus } from "../lib/gitStatusState";
+import { readEnvironmentApi } from "../environmentApi";
 import { parsePullRequestReference } from "../pullRequestReference";
 import {
   deriveLocalBranchNameFromRemoteRef,
@@ -43,6 +39,7 @@ import {
 import { toastManager } from "./ui/toast";
 
 interface BranchToolbarBranchSelectorProps {
+  environmentId: EnvironmentId;
   activeProjectCwd: string;
   activeThreadBranch: string | null;
   activeWorktreePath: string | null;
@@ -74,6 +71,7 @@ function getBranchTriggerLabel(input: {
 }
 
 export function BranchToolbarBranchSelector({
+  environmentId,
   activeProjectCwd,
   activeThreadBranch,
   activeWorktreePath,
@@ -89,16 +87,16 @@ export function BranchToolbarBranchSelector({
   const [branchQuery, setBranchQuery] = useState("");
   const deferredBranchQuery = useDeferredValue(branchQuery);
 
-  const branchStatusQuery = useQuery(gitStatusQueryOptions(branchCwd));
+  const branchStatusQuery = useGitStatus({ environmentId, cwd: branchCwd });
   const trimmedBranchQuery = branchQuery.trim();
   const deferredTrimmedBranchQuery = deferredBranchQuery.trim();
 
   useEffect(() => {
     if (!branchCwd) return;
     void queryClient.prefetchInfiniteQuery(
-      gitBranchSearchInfiniteQueryOptions({ cwd: branchCwd, query: "" }),
+      gitBranchSearchInfiniteQueryOptions({ environmentId, cwd: branchCwd, query: "" }),
     );
-  }, [branchCwd, queryClient]);
+  }, [branchCwd, environmentId, queryClient]);
 
   const {
     data: branchesSearchData,
@@ -108,9 +106,9 @@ export function BranchToolbarBranchSelector({
     isPending: isBranchesSearchPending,
   } = useInfiniteQuery(
     gitBranchSearchInfiniteQueryOptions({
+      environmentId,
       cwd: branchCwd,
       query: deferredTrimmedBranchQuery,
-      enabled: isBranchMenuOpen,
     }),
   );
   const branches = useMemo(
@@ -188,12 +186,14 @@ export function BranchToolbarBranchSelector({
   const runBranchAction = (action: () => Promise<void>) => {
     startBranchActionTransition(async () => {
       await action().catch(() => undefined);
-      await invalidateGitQueries(queryClient).catch(() => undefined);
+      await queryClient
+        .invalidateQueries({ queryKey: gitQueryKeys.branches(environmentId, branchCwd) })
+        .catch(() => undefined);
     });
   };
 
   const selectBranch = (branch: GitBranch) => {
-    const api = readNativeApi();
+    const api = readEnvironmentApi(environmentId);
     if (!api || !branchCwd || isBranchActionPending) return;
 
     // In new-worktree mode, selecting a branch sets the base branch.
@@ -226,67 +226,56 @@ export function BranchToolbarBranchSelector({
     onComposerFocusRequest?.();
 
     runBranchAction(async () => {
+      const previousBranch = resolvedActiveBranch;
       setOptimisticBranch(selectedBranchName);
       try {
-        await api.git.checkout({ cwd: selectionTarget.checkoutCwd, branch: branch.name });
-        await invalidateGitQueries(queryClient);
+        const checkoutResult = await api.git.checkout({
+          cwd: selectionTarget.checkoutCwd,
+          branch: branch.name,
+        });
+        const nextBranchName = branch.isRemote
+          ? (checkoutResult.branch ?? selectedBranchName)
+          : selectedBranchName;
+        setOptimisticBranch(nextBranchName);
+        onSetThreadBranch(nextBranchName, selectionTarget.nextWorktreePath);
       } catch (error) {
+        setOptimisticBranch(previousBranch);
         toastManager.add({
           type: "error",
           title: "Failed to checkout branch.",
           description: toBranchActionErrorMessage(error),
         });
-        return;
       }
-
-      let nextBranchName = selectedBranchName;
-      if (branch.isRemote) {
-        const status = await api.git.status({ cwd: selectionTarget.checkoutCwd }).catch(() => null);
-        if (status?.branch) {
-          nextBranchName = status.branch;
-        }
-      }
-
-      setOptimisticBranch(nextBranchName);
-      onSetThreadBranch(nextBranchName, selectionTarget.nextWorktreePath);
     });
   };
 
   const createBranch = (rawName: string) => {
     const name = rawName.trim();
-    const api = readNativeApi();
+    const api = readEnvironmentApi(environmentId);
     if (!api || !branchCwd || !name || isBranchActionPending) return;
 
     setIsBranchMenuOpen(false);
     onComposerFocusRequest?.();
 
     runBranchAction(async () => {
+      const previousBranch = resolvedActiveBranch;
       setOptimisticBranch(name);
-
       try {
-        await api.git.createBranch({ cwd: branchCwd, branch: name });
-        try {
-          await api.git.checkout({ cwd: branchCwd, branch: name });
-        } catch (error) {
-          toastManager.add({
-            type: "error",
-            title: "Failed to checkout branch.",
-            description: toBranchActionErrorMessage(error),
-          });
-          return;
-        }
+        const createBranchResult = await api.git.createBranch({
+          cwd: branchCwd,
+          branch: name,
+          checkout: true,
+        });
+        setOptimisticBranch(createBranchResult.branch);
+        onSetThreadBranch(createBranchResult.branch, activeWorktreePath);
       } catch (error) {
+        setOptimisticBranch(previousBranch);
         toastManager.add({
           type: "error",
-          title: "Failed to create branch.",
+          title: "Failed to create and checkout branch.",
           description: toBranchActionErrorMessage(error),
         });
-        return;
       }
-
-      setOptimisticBranch(name);
-      onSetThreadBranch(name, activeWorktreePath);
-      setBranchQuery("");
     });
   };
 
@@ -316,10 +305,10 @@ export function BranchToolbarBranchSelector({
         return;
       }
       void queryClient.invalidateQueries({
-        queryKey: gitQueryKeys.branches(branchCwd),
+        queryKey: gitQueryKeys.branches(environmentId, branchCwd),
       });
     },
-    [branchCwd, queryClient],
+    [branchCwd, environmentId, queryClient],
   );
 
   const branchListScrollElementRef = useRef<HTMLDivElement | null>(null);

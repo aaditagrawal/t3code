@@ -1,29 +1,23 @@
-import { type ContextMenuItem, type NativeApi } from "@t3tools/contracts";
+import type { ContextMenuItem, LocalApi } from "@t3tools/contracts";
 
-import { showContextMenuFallback } from "./contextMenuFallback";
+import { resetGitStatusStateForTests } from "./lib/gitStatusState";
+
+import { __resetWsRpcAtomClientForTests } from "./rpc/client";
 import { resetRequestLatencyStateForTests } from "./rpc/requestLatencyState";
-import { resetServerStateForTests } from "./rpc/serverState";
+import { getServerConfig, resetServerStateForTests } from "./rpc/serverState";
 import { resetWsConnectionStateForTests } from "./rpc/wsConnectionState";
-import { __resetWsRpcClientForTests, getWsRpcClient } from "./wsRpcClient";
+import { getPrimaryWsRpcClientEntry, WsRpcClient, __resetWsRpcClientForTests } from "./wsRpcClient";
+import { showContextMenuFallback } from "./contextMenuFallback";
 
-let instance: { api: NativeApi } | null = null;
+let cachedApi: LocalApi | undefined;
 
-export async function __resetWsNativeApiForTests() {
-  instance = null;
-  await __resetWsRpcClientForTests();
-  resetRequestLatencyStateForTests();
-  resetServerStateForTests();
-  resetWsConnectionStateForTests();
-}
+export function createLocalApi(
+  rpcClient: WsRpcClient = getPrimaryWsRpcClientEntry().client,
+): LocalApi {
+  const getServerConfigSnapshotOrFetch = async () =>
+    getServerConfig() ?? rpcClient.server.getConfig();
 
-export function createWsNativeApi(): NativeApi {
-  if (instance) {
-    return instance.api;
-  }
-
-  const rpcClient = getWsRpcClient();
-
-  const api: NativeApi = {
+  return {
     dialogs: {
       pickFolder: async () => {
         if (!window.desktopBridge) return null;
@@ -63,18 +57,6 @@ export function createWsNativeApi(): NativeApi {
         window.open(url, "_blank", "noopener,noreferrer");
       },
     },
-    git: {
-      pull: rpcClient.git.pull,
-      status: rpcClient.git.status,
-      listBranches: rpcClient.git.listBranches,
-      createWorktree: rpcClient.git.createWorktree,
-      removeWorktree: rpcClient.git.removeWorktree,
-      createBranch: rpcClient.git.createBranch,
-      checkout: rpcClient.git.checkout,
-      init: rpcClient.git.init,
-      resolvePullRequest: rpcClient.git.resolvePullRequest,
-      preparePullRequestThread: rpcClient.git.preparePullRequestThread,
-    },
     contextMenu: {
       show: async <T extends string>(
         items: readonly ContextMenuItem<T>[],
@@ -85,13 +67,6 @@ export function createWsNativeApi(): NativeApi {
         }
         return showContextMenuFallback(items, position);
       },
-    },
-    server: {
-      getConfig: rpcClient.server.getConfig,
-      refreshProviders: rpcClient.server.refreshProviders,
-      upsertKeybinding: rpcClient.server.upsertKeybinding,
-      getSettings: rpcClient.server.getSettings,
-      updateSettings: rpcClient.server.updateSettings,
     },
     logs: {
       getDir: async () => {
@@ -108,23 +83,59 @@ export function createWsNativeApi(): NativeApi {
       },
     },
     provider: {
-      listModels: async () => ({ models: [] }),
-      getUsage: async () => ({ provider: "unknown" }),
+      listModels: async ({ provider }) => {
+        const config = await getServerConfigSnapshotOrFetch();
+        const models = config.providers.find(
+          (candidate) => candidate.provider === provider,
+        )?.models;
+        return {
+          models:
+            models?.map((model) => ({
+              slug: model.slug,
+              name: model.name,
+              connected: true,
+            })) ?? [],
+        };
+      },
+      getUsage: async ({ provider }) => ({ provider }),
     },
-    orchestration: {
-      getSnapshot: rpcClient.orchestration.getSnapshot,
-      dispatchCommand: rpcClient.orchestration.dispatchCommand,
-      getTurnDiff: rpcClient.orchestration.getTurnDiff,
-      getFullThreadDiff: rpcClient.orchestration.getFullThreadDiff,
-      replayEvents: (fromSequenceExclusive) =>
-        rpcClient.orchestration
-          .replayEvents({ fromSequenceExclusive })
-          .then((events) => [...events]),
-      onDomainEvent: (callback, options) =>
-        rpcClient.orchestration.onDomainEvent(callback, options),
+    server: {
+      getConfig: rpcClient.server.getConfig,
+      refreshProviders: rpcClient.server.refreshProviders,
+      upsertKeybinding: rpcClient.server.upsertKeybinding,
+      getSettings: rpcClient.server.getSettings,
+      updateSettings: rpcClient.server.updateSettings,
     },
   };
+}
 
-  instance = { api };
+export function readLocalApi(): LocalApi | undefined {
+  if (typeof window === "undefined") return undefined;
+  if (cachedApi) return cachedApi;
+
+  if (window.nativeApi) {
+    cachedApi = window.nativeApi;
+    return cachedApi;
+  }
+
+  cachedApi = createLocalApi();
+  return cachedApi;
+}
+
+export function ensureLocalApi(): LocalApi {
+  const api = readLocalApi();
+  if (!api) {
+    throw new Error("Local API not found");
+  }
   return api;
+}
+
+export async function __resetLocalApiForTests() {
+  cachedApi = undefined;
+  await __resetWsRpcAtomClientForTests();
+  await __resetWsRpcClientForTests();
+  resetGitStatusStateForTests();
+  resetRequestLatencyStateForTests();
+  resetServerStateForTests();
+  resetWsConnectionStateForTests();
 }

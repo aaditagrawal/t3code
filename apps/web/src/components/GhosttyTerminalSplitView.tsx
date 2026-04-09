@@ -232,7 +232,7 @@ function GhosttyPane({
 
         // Handle user input → send to PTY
         const inputDisposable = terminal.onData((data) => {
-          void api.terminal.write({ threadId, terminalId, data }).catch((err) => {
+          void api.terminal.write({ threadId, terminalId, data }).catch((err: unknown) => {
             terminal.write(
               `\r\n[ghostty] ${err instanceof Error ? err.message : "Write failed"}\r\n`,
             );

@@ -126,6 +126,18 @@ function isMacAppInstalled(appName: string): boolean {
   );
 }
 
+function resolveAvailableCommand(
+  commands: ReadonlyArray<string>,
+  options: CommandAvailabilityOptions = {},
+): string | null {
+  for (const command of commands) {
+    if (isCommandAvailable(command, options)) {
+      return command;
+    }
+  }
+  return null;
+}
+
 function fileManagerCommandForPlatform(platform: NodeJS.Platform): string {
   switch (platform) {
     case "darwin":
@@ -249,8 +261,16 @@ export function resolveAvailableEditors(
   const available: EditorId[] = [];
 
   for (const editor of EDITORS) {
-    const command = editor.command ?? fileManagerCommandForPlatform(platform);
-    if (isCommandAvailable(command, { platform, env })) {
+    if (editor.commands === null) {
+      const command = fileManagerCommandForPlatform(platform);
+      if (isCommandAvailable(command, { platform, env })) {
+        available.push(editor.id);
+      }
+      continue;
+    }
+
+    const command = resolveAvailableCommand(editor.commands, { platform, env });
+    if (command !== null) {
       available.push(editor.id);
       continue;
     }
@@ -296,6 +316,7 @@ export class Open extends ServiceMap.Service<Open, OpenShape>()("t3/open") {}
 export const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
   input: OpenInEditorInput,
   platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
 ): Effect.fn.Return<EditorLaunch, OpenError> {
   yield* Effect.annotateCurrentSpan({
     "open.editor": input.editor,
@@ -307,7 +328,10 @@ export const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
     return yield* new OpenError({ message: `Unknown editor: ${input.editor}` });
   }
 
-  if (editorDef.command) {
+  if (editorDef.commands) {
+    const command =
+      resolveAvailableCommand(editorDef.commands, { platform, env }) ?? editorDef.commands[0];
+
     if (WORKING_DIRECTORY_EDITORS.has(editorDef.id)) {
       const workingDirectory = resolveWorkingDirectoryTarget(input.cwd);
       if (platform === "darwin") {
@@ -319,21 +343,21 @@ export const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
           };
         }
       }
-      return { command: editorDef.command, args: [`--working-directory=${workingDirectory}`] };
+      return { command, args: [`--working-directory=${workingDirectory}`] };
     }
 
     const args = resolveCommandEditorArgs(editorDef, input.cwd);
 
     // On macOS, fall back to `open -a` when the CLI tool isn't in PATH
     // but the .app bundle is installed.
-    if (platform === "darwin" && !isCommandAvailable(editorDef.command, { platform })) {
+    if (platform === "darwin" && !isCommandAvailable(command, { platform, env })) {
       const macApp = MAC_APP_NAMES[editorDef.id];
       if (macApp && isMacAppInstalled(macApp)) {
         return { command: "open", args: ["-a", macApp, "--args", ...args] };
       }
     }
 
-    return { command: editorDef.command, args };
+    return { command, args };
   }
 
   if (editorDef.id !== "file-manager") {
