@@ -1,7 +1,5 @@
 import {
-  CLAUDE_CODE_EFFORT_OPTIONS,
   CLAUDE_CODE_EFFORT_OPTIONS_BY_PROVIDER,
-  CODEX_REASONING_EFFORT_OPTIONS,
   CURSOR_MODEL_FAMILY_OPTIONS,
   CURSOR_REASONING_OPTIONS,
   DEFAULT_CLAUDE_CODE_EFFORT_BY_PROVIDER,
@@ -240,10 +238,6 @@ const CURSOR_MODEL_FAMILY_SET = new Set<CursorModelFamily>(
   CURSOR_MODEL_FAMILY_OPTIONS.map((option) => option.slug),
 );
 
-const CLAUDE_OPUS_4_6_MODEL = "claude-opus-4-6";
-const CLAUDE_SONNET_4_6_MODEL = "claude-sonnet-4-6";
-const CLAUDE_HAIKU_4_5_MODEL = "claude-haiku-4-5";
-
 export interface CursorModelSelection {
   readonly family: CursorModelFamily;
   readonly reasoning: CursorReasoningOption;
@@ -414,7 +408,7 @@ export function getDefaultEffort(caps: ModelCapabilities): string | null {
   return caps.reasoningEffortLevels.find((l) => l.isDefault)?.value ?? null;
 }
 
-const EMPTY_CAPABILITIES: ModelCapabilities = {
+export const EMPTY_MODEL_CAPABILITIES: ModelCapabilities = {
   reasoningEffortLevels: [],
   supportsFastMode: false,
   supportsThinkingToggle: false,
@@ -431,7 +425,7 @@ export function getModelCapabilities(
   if (slug && MODEL_CAPABILITIES_INDEX[provider]?.[slug]) {
     return MODEL_CAPABILITIES_INDEX[provider][slug];
   }
-  return EMPTY_CAPABILITIES;
+  return EMPTY_MODEL_CAPABILITIES;
 }
 
 /**

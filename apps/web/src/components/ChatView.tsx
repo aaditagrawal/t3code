@@ -156,6 +156,7 @@ import { ChatHeader } from "./chat/ChatHeader";
 import { ContextWindowMeter } from "./chat/ContextWindowMeter";
 import { buildExpandedImagePreview, ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import { AVAILABLE_PROVIDER_OPTIONS, ProviderModelPicker } from "./chat/ProviderModelPicker";
+import { resolveModelOptionsByProvider } from "../providerModelOptions";
 import { ComposerCommandItem, ComposerCommandMenu } from "./chat/ComposerCommandMenu";
 import { ComposerPendingApprovalActions } from "./chat/ComposerPendingApprovalActions";
 import { CompactComposerControlsMenu } from "./chat/CompactComposerControlsMenu";
@@ -1417,19 +1418,29 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const keybindings = useServerKeybindings();
   const availableEditors = useServerAvailableEditors();
   const modelOptionsByProvider = useMemo(
-    () => ({
-      codex: providerStatuses.find((provider) => provider.provider === "codex")?.models ?? [],
-      claudeAgent:
-        providerStatuses.find((provider) => provider.provider === "claudeAgent")?.models ?? [],
-      copilot: providerStatuses.find((provider) => provider.provider === "copilot")?.models ?? [],
-      cursor: providerStatuses.find((provider) => provider.provider === "cursor")?.models ?? [],
-      opencode: providerStatuses.find((provider) => provider.provider === "opencode")?.models ?? [],
-      geminiCli:
-        providerStatuses.find((provider) => provider.provider === "geminiCli")?.models ?? [],
-      amp: providerStatuses.find((provider) => provider.provider === "amp")?.models ?? [],
-      kilo: providerStatuses.find((provider) => provider.provider === "kilo")?.models ?? [],
-    }),
-    [providerStatuses],
+    () =>
+      resolveModelOptionsByProvider({
+        customCodexModels: settings.providers.codex.customModels,
+        customCopilotModels: settings.providers.copilot.customModels,
+        customClaudeModels: settings.providers.claudeAgent.customModels,
+        customCursorModels: settings.providers.cursor.customModels,
+        customOpencodeModels: settings.providers.opencode.customModels,
+        customGeminiCliModels: settings.providers.geminiCli.customModels,
+        customAmpModels: settings.providers.amp.customModels,
+        customKiloModels: settings.providers.kilo.customModels,
+        discovered: {
+          codex: providerStatuses.find((provider) => provider.provider === "codex")?.models,
+          claudeAgent: providerStatuses.find((provider) => provider.provider === "claudeAgent")
+            ?.models,
+          copilot: providerStatuses.find((provider) => provider.provider === "copilot")?.models,
+          cursor: providerStatuses.find((provider) => provider.provider === "cursor")?.models,
+          opencode: providerStatuses.find((provider) => provider.provider === "opencode")?.models,
+          geminiCli: providerStatuses.find((provider) => provider.provider === "geminiCli")?.models,
+          amp: providerStatuses.find((provider) => provider.provider === "amp")?.models,
+          kilo: providerStatuses.find((provider) => provider.provider === "kilo")?.models,
+        },
+      }),
+    [providerStatuses, settings.providers],
   );
   const selectedModelForPickerWithCustomFallback = useMemo(() => {
     const currentOptions = modelOptionsByProvider[selectedProvider];

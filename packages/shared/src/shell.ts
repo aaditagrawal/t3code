@@ -57,16 +57,21 @@ function envCaptureEnd(name: string): string {
   return `__T3CODE_ENV_${name}_END__`;
 }
 
-function buildEnvironmentCaptureCommand(names: ReadonlyArray<string>): string {
+function buildEnvironmentCaptureCommand(names: ReadonlyArray<string>, isFish: boolean): string {
   return names
     .map((name) => {
       if (!SHELL_ENV_NAME_PATTERN.test(name)) {
         throw new Error(`Unsupported environment variable name: ${name}`);
       }
 
+      const captureCmd =
+        isFish && name === "PATH"
+          ? `echo $PATH | string replace -a ' ' ':' || true`
+          : `printenv ${name} || true`;
+
       return [
         `printf '%s\\n' '${envCaptureStart(name)}'`,
-        `printenv ${name} || true`,
+        captureCmd,
         `printf '%s\\n' '${envCaptureEnd(name)}'`,
       ].join("; ");
     })
@@ -91,7 +96,7 @@ function extractEnvironmentValue(output: string, name: string): string | undefin
     value = value.slice(0, -1);
   }
 
-  return value.length > 0 ? value : undefined;
+  return value.trim().length > 0 ? value.trim() : undefined;
 }
 
 export type ShellEnvironmentReader = (
@@ -109,7 +114,10 @@ export const readEnvironmentFromLoginShell: ShellEnvironmentReader = (
     return {};
   }
 
-  const output = execFile(shell, ["-ilc", buildEnvironmentCaptureCommand(names)], {
+  const isFish = shell.endsWith("fish");
+  // C023: Use -lc instead of -ilc to avoid shell pollution from interactive mode.
+  // Login shell (-l) is sufficient to source profile/login scripts.
+  const output = execFile(shell, ["-lc", buildEnvironmentCaptureCommand(names, isFish)], {
     encoding: "utf8",
     timeout: 5000,
   });

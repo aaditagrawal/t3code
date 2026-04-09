@@ -16,6 +16,7 @@ import * as SqlSchema from "effect/unstable/sql/SqlSchema";
 import { Effect, Layer, Schema, Stream } from "effect";
 
 import { redactEventForBoundary } from "../../orchestration/redactEvent.ts";
+import { normalizePersistedProviderKindName } from "../../provider/providerKind.ts";
 import {
   toPersistenceDecodeError,
   toPersistenceSqlError,
@@ -29,9 +30,9 @@ import {
 const decodeEventRaw = Schema.decodeUnknownEffect(OrchestrationEvent);
 
 /**
- * Normalize legacy "claudeCode" provider name to "claudeAgent" in event
- * payloads before Schema decoding. This handles data written before the
- * provider rename that migrations may not have caught.
+ * Normalize legacy provider names in event payloads before Schema decoding.
+ * This handles data written before provider renames that migrations may not
+ * have caught.
  */
 function normalizeLegacyProviderNames(row: unknown): unknown {
   if (typeof row !== "object" || row === null) return row;
@@ -40,19 +41,45 @@ function normalizeLegacyProviderNames(row: unknown): unknown {
   if (typeof payload !== "object" || payload === null) return row;
   const p = payload as Record<string, unknown>;
   let patched = false;
+  const patchStringProvider = (field: string) => {
+    const value = p[field];
+    if (typeof value !== "string") {
+      return;
+    }
+    const normalizedProvider = normalizePersistedProviderKindName(value);
+    if (normalizedProvider === null) {
+      return;
+    }
+    p[field] = normalizedProvider;
+    patched = true;
+  };
   const patchProvider = (field: string) => {
     const sel = p[field] as Record<string, unknown> | undefined;
-    if (sel && typeof sel === "object" && sel.provider === "claudeCode") {
-      p[field] = { ...sel, provider: "claudeAgent" };
+    if (!sel || typeof sel !== "object" || typeof sel.provider !== "string") {
+      return;
+    }
+    const normalizedProvider = normalizePersistedProviderKindName(sel.provider);
+    if (normalizedProvider === null) {
+      return;
+    }
+    if (normalizedProvider !== sel.provider) {
+      p[field] = { ...sel, provider: normalizedProvider };
       patched = true;
     }
   };
   patchProvider("modelSelection");
   patchProvider("defaultModelSelection");
-  if ((p as Record<string, unknown>).provider === "claudeCode") {
-    (p as Record<string, unknown>).provider = "claudeAgent";
-    patched = true;
-  }
+  patchStringProvider("provider");
+  patchStringProvider("defaultProvider");
+  patchStringProvider("providerName");
+  patchStringProvider("defaultProviderName");
+  patchStringProvider("providerKind");
+  patchStringProvider("defaultProviderKind");
+  patchStringProvider("sessionProvider");
+  patchStringProvider("selectedProvider");
+  patchStringProvider("activeProvider");
+  patchStringProvider("stickyProvider");
+  patchStringProvider("stickyActiveProvider");
   return patched ? { ...obj, payload: { ...p } } : row;
 }
 

@@ -67,6 +67,29 @@ describe("GeneralSettingsPanel observability", () => {
       .toBeInTheDocument();
   });
 
+  it("renders the same provider lineup as the chat picker", async () => {
+    setServerConfigSnapshot(createBaseServerConfig());
+
+    await render(
+      <AppAtomRegistryProvider>
+        <GeneralSettingsPanel />
+      </AppAtomRegistryProvider>,
+    );
+
+    for (const label of [
+      "Codex",
+      "GitHub Copilot",
+      "Claude Code",
+      "Cursor Agent",
+      "OpenCode",
+      "Gemini CLI",
+      "AMPcode",
+      "Kilo",
+    ]) {
+      await expect.element(page.getByText(label, { exact: true })).toBeInTheDocument();
+    }
+  });
+
   it("opens the logs folder in the preferred editor", async () => {
     const openInEditor = vi.fn<NativeApi["shell"]["openInEditor"]>().mockResolvedValue(undefined);
     window.nativeApi = {

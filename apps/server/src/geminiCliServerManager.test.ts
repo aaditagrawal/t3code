@@ -1,7 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ThreadId, TurnId, type ProviderRuntimeEvent } from "@t3tools/contracts";
 
-import { GeminiCliServerManager } from "./geminiCliServerManager";
+import {
+  buildGeminiSpawnOptions,
+  GeminiCliServerManager,
+  resolveGeminiSpawnPlan,
+} from "./geminiCliServerManager";
 
 const asThreadId = (value: string): ThreadId => ThreadId.makeUnsafe(value);
 
@@ -14,6 +18,58 @@ const asThreadId = (value: string): ThreadId => ThreadId.makeUnsafe(value);
 // ---------------------------------------------------------------------------
 
 describe("GeminiCliServerManager", () => {
+  describe("buildGeminiSpawnOptions", () => {
+    it("uses piped stdio without a shell", () => {
+      const options = buildGeminiSpawnOptions({
+        cwd: "/tmp",
+        env: {},
+      });
+
+      expect(options.cwd).toBe("/tmp");
+      expect(options.stdio).toEqual(["pipe", "pipe", "pipe"]);
+    });
+  });
+
+  describe("resolveGeminiSpawnPlan", () => {
+    it("rewrites Windows npm shim launches to node gemini.js", () => {
+      const env = {
+        PATH: "C:\\Users\\user\\AppData\\Roaming\\npm;C:\\Program Files\\nodejs",
+        PATHEXT: ".COM;.EXE;.BAT;.CMD",
+      };
+
+      const plan = resolveGeminiSpawnPlan(
+        {
+          binaryPath: "gemini",
+          args: ["-p", "Reply with exactly PONG"],
+          cwd: "C:\\repo",
+          env,
+        },
+        "win32",
+      );
+
+      expect(plan.command.toLowerCase()).toContain("node");
+      expect(plan.args[0]?.replace(/\\/g, "/")).toContain(
+        "/AppData/Roaming/npm/node_modules/@google/gemini-cli/bundle/gemini.js",
+      );
+      expect(plan.args.slice(1)).toEqual(["-p", "Reply with exactly PONG"]);
+    });
+
+    it("spawns directly on non-Windows platforms", () => {
+      const plan = resolveGeminiSpawnPlan(
+        {
+          binaryPath: "gemini",
+          args: ["-p", "Reply with exactly PONG"],
+          cwd: "/tmp",
+          env: {},
+        },
+        "linux",
+      );
+
+      expect(plan.command).toBe("gemini");
+      expect(plan.args).toEqual(["-p", "Reply with exactly PONG"]);
+    });
+  });
+
   describe("startSession", () => {
     it("creates a session and returns a ready ProviderSession", async () => {
       const manager = new GeminiCliServerManager();

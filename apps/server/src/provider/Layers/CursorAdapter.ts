@@ -1612,12 +1612,15 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
         if (!cancelResult.ok) {
           yield* emitRuntimeWarning(
             context,
-            "Cursor ACP session/cancel is unavailable; marking turn as interrupted.",
+            "Cursor ACP session/cancel failed or is unavailable; terminating process as fallback.",
             cancelResult.error,
           );
+          // Terminate the process to ensure the turn actually stops.
+          // This will trigger the 'exit' handler which cleans up the session.
+          yield* stopSessionInternal(context, { emitExitEvent: true });
+        } else {
+          yield* completeTurn(context, "interrupted", "Turn interrupted by user.", "cancelled");
         }
-
-        yield* completeTurn(context, "interrupted", "Turn interrupted by user.", "cancelled");
       });
 
     const readThread: CursorAdapterShape["readThread"] = (threadId) =>

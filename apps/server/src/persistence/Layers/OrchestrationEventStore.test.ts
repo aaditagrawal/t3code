@@ -116,4 +116,78 @@ layer("OrchestrationEventStore", (it) => {
       }
     }),
   );
+
+  it.effect("normalizes legacy provider names while replaying stored events", () =>
+    Effect.gen(function* () {
+      const eventStore = yield* OrchestrationEventStore;
+      const sql = yield* SqlClient.SqlClient;
+      const now = new Date().toISOString();
+      const existingRows = yield* sql<{ readonly maxSequence: number }>`
+        SELECT COALESCE(MAX(sequence), 0) AS "maxSequence"
+        FROM orchestration_events
+      `;
+      const maxSequence = existingRows[0]?.maxSequence ?? 0;
+
+      yield* sql`
+        INSERT INTO orchestration_events (
+          event_id,
+          aggregate_kind,
+          stream_id,
+          stream_version,
+          event_type,
+          occurred_at,
+          command_id,
+          causation_event_id,
+          correlation_id,
+          actor_kind,
+          payload_json,
+          metadata_json
+        )
+        VALUES (
+          ${EventId.makeUnsafe("evt-store-legacy-provider")},
+          ${"thread"},
+          ${"thread-legacy-provider"},
+          ${0},
+          ${"thread.created"},
+          ${now},
+          ${CommandId.makeUnsafe("cmd-store-legacy-provider")},
+          ${null},
+          ${null},
+          ${"server"},
+          ${JSON.stringify({
+            threadId: "thread-legacy-provider",
+            projectId: "project-legacy-provider",
+            title: "Legacy Provider Thread",
+            modelSelection: {
+              provider: "gemini",
+              model: "gemini-2.5-pro",
+            },
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            branch: null,
+            worktreePath: null,
+            createdAt: now,
+            updatedAt: now,
+          })},
+          ${"{}"}
+        )
+      `;
+
+      const replayed = yield* Stream.runCollect(eventStore.readFromSequence(maxSequence, 10)).pipe(
+        Effect.map((chunk) => Array.from(chunk)),
+      );
+
+      assert.equal(replayed.length, 1);
+      const replayedEvent = replayed[0];
+      assert.isDefined(replayedEvent);
+      assert.equal(replayedEvent?.type, "thread.created");
+      if (!replayedEvent || replayedEvent.type !== "thread.created") {
+        return;
+      }
+      assert.deepStrictEqual(replayedEvent.payload.modelSelection, {
+        provider: "geminiCli",
+        model: "gemini-2.5-pro",
+      });
+    }),
+  );
 });

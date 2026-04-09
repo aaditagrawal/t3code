@@ -13,7 +13,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type ModelSelection,
-  PROVIDER_DISPLAY_NAMES,
   type ProviderKind,
   type ServerProvider,
   type ServerProviderModel,
@@ -30,7 +29,11 @@ import {
   isDesktopUpdateButtonDisabled,
   resolveDesktopUpdateButtonAction,
 } from "../../components/desktopUpdate.logic";
-import { ProviderModelPicker } from "../chat/ProviderModelPicker";
+import {
+  ProviderModelPicker,
+  buildModelOptionsByProvider,
+  mergeDiscoveredModels,
+} from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import { resolveAndPersistPreferredEditor } from "../../editorPreferences";
 import { isElectron } from "../../env";
@@ -47,6 +50,7 @@ import {
   resolveAppModelSelectionState,
 } from "../../modelSelection";
 import { ensureNativeApi, readNativeApi } from "../../nativeApi";
+import { PROVIDER_OPTIONS } from "../../session-logic";
 import { useStore } from "../../store";
 import { formatRelativeTime, formatRelativeTimeLabel } from "../../timestampFormat";
 import { cn } from "../../lib/utils";
@@ -89,31 +93,78 @@ const TIMESTAMP_FORMAT_LABELS = {
 
 type InstallProviderSettings = {
   provider: ProviderKind;
-  title: string;
+  label: string;
   binaryPlaceholder: string;
   binaryDescription: ReactNode;
-  homePathKey?: "codexHomePath";
   homePlaceholder?: string;
   homeDescription?: ReactNode;
+  customModelExample: string;
 };
 
 const PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
   {
     provider: "codex",
-    title: "Codex",
+    label: "Codex",
     binaryPlaceholder: "Codex binary path",
     binaryDescription: "Path to the Codex binary",
-    homePathKey: "codexHomePath",
     homePlaceholder: "CODEX_HOME",
     homeDescription: "Optional custom Codex home and config directory.",
+    customModelExample: "gpt-6.7-codex-ultra-preview",
+  },
+  {
+    provider: "copilot",
+    label: "GitHub Copilot",
+    binaryPlaceholder: "Copilot binary path",
+    binaryDescription: "Path to the Copilot CLI binary",
+    customModelExample: "gpt-4o-copilot",
   },
   {
     provider: "claudeAgent",
-    title: "Claude",
+    label: "Claude Code",
     binaryPlaceholder: "Claude binary path",
     binaryDescription: "Path to the Claude binary",
+    customModelExample: "claude-sonnet-5-0",
+  },
+  {
+    provider: "cursor",
+    label: "Cursor Agent",
+    binaryPlaceholder: "Cursor binary path",
+    binaryDescription: "Path to the Cursor Agent binary",
+    customModelExample: "cursor-fast",
+  },
+  {
+    provider: "opencode",
+    label: "OpenCode",
+    binaryPlaceholder: "OpenCode binary path",
+    binaryDescription: "Path to the OpenCode binary",
+    customModelExample: "opencode-pro",
+  },
+  {
+    provider: "geminiCli",
+    label: "Gemini CLI",
+    binaryPlaceholder: "Gemini CLI binary path",
+    binaryDescription: "Path to the Gemini CLI binary",
+    customModelExample: "gemini-2.0-ultra",
+  },
+  {
+    provider: "amp",
+    label: "AMPcode",
+    binaryPlaceholder: "AMPcode binary path",
+    binaryDescription: "Path to the AMPcode binary",
+    customModelExample: "amp-pro",
+  },
+  {
+    provider: "kilo",
+    label: "Kilo",
+    binaryPlaceholder: "Kilo binary path",
+    binaryDescription: "Path to the Kilo binary",
+    customModelExample: "kilo-advanced",
   },
 ] as const;
+
+const PROVIDER_LABEL_BY_PROVIDER = Object.fromEntries(
+  PROVIDER_OPTIONS.map((option) => [option.value, option.label] as const),
+) as Record<ProviderKind, string>;
 
 const PROVIDER_STATUS_STYLES = {
   disabled: {
@@ -130,11 +181,18 @@ const PROVIDER_STATUS_STYLES = {
   },
 } as const;
 
-function getProviderSummary(provider: ServerProvider | undefined) {
+function getProviderSummary(provider: ServerProvider | undefined, enabled: boolean) {
   if (!provider) {
+    if (!enabled) {
+      return {
+        headline: "Disabled",
+        detail: "This provider is disabled for new sessions in T3 Code.",
+      };
+    }
     return {
-      headline: "Checking provider status",
-      detail: "Waiting for the server to report installation and authentication details.",
+      headline: "Status unavailable",
+      detail:
+        "Live installation and authentication status has not been published for this provider yet.",
     };
   }
   if (!provider.enabled) {
@@ -599,6 +657,38 @@ export function GeneralSettingsPanel() {
   const textGenProvider = textGenerationModelSelection.provider;
   const textGenModel = textGenerationModelSelection.model;
   const textGenModelOptions = textGenerationModelSelection.options;
+  const staticProviderModelOptions = useMemo(
+    () =>
+      buildModelOptionsByProvider({
+        customCodexModels: settings.providers.codex.customModels,
+        customCopilotModels: settings.providers.copilot.customModels,
+        customClaudeModels: settings.providers.claudeAgent.customModels,
+        customCursorModels: settings.providers.cursor.customModels,
+        customOpencodeModels: settings.providers.opencode.customModels,
+        customGeminiCliModels: settings.providers.geminiCli.customModels,
+        customAmpModels: settings.providers.amp.customModels,
+        customKiloModels: settings.providers.kilo.customModels,
+      }),
+    [settings.providers],
+  );
+  const discoveredProviderModelOptions = useMemo(
+    () =>
+      Object.fromEntries(
+        serverProviders.map((provider) => [
+          provider.provider,
+          provider.models.map((model) => ({
+            slug: model.slug,
+            name: model.name,
+            isCustom: model.isCustom,
+          })),
+        ]),
+      ) as Partial<Record<ProviderKind, (typeof staticProviderModelOptions)[ProviderKind]>>,
+    [serverProviders],
+  );
+  const providerModelOptions = useMemo(
+    () => mergeDiscoveredModels(staticProviderModelOptions, discoveredProviderModelOptions),
+    [discoveredProviderModelOptions, staticProviderModelOptions],
+  );
   const gitModelOptionsByProvider = getCustomModelOptionsByProvider(
     settings,
     serverProviders,
@@ -752,24 +842,30 @@ export function GeneralSettingsPanel() {
     const providerConfig = settings.providers[providerSettings.provider];
     const defaultProviderConfig = DEFAULT_UNIFIED_SETTINGS.providers[providerSettings.provider];
     const statusKey = liveProvider?.status ?? (providerConfig.enabled ? "warning" : "disabled");
-    const summary = getProviderSummary(liveProvider);
-    const models: ReadonlyArray<ServerProviderModel> =
-      liveProvider?.models ??
-      providerConfig.customModels.map((slug) => ({
-        slug,
-        name: slug,
-        isCustom: true,
-        capabilities: null,
-      }));
+    const summary = getProviderSummary(liveProvider, providerConfig.enabled);
+    const liveModelsBySlug = new Map(
+      (liveProvider?.models ?? []).map((model) => [model.slug, model]),
+    );
+    const models: ReadonlyArray<ServerProviderModel> = providerModelOptions[
+      providerSettings.provider
+    ].map(
+      (modelOption) =>
+        liveModelsBySlug.get(modelOption.slug) ?? {
+          slug: modelOption.slug,
+          name: modelOption.name,
+          isCustom: modelOption.isCustom ?? false,
+          capabilities: null,
+        },
+    );
 
     return {
       provider: providerSettings.provider,
-      title: providerSettings.title,
+      title: providerSettings.label,
       binaryPlaceholder: providerSettings.binaryPlaceholder,
       binaryDescription: providerSettings.binaryDescription,
-      homePathKey: providerSettings.homePathKey,
       homePlaceholder: providerSettings.homePlaceholder,
       homeDescription: providerSettings.homeDescription,
+      customModelExample: providerSettings.customModelExample,
       binaryPathValue: providerConfig.binaryPath,
       isDirty: !Equal.equals(providerConfig, defaultProviderConfig),
       liveProvider,
@@ -1114,7 +1210,7 @@ export function GeneralSettingsPanel() {
           const customModelInput = customModelInputByProvider[providerCard.provider];
           const customModelError = customModelErrorByProvider[providerCard.provider] ?? null;
           const providerDisplayName =
-            PROVIDER_DISPLAY_NAMES[providerCard.provider] ?? providerCard.title;
+            PROVIDER_LABEL_BY_PROVIDER[providerCard.provider] ?? providerCard.title;
 
           return (
             <div key={providerCard.provider} className="border-t border-border first:border-t-0">
@@ -1248,17 +1344,17 @@ export function GeneralSettingsPanel() {
                       </label>
                     </div>
 
-                    {providerCard.homePathKey ? (
+                    {providerCard.provider === "codex" ? (
                       <div className="border-t border-border/60 px-4 py-3 sm:px-5">
                         <label
-                          htmlFor={`provider-install-${providerCard.homePathKey}`}
+                          htmlFor={`provider-install-${providerCard.provider}-home-path`}
                           className="block"
                         >
                           <span className="text-xs font-medium text-foreground">
                             CODEX_HOME path
                           </span>
                           <Input
-                            id={`provider-install-${providerCard.homePathKey}`}
+                            id={`provider-install-${providerCard.provider}-home-path`}
                             className="mt-1.5"
                             value={codexHomePath}
                             onChange={(event) =>
@@ -1393,11 +1489,7 @@ export function GeneralSettingsPanel() {
                             event.preventDefault();
                             addCustomModel(providerCard.provider);
                           }}
-                          placeholder={
-                            providerCard.provider === "codex"
-                              ? "gpt-6.7-codex-ultra-preview"
-                              : "claude-sonnet-5-0"
-                          }
+                          placeholder={providerCard.customModelExample}
                           spellCheck={false}
                         />
                         <Button

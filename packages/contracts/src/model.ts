@@ -366,7 +366,14 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
     { slug: "gpt-5.1-codex-mini", name: "GPT-5.1 Codex Mini" },
     { slug: "kimi-k2.5", name: "Kimi K2.5" },
   ],
-  opencode: [] as ModelDefinition[],
+  opencode: [
+    { slug: "openai/gpt-5", name: "OpenAI / GPT-5" },
+    { slug: "openai/gpt-5-mini", name: "OpenAI / GPT-5 Mini" },
+    { slug: "anthropic/claude-sonnet-4-6", name: "Anthropic / Claude Sonnet 4.6" },
+    { slug: "anthropic/claude-opus-4-6", name: "Anthropic / Claude Opus 4.6" },
+    { slug: "google/gemini-2.5-pro", name: "Google / Gemini 2.5 Pro" },
+    { slug: "google/gemini-2.5-flash", name: "Google / Gemini 2.5 Flash" },
+  ],
   geminiCli: [
     { slug: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
     { slug: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
@@ -380,7 +387,14 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
     { slug: "deep", name: "Deep (GPT-5.3 Codex)" },
     { slug: "large", name: "Large" },
   ],
-  kilo: [] as ModelDefinition[],
+  kilo: [
+    { slug: "openai/gpt-5", name: "OpenAI / GPT-5" },
+    { slug: "openai/gpt-5-mini", name: "OpenAI / GPT-5 Mini" },
+    { slug: "anthropic/claude-sonnet-4-6", name: "Anthropic / Claude Sonnet 4.6" },
+    { slug: "anthropic/claude-opus-4-6", name: "Anthropic / Claude Opus 4.6" },
+    { slug: "google/gemini-2.5-pro", name: "Google / Gemini 2.5 Pro" },
+    { slug: "google/gemini-2.5-flash", name: "Google / Gemini 2.5 Flash" },
+  ],
 } as const satisfies Record<ProviderKind, readonly ModelDefinition[]>;
 export type ModelOptionsByProvider = typeof MODEL_OPTIONS_BY_PROVIDER;
 
@@ -469,8 +483,22 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
     "opus-4.6-thinking": "opus-4.6-thinking",
     "opus-4.5-thinking": "opus-4.5-thinking",
   },
-  opencode: {},
-  kilo: {},
+  opencode: {
+    "gpt-5": "openai/gpt-5",
+    "gpt-5-mini": "openai/gpt-5-mini",
+    "claude-sonnet-4-6": "anthropic/claude-sonnet-4-6",
+    "claude-opus-4-6": "anthropic/claude-opus-4-6",
+    "gemini-2.5-pro": "google/gemini-2.5-pro",
+    "gemini-2.5-flash": "google/gemini-2.5-flash",
+  },
+  kilo: {
+    "gpt-5": "openai/gpt-5",
+    "gpt-5-mini": "openai/gpt-5-mini",
+    "claude-sonnet-4-6": "anthropic/claude-sonnet-4-6",
+    "claude-opus-4-6": "anthropic/claude-opus-4-6",
+    "gemini-2.5-pro": "google/gemini-2.5-pro",
+    "gemini-2.5-flash": "google/gemini-2.5-flash",
+  },
   geminiCli: {
     gemini: "gemini-2.5-pro",
     "2.5-pro": "gemini-2.5-pro",
