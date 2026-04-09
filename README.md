@@ -1,28 +1,36 @@
-# T3 Code
+# T3 Code (Gemini Fork)
 
-T3 Code is a minimal web GUI for coding agents made by [Pingdotgg](https://github.com/pingdotgg). This project is a downstream fork of [T3 Code](https://github.com/pingdotgg/t3code) customised to my utility and includes various PRs/feature additions from the upstream repo. Thanks to the team and its maintainers for keeping it OSS and an upstream to look up to.
+T3 Code is a minimal web GUI for coding agents made by [Pingdotgg](https://github.com/pingdotgg). This project is a downstream fork of [aaditagrawal's T3 Code](https://github.com/aaditagrawal/t3code), which itself is a fork of the original [T3 Code](https://github.com/pingdotgg/t3code). 
+
+This fork by [mtdewwolf](https://github.com/mtdewwolf) focuses on enhancing the Gemini CLI integration, improving persistence layers, and refining the provider management system.
 
 It supports Codex, Claude Code, Cursor, Copilot, Gemini CLI, Amp, Kilo, and OpenCode.
 
 (NOTE: Amp /mode free is not supported, as Amp Code doesn't support it in headless mode - since they need to show ads for that business model to work.)
 
-## Why the fork?
+## Why this fork?
 
-This fork is designed to keep up a faster rate of development customised to my needs (and if you want, _yours_ as well -> Submit an issue and I'll make a PR for it). There's certain features which will (rightly) remain out of scope/priority for the project at its scale, but might be required for someone like me.
+This fork aims to provide a more robust and feature-rich experience for Gemini CLI users, with improved server management and more reliable persistence of orchestration events. It also includes several UI refinements for settings and model selection.
 
-### Multi-provider support
+### Multi-provider support (Enhanced)
 
 Adds full provider adapters (server managers, service layers, runtime layers) for agents that are not yet on the upstream roadmap:
 
 | Provider    | What's included                                                           |
 | ----------- | ------------------------------------------------------------------------- |
+| Gemini CLI  | **Enhanced:** Adapter + `geminiCliServerManager` with full test coverage   |
 | Amp         | Adapter + `ampServerManager` for headless Amp sessions                    |
 | Copilot     | Adapter + CLI binary resolution + text generation layer                   |
 | Cursor      | Adapter + ACP probe integration + usage tracking                          |
-| Gemini CLI  | Adapter + `geminiCliServerManager` with full test coverage                |
 | Kilo        | Adapter + `kiloServerManager` + OpenCode-style server URL config          |
 | OpenCode    | Adapter + `opencodeServerManager` with hostname/port/workspace config     |
 | Claude Code | Full adapter with permission mode, thinking token limits, and SDK typings |
+
+### Persistence & Orchestration Improvements
+
+- **Normalized Provider Kinds:** Migration added to handle legacy provider kind naming consistently.
+- **Improved Event Store:** Robust persistence layer for orchestration events with better error handling.
+- **Session Management:** refined `ProviderSessionDirectory` for better tracking of active sessions.
 
 ### UX enhancements
 
@@ -36,19 +44,6 @@ Adds full provider adapters (server managers, service layers, runtime layers) fo
 | Plan sidebar        | Dedicated panel for reviewing, downloading, or saving proposed agent plans                 |
 | Terminal drawer     | Theme-aware integrated terminal with accent color styling                                  |
 
-### Branding & build
-
-- Custom abstract-mark app icon with macOS icon composer support
-- Centralized branding constants for easy identity swaps
-- Desktop icon asset generation pipeline from SVG source
-
-### Developer tooling
-
-- `sync-upstream-pr-tracks` script for tracking cherry-picked upstream PRs
-- `cursor-acp-probe` for testing Cursor Agent Communication Protocol
-- Custom alpha workflow playbook (`docs/custom-alpha-workflow.md`)
-- Upstream PR tracking config (`config/upstream-pr-tracks.json`)
-
 ## Getting started
 
 ### Quick install (recommended)
@@ -57,15 +52,13 @@ Run the interactive installer — it detects your OS, checks prerequisites (git,
 
 ```bash
 # macOS / Linux / WSL
-bash <(curl -fsSL https://raw.githubusercontent.com/aaditagrawal/t3code/main/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/mtdewwolf/t3code-gemini/main/scripts/install.sh)
 ```
 
 ```powershell
 # Windows (Git Bash, MSYS2, or WSL)
-bash <(curl -fsSL https://raw.githubusercontent.com/aaditagrawal/t3code/main/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/mtdewwolf/t3code-gemini/main/scripts/install.sh)
 ```
-
-The installer supports **npm, yarn, pnpm, bun, and deno** detection, and will auto-install bun if no suitable package manager is found. It provides OS-specific install instructions for any missing prerequisites (Homebrew on macOS, apt/dnf/pacman on Linux, winget on Windows).
 
 ### Manual build
 
@@ -74,25 +67,25 @@ The installer supports **npm, yarn, pnpm, bun, and deno** detection, and will au
 
 ```bash
 # Prerequisites: Bun >=1.3.9, Node >=24.13.1
-git clone https://github.com/aaditagrawal/t3code.git
-cd t3code
+git clone https://github.com/mtdewwolf/t3code-gemini.git
+cd t3code-gemini
 bun install
 bun run dev
 ```
 
 ## Supported agents
 
-- [Codex CLI](https://github.com/openai/codex) (requires v0.37.0 or later)
+- [Gemini CLI](https://github.com/google-gemini/gemini-cli)
 - [Claude Code](https://github.com/anthropics/claude-code)
 - [Cursor](https://cursor.sh)
+- [Codex CLI](https://github.com/openai/codex) (requires v0.37.0 or later)
 - [Copilot](https://github.com/features/copilot)
-- [Gemini CLI](https://github.com/google-gemini/gemini-cli)
 - [Amp](https://ampcode.com)
 - [Kilo](https://kilo.dev)
 - [OpenCode](https://opencode.ai)
 
 ## Notes
 
-- This project is very early in development. Expect bugs. (Especially with my fork)
+- This project is very early in development. Expect bugs.
 - Interested in contributing? See [CONTRIBUTING.md](CONTRIBUTING.md).
-- Maintaining a custom fork or alpha branch? See [docs/custom-alpha-workflow.md](docs/custom-alpha-workflow.md).
+- Special thanks to [Pingdotgg](https://github.com/pingdotgg) for the original project and [aaditagrawal](https://github.com/aaditagrawal) for the foundational fork.

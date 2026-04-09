@@ -1,65 +1,36 @@
-# Contributing
+# Contributing to T3 Code (Gemini Fork)
 
-## Read This First
+First off, thank you for considering contributing to this fork! It's people like you that make the open-source community such an amazing place to learn, inspire, and create.
 
-We are not actively accepting contributions right now.
+This fork is maintained by [mtdewwolf](https://github.com/mtdewwolf) and focuses on enhancing Gemini CLI support and improving the core orchestration and persistence layers.
 
-You can still open an issue or PR, but please do so knowing there is a high chance we close it, defer it forever, or never look at it.
+## How Can I Contribute?
 
-If that sounds annoying, that is because it is. This project is still early and we are trying to keep scope, quality, and direction under control.
+### Reporting Bugs
+Before creating bug reports, please check the existing issues to see if the problem has already been reported. When you are creating a bug report, please include as many details as possible.
 
-PRs are automatically labeled with a `vouch:*` trust status and a `size:*` diff size based on changed lines.
+### Suggesting Enhancements
+Enhancement suggestions are tracked as GitHub issues. When creating an enhancement suggestion, please:
+* Use a clear and descriptive title.
+* Provide a step-by-step description of the suggested enhancement.
+* Explain why this enhancement would be useful.
 
-If you are an external contributor, expect `vouch:unvouched` until we explicitly add you to [.github/VOUCHED.td](.github/VOUCHED.td).
+### Pull Requests
+We welcome pull requests! To help us review your PR effectively, please:
+1.  **Keep it focused:** Try to keep PRs small and focused on a single change.
+2.  **Test your changes:** Ensure that your changes don't break existing functionality. Add new tests if possible.
+3.  **Document your changes:** Update documentation (like the README) if your changes introduce new features or change existing ones.
+4.  **Describe your PR:** Use the pull request template to describe what changed and why.
 
-## What We Are Most Likely To Accept
+## Development Setup
 
-Small, focused bug fixes.
+1.  Clone the repository: `git clone https://github.com/mtdewwolf/t3code-gemini.git`
+2.  Install dependencies: `bun install`
+3.  Run the development server: `bun run dev`
 
-Small reliability fixes.
+## Code Style
+Please try to match the existing code style. We use `oxlint` for linting and `oxfmt` for formatting.
 
-Small performance improvements.
+---
 
-Tightly scoped maintenance work that clearly improves the project without changing its direction.
-
-## What We Are Least Likely To Accept
-
-Large PRs.
-
-Drive-by feature work.
-
-Opinionated rewrites.
-
-Anything that expands product scope without us asking for it first.
-
-If you open a 1,000+ line PR full of new features, we will probably close it quickly and remember that you ignored the clearly written instructions.
-
-## If You Still Want To Open A PR
-
-Keep it small.
-
-Explain exactly what changed.
-
-Explain exactly why the change should exist.
-
-Do not mix unrelated fixes together.
-
-If the PR makes anything resembling a UI change, include clear before/after images.
-
-If the change depends on motion, timing, transitions, or interaction details, include a short video.
-
-If we have to guess what changed, we are much less likely to review it.
-
-## Issues First
-
-If you are thinking about a non-trivial change, open an issue first.
-
-That still does not mean we will want the PR, but it gives you a chance to avoid wasting your time.
-
-## Be Realistic
-
-Opening a PR does not create an obligation on our side.
-
-We may close it. We may ignore it. We may ask you to shrink it. We may reimplement the idea ourselves later.
-
-If you are fine with that, proceed.
+Special thanks to the original creators at [Pingdotgg](https://github.com/pingdotgg) and the maintainers of the [aaditagrawal fork](https://github.com/aaditagrawal/t3code) for the solid foundation.
