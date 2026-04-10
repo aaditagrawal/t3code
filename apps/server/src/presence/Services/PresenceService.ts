@@ -86,37 +86,38 @@ const makePresenceService = Effect.gen(function* () {
 
   const leave: PresenceServiceShape["leave"] = (input) =>
     Effect.gen(function* () {
-      // We need participant id — we'll clean up all stale entries
       const threadMap = presenceMap.get(input.threadId);
       if (!threadMap) return;
-      for (const [participantId] of threadMap) {
-        threadMap.delete(participantId);
-        yield* PubSub.publish(pubsub, {
-          type: "presence.left" as const,
-          participantId: participantId as ParticipantId,
-          threadId: input.threadId,
-        });
+      const existed = threadMap.delete(input.participantId);
+      if (threadMap.size === 0) {
+        presenceMap.delete(input.threadId);
       }
+      if (!existed) return;
+      yield* PubSub.publish(pubsub, {
+        type: "presence.left" as const,
+        participantId: input.participantId,
+        threadId: input.threadId,
+      });
     });
 
   const updateCursor: PresenceServiceShape["updateCursor"] = (input) =>
     Effect.gen(function* () {
       const threadMap = presenceMap.get(input.threadId);
       if (!threadMap) return;
-      for (const [id, p] of threadMap) {
-        const updated = {
-          ...p,
-          cursor: input.cursor as PresenceCursorKind,
-          lastSeenAt: new Date().toISOString(),
-        };
-        threadMap.set(id, updated);
-        yield* PubSub.publish(pubsub, {
-          type: "presence.cursor.updated" as const,
-          participantId: id as ParticipantId,
-          cursor: input.cursor as PresenceCursorKind,
-          threadId: input.threadId,
-        });
-      }
+      const participant = threadMap.get(input.participantId);
+      if (!participant) return;
+      const updated = {
+        ...participant,
+        cursor: input.cursor as PresenceCursorKind,
+        lastSeenAt: new Date().toISOString(),
+      };
+      threadMap.set(input.participantId, updated);
+      yield* PubSub.publish(pubsub, {
+        type: "presence.cursor.updated" as const,
+        participantId: input.participantId,
+        cursor: input.cursor as PresenceCursorKind,
+        threadId: input.threadId,
+      });
     });
 
   const share: PresenceServiceShape["share"] = (input) =>

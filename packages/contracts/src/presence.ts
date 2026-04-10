@@ -48,11 +48,13 @@ export type PresenceJoinInput = typeof PresenceJoinInput.Type;
 
 export const PresenceLeaveInput = Schema.Struct({
   threadId: ThreadId,
+  participantId: ParticipantId,
 });
 export type PresenceLeaveInput = typeof PresenceLeaveInput.Type;
 
 export const PresenceUpdateCursorInput = Schema.Struct({
   threadId: ThreadId,
+  participantId: ParticipantId,
   cursor: PresenceCursorKind,
 });
 export type PresenceUpdateCursorInput = typeof PresenceUpdateCursorInput.Type;

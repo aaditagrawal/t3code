@@ -144,12 +144,16 @@ const makeCostTrackingService = Effect.gen(function* () {
         input.periodStart ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const periodEnd = input.periodEnd ?? now;
 
-      const conditions: Array<string> = [
-        `created_at >= '${periodStart}'`,
-        `created_at <= '${periodEnd}'`,
-      ];
-      if (input.projectId) conditions.push(`project_id = '${input.projectId}'`);
-      if (input.threadId) conditions.push(`thread_id = '${input.threadId}'`);
+      const conditions: Array<string> = ["created_at >= ?", "created_at <= ?"];
+      const params: Array<string> = [periodStart, periodEnd];
+      if (input.projectId) {
+        conditions.push("project_id = ?");
+        params.push(input.projectId);
+      }
+      if (input.threadId) {
+        conditions.push("thread_id = ?");
+        params.push(input.threadId);
+      }
       const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
       const totals = yield* sql.unsafe<{
@@ -159,6 +163,7 @@ const makeCostTrackingService = Effect.gen(function* () {
         total_thinking: number;
       }>(
         `SELECT COALESCE(SUM(cost_cents), 0) as total_cost, COALESCE(SUM(input_tokens), 0) as total_input, COALESCE(SUM(output_tokens), 0) as total_output, COALESCE(SUM(thinking_tokens), 0) as total_thinking FROM cost_entries ${whereClause}`,
+        params,
       );
       const byProvider = yield* sql.unsafe<{
         provider: string;
@@ -167,9 +172,11 @@ const makeCostTrackingService = Effect.gen(function* () {
         output_tokens: number;
       }>(
         `SELECT provider, COALESCE(SUM(cost_cents), 0) as cost_cents, COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens FROM cost_entries ${whereClause} GROUP BY provider`,
+        params,
       );
       const byThread = yield* sql.unsafe<{ threadId: string; cost_cents: number }>(
         `SELECT thread_id as threadId, COALESCE(SUM(cost_cents), 0) as cost_cents FROM cost_entries ${whereClause} GROUP BY thread_id ORDER BY cost_cents DESC LIMIT 20`,
+        params,
       );
 
       const row = totals[0] ?? {
