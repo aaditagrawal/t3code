@@ -757,6 +757,16 @@ const ThreadActivityAppendCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+const ThreadBranchFromCheckpointCommand = Schema.Struct({
+  type: Schema.Literal("thread.branch-from-checkpoint"),
+  commandId: CommandId,
+  sourceThreadId: ThreadId,
+  newThreadId: ThreadId,
+  checkpointTurnCount: NonNegativeInt,
+  title: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+});
+
 const ThreadRevertCompleteCommand = Schema.Struct({
   type: Schema.Literal("thread.revert.complete"),
   commandId: CommandId,
@@ -773,6 +783,7 @@ const InternalOrchestrationCommand = Schema.Union([
   ThreadTurnDiffCompleteCommand,
   ThreadActivityAppendCommand,
   ThreadRevertCompleteCommand,
+  ThreadBranchFromCheckpointCommand,
 ]);
 export type InternalOrchestrationCommand = typeof InternalOrchestrationCommand.Type;
 
@@ -805,6 +816,7 @@ export const OrchestrationEventType = Schema.Literals([
   "thread.proposed-plan-upserted",
   "thread.turn-diff-completed",
   "thread.activity-appended",
+  "thread.branched-from-checkpoint",
 ]);
 export type OrchestrationEventType = typeof OrchestrationEventType.Type;
 
@@ -977,6 +989,14 @@ export const ThreadActivityAppendedPayload = Schema.Struct({
   activity: OrchestrationThreadActivity,
 });
 
+export const ThreadBranchedFromCheckpointPayload = Schema.Struct({
+  sourceThreadId: ThreadId,
+  newThreadId: ThreadId,
+  checkpointTurnCount: NonNegativeInt,
+  title: TrimmedNonEmptyString,
+  createdAt: IsoDateTime,
+});
+
 export const OrchestrationEventMetadata = Schema.Struct({
   providerTurnId: Schema.optional(TrimmedNonEmptyString),
   providerItemId: Schema.optional(ProviderItemId),
@@ -1108,6 +1128,11 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("thread.activity-appended"),
     payload: ThreadActivityAppendedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("thread.branched-from-checkpoint"),
+    payload: ThreadBranchedFromCheckpointPayload,
   }),
 ]);
 export type OrchestrationEvent = typeof OrchestrationEvent.Type;

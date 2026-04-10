@@ -76,6 +76,15 @@ import {
 import { WorkspaceEntriesLive } from "./workspace/Layers/WorkspaceEntries.ts";
 import { WorkspaceFileSystemLive } from "./workspace/Layers/WorkspaceFileSystem.ts";
 import { WorkspacePathsLive } from "./workspace/Layers/WorkspacePaths.ts";
+import { AuditLogService } from "./audit/Services/AuditLogService.ts";
+import { CIIntegrationService } from "./ci/Services/CIIntegrationService.ts";
+import { CostTrackingService } from "./cost/Services/CostTrackingService.ts";
+import { PipelineService } from "./pipeline/Services/PipelineService.ts";
+import { PresenceService } from "./presence/Services/PresenceService.ts";
+import { ProjectMemoryService } from "./memory/Services/ProjectMemoryService.ts";
+import { ProviderRouterService } from "./routing/Services/ProviderRouterService.ts";
+import { TaskDecompositionService } from "./task/Services/TaskDecompositionService.ts";
+import { WorkflowService } from "./workflow/Services/WorkflowService.ts";
 
 const defaultProjectId = ProjectId.makeUnsafe("project-default");
 const defaultThreadId = ThreadId.makeUnsafe("thread-default");
@@ -404,6 +413,75 @@ const buildAppUnderTest = (options?: {
           enqueueCommand: (effect) => effect,
           ...options?.layers?.serverRuntimeStartup,
         }),
+      ),
+      Layer.provide(
+        Layer.mergeAll(
+          Layer.mock(CostTrackingService)({
+            recordUsage: () => Effect.die(new Error("not implemented")),
+            getSummary: () => Effect.die(new Error("not implemented")),
+            setBudget: () => Effect.die(new Error("not implemented")),
+            getBudgets: () => Effect.die(new Error("not implemented")),
+            streamEvents: Stream.empty,
+          }),
+          Layer.mock(AuditLogService)({
+            record: () => Effect.die(new Error("not implemented")),
+            query: () => Effect.die(new Error("not implemented")),
+            streamEvents: Stream.empty,
+          }),
+          Layer.mock(CIIntegrationService)({
+            getStatus: () => Effect.die(new Error("not implemented")),
+            recordRun: () => Effect.die(new Error("not implemented")),
+            triggerRerun: () => Effect.die(new Error("not implemented")),
+            setFeedbackPolicy: () => Effect.die(new Error("not implemented")),
+            getFeedbackPolicy: () => Effect.die(new Error("not implemented")),
+            streamEvents: Stream.empty,
+          }),
+          Layer.mock(ProviderRouterService)({
+            getHealth: () => Effect.die(new Error("not implemented")),
+            setRules: () => Effect.die(new Error("not implemented")),
+            getRules: () => Effect.die(new Error("not implemented")),
+            selectProvider: () => Effect.die(new Error("not implemented")),
+            reportHealth: () => Effect.die(new Error("not implemented")),
+            streamEvents: Stream.empty,
+          }),
+          Layer.mock(PipelineService)({
+            create: () => Effect.die(new Error("not implemented")),
+            list: () => Effect.die(new Error("not implemented")),
+            execute: () => Effect.die(new Error("not implemented")),
+            getExecution: () => Effect.die(new Error("not implemented")),
+            cancel: () => Effect.die(new Error("not implemented")),
+            streamEvents: Stream.empty,
+          }),
+          Layer.mock(WorkflowService)({
+            list: () => Effect.die(new Error("not implemented")),
+            create: () => Effect.die(new Error("not implemented")),
+            delete: () => Effect.die(new Error("not implemented")),
+            execute: () => Effect.die(new Error("not implemented")),
+          }),
+          Layer.mock(TaskDecompositionService)({
+            decompose: () => Effect.die(new Error("not implemented")),
+            updateStatus: () => Effect.die(new Error("not implemented")),
+            getTree: () => Effect.die(new Error("not implemented")),
+            listTrees: () => Effect.die(new Error("not implemented")),
+            execute: () => Effect.die(new Error("not implemented")),
+            streamEvents: Stream.empty,
+          }),
+          Layer.mock(ProjectMemoryService)({
+            add: () => Effect.die(new Error("not implemented")),
+            search: () => Effect.die(new Error("not implemented")),
+            forget: () => Effect.die(new Error("not implemented")),
+            list: () => Effect.die(new Error("not implemented")),
+            index: () => Effect.die(new Error("not implemented")),
+          }),
+          Layer.mock(PresenceService)({
+            join: () => Effect.die(new Error("not implemented")),
+            leave: () => Effect.die(new Error("not implemented")),
+            updateCursor: () => Effect.die(new Error("not implemented")),
+            share: () => Effect.die(new Error("not implemented")),
+            getParticipants: () => Effect.die(new Error("not implemented")),
+            streamEvents: Stream.empty,
+          }),
+        ),
       ),
       Layer.provide(workspaceAndProjectServicesLayer),
       Layer.provideMerge(FetchHttpClient.layer),

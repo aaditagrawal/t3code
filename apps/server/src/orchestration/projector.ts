@@ -15,6 +15,7 @@ import {
   ProjectMetaUpdatedPayload,
   ThreadActivityAppendedPayload,
   ThreadArchivedPayload,
+  ThreadBranchedFromCheckpointPayload,
   ThreadCreatedPayload,
   ThreadDeletedPayload,
   ThreadInteractionModeSetPayload,
@@ -662,6 +663,55 @@ export function projectEvent(
           };
         }),
       );
+
+    case "thread.branched-from-checkpoint":
+      return Effect.gen(function* () {
+        const payload = yield* decodeForEvent(
+          ThreadBranchedFromCheckpointPayload,
+          event.payload,
+          event.type,
+          "payload",
+        );
+        // Find the source thread and copy messages/checkpoints up to the turn count
+        const sourceThread = nextBase.threads.find((entry) => entry.id === payload.sourceThreadId);
+        const newThread = nextBase.threads.find((entry) => entry.id === payload.newThreadId);
+        if (!sourceThread || !newThread) {
+          return nextBase;
+        }
+
+        // Copy messages and checkpoints from source up to the checkpoint turn count
+        const retainedCheckpoints = sourceThread.checkpoints.filter(
+          (cp) => cp.checkpointTurnCount <= payload.checkpointTurnCount,
+        );
+        const retainedTurnIds = new Set(retainedCheckpoints.map((cp) => cp.turnId));
+        const retainedMessages = sourceThread.messages.filter(
+          (msg) => msg.role === "system" || msg.turnId === null || retainedTurnIds.has(msg.turnId),
+        );
+        const retainedActivities = sourceThread.activities.filter(
+          (act) => act.turnId === null || retainedTurnIds.has(act.turnId),
+        );
+
+        const latestCheckpoint = retainedCheckpoints.at(-1) ?? null;
+        return {
+          ...nextBase,
+          threads: updateThread(nextBase.threads, payload.newThreadId, {
+            messages: retainedMessages.slice(-MAX_THREAD_MESSAGES),
+            checkpoints: retainedCheckpoints.slice(-MAX_THREAD_CHECKPOINTS),
+            activities: retainedActivities.slice(-500),
+            latestTurn: latestCheckpoint
+              ? {
+                  turnId: latestCheckpoint.turnId,
+                  state: checkpointStatusToLatestTurnState(latestCheckpoint.status),
+                  requestedAt: latestCheckpoint.completedAt,
+                  startedAt: latestCheckpoint.completedAt,
+                  completedAt: latestCheckpoint.completedAt,
+                  assistantMessageId: latestCheckpoint.assistantMessageId,
+                }
+              : null,
+            updatedAt: event.occurredAt,
+          }),
+        };
+      });
 
     default:
       return Effect.succeed(nextBase);

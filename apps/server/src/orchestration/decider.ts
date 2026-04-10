@@ -647,6 +647,67 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
+    case "thread.branch-from-checkpoint": {
+      const sourceThread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.sourceThreadId,
+      });
+      yield* requireThreadAbsent({
+        readModel,
+        command,
+        threadId: command.newThreadId,
+      });
+      const checkpoint = sourceThread.checkpoints.find(
+        (cp) => cp.checkpointTurnCount === command.checkpointTurnCount,
+      );
+      if (!checkpoint) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `No checkpoint at turn count ${command.checkpointTurnCount} on thread '${command.sourceThreadId}'.`,
+        });
+      }
+      // Create the new thread as a copy of the source thread up to the checkpoint
+      const branchedThreadEvent: Omit<OrchestrationEvent, "sequence"> = {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.sourceThreadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.created",
+        payload: {
+          threadId: command.newThreadId,
+          projectId: sourceThread.projectId,
+          title: command.title,
+          modelSelection: sourceThread.modelSelection,
+          runtimeMode: sourceThread.runtimeMode,
+          interactionMode: sourceThread.interactionMode,
+          branch: sourceThread.branch,
+          worktreePath: sourceThread.worktreePath,
+          createdAt: command.createdAt,
+          updatedAt: command.createdAt,
+        },
+      };
+      const branchRecordEvent: Omit<OrchestrationEvent, "sequence"> = {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.newThreadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.branched-from-checkpoint",
+        payload: {
+          sourceThreadId: command.sourceThreadId,
+          newThreadId: command.newThreadId,
+          checkpointTurnCount: command.checkpointTurnCount,
+          title: command.title,
+          createdAt: command.createdAt,
+        },
+      };
+      return [branchedThreadEvent, branchRecordEvent];
+    }
+
     case "thread.activity.append": {
       yield* requireThread({
         readModel,
