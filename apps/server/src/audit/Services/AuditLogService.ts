@@ -91,23 +91,53 @@ const makeAuditLogService = Effect.gen(function* () {
   const query: AuditLogServiceShape["query"] = (input) =>
     Effect.gen(function* () {
       const conditions: Array<string> = [];
-      if (input.projectId) conditions.push(`project_id = '${input.projectId}'`);
-      if (input.threadId) conditions.push(`thread_id = '${input.threadId}'`);
-      if (input.category) conditions.push(`category = '${input.category}'`);
-      if (input.severity) conditions.push(`severity = '${input.severity}'`);
-      if (input.actor) conditions.push(`actor = '${input.actor}'`);
-      if (input.fromTimestamp) conditions.push(`timestamp >= '${input.fromTimestamp}'`);
-      if (input.toTimestamp) conditions.push(`timestamp <= '${input.toTimestamp}'`);
+      const params: Array<string | number> = [];
+
+      if (input.projectId) {
+        conditions.push("project_id = ?");
+        params.push(input.projectId);
+      }
+      if (input.threadId) {
+        conditions.push("thread_id = ?");
+        params.push(input.threadId);
+      }
+      if (input.category) {
+        conditions.push("category = ?");
+        params.push(input.category);
+      }
+      if (input.severity) {
+        conditions.push("severity = ?");
+        params.push(input.severity);
+      }
+      if (input.actor) {
+        conditions.push("actor = ?");
+        params.push(input.actor);
+      }
+      if (input.fromTimestamp) {
+        conditions.push("timestamp >= ?");
+        params.push(input.fromTimestamp);
+      }
+      if (input.toTimestamp) {
+        conditions.push("timestamp <= ?");
+        params.push(input.toTimestamp);
+      }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      const limit = Math.max(1, input.limit);
+      const offset = Math.max(0, input.offset);
 
       const countResult = yield* sql.unsafe<{ total: number }>(
         `SELECT COUNT(*) as total FROM audit_log ${whereClause}`,
+        params,
       );
       const total = Number(countResult[0]?.total ?? 0);
 
       const rows = yield* sql.unsafe<Record<string, unknown>>(
-        `SELECT id, timestamp, actor, actor_id, category, action, severity, project_id, thread_id, command_id, event_id, summary, detail, metadata FROM audit_log ${whereClause} ORDER BY timestamp DESC LIMIT ${input.limit} OFFSET ${input.offset}`,
+        `SELECT id, timestamp, actor, actor_id, category, action, severity, project_id, thread_id, command_id, event_id, summary, detail, metadata
+         FROM audit_log ${whereClause}
+         ORDER BY timestamp DESC
+         LIMIT ? OFFSET ?`,
+        [...params, limit, offset],
       );
 
       const entries: AuditEntry[] = rows.map((r) => ({
@@ -131,7 +161,7 @@ const makeAuditLogService = Effect.gen(function* () {
       return {
         entries,
         total: total as AuditQueryResult["total"],
-        hasMore: input.offset + input.limit < total,
+        hasMore: offset + limit < total,
       } satisfies AuditQueryResult;
     }).pipe(Effect.orDie);
 

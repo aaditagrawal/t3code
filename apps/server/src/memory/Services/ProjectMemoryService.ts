@@ -56,6 +56,10 @@ const makeProjectMemoryService = Effect.gen(function* () {
   const search: ProjectMemoryServiceShape["search"] = (input) =>
     Effect.gen(function* () {
       const start = Date.now();
+      const kindClause = input.kind ? "AND m.kind = ?" : "";
+      const queryParams: Array<string | number> = input.kind
+        ? [input.query, input.projectId, input.kind, input.limit]
+        : [input.query, input.projectId, input.limit];
       // Use FTS5 for full-text search
       const rows = yield* sql.unsafe<{
         id: string;
@@ -77,18 +81,20 @@ const makeProjectMemoryService = Effect.gen(function* () {
          JOIN memory_entries m ON m.rowid = fts.rowid
          WHERE memory_fts MATCH ?
            AND m.project_id = ?
-           ${input.kind ? `AND m.kind = '${input.kind}'` : ""}
+           ${kindClause}
            AND (m.expires_at IS NULL OR m.expires_at > datetime('now'))
          ORDER BY fts.rank
          LIMIT ?`,
-        [input.query, input.projectId, input.limit],
+        queryParams,
       );
 
       // Increment access count
       if (rows.length > 0) {
-        const ids = rows.map((r) => `'${r.id}'`).join(",");
+        const placeholders = rows.map(() => "?").join(",");
+        const ids = rows.map((r) => r.id);
         yield* sql.unsafe(
-          `UPDATE memory_entries SET access_count = access_count + 1 WHERE id IN (${ids})`,
+          `UPDATE memory_entries SET access_count = access_count + 1 WHERE id IN (${placeholders})`,
+          ids,
         );
       }
 
