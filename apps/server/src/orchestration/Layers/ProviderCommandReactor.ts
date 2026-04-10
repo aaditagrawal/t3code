@@ -165,11 +165,18 @@ const make = Effect.gen(function* () {
       ),
     );
 
-  const threadModelSelections = yield* Cache.make<string, ModelSelection>({
-    capacity: 10_000,
-    timeToLive: Duration.hours(24),
-    lookup: () => Effect.fail(new Error("not found")),
-  });
+  const threadModelSelections = new Map<ThreadId, ModelSelection>();
+  const getThreadModelSelection = (threadId: ThreadId) =>
+    Effect.sync(() => {
+      const modelSelection = threadModelSelections.get(threadId);
+      return modelSelection === undefined
+        ? Option.none<ModelSelection>()
+        : Option.some(modelSelection);
+    });
+  const setThreadModelSelection = (threadId: ThreadId, modelSelection: ModelSelection) =>
+    Effect.sync(() => {
+      threadModelSelections.set(threadId, modelSelection);
+    });
 
   const appendProviderFailureActivity = (input: {
     readonly threadId: ThreadId;
@@ -311,7 +318,7 @@ const make = Effect.gen(function* () {
         requestedModelSelection.model !== activeSession?.model;
       const shouldRestartForModelChange = modelChanged && sessionModelSwitch === "restart-session";
       const previousModelSelection = Option.getOrUndefined(
-        yield* Cache.getOption(threadModelSelections, threadId),
+        yield* getThreadModelSelection(threadId),
       );
       const shouldRestartForModelSelectionChange =
         currentProvider === "claudeAgent" &&
@@ -382,7 +389,7 @@ const make = Effect.gen(function* () {
       input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {},
     );
     if (input.modelSelection !== undefined) {
-      yield* Cache.set(threadModelSelections, input.threadId, input.modelSelection);
+      yield* setThreadModelSelection(input.threadId, input.modelSelection);
     }
     const normalizedInput = toNonEmptyProviderInput(input.messageText);
     const normalizedAttachments = input.attachments ?? [];
@@ -397,7 +404,7 @@ const make = Effect.gen(function* () {
         : (yield* providerService.getCapabilities(activeSession.provider)).sessionModelSwitch;
     const requestedModelSelection =
       input.modelSelection ??
-      Option.getOrUndefined(yield* Cache.getOption(threadModelSelections, input.threadId)) ??
+      Option.getOrUndefined(yield* getThreadModelSelection(input.threadId)) ??
       thread.modelSelection;
     const modelForTurn =
       sessionModelSwitch === "unsupported"
@@ -757,7 +764,7 @@ const make = Effect.gen(function* () {
           return;
         }
         const cachedModelSelection = Option.getOrUndefined(
-          yield* Cache.getOption(threadModelSelections, event.payload.threadId),
+          yield* getThreadModelSelection(event.payload.threadId),
         );
         yield* ensureSessionForThread(
           event.payload.threadId,

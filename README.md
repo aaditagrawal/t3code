@@ -1,8 +1,8 @@
-# T3 Code (Gemini Fork)
+# T3 Code
 
-T3 Code is a minimal web GUI for coding agents made by [Pingdotgg](https://github.com/pingdotgg). This project is a downstream fork of [aaditagrawal's T3 Code](https://github.com/aaditagrawal/t3code), which itself is a fork of the original [T3 Code](https://github.com/pingdotgg/t3code). 
+T3 Code is a minimal web GUI for coding agents made by [Pingdotgg](https://github.com/pingdotgg). This project is a downstream fork of the original [T3 Code](https://github.com/pingdotgg/t3code), maintained in [aaditagrawal/t3code](https://github.com/aaditagrawal/t3code).
 
-This fork by [mtdewwolf](https://github.com/mtdewwolf) focuses on enhancing the Gemini CLI integration, improving persistence layers, and refining the provider management system.
+This fork focuses on expanding provider support, improving persistence layers, and refining provider management across the app.
 
 It supports Codex, Claude Code, Cursor, Copilot, Gemini CLI, Amp, Kilo, and OpenCode.
 
@@ -10,7 +10,7 @@ It supports Codex, Claude Code, Cursor, Copilot, Gemini CLI, Amp, Kilo, and Open
 
 ## Why this fork?
 
-This fork aims to provide a more robust and feature-rich experience for Gemini CLI users, with improved server management and more reliable persistence of orchestration events. It also includes several UI refinements for settings and model selection.
+This fork aims to provide a more robust and feature-rich multi-provider experience, with improved server management, more reliable persistence of orchestration events, and UI refinements for settings and model selection.
 
 ### Multi-provider support (Enhanced)
 
@@ -18,7 +18,7 @@ Adds full provider adapters (server managers, service layers, runtime layers) fo
 
 | Provider    | What's included                                                           |
 | ----------- | ------------------------------------------------------------------------- |
-| Gemini CLI  | **Enhanced:** Adapter + `geminiCliServerManager` with full test coverage   |
+| Gemini CLI  | **Enhanced:** Adapter + `geminiCliServerManager` with full test coverage  |
 | Amp         | Adapter + `ampServerManager` for headless Amp sessions                    |
 | Copilot     | Adapter + CLI binary resolution + text generation layer                   |
 | Cursor      | Adapter + ACP probe integration + usage tracking                          |
@@ -52,12 +52,12 @@ Run the interactive installer — it detects your OS, checks prerequisites (git,
 
 ```bash
 # macOS / Linux / WSL
-bash <(curl -fsSL https://raw.githubusercontent.com/mtdewwolf/t3code-gemini/main/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/aaditagrawal/t3code/main/scripts/install.sh)
 ```
 
 ```powershell
 # Windows (Git Bash, MSYS2, or WSL)
-bash <(curl -fsSL https://raw.githubusercontent.com/mtdewwolf/t3code-gemini/main/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/aaditagrawal/t3code/main/scripts/install.sh)
 ```
 
 ### Manual build
@@ -67,8 +67,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/mtdewwolf/t3code-gemini/main
 
 ```bash
 # Prerequisites: Bun >=1.3.9, Node >=24.13.1
-git clone https://github.com/mtdewwolf/t3code-gemini.git
-cd t3code-gemini
+git clone https://github.com/aaditagrawal/t3code.git
+cd t3code
 bun install
 bun run dev
 ```

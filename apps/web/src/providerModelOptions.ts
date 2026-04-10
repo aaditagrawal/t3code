@@ -74,6 +74,8 @@ export function mergeDiscoveredModels(
       const discoveredModel = discoveredBySlug.get(m.slug);
       return discoveredModel ? Object.assign({}, m, discoveredModel) : m;
     });
+    // For non-copilot providers, surface discovered-only models first so newly
+    // available runtime models are visible at the top of the picker.
     const additions = dedupedModels.filter((m) => !existing.has(m.slug));
     result[provider] = [...additions, ...merged];
   }

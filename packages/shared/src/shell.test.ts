@@ -29,7 +29,7 @@ describe("extractPathFromShellOutput", () => {
 });
 
 describe("readPathFromLoginShell", () => {
-  it("uses a shell-agnostic printenv PATH probe", () => {
+  it("uses fish-safe PATH serialization for fish shells", () => {
     const execFile = vi.fn<
       (
         file: string,
@@ -53,7 +53,7 @@ describe("readPathFromLoginShell", () => {
     expect(shell).toBe("/opt/homebrew/bin/fish");
     expect(args).toHaveLength(2);
     expect(args?.[0]).toBe("-ilc");
-    expect(args?.[1]).toContain("printenv PATH || true");
+    expect(args?.[1]).toContain(`printf '%s\\n' "$PATH" || true`);
     expect(args?.[1]).toContain("__T3CODE_ENV_PATH_START__");
     expect(args?.[1]).toContain("__T3CODE_ENV_PATH_END__");
     expect(options).toEqual({ encoding: "utf8", timeout: 5000 });
@@ -84,6 +84,7 @@ describe("readEnvironmentFromLoginShell", () => {
       SSH_AUTH_SOCK: "/tmp/secretive.sock",
     });
     expect(execFile).toHaveBeenCalledTimes(1);
+    expect(execFile.mock.calls[0]?.[1]?.[0]).toBe("-ilc");
   });
 
   it("omits environment variables that are missing or empty", () => {
@@ -124,5 +125,20 @@ describe("readEnvironmentFromLoginShell", () => {
     expect(readEnvironmentFromLoginShell("/bin/zsh", ["CUSTOM_VAR"], execFile)).toEqual({
       CUSTOM_VAR: "  padded value  ",
     });
+  });
+
+  it("falls back to non-interactive login flags for other shells", () => {
+    const execFile = vi.fn<
+      (
+        file: string,
+        args: ReadonlyArray<string>,
+        options: { encoding: "utf8"; timeout: number },
+      ) => string
+    >(() => "__T3CODE_ENV_PATH_START__\n/a:/b\n__T3CODE_ENV_PATH_END__\n");
+
+    expect(readEnvironmentFromLoginShell("/bin/bash", ["PATH"], execFile)).toEqual({
+      PATH: "/a:/b",
+    });
+    expect(execFile.mock.calls[0]?.[1]?.[0]).toBe("-lc");
   });
 });

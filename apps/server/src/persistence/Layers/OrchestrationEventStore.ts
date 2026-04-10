@@ -47,7 +47,7 @@ function normalizeLegacyProviderNames(row: unknown): unknown {
       return;
     }
     const normalizedProvider = normalizePersistedProviderKindName(value);
-    if (normalizedProvider === null) {
+    if (normalizedProvider === null || normalizedProvider === value) {
       return;
     }
     p[field] = normalizedProvider;

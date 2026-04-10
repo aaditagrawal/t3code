@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
-import { dirname, extname, join } from "node:path";
+import { extname, win32 as win32Path } from "node:path";
 import {
   spawn,
   spawnSync,
@@ -176,11 +176,13 @@ export function buildGeminiSpawnOptions(input: {
   readonly cwd: string;
   readonly stdio: ["pipe", "pipe", "pipe"];
   readonly env: NodeJS.ProcessEnv;
+  readonly shell: false;
 } {
   return {
     cwd: input.cwd,
     stdio: ["pipe", "pipe", "pipe"],
     env: input.env,
+    shell: false,
   };
 }
 
@@ -190,27 +192,39 @@ interface GeminiSpawnPlan {
   readonly options: ReturnType<typeof buildGeminiSpawnOptions>;
 }
 
-function resolveGeminiShimEntryPoint(binaryPath: string): string | undefined {
+interface GeminiSpawnPlanDependencies {
+  readonly resolveCommandPath?: typeof resolveCommandPath;
+  readonly existsSync?: typeof existsSync;
+}
+
+function resolveGeminiShimEntryPoint(
+  binaryPath: string,
+  fileExists: typeof existsSync = existsSync,
+): string | undefined {
   if (![".cmd", ".bat"].includes(extname(binaryPath).toLowerCase())) {
     return undefined;
   }
 
-  const shimDirectory = dirname(binaryPath);
-  const bundledEntryPoint = join(
+  const shimDirectory = win32Path.dirname(binaryPath);
+  const shimEntryPoint = win32Path.join(
     shimDirectory,
     "node_modules",
     "@google",
     "gemini-cli",
-    "bundle",
-    "gemini.js",
+    "dist",
+    "index.js",
   );
 
-  return existsSync(bundledEntryPoint) ? bundledEntryPoint : undefined;
+  return fileExists(shimEntryPoint) ? shimEntryPoint : undefined;
 }
 
-function resolveNodeCommand(env: NodeJS.ProcessEnv): string {
-  if (process.platform === "win32") {
-    return resolveCommandPath("node", { platform: "win32", env }) ?? "node";
+function resolveNodeCommand(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+  commandPathResolver: typeof resolveCommandPath = resolveCommandPath,
+): string {
+  if (platform === "win32") {
+    return commandPathResolver("node", { platform: "win32", env }) ?? "node";
   }
   return "node";
 }
@@ -223,7 +237,10 @@ export function resolveGeminiSpawnPlan(
     readonly env: NodeJS.ProcessEnv;
   },
   platform: NodeJS.Platform = process.platform,
+  dependencies: GeminiSpawnPlanDependencies = {},
 ): GeminiSpawnPlan {
+  const commandPathResolver = dependencies.resolveCommandPath ?? resolveCommandPath;
+  const fileExists = dependencies.existsSync ?? existsSync;
   const options = buildGeminiSpawnOptions({
     cwd: input.cwd,
     env: input.env,
@@ -238,24 +255,24 @@ export function resolveGeminiSpawnPlan(
   }
 
   const resolvedBinaryPath =
-    resolveCommandPath(input.binaryPath, {
+    commandPathResolver(input.binaryPath, {
       platform,
       env: input.env,
     }) ?? input.binaryPath;
 
   if (extname(resolvedBinaryPath).toLowerCase() === ".js") {
     return {
-      command: resolveNodeCommand(input.env),
+      command: resolveNodeCommand(input.env, platform, commandPathResolver),
       args: [resolvedBinaryPath, ...input.args],
       options,
     };
   }
 
-  const bundledEntryPoint = resolveGeminiShimEntryPoint(resolvedBinaryPath);
-  if (bundledEntryPoint) {
+  const shimEntryPoint = resolveGeminiShimEntryPoint(resolvedBinaryPath, fileExists);
+  if (shimEntryPoint) {
     return {
-      command: resolveNodeCommand(input.env),
-      args: [bundledEntryPoint, ...input.args],
+      command: resolveNodeCommand(input.env, platform, commandPathResolver),
+      args: [shimEntryPoint, ...input.args],
       options,
     };
   }

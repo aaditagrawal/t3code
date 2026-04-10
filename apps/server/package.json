@@ -49,5 +49,8 @@
   },
   "engines": {
     "node": "^22.16 || ^23.11 || >=24.10"
-  }
+  },
+  "trustedDependencies": [
+    "node-pty"
+  ]
 }

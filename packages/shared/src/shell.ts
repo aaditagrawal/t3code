@@ -65,9 +65,7 @@ function buildEnvironmentCaptureCommand(names: ReadonlyArray<string>, isFish: bo
       }
 
       const captureCmd =
-        isFish && name === "PATH"
-          ? `echo $PATH | string replace -a ' ' ':' || true`
-          : `printenv ${name} || true`;
+        isFish && name === "PATH" ? `printf '%s\\n' "$PATH" || true` : `printenv ${name} || true`;
 
       return [
         `printf '%s\\n' '${envCaptureStart(name)}'`,
@@ -96,7 +94,7 @@ function extractEnvironmentValue(output: string, name: string): string | undefin
     value = value.slice(0, -1);
   }
 
-  return value.trim().length > 0 ? value.trim() : undefined;
+  return value.length > 0 ? value : undefined;
 }
 
 export type ShellEnvironmentReader = (
@@ -115,9 +113,11 @@ export const readEnvironmentFromLoginShell: ShellEnvironmentReader = (
   }
 
   const isFish = shell.endsWith("fish");
-  // C023: Use -lc instead of -ilc to avoid shell pollution from interactive mode.
-  // Login shell (-l) is sufficient to source profile/login scripts.
-  const output = execFile(shell, ["-lc", buildEnvironmentCaptureCommand(names, isFish)], {
+  const shellArgs =
+    isFish || shell.endsWith("zsh")
+      ? ["-ilc", buildEnvironmentCaptureCommand(names, isFish)]
+      : ["-lc", buildEnvironmentCaptureCommand(names, isFish)];
+  const output = execFile(shell, shellArgs, {
     encoding: "utf8",
     timeout: 5000,
   });

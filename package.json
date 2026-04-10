@@ -74,9 +74,5 @@
     "workerDirectory": [
       "apps/web/public"
     ]
-  },
-  "trustedDependencies": [
-    "electron",
-    "node-pty"
-  ]
+  }
 }

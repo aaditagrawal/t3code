@@ -407,10 +407,10 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<ProviderKind, ModelSlug> = {
   copilot: "claude-sonnet-4.6",
   claudeAgent: "claude-sonnet-4-6",
   cursor: "opus-4.6-thinking",
-  opencode: "gpt-5",
+  opencode: "openai/gpt-5",
   geminiCli: "gemini-2.5-pro",
   amp: "smart",
-  kilo: "gpt-5",
+  kilo: "openai/gpt-5",
 } as const satisfies Record<ProviderKind, ModelSlug>;
 
 export const DEFAULT_MODEL = DEFAULT_MODEL_BY_PROVIDER.codex;

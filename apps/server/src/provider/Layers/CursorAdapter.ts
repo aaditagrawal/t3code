@@ -616,10 +616,16 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
       errorMessage?: string,
       stopReason?: string,
       usage?: unknown,
+      options?: {
+        readonly turnId?: TurnId;
+      },
     ): Effect.Effect<void> =>
       Effect.gen(function* () {
         const turnState = context.turnState;
         if (!turnState) {
+          return;
+        }
+        if (options?.turnId !== undefined && turnState.turnId !== options.turnId) {
           return;
         }
 
@@ -1076,7 +1082,12 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
 
     const stopSessionInternal = (
       context: CursorSessionContext,
-      options?: { readonly emitExitEvent?: boolean },
+      options?: {
+        readonly emitExitEvent?: boolean;
+        readonly exitKind?: "graceful" | "error";
+        readonly exitReason?: string;
+        readonly recoverable?: boolean;
+      },
     ): Effect.Effect<void> =>
       Effect.gen(function* () {
         if (context.stopping) return;
@@ -1113,8 +1124,9 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
             createdAt: stamp.createdAt,
             threadId: context.session.threadId,
             payload: {
-              reason: "Session stopped",
-              exitKind: "graceful",
+              reason: options?.exitReason ?? "Session stopped",
+              exitKind: options?.exitKind ?? "graceful",
+              ...(options?.recoverable !== undefined ? { recoverable: options.recoverable } : {}),
             },
           });
         }
@@ -1565,11 +1577,19 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
               turnStateValue === "failed" ? "Cursor prompt failed." : undefined,
               result.stopReason,
               result.usage,
+              { turnId },
             );
           }),
           Effect.catch((error) =>
             Effect.gen(function* () {
-              yield* completeTurn(context, "failed", toMessage(error, "Cursor prompt failed."));
+              yield* completeTurn(
+                context,
+                "failed",
+                toMessage(error, "Cursor prompt failed."),
+                undefined,
+                undefined,
+                { turnId },
+              );
               return yield* error;
             }),
           ),
@@ -1615,9 +1635,12 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
             "Cursor ACP session/cancel failed or is unavailable; terminating process as fallback.",
             cancelResult.error,
           );
-          // Terminate the process to ensure the turn actually stops.
-          // This will trigger the 'exit' handler which cleans up the session.
-          yield* stopSessionInternal(context, { emitExitEvent: true });
+          yield* stopSessionInternal(context, {
+            emitExitEvent: true,
+            exitKind: "error",
+            exitReason: "Cursor ACP session/cancel failed; process terminated as fallback.",
+            recoverable: false,
+          });
         } else {
           yield* completeTurn(context, "interrupted", "Turn interrupted by user.", "cancelled");
         }

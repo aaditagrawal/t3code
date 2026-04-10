@@ -27,15 +27,18 @@ describe("GeminiCliServerManager", () => {
 
       expect(options.cwd).toBe("/tmp");
       expect(options.stdio).toEqual(["pipe", "pipe", "pipe"]);
+      expect(options.shell).toBe(false);
     });
   });
 
   describe("resolveGeminiSpawnPlan", () => {
-    it("rewrites Windows npm shim launches to node gemini.js", () => {
+    it("rewrites Windows npm shim launches to node dist/index.js", () => {
       const env = {
         PATH: "C:\\Users\\user\\AppData\\Roaming\\npm;C:\\Program Files\\nodejs",
         PATHEXT: ".COM;.EXE;.BAT;.CMD",
       };
+      const geminiCmd = "C:\\Users\\user\\AppData\\Roaming\\npm\\gemini.cmd";
+      const nodeBinary = "C:\\Program Files\\nodejs\\node.exe";
 
       const plan = resolveGeminiSpawnPlan(
         {
@@ -45,13 +48,28 @@ describe("GeminiCliServerManager", () => {
           env,
         },
         "win32",
+        {
+          resolveCommandPath: (command) => {
+            if (command === "gemini") {
+              return geminiCmd;
+            }
+            if (command === "node") {
+              return nodeBinary;
+            }
+            return undefined;
+          },
+          existsSync: (path) =>
+            String(path).replace(/\\/g, "/") ===
+            "C:/Users/user/AppData/Roaming/npm/node_modules/@google/gemini-cli/dist/index.js",
+        },
       );
 
-      expect(plan.command.toLowerCase()).toContain("node");
+      expect(plan.command).toBe(nodeBinary);
       expect(plan.args[0]?.replace(/\\/g, "/")).toContain(
-        "/AppData/Roaming/npm/node_modules/@google/gemini-cli/bundle/gemini.js",
+        "/AppData/Roaming/npm/node_modules/@google/gemini-cli/dist/index.js",
       );
       expect(plan.args.slice(1)).toEqual(["-p", "Reply with exactly PONG"]);
+      expect(plan.options.shell).toBe(false);
     });
 
     it("spawns directly on non-Windows platforms", () => {

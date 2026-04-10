@@ -26,5 +26,8 @@
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
-  "productName": "T3 Code (Alpha)"
+  "productName": "T3 Code (Alpha)",
+  "trustedDependencies": [
+    "electron"
+  ]
 }
