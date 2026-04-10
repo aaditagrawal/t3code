@@ -99,6 +99,65 @@ export interface WsRpcClient {
     readonly replayEvents: RpcUnaryMethod<typeof ORCHESTRATION_WS_METHODS.replayEvents>;
     readonly onDomainEvent: RpcStreamMethod<typeof WS_METHODS.subscribeOrchestrationDomainEvents>;
   };
+  readonly cost: {
+    readonly getSummary: RpcUnaryMethod<typeof WS_METHODS.costGetSummary>;
+    readonly setBudget: RpcUnaryMethod<typeof WS_METHODS.costSetBudget>;
+    readonly getBudgets: RpcUnaryMethod<typeof WS_METHODS.costGetBudgets>;
+    readonly onEvent: RpcStreamMethod<typeof WS_METHODS.subscribeCostEvents>;
+  };
+  readonly audit: {
+    readonly query: RpcUnaryMethod<typeof WS_METHODS.auditQuery>;
+    readonly onEvent: RpcStreamMethod<typeof WS_METHODS.subscribeAuditEvents>;
+  };
+  readonly ci: {
+    readonly getStatus: RpcUnaryMethod<typeof WS_METHODS.ciGetStatus>;
+    readonly triggerRerun: RpcUnaryMethod<typeof WS_METHODS.ciTriggerRerun>;
+    readonly setFeedbackPolicy: RpcUnaryMethod<typeof WS_METHODS.ciSetFeedbackPolicy>;
+    readonly onEvent: RpcStreamMethod<typeof WS_METHODS.subscribeCIEvents>;
+  };
+  readonly routing: {
+    readonly getHealth: RpcUnaryNoArgMethod<typeof WS_METHODS.routingGetHealth>;
+    readonly setRules: RpcUnaryMethod<typeof WS_METHODS.routingSetRules>;
+    readonly getRules: RpcUnaryNoArgMethod<typeof WS_METHODS.routingGetRules>;
+    readonly onEvent: RpcStreamMethod<typeof WS_METHODS.subscribeRoutingEvents>;
+  };
+  readonly pipeline: {
+    readonly create: RpcUnaryMethod<typeof WS_METHODS.pipelineCreate>;
+    readonly list: RpcUnaryMethod<typeof WS_METHODS.pipelineList>;
+    readonly execute: RpcUnaryMethod<typeof WS_METHODS.pipelineExecute>;
+    readonly getExecution: RpcUnaryMethod<typeof WS_METHODS.pipelineGetExecution>;
+    readonly cancel: RpcUnaryMethod<typeof WS_METHODS.pipelineCancel>;
+    readonly onEvent: RpcStreamMethod<typeof WS_METHODS.subscribePipelineEvents>;
+  };
+  readonly workflow: {
+    readonly list: RpcUnaryMethod<typeof WS_METHODS.workflowList>;
+    readonly create: RpcUnaryMethod<typeof WS_METHODS.workflowCreate>;
+    readonly delete: RpcUnaryMethod<typeof WS_METHODS.workflowDelete>;
+    readonly execute: RpcUnaryMethod<typeof WS_METHODS.workflowExecute>;
+  };
+  readonly task: {
+    readonly decompose: RpcUnaryMethod<typeof WS_METHODS.taskDecompose>;
+    readonly updateStatus: RpcUnaryMethod<typeof WS_METHODS.taskUpdateStatus>;
+    readonly getTree: RpcUnaryMethod<typeof WS_METHODS.taskGetTree>;
+    readonly listTrees: RpcUnaryMethod<typeof WS_METHODS.taskListTrees>;
+    readonly execute: RpcUnaryMethod<typeof WS_METHODS.taskExecute>;
+    readonly onEvent: RpcStreamMethod<typeof WS_METHODS.subscribeTaskEvents>;
+  };
+  readonly memory: {
+    readonly index: RpcUnaryMethod<typeof WS_METHODS.memoryIndex>;
+    readonly search: RpcUnaryMethod<typeof WS_METHODS.memorySearch>;
+    readonly add: RpcUnaryMethod<typeof WS_METHODS.memoryAdd>;
+    readonly forget: RpcUnaryMethod<typeof WS_METHODS.memoryForget>;
+    readonly list: RpcUnaryMethod<typeof WS_METHODS.memoryList>;
+  };
+  readonly presence: {
+    readonly join: RpcUnaryMethod<typeof WS_METHODS.presenceJoin>;
+    readonly leave: RpcUnaryMethod<typeof WS_METHODS.presenceLeave>;
+    readonly updateCursor: RpcUnaryMethod<typeof WS_METHODS.presenceUpdateCursor>;
+    readonly share: RpcUnaryMethod<typeof WS_METHODS.presenceShare>;
+    readonly getParticipants: RpcUnaryMethod<typeof WS_METHODS.presenceGetParticipants>;
+    readonly onEvent: RpcStreamMethod<typeof WS_METHODS.subscribePresenceEvents>;
+  };
 }
 
 let sharedWsRpcClient: WsRpcClient | null = null;
@@ -222,6 +281,108 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
       onDomainEvent: (listener, options) =>
         transport.subscribe(
           (client) => client[WS_METHODS.subscribeOrchestrationDomainEvents]({}),
+          listener,
+          options,
+        ),
+    },
+    cost: {
+      getSummary: (input) =>
+        transport.request((client) => client[WS_METHODS.costGetSummary](input)),
+      setBudget: (input) => transport.request((client) => client[WS_METHODS.costSetBudget](input)),
+      getBudgets: (input) =>
+        transport.request((client) => client[WS_METHODS.costGetBudgets](input)),
+      onEvent: (listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeCostEvents]({}),
+          listener,
+          options,
+        ),
+    },
+    audit: {
+      query: (input) => transport.request((client) => client[WS_METHODS.auditQuery](input)),
+      onEvent: (listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeAuditEvents]({}),
+          listener,
+          options,
+        ),
+    },
+    ci: {
+      getStatus: (input) => transport.request((client) => client[WS_METHODS.ciGetStatus](input)),
+      triggerRerun: (input) =>
+        transport.request((client) => client[WS_METHODS.ciTriggerRerun](input)),
+      setFeedbackPolicy: (input) =>
+        transport.request((client) => client[WS_METHODS.ciSetFeedbackPolicy](input)),
+      onEvent: (listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeCIEvents]({}),
+          listener,
+          options,
+        ),
+    },
+    routing: {
+      getHealth: () => transport.request((client) => client[WS_METHODS.routingGetHealth]({})),
+      setRules: (input) => transport.request((client) => client[WS_METHODS.routingSetRules](input)),
+      getRules: () => transport.request((client) => client[WS_METHODS.routingGetRules]({})),
+      onEvent: (listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeRoutingEvents]({}),
+          listener,
+          options,
+        ),
+    },
+    pipeline: {
+      create: (input) => transport.request((client) => client[WS_METHODS.pipelineCreate](input)),
+      list: (input) => transport.request((client) => client[WS_METHODS.pipelineList](input)),
+      execute: (input) => transport.request((client) => client[WS_METHODS.pipelineExecute](input)),
+      getExecution: (input) =>
+        transport.request((client) => client[WS_METHODS.pipelineGetExecution](input)),
+      cancel: (input) => transport.request((client) => client[WS_METHODS.pipelineCancel](input)),
+      onEvent: (listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribePipelineEvents]({}),
+          listener,
+          options,
+        ),
+    },
+    workflow: {
+      list: (input) => transport.request((client) => client[WS_METHODS.workflowList](input)),
+      create: (input) => transport.request((client) => client[WS_METHODS.workflowCreate](input)),
+      delete: (input) => transport.request((client) => client[WS_METHODS.workflowDelete](input)),
+      execute: (input) => transport.request((client) => client[WS_METHODS.workflowExecute](input)),
+    },
+    task: {
+      decompose: (input) => transport.request((client) => client[WS_METHODS.taskDecompose](input)),
+      updateStatus: (input) =>
+        transport.request((client) => client[WS_METHODS.taskUpdateStatus](input)),
+      getTree: (input) => transport.request((client) => client[WS_METHODS.taskGetTree](input)),
+      listTrees: (input) => transport.request((client) => client[WS_METHODS.taskListTrees](input)),
+      execute: (input) => transport.request((client) => client[WS_METHODS.taskExecute](input)),
+      onEvent: (listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeTaskEvents]({}),
+          listener,
+          options,
+        ),
+    },
+    memory: {
+      index: (input) => transport.request((client) => client[WS_METHODS.memoryIndex](input)),
+      search: (input) => transport.request((client) => client[WS_METHODS.memorySearch](input)),
+      add: (input) => transport.request((client) => client[WS_METHODS.memoryAdd](input)),
+      forget: (input) => transport.request((client) => client[WS_METHODS.memoryForget](input)),
+      list: (input) => transport.request((client) => client[WS_METHODS.memoryList](input)),
+    },
+    presence: {
+      join: (input) => transport.request((client) => client[WS_METHODS.presenceJoin](input)),
+      leave: (input) => transport.request((client) => client[WS_METHODS.presenceLeave](input)),
+      updateCursor: (input) =>
+        transport.request((client) => client[WS_METHODS.presenceUpdateCursor](input)),
+      share: (input) => transport.request((client) => client[WS_METHODS.presenceShare](input)),
+      getParticipants: (input) =>
+        transport.request((client) => client[WS_METHODS.presenceGetParticipants](input)),
+      onEvent: (listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribePresenceEvents]({}),
           listener,
           options,
         ),

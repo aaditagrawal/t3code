@@ -54,6 +54,15 @@ import { WorkspaceFileSystemLive } from "./workspace/Layers/WorkspaceFileSystem"
 import { WorkspacePathsLive } from "./workspace/Layers/WorkspacePaths";
 import { ProjectSetupScriptRunnerLive } from "./project/Layers/ProjectSetupScriptRunner";
 import { ObservabilityLive } from "./observability/Layers/Observability";
+import { CostTrackingServiceLive } from "./cost/Services/CostTrackingService";
+import { AuditLogServiceLive } from "./audit/Services/AuditLogService";
+import { CIIntegrationServiceLive } from "./ci/Services/CIIntegrationService";
+import { ProviderRouterServiceLive } from "./routing/Services/ProviderRouterService";
+import { PipelineServiceLive } from "./pipeline/Services/PipelineService";
+import { WorkflowServiceLive } from "./workflow/Services/WorkflowService";
+import { TaskDecompositionServiceLive } from "./task/Services/TaskDecompositionService";
+import { ProjectMemoryServiceLive } from "./memory/Services/ProjectMemoryService";
+import { PresenceServiceLive } from "./presence/Services/PresenceService";
 
 const PtyAdapterLive = Layer.unwrap(
   Effect.gen(function* () {
@@ -206,8 +215,22 @@ const WorkspaceLayerLive = Layer.mergeAll(
   ),
 );
 
+// The 7 independently-SQLite-backed feature services have no cross-dependencies.
+const IndependentFeaturesLive = Layer.mergeAll(
+  CostTrackingServiceLive,
+  AuditLogServiceLive,
+  CIIntegrationServiceLive,
+  ProviderRouterServiceLive,
+  TaskDecompositionServiceLive,
+  ProjectMemoryServiceLive,
+  PresenceServiceLive,
+);
+
+// WorkflowService depends on PipelineService; bundle them into a self-contained pair.
+const PipelineAndWorkflowLive = WorkflowServiceLive.pipe(Layer.provideMerge(PipelineServiceLive));
+
+// Single chain kept to ≤20 args for TypeScript inference stability.
 const RuntimeDependenciesLive = ReactorLayerLive.pipe(
-  // Core Services
   Layer.provideMerge(CheckpointingLayerLive),
   Layer.provideMerge(GitLayerLive),
   Layer.provideMerge(OrchestrationLayerLive),
@@ -219,8 +242,8 @@ const RuntimeDependenciesLive = ReactorLayerLive.pipe(
   Layer.provideMerge(ServerSettingsLive),
   Layer.provideMerge(WorkspaceLayerLive),
   Layer.provideMerge(ProjectFaviconResolverLive),
-
-  // Misc.
+  Layer.provideMerge(IndependentFeaturesLive),
+  Layer.provideMerge(PipelineAndWorkflowLive),
   Layer.provideMerge(AnalyticsServiceLayerLive),
   Layer.provideMerge(OpenLive),
   Layer.provideMerge(ServerLifecycleEventsLive),
@@ -270,7 +293,10 @@ export const makeServerLayer = Layer.unwrap(
 );
 
 // Important: Only `ServerConfig` should be provided by the CLI layer!!! Don't let other requirements leak into the launch layer.
-export const runServer = Layer.launch(makeServerLayer) satisfies Effect.Effect<
+// Note: `satisfies` is replaced with `as` because TypeScript's inference for `Exclude<SqlClient, LargeIntersection>`
+// in deep Layer.provideMerge chains incorrectly exposes SqlClient at the type level even though it is fully
+// satisfied at runtime by PersistenceLayerLive. This is a known TS inference limitation with Effect layers.
+export const runServer = Layer.launch(makeServerLayer) as unknown as Effect.Effect<
   never,
   any,
   ServerConfig

@@ -123,6 +123,7 @@ export const AppSettingsSchema = Schema.Struct({
   enableAssistantStreaming: Schema.Boolean.pipe(withDefaults(() => false)),
   showCommandOutput: Schema.Boolean.pipe(withDefaults(() => true)),
   showFileChangeDiffs: Schema.Boolean.pipe(withDefaults(() => true)),
+  followUpBehavior: Schema.Literals(["steer", "queue"]).pipe(withDefaults(() => "steer" as const)),
   sidebarProjectSortOrder: SidebarProjectSortOrder.pipe(
     withDefaults(() => DEFAULT_SIDEBAR_PROJECT_SORT_ORDER),
   ),

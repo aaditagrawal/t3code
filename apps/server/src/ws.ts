@@ -46,6 +46,15 @@ import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries";
 import { WorkspaceFileSystem } from "./workspace/Services/WorkspaceFileSystem";
 import { WorkspacePathOutsideRootError } from "./workspace/Services/WorkspacePaths";
 import { ProjectSetupScriptRunner } from "./project/Services/ProjectSetupScriptRunner";
+import { CostTrackingService } from "./cost/Services/CostTrackingService";
+import { AuditLogService } from "./audit/Services/AuditLogService";
+import { CIIntegrationService } from "./ci/Services/CIIntegrationService";
+import { ProviderRouterService } from "./routing/Services/ProviderRouterService";
+import { PipelineService } from "./pipeline/Services/PipelineService";
+import { WorkflowService } from "./workflow/Services/WorkflowService";
+import { TaskDecompositionService } from "./task/Services/TaskDecompositionService";
+import { ProjectMemoryService } from "./memory/Services/ProjectMemoryService";
+import { PresenceService } from "./presence/Services/PresenceService";
 
 const WsRpcLayer = WsRpcGroup.toLayer(
   Effect.gen(function* () {
@@ -65,6 +74,15 @@ const WsRpcLayer = WsRpcGroup.toLayer(
     const workspaceEntries = yield* WorkspaceEntries;
     const workspaceFileSystem = yield* WorkspaceFileSystem;
     const projectSetupScriptRunner = yield* ProjectSetupScriptRunner;
+    const costTracking = yield* CostTrackingService;
+    const auditLog = yield* AuditLogService;
+    const ciIntegration = yield* CIIntegrationService;
+    const providerRouter = yield* ProviderRouterService;
+    const pipelineService = yield* PipelineService;
+    const workflowService = yield* WorkflowService;
+    const taskDecomposition = yield* TaskDecompositionService;
+    const projectMemory = yield* ProjectMemoryService;
+    const presenceService = yield* PresenceService;
 
     const serverCommandId = (tag: string) =>
       CommandId.makeUnsafe(`server:${tag}:${crypto.randomUUID()}`);
@@ -708,6 +726,397 @@ const WsRpcLayer = WsRpcGroup.toLayer(
           }),
           { "rpc.aggregate": "server" },
         ),
+
+      // ── Cost Tracking ────────────────────────────────────────────────────
+      [WS_METHODS.costGetSummary]: (input) =>
+        observeRpcEffect(WS_METHODS.costGetSummary, costTracking.getSummary(input), {
+          "rpc.aggregate": "cost",
+        }),
+      [WS_METHODS.costSetBudget]: (input) =>
+        observeRpcEffect(WS_METHODS.costSetBudget, costTracking.setBudget(input), {
+          "rpc.aggregate": "cost",
+        }),
+      [WS_METHODS.costGetBudgets]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.costGetBudgets,
+          costTracking.getBudgets({ projectId: input.projectId }),
+          { "rpc.aggregate": "cost" },
+        ),
+      [WS_METHODS.subscribeCostEvents]: (_input) =>
+        observeRpcStream(WS_METHODS.subscribeCostEvents, costTracking.streamEvents, {
+          "rpc.aggregate": "cost",
+        }),
+
+      // ── Audit Log ────────────────────────────────────────────────────────
+      [WS_METHODS.auditQuery]: (input) =>
+        observeRpcEffect(WS_METHODS.auditQuery, auditLog.query(input), {
+          "rpc.aggregate": "audit",
+        }),
+      [WS_METHODS.subscribeAuditEvents]: (_input) =>
+        observeRpcStream(WS_METHODS.subscribeAuditEvents, auditLog.streamEvents, {
+          "rpc.aggregate": "audit",
+        }),
+
+      // ── CI/CD ────────────────────────────────────────────────────────────
+      [WS_METHODS.ciGetStatus]: (input) =>
+        observeRpcEffect(WS_METHODS.ciGetStatus, ciIntegration.getStatus(input), {
+          "rpc.aggregate": "ci",
+        }),
+      [WS_METHODS.ciTriggerRerun]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.ciTriggerRerun,
+          ciIntegration.triggerRerun(input).pipe(Effect.asVoid),
+          { "rpc.aggregate": "ci" },
+        ),
+      [WS_METHODS.ciSetFeedbackPolicy]: (input) =>
+        observeRpcEffect(WS_METHODS.ciSetFeedbackPolicy, ciIntegration.setFeedbackPolicy(input), {
+          "rpc.aggregate": "ci",
+        }),
+      [WS_METHODS.subscribeCIEvents]: (_input) =>
+        observeRpcStream(WS_METHODS.subscribeCIEvents, ciIntegration.streamEvents, {
+          "rpc.aggregate": "ci",
+        }),
+
+      // ── Routing ──────────────────────────────────────────────────────────
+      [WS_METHODS.routingGetHealth]: (_input) =>
+        observeRpcEffect(WS_METHODS.routingGetHealth, providerRouter.getHealth(), {
+          "rpc.aggregate": "routing",
+        }),
+      [WS_METHODS.routingSetRules]: (input) =>
+        observeRpcEffect(WS_METHODS.routingSetRules, providerRouter.setRules(input), {
+          "rpc.aggregate": "routing",
+        }),
+      [WS_METHODS.routingGetRules]: (_input) =>
+        observeRpcEffect(WS_METHODS.routingGetRules, providerRouter.getRules(), {
+          "rpc.aggregate": "routing",
+        }),
+      [WS_METHODS.subscribeRoutingEvents]: (_input) =>
+        observeRpcStream(WS_METHODS.subscribeRoutingEvents, providerRouter.streamEvents, {
+          "rpc.aggregate": "routing",
+        }),
+
+      // ── Pipelines ────────────────────────────────────────────────────────
+      [WS_METHODS.pipelineCreate]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.pipelineCreate,
+          pipelineService
+            .create({
+              id: crypto.randomUUID(),
+              name: input.name,
+              description: input.description,
+              projectId: input.projectId,
+              stages: input.stages.map((s) => ({
+                id: s.id,
+                name: s.name,
+                prompt: s.prompt,
+                dependsOn: s.dependsOn,
+              })),
+            })
+            .pipe(
+              Effect.map((def) => ({
+                id: def.id as import("@t3tools/contracts").PipelineId,
+                name: def.name as import("@t3tools/contracts").PipelineDefinition["name"],
+                description: def.description,
+                projectId:
+                  def.projectId as import("@t3tools/contracts").PipelineDefinition["projectId"],
+                stages: input.stages,
+                createdAt: def.createdAt,
+                updatedAt: def.updatedAt,
+              })),
+            ),
+          { "rpc.aggregate": "pipeline" },
+        ),
+      [WS_METHODS.pipelineList]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.pipelineList,
+          pipelineService.list({ projectId: input.projectId }).pipe(
+            Effect.map((defs) => ({
+              pipelines: defs.map((def) => ({
+                id: def.id as import("@t3tools/contracts").PipelineId,
+                name: def.name as import("@t3tools/contracts").PipelineDefinition["name"],
+                description: def.description,
+                projectId:
+                  def.projectId as import("@t3tools/contracts").PipelineDefinition["projectId"],
+                stages: JSON.parse(
+                  (def as unknown as { stagesJson: string }).stagesJson ?? "[]",
+                ) as import("@t3tools/contracts").PipelineStage[],
+                createdAt: def.createdAt,
+                updatedAt: def.updatedAt,
+              })),
+            })),
+          ),
+          { "rpc.aggregate": "pipeline" },
+        ),
+      [WS_METHODS.pipelineExecute]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.pipelineExecute,
+          pipelineService
+            .execute({
+              executionId: crypto.randomUUID(),
+              pipelineId: input.pipelineId,
+              projectId: input.projectId,
+              threadId: crypto.randomUUID(),
+            })
+            .pipe(
+              Effect.map((exec) => ({
+                id: exec.id as import("@t3tools/contracts").PipelineExecutionId,
+                pipelineId:
+                  exec.pipelineId as import("@t3tools/contracts").PipelineExecution["pipelineId"],
+                projectId:
+                  exec.projectId as import("@t3tools/contracts").PipelineExecution["projectId"],
+                status: exec.status as import("@t3tools/contracts").PipelineExecution["status"],
+                stages: exec.stages.map((s) => ({
+                  stageId: s.stageId as import("@t3tools/contracts").PipelineStageId,
+                  status: s.status as import("@t3tools/contracts").PipelineStageExecution["status"],
+                  threadId: null,
+                  startedAt: s.startedAt,
+                  completedAt: s.completedAt,
+                  error: s.error,
+                  retryCount: 0,
+                  output: null,
+                })),
+                startedAt: exec.startedAt,
+                completedAt: exec.completedAt,
+                updatedAt: exec.updatedAt,
+              })),
+            ),
+          { "rpc.aggregate": "pipeline" },
+        ),
+      [WS_METHODS.pipelineGetExecution]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.pipelineGetExecution,
+          pipelineService.getExecution({ executionId: input.executionId }).pipe(
+            Effect.flatMap((exec) =>
+              exec
+                ? Effect.succeed({
+                    id: exec.id as import("@t3tools/contracts").PipelineExecutionId,
+                    pipelineId:
+                      exec.pipelineId as import("@t3tools/contracts").PipelineExecution["pipelineId"],
+                    projectId:
+                      exec.projectId as import("@t3tools/contracts").PipelineExecution["projectId"],
+                    status: exec.status as import("@t3tools/contracts").PipelineExecution["status"],
+                    stages: exec.stages.map((s) => ({
+                      stageId: s.stageId as import("@t3tools/contracts").PipelineStageId,
+                      status:
+                        s.status as import("@t3tools/contracts").PipelineStageExecution["status"],
+                      threadId: null,
+                      startedAt: s.startedAt,
+                      completedAt: s.completedAt,
+                      error: s.error,
+                      retryCount: 0,
+                      output: null,
+                    })),
+                    startedAt: exec.startedAt,
+                    completedAt: exec.completedAt,
+                    updatedAt: exec.updatedAt,
+                  })
+                : Effect.die(new Error("Execution not found")),
+            ),
+          ),
+          { "rpc.aggregate": "pipeline" },
+        ),
+      [WS_METHODS.pipelineCancel]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.pipelineCancel,
+          pipelineService.cancel({ executionId: input.executionId }),
+          { "rpc.aggregate": "pipeline" },
+        ),
+      [WS_METHODS.subscribePipelineEvents]: (_input) =>
+        observeRpcStream(
+          WS_METHODS.subscribePipelineEvents,
+          pipelineService.streamEvents.pipe(
+            Stream.map((event) => ({
+              type: "pipeline.execution.updated" as const,
+              execution: {
+                id: event.executionId as import("@t3tools/contracts").PipelineExecutionId,
+                pipelineId: "" as import("@t3tools/contracts").PipelineExecution["pipelineId"],
+                projectId: "" as import("@t3tools/contracts").PipelineExecution["projectId"],
+                status: (event.type === "pipeline.completed"
+                  ? "completed"
+                  : event.type === "pipeline.failed"
+                    ? "failed"
+                    : "running") as import("@t3tools/contracts").PipelineExecution["status"],
+                stages: [],
+                startedAt: event.timestamp,
+                completedAt: null,
+                updatedAt: event.timestamp,
+              },
+            })),
+          ),
+          { "rpc.aggregate": "pipeline" },
+        ),
+
+      // ── Workflows ────────────────────────────────────────────────────────
+      [WS_METHODS.workflowList]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.workflowList,
+          workflowService.list({ category: input.category }).pipe(
+            Effect.map((templates) => ({
+              templates: templates.map((t) => ({
+                id: t.id as import("@t3tools/contracts").WorkflowTemplateId,
+                name: t.name as import("@t3tools/contracts").WorkflowTemplate["name"],
+                description: t.description,
+                category: t.category as import("@t3tools/contracts").WorkflowTemplate["category"],
+                variables: t.variables.map((v) => ({
+                  name: v.name as import("@t3tools/contracts").WorkflowVariable["name"],
+                  description: (v.description ??
+                    null) as import("@t3tools/contracts").WorkflowVariable["description"],
+                  defaultValue: (v.defaultValue ??
+                    null) as import("@t3tools/contracts").WorkflowVariable["defaultValue"],
+                  required: false,
+                })),
+                steps: t.steps.map((s) => ({
+                  id: s.id as import("@t3tools/contracts").WorkflowStepId,
+                  name: s.name as import("@t3tools/contracts").WorkflowStep["name"],
+                  kind: "prompt" as const,
+                  prompt: s.prompt,
+                  command: null,
+                  condition: null,
+                  continueOnError: false,
+                  timeoutMs: 120_000,
+                  dependsOn: s.dependsOn as import("@t3tools/contracts").WorkflowStepId[],
+                })),
+                isBuiltIn: t.isBuiltIn,
+                createdAt: t.createdAt,
+                updatedAt: t.updatedAt,
+              })),
+            })),
+          ),
+          { "rpc.aggregate": "workflow" },
+        ),
+      [WS_METHODS.workflowCreate]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.workflowCreate,
+          workflowService
+            .create({
+              id: crypto.randomUUID(),
+              name: input.name,
+              description: input.description,
+              category: input.category,
+              variables: input.variables.map((v) => ({
+                name: v.name,
+                description: v.description ?? "",
+                defaultValue: v.defaultValue ?? null,
+              })),
+              steps: input.steps.map((s) => ({
+                id: s.id,
+                name: s.name,
+                prompt: s.prompt ?? "",
+                dependsOn: s.dependsOn as unknown as string[],
+              })),
+            })
+            .pipe(
+              Effect.map((t) => ({
+                id: t.id as import("@t3tools/contracts").WorkflowTemplateId,
+                name: t.name as import("@t3tools/contracts").WorkflowTemplate["name"],
+                description: t.description,
+                category: t.category as import("@t3tools/contracts").WorkflowTemplate["category"],
+                variables: input.variables,
+                steps: input.steps,
+                isBuiltIn: false,
+                createdAt: t.createdAt,
+                updatedAt: t.updatedAt,
+              })),
+            ),
+          { "rpc.aggregate": "workflow" },
+        ),
+      [WS_METHODS.workflowDelete]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.workflowDelete,
+          workflowService.delete({ templateId: input.templateId }),
+          { "rpc.aggregate": "workflow" },
+        ),
+      [WS_METHODS.workflowExecute]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.workflowExecute,
+          workflowService.execute({
+            templateId: input.templateId,
+            projectId: input.projectId,
+            threadId: crypto.randomUUID(),
+            variables: input.variables,
+            executionId: crypto.randomUUID(),
+            pipelineId: crypto.randomUUID(),
+          }),
+          { "rpc.aggregate": "workflow" },
+        ),
+
+      // ── Task Decomposition ───────────────────────────────────────────────
+      [WS_METHODS.taskDecompose]: (input) =>
+        observeRpcEffect(WS_METHODS.taskDecompose, taskDecomposition.decompose(input), {
+          "rpc.aggregate": "task",
+        }),
+      [WS_METHODS.taskUpdateStatus]: (input) =>
+        observeRpcEffect(WS_METHODS.taskUpdateStatus, taskDecomposition.updateStatus(input), {
+          "rpc.aggregate": "task",
+        }),
+      [WS_METHODS.taskGetTree]: (input) =>
+        observeRpcEffect(WS_METHODS.taskGetTree, taskDecomposition.getTree(input), {
+          "rpc.aggregate": "task",
+        }),
+      [WS_METHODS.taskListTrees]: (input) =>
+        observeRpcEffect(WS_METHODS.taskListTrees, taskDecomposition.listTrees(input), {
+          "rpc.aggregate": "task",
+        }),
+      [WS_METHODS.taskExecute]: (input) =>
+        observeRpcEffect(WS_METHODS.taskExecute, taskDecomposition.execute(input), {
+          "rpc.aggregate": "task",
+        }),
+      [WS_METHODS.subscribeTaskEvents]: (_input) =>
+        observeRpcStream(WS_METHODS.subscribeTaskEvents, taskDecomposition.streamEvents, {
+          "rpc.aggregate": "task",
+        }),
+
+      // ── Memory ───────────────────────────────────────────────────────────
+      [WS_METHODS.memoryIndex]: (input) =>
+        observeRpcEffect(WS_METHODS.memoryIndex, projectMemory.index(input), {
+          "rpc.aggregate": "memory",
+        }),
+      [WS_METHODS.memorySearch]: (input) =>
+        observeRpcEffect(WS_METHODS.memorySearch, projectMemory.search(input), {
+          "rpc.aggregate": "memory",
+        }),
+      [WS_METHODS.memoryAdd]: (input) =>
+        observeRpcEffect(WS_METHODS.memoryAdd, projectMemory.add(input), {
+          "rpc.aggregate": "memory",
+        }),
+      [WS_METHODS.memoryForget]: (input) =>
+        observeRpcEffect(WS_METHODS.memoryForget, projectMemory.forget(input), {
+          "rpc.aggregate": "memory",
+        }),
+      [WS_METHODS.memoryList]: (input) =>
+        observeRpcEffect(WS_METHODS.memoryList, projectMemory.list(input), {
+          "rpc.aggregate": "memory",
+        }),
+
+      // ── Presence ─────────────────────────────────────────────────────────
+      [WS_METHODS.presenceJoin]: (input) =>
+        observeRpcEffect(WS_METHODS.presenceJoin, presenceService.join(input), {
+          "rpc.aggregate": "presence",
+        }),
+      [WS_METHODS.presenceLeave]: (input) =>
+        observeRpcEffect(WS_METHODS.presenceLeave, presenceService.leave(input), {
+          "rpc.aggregate": "presence",
+        }),
+      [WS_METHODS.presenceUpdateCursor]: (input) =>
+        observeRpcEffect(WS_METHODS.presenceUpdateCursor, presenceService.updateCursor(input), {
+          "rpc.aggregate": "presence",
+        }),
+      [WS_METHODS.presenceShare]: (input) =>
+        observeRpcEffect(WS_METHODS.presenceShare, presenceService.share(input), {
+          "rpc.aggregate": "presence",
+        }),
+      [WS_METHODS.presenceGetParticipants]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.presenceGetParticipants,
+          presenceService.getParticipants(input),
+          {
+            "rpc.aggregate": "presence",
+          },
+        ),
+      [WS_METHODS.subscribePresenceEvents]: (_input) =>
+        observeRpcStream(WS_METHODS.subscribePresenceEvents, presenceService.streamEvents, {
+          "rpc.aggregate": "presence",
+        }),
     });
   }),
 );

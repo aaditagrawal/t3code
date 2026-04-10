@@ -123,6 +123,7 @@ import {
   resolveSelectableProvider,
 } from "../providerModels";
 import { useSettings } from "../hooks/useSettings";
+import { useAppSettings } from "../appSettings";
 import { resolveAppModelSelection } from "../modelSelection";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import {
@@ -163,6 +164,10 @@ import { ComposerPrimaryActions } from "./chat/ComposerPrimaryActions";
 import { ComposerPendingApprovalPanel } from "./chat/ComposerPendingApprovalPanel";
 import { ComposerPendingUserInputPanel } from "./chat/ComposerPendingUserInputPanel";
 import { ComposerPlanFollowUpBanner } from "./chat/ComposerPlanFollowUpBanner";
+import {
+  ComposerQueuedFollowUpsPanel,
+  type QueuedFollowUpMessage,
+} from "./chat/ComposerQueuedFollowUpsPanel";
 import {
   getComposerProviderState,
   renderProviderTraitsMenuContent,
@@ -662,6 +667,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const promptRef = useRef(prompt);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [isDragOverComposer, setIsDragOverComposer] = useState(false);
+  const { settings: appSettings } = useAppSettings();
+  const followUpBehavior = appSettings.followUpBehavior;
+
+  const [queuedFollowUps, setQueuedFollowUps] = useState<QueuedFollowUpMessage[]>([]);
+  // Ref so effects that only depend on latestTurnSettled can still read the latest queue
+  const queuedFollowUpsRef = useRef(queuedFollowUps);
+  queuedFollowUpsRef.current = queuedFollowUps;
+
   const [expandedImage, setExpandedImage] = useState<ExpandedImagePreview | null>(null);
   const [optimisticUserMessages, setOptimisticUserMessages] = useState<ChatMessage[]>([]);
   const optimisticUserMessagesRef = useRef(optimisticUserMessages);
@@ -1146,10 +1159,16 @@ export default function ChatView({ threadId }: ChatViewProps) {
     localDispatchStartedAt,
   );
   const isComposerApprovalState = activePendingApproval !== null;
+  const showQueuedFollowUpsPanel =
+    queuedFollowUps.length > 0 &&
+    !isComposerApprovalState &&
+    pendingUserInputs.length === 0 &&
+    !(showPlanFollowUpPrompt && activeProposedPlan !== null);
   const hasComposerHeader =
     isComposerApprovalState ||
     pendingUserInputs.length > 0 ||
-    (showPlanFollowUpPrompt && activeProposedPlan !== null);
+    (showPlanFollowUpPrompt && activeProposedPlan !== null) ||
+    showQueuedFollowUpsPanel;
   const composerFooterHasWideActions = showPlanFollowUpPrompt || activePendingProgress !== null;
   const composerFooterActionLayoutKey = useMemo(() => {
     if (activePendingProgress) {
@@ -2346,6 +2365,53 @@ export default function ChatView({ threadId }: ChatViewProps) {
     setIsRevertingCheckpoint(false);
   }, [activeThread?.id]);
 
+  // Clear queued follow-ups when switching threads.
+  useEffect(() => {
+    setQueuedFollowUps([]);
+  }, [activeThread?.id]);
+
+  // Stable refs so the settle effect always sees the latest values without
+  // requiring them in its deps array (it must only fire on transition to settled).
+  const activeThreadRef = useRef(activeThread);
+  activeThreadRef.current = activeThread;
+  const selectedModelSelectionRef = useRef(selectedModelSelection);
+  selectedModelSelectionRef.current = selectedModelSelection;
+  const runtimeModeRef = useRef(runtimeMode);
+  runtimeModeRef.current = runtimeMode;
+  const interactionModeRef = useRef(interactionMode);
+  interactionModeRef.current = interactionMode;
+
+  // Auto-dispatch queued follow-ups on the transition from running → settled.
+  const prevTurnSettledRef = useRef(latestTurnSettled);
+  useEffect(() => {
+    const wasSettled = prevTurnSettledRef.current;
+    prevTurnSettledRef.current = latestTurnSettled;
+    if (wasSettled || !latestTurnSettled) return;
+    const next = queuedFollowUpsRef.current[0];
+    const thread = activeThreadRef.current;
+    if (!next || !thread) return;
+    setQueuedFollowUps((prev) => prev.slice(1));
+    const api = readNativeApi();
+    if (!api) return;
+    const messageId = newMessageId();
+    const createdAt = new Date().toISOString();
+    void api.orchestration
+      .dispatchCommand({
+        type: "thread.turn.start",
+        commandId: newCommandId(),
+        threadId: thread.id,
+        message: { messageId, role: "user", text: next.text, attachments: [] },
+        modelSelection: selectedModelSelectionRef.current,
+        runtimeMode: runtimeModeRef.current,
+        interactionMode: interactionModeRef.current,
+        createdAt,
+      })
+      .catch(() => {
+        // Re-queue the item on failure so it isn't lost.
+        setQueuedFollowUps((prev) => [next, ...prev]);
+      });
+  }, [latestTurnSettled]); // only fires on transition to settled; reads latest values via refs
+
   useEffect(() => {
     if (!activeThread?.id || terminalState.terminalOpen) return;
     const frame = window.requestAnimationFrame(() => {
@@ -2865,7 +2931,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
     [activeThread, isConnecting, isRevertingCheckpoint, isSendBusy, phase, setThreadError],
   );
 
-  const onSend = async (e?: { preventDefault: () => void }) => {
+  const onSend = async (
+    e?: { preventDefault: () => void },
+    opts?: { forceImmediate?: boolean; forceQueue?: boolean },
+  ) => {
     e?.preventDefault();
     const api = readNativeApi();
     if (!api || !activeThread || isSendBusy || isConnecting || sendInFlightRef.current) return;
@@ -2944,6 +3013,34 @@ export default function ChatView({ threadId }: ChatViewProps) {
         threadIdForSend,
         "Select a base branch before sending in New worktree mode.",
       );
+      return;
+    }
+
+    // Queue mode: hold follow-ups until the active turn settles.
+    // Also applies in steer mode when forceQueue is set (Cmd/Ctrl+Shift+Enter one-off).
+    // Only applies to follow-up messages (server thread with existing messages, no images).
+    // forceImmediate bypasses queue mode; forceQueue activates it from steer mode.
+    const shouldQueue =
+      isServerThread &&
+      !isFirstMessage &&
+      composerImages.length === 0 &&
+      (opts?.forceQueue === true ||
+        (followUpBehavior === "queue" && phase === "running" && !opts?.forceImmediate));
+    if (shouldQueue) {
+      const queueText = appendTerminalContextsToPrompt(trimmed, sendableComposerTerminalContexts);
+      setQueuedFollowUps((prev) => [
+        ...prev,
+        {
+          id: randomUUID(),
+          text: queueText,
+          displayText: trimmed.slice(0, 120) || "[message]",
+        },
+      ]);
+      promptRef.current = "";
+      clearComposerDraftContent(threadIdForSend);
+      setComposerHighlightedItemId(null);
+      setComposerCursor(0);
+      setComposerTrigger(null);
       return;
     }
 
@@ -3872,6 +3969,17 @@ export default function ChatView({ threadId }: ChatViewProps) {
       }
     }
 
+    // Cmd/Ctrl+Shift+Enter: one-off behavior inversion.
+    // In queue mode → send immediately; in steer mode → add to queue.
+    if (key === "Enter" && event.shiftKey && (event.metaKey || event.ctrlKey)) {
+      if (followUpBehavior === "queue") {
+        void onSend(undefined, { forceImmediate: true });
+      } else {
+        void onSend(undefined, { forceQueue: true });
+      }
+      return true;
+    }
+
     if (key === "Enter" && !event.shiftKey) {
       void onSend();
       return true;
@@ -4096,6 +4204,16 @@ export default function ChatView({ threadId }: ChatViewProps) {
                       />
                     </div>
                   ) : null}
+                  {showQueuedFollowUpsPanel && (
+                    <div className="rounded-t-[19px] border-b border-border/65 bg-muted/20">
+                      <ComposerQueuedFollowUpsPanel
+                        items={queuedFollowUps}
+                        onRemove={(id) =>
+                          setQueuedFollowUps((prev) => prev.filter((item) => item.id !== id))
+                        }
+                      />
+                    </div>
+                  )}
                   <div
                     className={cn(
                       "relative px-3 pb-2 sm:px-4",
