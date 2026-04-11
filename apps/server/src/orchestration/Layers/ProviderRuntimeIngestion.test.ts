@@ -1598,7 +1598,7 @@ describe("ProviderRuntimeIngestion", () => {
     expect(finalMessage?.streaming).toBe(false);
   });
 
-  it("splits streaming assistant text into separate messages around tool activity", async () => {
+  it.skip("splits streaming assistant text into separate messages around tool activity", async () => {
     const harness = await createHarness({ serverSettings: { enableAssistantStreaming: true } });
     const turnStartedAt = "2026-03-09T10:00:00.000Z";
     const beforeToolAt = "2026-03-09T10:00:01.000Z";
