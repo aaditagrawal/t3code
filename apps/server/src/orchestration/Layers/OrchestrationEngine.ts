@@ -62,6 +62,11 @@ function commandToAggregateRef(command: OrchestrationCommand): {
         aggregateKind: "project",
         aggregateId: command.projectId,
       };
+    case "thread.branch-from-checkpoint":
+      return {
+        aggregateKind: "thread",
+        aggregateId: command.newThreadId,
+      };
     default:
       return {
         aggregateKind: "thread",

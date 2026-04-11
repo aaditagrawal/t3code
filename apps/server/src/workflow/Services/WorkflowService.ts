@@ -302,12 +302,10 @@ const makeWorkflowService = Effect.gen(function* () {
     }).pipe(Effect.orDie);
 
   const deleteTemplate: WorkflowServiceShape["delete"] = (input) =>
-    Effect.gen(function* () {
-      yield* sql`
-        DELETE FROM workflow_templates
-        WHERE id = ${input.templateId} AND is_built_in = 0
-      `;
-    }).pipe(Effect.orDie);
+    sql`
+      DELETE FROM workflow_templates
+      WHERE id = ${input.templateId} AND is_built_in = 0
+    `.pipe(Effect.orDie);
 
   const execute: WorkflowServiceShape["execute"] = (input) =>
     Effect.gen(function* () {

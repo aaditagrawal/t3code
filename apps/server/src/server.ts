@@ -298,6 +298,6 @@ export const makeServerLayer = Layer.unwrap(
 // satisfied at runtime by PersistenceLayerLive. This is a known TS inference limitation with Effect layers.
 export const runServer = Layer.launch(makeServerLayer) as unknown as Effect.Effect<
   never,
-  any,
+  never,
   ServerConfig
 >;
