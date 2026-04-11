@@ -36,7 +36,7 @@ export function asString(value: unknown): string | undefined {
 }
 
 export function eventId(prefix: string): EventId {
-  return EventId.makeUnsafe(`${prefix}:${randomUUID()}`);
+  return EventId.make(`${prefix}:${randomUUID()}`);
 }
 
 export function nowIso(): string {
@@ -44,7 +44,7 @@ export function nowIso(): string {
 }
 
 export function createTurnId(): TurnId {
-  return TurnId.makeUnsafe(`turn:${randomUUID()}`);
+  return TurnId.make(`turn:${randomUUID()}`);
 }
 
 export function textPart(text: string) {

@@ -5,7 +5,6 @@ import {
   ClaudeModelOptions,
   CodexModelOptions,
   DEFAULT_MODEL_BY_PROVIDER,
-  ProjectId,
   EnvironmentId,
   type ServerProvider,
   ThreadId,
@@ -28,11 +27,11 @@ import {
 
 // ── Claude TraitsPicker tests ─────────────────────────────────────────
 
-const LOCAL_ENVIRONMENT_ID = EnvironmentId.makeUnsafe("environment-local");
-const CLAUDE_THREAD_ID = ThreadId.makeUnsafe("thread-claude-traits");
+const LOCAL_ENVIRONMENT_ID = EnvironmentId.make("environment-local");
+const CLAUDE_THREAD_ID = ThreadId.make("thread-claude-traits");
 const CLAUDE_THREAD_REF = scopeThreadRef(LOCAL_ENVIRONMENT_ID, CLAUDE_THREAD_ID);
 const CLAUDE_THREAD_KEY = scopedThreadKey(CLAUDE_THREAD_REF);
-const CODEX_THREAD_ID = ThreadId.makeUnsafe("thread-codex-traits");
+const CODEX_THREAD_ID = ThreadId.make("thread-codex-traits");
 const CODEX_THREAD_REF = scopeThreadRef(LOCAL_ENVIRONMENT_ID, CODEX_THREAD_ID);
 const CODEX_THREAD_KEY = scopedThreadKey(CODEX_THREAD_REF);
 const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
@@ -44,6 +43,8 @@ const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
     status: "ready",
     auth: { status: "authenticated" },
     checkedAt: "2026-01-01T00:00:00.000Z",
+    slashCommands: [],
+    skills: [],
     models: [
       {
         slug: "gpt-5.4",
@@ -70,6 +71,8 @@ const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
     status: "ready",
     auth: { status: "authenticated" },
     checkedAt: "2026-01-01T00:00:00.000Z",
+    slashCommands: [],
+    skills: [],
     models: [
       {
         slug: "claude-opus-4-6",

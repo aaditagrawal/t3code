@@ -12,7 +12,7 @@ import os from "node:os";
 import { dirname } from "node:path";
 
 import { EDITORS, OpenError, type EditorId } from "@t3tools/contracts";
-import { ServiceMap, Effect, Layer } from "effect";
+import { Context, Effect, Layer } from "effect";
 import { isCommandAvailable, type CommandAvailabilityOptions } from "./commandPath.ts";
 
 // ==============================
@@ -200,7 +200,7 @@ export interface OpenShape {
 /**
  * Open - Service tag for browser/editor launch operations.
  */
-export class Open extends ServiceMap.Service<Open, OpenShape>()("t3/open") {}
+export class Open extends Context.Service<Open, OpenShape>()("t3/open") {}
 
 // ==============================
 // Implementations

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { Option, Schema } from "effect";
+import { Effect, Schema } from "effect";
 import {
   DEFAULT_SERVER_SETTINGS,
   type ProviderStartOptions,
@@ -105,8 +105,8 @@ const withDefaults =
   ) =>
   (schema: S) =>
     schema.pipe(
-      Schema.withConstructorDefault(() => Option.some(fallback())),
-      Schema.withDecodingDefault(() => fallback()),
+      Schema.withConstructorDefault(Effect.succeed(fallback())),
+      Schema.withDecodingDefault(Effect.succeed(fallback())),
     );
 
 export const AppSettingsSchema = Schema.Struct({
@@ -170,7 +170,7 @@ export const AppSettingsSchema = Schema.Struct({
 });
 export type AppSettings = typeof AppSettingsSchema.Type;
 
-const DEFAULT_APP_SETTINGS = AppSettingsSchema.makeUnsafe({});
+const DEFAULT_APP_SETTINGS = AppSettingsSchema.make({});
 
 function normalizeAppSettings(settings: AppSettings): AppSettings {
   return {
@@ -255,7 +255,7 @@ function parsePersistedSettings(value: string | null): AppSettings {
   try {
     const parsed = JSON.parse(value) as unknown;
     return normalizeAppSettings(
-      AppSettingsSchema.makeUnsafe(migratePersistedAppSettings(parsed) as Record<string, unknown>),
+      AppSettingsSchema.make(migratePersistedAppSettings(parsed) as Record<string, unknown>),
     );
   } catch {
     return DEFAULT_APP_SETTINGS;
@@ -456,10 +456,8 @@ export function useAppSettings() {
         return;
       }
 
-      setLocalSettings((prev) =>
-        normalizeAppSettings(
-          AppSettingsSchema.makeUnsafe(stripMirroredKeys({ ...prev, ...localPatch })),
-        ),
+      setLocalSettings((prev: AppSettings) =>
+        normalizeAppSettings(AppSettingsSchema.make(stripMirroredKeys({ ...prev, ...localPatch }))),
       );
     },
     [setLocalSettings, updateUnifiedSettings],
@@ -467,7 +465,7 @@ export function useAppSettings() {
 
   const resetSettings = useCallback(() => {
     resetUnifiedSettings();
-    setLocalSettings(AppSettingsSchema.makeUnsafe(stripMirroredKeys(DEFAULT_APP_SETTINGS)));
+    setLocalSettings(AppSettingsSchema.make(stripMirroredKeys(DEFAULT_APP_SETTINGS)));
   }, [resetUnifiedSettings, setLocalSettings]);
 
   return {

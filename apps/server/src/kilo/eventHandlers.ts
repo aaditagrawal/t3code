@@ -349,7 +349,7 @@ function handlePermissionAskedEvent(
     return;
   }
   const requestType = toKiloRequestType(permission);
-  const requestId = ApprovalRequestId.makeUnsafe(requestIdValue);
+  const requestId = ApprovalRequestId.make(requestIdValue);
   context.pendingPermissions.set(requestId, { requestId, requestType });
   emitter.emitRuntimeEvent({
     type: "request.opened",
@@ -358,7 +358,7 @@ function handlePermissionAskedEvent(
     threadId: context.threadId,
     createdAt: nowIso(),
     ...(context.activeTurnId ? { turnId: context.activeTurnId } : {}),
-    requestId: RuntimeRequestId.makeUnsafe(requestId),
+    requestId: RuntimeRequestId.make(requestId),
     payload: {
       requestType,
       detail: title ?? permission,
@@ -390,7 +390,7 @@ function handlePermissionRepliedEvent(
     threadId: context.threadId,
     createdAt: nowIso(),
     ...(context.activeTurnId ? { turnId: context.activeTurnId } : {}),
-    requestId: RuntimeRequestId.makeUnsafe(requestIdValue),
+    requestId: RuntimeRequestId.make(requestIdValue),
     payload: {
       requestType: pending?.requestType ?? "unknown",
       decision: reply,
@@ -434,7 +434,7 @@ function handleQuestionAskedEvent(
     options: question.options,
   }));
 
-  const requestId = ApprovalRequestId.makeUnsafe(requestIdValue);
+  const requestId = ApprovalRequestId.make(requestIdValue);
   context.pendingQuestions.set(requestId, {
     requestId,
     questionIds: questions.map((question) => question.id),
@@ -447,7 +447,7 @@ function handleQuestionAskedEvent(
     threadId: context.threadId,
     createdAt: nowIso(),
     ...(context.activeTurnId ? { turnId: context.activeTurnId } : {}),
-    requestId: RuntimeRequestId.makeUnsafe(requestId),
+    requestId: RuntimeRequestId.make(requestId),
     payload: {
       questions: runtimeQuestions,
     },
@@ -490,7 +490,7 @@ function handleQuestionRepliedEvent(
     threadId: context.threadId,
     createdAt: nowIso(),
     ...(context.activeTurnId ? { turnId: context.activeTurnId } : {}),
-    requestId: RuntimeRequestId.makeUnsafe(requestIdValue),
+    requestId: RuntimeRequestId.make(requestIdValue),
     payload: {
       answers,
     },
@@ -519,7 +519,7 @@ function handleQuestionRejectedEvent(
     threadId: context.threadId,
     createdAt: nowIso(),
     ...(context.activeTurnId ? { turnId: context.activeTurnId } : {}),
-    requestId: RuntimeRequestId.makeUnsafe(requestIdValue),
+    requestId: RuntimeRequestId.make(requestIdValue),
     payload: {
       answers: {},
     },
@@ -594,7 +594,7 @@ function handleToolPartUpdatedEvent(
       threadId: context.threadId,
       createdAt: nowIso(),
       ...(context.activeTurnId ? { turnId: context.activeTurnId } : {}),
-      itemId: RuntimeItemId.makeUnsafe(part.id),
+      itemId: RuntimeItemId.make(part.id),
       payload: {
         itemType: toToolItemType(part.tool),
         ...(lifecycleType !== "item.updated"
@@ -628,7 +628,7 @@ function handleToolPartUpdatedEvent(
       threadId: context.threadId,
       createdAt: nowIso(),
       ...(context.activeTurnId ? { turnId: context.activeTurnId } : {}),
-      itemId: RuntimeItemId.makeUnsafe(part.id),
+      itemId: RuntimeItemId.make(part.id),
       payload: {
         summary: `${part.tool}: ${stateTitle}`,
         precedingToolUseIds: [part.id],
@@ -665,7 +665,7 @@ function handleMessagePartDeltaEvent(
     threadId: context.threadId,
     createdAt: nowIso(),
     turnId: context.activeTurnId,
-    itemId: RuntimeItemId.makeUnsafe(partId),
+    itemId: RuntimeItemId.make(partId),
     payload: {
       streamKind: partState?.streamKind ?? "assistant_text",
       delta,
@@ -838,7 +838,7 @@ function handleCommandExecutedEvent(
   if (sessionID !== context.providerSessionId) {
     return;
   }
-  const itemId = RuntimeItemId.makeUnsafe(`cmd:${command}:${randomUUID()}`);
+  const itemId = RuntimeItemId.make(`cmd:${command}:${randomUUID()}`);
   const title = `Command: ${command}`;
   emitter.emitRuntimeEvent({
     type: "item.started",

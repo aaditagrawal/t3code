@@ -50,16 +50,16 @@ function createClient() {
 function createContext(client: OpencodeClient): OpenCodeSessionContext {
   const now = new Date().toISOString();
   return {
-    threadId: ThreadId.makeUnsafe("thread-opencode"),
+    threadId: ThreadId.make("thread-opencode"),
     directory: process.cwd(),
     workspace: "/workspace/project",
     client,
     providerSessionId: "session-opencode",
     pendingPermissions: new Map([
       [
-        ApprovalRequestId.makeUnsafe("approval-opencode"),
+        ApprovalRequestId.make("approval-opencode"),
         {
-          requestId: ApprovalRequestId.makeUnsafe("approval-opencode"),
+          requestId: ApprovalRequestId.make("approval-opencode"),
           requestType: "exec_command_approval",
         },
       ],
@@ -73,13 +73,13 @@ function createContext(client: OpencodeClient): OpenCodeSessionContext {
       provider: PROVIDER,
       status: "running",
       runtimeMode: "approval-required",
-      threadId: ThreadId.makeUnsafe("thread-opencode"),
+      threadId: ThreadId.make("thread-opencode"),
       createdAt: now,
       updatedAt: now,
       resumeCursor: { sessionId: "session-opencode" },
-      activeTurnId: TurnId.makeUnsafe("turn-opencode"),
+      activeTurnId: TurnId.make("turn-opencode"),
     } as OpenCodeProviderSession,
-    activeTurnId: TurnId.makeUnsafe("turn-opencode"),
+    activeTurnId: TurnId.make("turn-opencode"),
     lastError: undefined,
   };
 }
@@ -97,7 +97,7 @@ describe("OpenCodeServerManager.respondToRequest", () => {
 
     await manager.respondToRequest(
       context.threadId,
-      ApprovalRequestId.makeUnsafe("approval-opencode"),
+      ApprovalRequestId.make("approval-opencode"),
       "cancel",
     );
 
@@ -126,7 +126,7 @@ describe("OpenCodeServerManager.respondToRequest", () => {
 
     await manager.respondToRequest(
       context.threadId,
-      ApprovalRequestId.makeUnsafe("approval-opencode"),
+      ApprovalRequestId.make("approval-opencode"),
       "decline",
     );
 
@@ -136,6 +136,6 @@ describe("OpenCodeServerManager.respondToRequest", () => {
       reply: "reject",
     });
     expect(client.session.abort).not.toHaveBeenCalled();
-    expect(context.activeTurnId).toBe(TurnId.makeUnsafe("turn-opencode"));
+    expect(context.activeTurnId).toBe(TurnId.make("turn-opencode"));
   });
 });

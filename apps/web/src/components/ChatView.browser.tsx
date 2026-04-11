@@ -44,6 +44,7 @@ import { getRouter } from "../router";
 import { selectBootstrapCompleteForActiveEnvironment, useStore } from "../store";
 import { useTerminalStateStore } from "../terminalStateStore";
 import { useUiStateStore } from "../uiStateStore";
+import { createAuthenticatedSessionHandlers } from "../../test/authHttpHandlers";
 import { BrowserWsRpcHarness, type NormalizedWsRpcRequestBody } from "../../test/wsRpcHarness";
 import { estimateTimelineMessageHeight } from "./timelineHeight";
 import { DEFAULT_CLIENT_SETTINGS } from "@t3tools/contracts/settings";
@@ -57,7 +58,7 @@ vi.mock("../lib/gitStatusState", () => ({
 
 const THREAD_ID = "thread-browser-test" as ThreadId;
 const PROJECT_ID = "project-1" as ProjectId;
-const LOCAL_ENVIRONMENT_ID = EnvironmentId.makeUnsafe("environment-local");
+const LOCAL_ENVIRONMENT_ID = EnvironmentId.make("environment-local");
 const THREAD_REF = scopeThreadRef(LOCAL_ENVIRONMENT_ID, THREAD_ID);
 const THREAD_KEY = scopedThreadKey(THREAD_REF);
 const UUID_ROUTE_RE = /^\/draft\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -142,11 +143,17 @@ function isoAt(offsetSeconds: number): string {
 function createBaseServerConfig(): ServerConfig {
   return {
     environment: {
-      environmentId: EnvironmentId.makeUnsafe("environment-local"),
+      environmentId: EnvironmentId.make("environment-local"),
       label: "Local environment",
       platform: { os: "darwin" as const, arch: "arm64" as const },
       serverVersion: "0.0.0-test",
       capabilities: { repositoryIdentity: true },
+    },
+    auth: {
+      policy: "loopback-browser",
+      bootstrapMethods: ["one-time-token"],
+      sessionMethods: ["browser-session-cookie", "bearer-session-token"],
+      sessionCookieName: "t3_session",
     },
     cwd: "/repo/project",
     keybindingsConfigPath: "/repo/project/.t3code-keybindings.json",
@@ -162,6 +169,8 @@ function createBaseServerConfig(): ServerConfig {
         auth: { status: "authenticated" },
         checkedAt: NOW_ISO,
         models: [],
+        slashCommands: [],
+        skills: [],
       },
     ],
     availableEditors: [],
@@ -334,7 +343,7 @@ function buildFixture(snapshot: OrchestrationReadModel): TestFixture {
     serverConfig: createBaseServerConfig(),
     welcome: {
       environment: {
-        environmentId: EnvironmentId.makeUnsafe("environment-local"),
+        environmentId: EnvironmentId.make("environment-local"),
         label: "Local environment",
         platform: { os: "darwin" as const, arch: "arm64" as const },
         serverVersion: "0.0.0-test",
@@ -395,7 +404,7 @@ function addThreadToSnapshot(
 function createThreadCreatedEvent(threadId: ThreadId, sequence: number): OrchestrationEvent {
   return {
     sequence,
-    eventId: EventId.makeUnsafe(`event-thread-created-${sequence}`),
+    eventId: EventId.make(`event-thread-created-${sequence}`),
     aggregateKind: "thread",
     aggregateId: threadId,
     occurredAt: NOW_ISO,
@@ -425,7 +434,7 @@ function createThreadCreatedEvent(threadId: ThreadId, sequence: number): Orchest
 function createThreadSessionSetEvent(threadId: ThreadId, sequence: number): OrchestrationEvent {
   return {
     sequence,
-    eventId: EventId.makeUnsafe(`event-thread-session-set-${sequence}`),
+    eventId: EventId.make(`event-thread-session-set-${sequence}`),
     aggregateKind: "thread",
     aggregateId: threadId,
     occurredAt: NOW_ISO,
@@ -491,7 +500,7 @@ function draftIdFromPath(pathname: string) {
   if (!draftId) {
     throw new Error(`Expected thread path, received "${pathname}".`);
   }
-  return DraftId.makeUnsafe(draftId);
+  return DraftId.make(draftId);
 }
 
 function draftThreadIdFor(draftId: ReturnType<typeof draftIdFromPath>): ThreadId {
@@ -659,7 +668,7 @@ function createSnapshotWithPendingUserInput(): OrchestrationReadModel {
             interactionMode: "plan",
             activities: [
               {
-                id: EventId.makeUnsafe("activity-user-input-requested"),
+                id: EventId.make("activity-user-input-requested"),
                 tone: "info",
                 kind: "user-input.requested",
                 summary: "User input requested",
@@ -710,17 +719,30 @@ function createSnapshotWithPendingUserInput(): OrchestrationReadModel {
   };
 }
 
-function createSnapshotWithPlanFollowUpPrompt(): OrchestrationReadModel {
+function createSnapshotWithPlanFollowUpPrompt(options?: {
+  modelSelection?: { provider: "codex"; model: string };
+  planMarkdown?: string;
+}): OrchestrationReadModel {
   const snapshot = createSnapshotForTargetUser({
     targetMessageId: "msg-user-plan-follow-up-target" as MessageId,
     targetText: "plan follow-up thread",
   });
+  const modelSelection = options?.modelSelection ?? {
+    provider: "codex" as const,
+    model: "gpt-5",
+  };
+  const planMarkdown =
+    options?.planMarkdown ?? "# Follow-up plan\n\n- Keep the composer footer stable on resize.";
 
   return {
     ...snapshot,
+    projects: snapshot.projects.map((project) =>
+      project.id === PROJECT_ID ? { ...project, defaultModelSelection: modelSelection } : project,
+    ),
     threads: snapshot.threads.map((thread) =>
       thread.id === THREAD_ID
         ? Object.assign({}, thread, {
+            modelSelection,
             interactionMode: "plan",
             latestTurn: {
               turnId: "turn-plan-follow-up" as TurnId,
@@ -734,7 +756,7 @@ function createSnapshotWithPlanFollowUpPrompt(): OrchestrationReadModel {
               {
                 id: "plan-follow-up-browser-test",
                 turnId: "turn-plan-follow-up" as TurnId,
-                planMarkdown: "# Follow-up plan\n\n- Keep the composer footer stable on resize.",
+                planMarkdown,
                 implementedAt: null,
                 implementationThreadId: null,
                 createdAt: isoAt(1_002),
@@ -821,6 +843,7 @@ const worker = setupWorker(
       void rpcHarness.onMessage(rawData);
     });
   }),
+  ...createAuthenticatedSessionHandlers(() => fixture.serverConfig.auth),
   http.get("*/attachments/:attachmentId", () =>
     HttpResponse.text(ATTACHMENT_SVG, {
       headers: {
@@ -907,13 +930,189 @@ async function waitForComposerEditor(): Promise<HTMLElement> {
   );
 }
 
+async function pressComposerKey(key: string): Promise<void> {
+  const composerEditor = await waitForComposerEditor();
+  composerEditor.focus();
+  const keydownEvent = new KeyboardEvent("keydown", {
+    key,
+    bubbles: true,
+    cancelable: true,
+  });
+  composerEditor.dispatchEvent(keydownEvent);
+  if (keydownEvent.defaultPrevented) {
+    await waitForLayout();
+    return;
+  }
+
+  const beforeInputEvent = new InputEvent("beforeinput", {
+    data: key,
+    inputType: "insertText",
+    bubbles: true,
+    cancelable: true,
+  });
+  composerEditor.dispatchEvent(beforeInputEvent);
+  if (beforeInputEvent.defaultPrevented) {
+    await waitForLayout();
+    return;
+  }
+
+  if (
+    typeof document.execCommand === "function" &&
+    document.execCommand("insertText", false, key)
+  ) {
+    await waitForLayout();
+    return;
+  }
+
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) {
+    throw new Error("Unable to resolve composer selection for text input.");
+  }
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  const textNode = document.createTextNode(key);
+  range.insertNode(textNode);
+  range.setStartAfter(textNode);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  composerEditor.dispatchEvent(
+    new InputEvent("input", {
+      data: key,
+      inputType: "insertText",
+      bubbles: true,
+    }),
+  );
+  await waitForLayout();
+}
+
+async function pressComposerUndo(): Promise<void> {
+  const composerEditor = await waitForComposerEditor();
+  const useMetaForMod = isMacPlatform(navigator.platform);
+  composerEditor.focus();
+  composerEditor.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "z",
+      metaKey: useMetaForMod,
+      ctrlKey: !useMetaForMod,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+  await waitForLayout();
+}
+
+async function waitForComposerText(expectedText: string): Promise<void> {
+  await vi.waitFor(
+    () => {
+      expect(useComposerDraftStore.getState().draftsByThreadKey[THREAD_KEY]?.prompt ?? "").toBe(
+        expectedText,
+      );
+    },
+    { timeout: 8_000, interval: 16 },
+  );
+}
+
+async function setComposerSelectionByTextOffsets(options: {
+  start: number;
+  end: number;
+  direction?: "forward" | "backward";
+}): Promise<void> {
+  const composerEditor = await waitForComposerEditor();
+  composerEditor.focus();
+  const resolvePoint = (targetOffset: number) => {
+    const traversedRef = { value: 0 };
+
+    const visitNode = (node: Node): { node: Node; offset: number } | null => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const textLength = node.textContent?.length ?? 0;
+        if (targetOffset <= traversedRef.value + textLength) {
+          return {
+            node,
+            offset: Math.max(0, Math.min(targetOffset - traversedRef.value, textLength)),
+          };
+        }
+        traversedRef.value += textLength;
+        return null;
+      }
+
+      if (node instanceof HTMLBRElement) {
+        const parent = node.parentNode;
+        if (!parent) {
+          return null;
+        }
+        const siblingIndex = Array.prototype.indexOf.call(parent.childNodes, node);
+        if (targetOffset <= traversedRef.value) {
+          return { node: parent, offset: siblingIndex };
+        }
+        if (targetOffset <= traversedRef.value + 1) {
+          return { node: parent, offset: siblingIndex + 1 };
+        }
+        traversedRef.value += 1;
+        return null;
+      }
+
+      if (node instanceof Element || node instanceof DocumentFragment) {
+        for (const child of node.childNodes) {
+          const point = visitNode(child);
+          if (point) {
+            return point;
+          }
+        }
+      }
+
+      return null;
+    };
+
+    return (
+      visitNode(composerEditor) ?? {
+        node: composerEditor,
+        offset: composerEditor.childNodes.length,
+      }
+    );
+  };
+
+  const startPoint = resolvePoint(options.start);
+  const endPoint = resolvePoint(options.end);
+  const selection = window.getSelection();
+  if (!selection) {
+    throw new Error("Unable to resolve window selection.");
+  }
+  selection.removeAllRanges();
+
+  if (options.direction === "backward" && "setBaseAndExtent" in selection) {
+    selection.setBaseAndExtent(endPoint.node, endPoint.offset, startPoint.node, startPoint.offset);
+    await waitForLayout();
+    return;
+  }
+
+  const range = document.createRange();
+  range.setStart(startPoint.node, startPoint.offset);
+  range.setEnd(endPoint.node, endPoint.offset);
+  selection.addRange(range);
+  await waitForLayout();
+}
+
+async function selectAllComposerContent(): Promise<void> {
+  const composerEditor = await waitForComposerEditor();
+  composerEditor.focus();
+  const selection = window.getSelection();
+  if (!selection) {
+    throw new Error("Unable to resolve window selection.");
+  }
+  selection.removeAllRanges();
+  const range = document.createRange();
+  range.selectNodeContents(composerEditor);
+  selection.addRange(range);
+  await waitForLayout();
+}
+
 async function waitForComposerMenuItem(itemId: string): Promise<HTMLElement> {
   return waitForElement(
     () => document.querySelector<HTMLElement>(`[data-composer-item-id="${itemId}"]`),
     `Unable to find composer menu item "${itemId}".`,
   );
 }
-
 async function waitForSendButton(): Promise<HTMLButtonElement> {
   return waitForElement(
     () => document.querySelector<HTMLButtonElement>('button[aria-label="Send message"]'),
@@ -945,6 +1144,16 @@ async function waitForButtonContainingText(text: string): Promise<HTMLButtonElem
   return waitForElement(
     () => findButtonContainingText(text),
     `Unable to find button containing "${text}".`,
+  );
+}
+
+async function waitForSelectItemContainingText(text: string): Promise<HTMLElement> {
+  return waitForElement(
+    () =>
+      Array.from(document.querySelectorAll<HTMLElement>('[data-slot="select-item"]')).find((item) =>
+        item.textContent?.includes(text),
+      ) ?? null,
+    `Unable to find select item containing "${text}".`,
   );
 }
 
@@ -1133,6 +1342,7 @@ async function mountChatView(options: {
   snapshot: OrchestrationReadModel;
   configureFixture?: (fixture: TestFixture) => void;
   resolveRpc?: (body: NormalizedWsRpcRequestBody) => unknown | undefined;
+  initialPath?: string;
 }): Promise<MountedChatView> {
   fixture = buildFixture(options.snapshot);
   options.configureFixture?.(fixture);
@@ -1152,7 +1362,7 @@ async function mountChatView(options: {
 
   const router = getRouter(
     createMemoryHistory({
-      initialEntries: [`/${LOCAL_ENVIRONMENT_ID}/${THREAD_ID}`],
+      initialEntries: [options.initialPath ?? `/${LOCAL_ENVIRONMENT_ID}/${THREAD_ID}`],
     }),
   );
 
@@ -1698,7 +1908,6 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  // Skip: fork layout mismatch for VSCodium picker test
   it.skip("filters the open picker menu and opens VSCodium from the menu", async () => {
     setDraftThreadWithoutWorktree();
 
@@ -1976,7 +2185,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
     });
 
     const mounted = await mountChatView({
-      viewport: DEFAULT_VIEWPORT,
+      viewport: WIDE_FOOTER_VIEWPORT,
       snapshot: withProjectScripts(createDraftOnlySnapshot(), [
         {
           id: "setup",
@@ -2319,6 +2528,341 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
+  it("uses the active draft route session when changing the base branch", async () => {
+    const staleDraftId = draftIdFromPath("/draft/draft-stale-branch-session");
+    const activeDraftId = draftIdFromPath("/draft/draft-active-branch-session");
+
+    useComposerDraftStore.setState({
+      draftThreadsByThreadKey: {
+        [staleDraftId]: {
+          threadId: THREAD_ID,
+          environmentId: LOCAL_ENVIRONMENT_ID,
+          projectId: PROJECT_ID,
+          logicalProjectKey: `${PROJECT_DRAFT_KEY}:stale`,
+          createdAt: NOW_ISO,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: "main",
+          worktreePath: null,
+          envMode: "worktree",
+        },
+        [activeDraftId]: {
+          threadId: THREAD_ID,
+          environmentId: LOCAL_ENVIRONMENT_ID,
+          projectId: PROJECT_ID,
+          logicalProjectKey: PROJECT_DRAFT_KEY,
+          createdAt: NOW_ISO,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: "main",
+          worktreePath: null,
+          envMode: "worktree",
+        },
+      },
+      logicalProjectDraftThreadKeyByLogicalProjectKey: {
+        [`${PROJECT_DRAFT_KEY}:stale`]: staleDraftId,
+        [PROJECT_DRAFT_KEY]: activeDraftId,
+      },
+    });
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createDraftOnlySnapshot(),
+      initialPath: `/draft/${activeDraftId}`,
+      resolveRpc: (body) => {
+        if (body._tag === WS_METHODS.gitListBranches) {
+          return {
+            isRepo: true,
+            hasOriginRemote: true,
+            nextCursor: null,
+            totalCount: 2,
+            branches: [
+              {
+                name: "main",
+                current: true,
+                isDefault: true,
+                worktreePath: null,
+              },
+              {
+                name: "release/next",
+                current: false,
+                isDefault: false,
+                worktreePath: null,
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+    });
+
+    try {
+      const branchButton = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent?.trim() === "From main",
+          ) as HTMLButtonElement | null,
+        'Unable to find branch selector button with "From main".',
+      );
+      branchButton.click();
+
+      const branchOption = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll("span")).find(
+            (element) => element.textContent?.trim() === "release/next",
+          ) as HTMLSpanElement | null,
+        'Unable to find the "release/next" branch option.',
+      );
+      branchOption.click();
+
+      await vi.waitFor(
+        () => {
+          expect(useComposerDraftStore.getState().getDraftSession(activeDraftId)?.branch).toBe(
+            "release/next",
+          );
+          expect(useComposerDraftStore.getState().getDraftSession(staleDraftId)?.branch).toBe(
+            "main",
+          );
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      await vi.waitFor(
+        () => {
+          const updatedButton = Array.from(document.querySelectorAll("button")).find((button) =>
+            button.textContent?.trim().includes("From release/next"),
+          );
+          expect(updatedButton).toBeTruthy();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("surrounds selected plain text and preserves the inner selection for repeated wrapping", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-surround-basic" as MessageId,
+        targetText: "surround basic",
+      }),
+    });
+
+    try {
+      useComposerDraftStore.getState().setPrompt(THREAD_REF, "selected");
+      await waitForComposerText("selected");
+      await setComposerSelectionByTextOffsets({ start: 0, end: "selected".length });
+      await pressComposerKey("(");
+      await waitForComposerText("(selected)");
+
+      await pressComposerKey("[");
+      await waitForComposerText("([selected])");
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("leaves collapsed-caret typing unchanged for surround symbols", async () => {
+    useComposerDraftStore.getState().setPrompt(THREAD_REF, "selected");
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-surround-collapsed" as MessageId,
+        targetText: "surround collapsed",
+      }),
+    });
+
+    try {
+      await waitForComposerText("selected");
+      await setComposerSelectionByTextOffsets({
+        start: "selected".length,
+        end: "selected".length,
+      });
+      await pressComposerKey("(");
+      await waitForComposerText("selected(");
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("supports symmetric and backward-selection surrounds", async () => {
+    useComposerDraftStore.getState().setPrompt(THREAD_REF, "backward");
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-surround-backward" as MessageId,
+        targetText: "surround backward",
+      }),
+    });
+
+    try {
+      await waitForComposerText("backward");
+      await setComposerSelectionByTextOffsets({
+        start: 0,
+        end: "backward".length,
+        direction: "backward",
+      });
+      await pressComposerKey("*");
+      await waitForComposerText("*backward*");
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("supports option-produced surround symbols like guillemets", async () => {
+    useComposerDraftStore.getState().setPrompt(THREAD_REF, "quoted");
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-surround-guillemet" as MessageId,
+        targetText: "surround guillemet",
+      }),
+    });
+
+    try {
+      await waitForComposerText("quoted");
+      await setComposerSelectionByTextOffsets({ start: 0, end: "quoted".length });
+      await pressComposerKey("«");
+      await waitForComposerText("«quoted»");
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("supports dead-key composition that resolves to another surround symbol without an extra undo step", async () => {
+    useComposerDraftStore.getState().setPrompt(THREAD_REF, "quoted");
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-surround-dead-quote" as MessageId,
+        targetText: "surround dead quote",
+      }),
+    });
+
+    try {
+      await waitForComposerText("quoted");
+      await setComposerSelectionByTextOffsets({ start: 0, end: "quoted".length });
+      const composerEditor = await waitForComposerEditor();
+      composerEditor.focus();
+      composerEditor.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Dead",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      composerEditor.dispatchEvent(
+        new InputEvent("beforeinput", {
+          data: "'",
+          inputType: "insertCompositionText",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      const resolvedInputEvent = new InputEvent("beforeinput", {
+        data: "'",
+        inputType: "insertText",
+        bubbles: true,
+        cancelable: true,
+      });
+      composerEditor.dispatchEvent(resolvedInputEvent);
+      expect(resolvedInputEvent.defaultPrevented).toBe(true);
+      await waitForComposerText("'quoted'");
+      await pressComposerUndo();
+      await waitForComposerText("quoted");
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("surrounds text after a mention using the correct expanded offsets", async () => {
+    useComposerDraftStore.getState().setPrompt(THREAD_REF, "hi @package.json there");
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-surround-after-mention" as MessageId,
+        targetText: "surround after mention",
+      }),
+    });
+
+    try {
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("package.json");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+      await waitForComposerText("hi @package.json there");
+      await setComposerSelectionByTextOffsets({
+        start: "hi package.json ".length,
+        end: "hi package.json there".length,
+      });
+      await pressComposerKey("(");
+      await waitForComposerText("hi @package.json (there)");
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("falls back to normal replacement when the selection includes a mention token", async () => {
+    useComposerDraftStore.getState().setPrompt(THREAD_REF, "hi @package.json there ");
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-surround-token" as MessageId,
+        targetText: "surround token",
+      }),
+    });
+
+    try {
+      await vi.waitFor(
+        () => {
+          expect(document.body.textContent).toContain("package.json");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+      await selectAllComposerContent();
+      await pressComposerKey("(");
+      await waitForComposerText("(");
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("shows runtime mode descriptions in the desktop composer access select", async () => {
+    setDraftThreadWithoutWorktree();
+
+    const mounted = await mountChatView({
+      viewport: WIDE_FOOTER_VIEWPORT,
+      snapshot: createDraftOnlySnapshot(),
+    });
+
+    try {
+      const runtimeModeSelect = await waitForButtonByText("Full access");
+      runtimeModeSelect.click();
+
+      expect((await waitForSelectItemContainingText("Supervised")).textContent).toContain(
+        "Ask before commands and file changes",
+      );
+
+      const autoAcceptItem = await waitForSelectItemContainingText("Auto-accept edits");
+      expect(autoAcceptItem.textContent).toContain("Auto-approve edits");
+      expect((await waitForSelectItemContainingText("Full access")).textContent).toContain(
+        "Allow commands and edits without prompts",
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("keeps removed terminal context pills removed when a new one is added", async () => {
     const removedLabel = "Terminal 1 lines 1-2";
     const addedLabel = "Terminal 2 lines 9-10";
@@ -2630,10 +3174,9 @@ describe("ChatView timeline estimator parity (full app)", () => {
         "Promoted drafts should canonicalize to the server thread route.",
       );
 
-      // The empty thread view and composer should still be visible.
-      await expect
-        .element(page.getByText("Send a message to start the conversation."))
-        .toBeInTheDocument();
+      // The composer should remain usable after canonicalization, regardless of
+      // whether the promoted thread is still visibly empty or has already
+      // entered the running state.
       await expect.element(page.getByTestId("composer-editor")).toBeInTheDocument();
     } finally {
       await mounted.cleanup();
@@ -2993,6 +3536,17 @@ describe("ChatView timeline estimator parity (full app)", () => {
       const promotedThreadId = draftThreadIdFor(promotedDraftId);
 
       await promoteDraftThreadViaDomainEvent(promotedThreadId);
+      await waitForURL(
+        mounted.router,
+        (path) => path === serverThreadPath(promotedThreadId),
+        "Promoted drafts should canonicalize to the server thread route before a fresh draft is created.",
+      );
+      await vi.waitFor(
+        () => {
+          expect(useComposerDraftStore.getState().getDraftThread(promotedDraftId)).toBeNull();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
 
       const freshThreadPath = await triggerChatNewShortcutUntilPath(
         mounted.router,
@@ -3181,8 +3735,9 @@ describe("ChatView timeline estimator parity (full app)", () => {
       );
       const initialModelPickerOffset =
         initialModelPicker.getBoundingClientRect().left - footer.getBoundingClientRect().left;
+      const initialImplementButton = await waitForButtonByText("Implement");
+      const initialImplementWidth = initialImplementButton.getBoundingClientRect().width;
 
-      await waitForButtonByText("Implement");
       await waitForElement(
         () =>
           document.querySelector<HTMLButtonElement>('button[aria-label="Implementation actions"]'),
@@ -3214,9 +3769,77 @@ describe("ChatView timeline estimator parity (full app)", () => {
 
           expect(Math.abs(implementRect.right - implementActionsRect.left)).toBeLessThanOrEqual(1);
           expect(Math.abs(implementRect.top - implementActionsRect.top)).toBeLessThanOrEqual(1);
+          expect(Math.abs(implementRect.width - initialImplementWidth)).toBeLessThanOrEqual(1);
           expect(Math.abs(compactModelPickerOffset - initialModelPickerOffset)).toBeLessThanOrEqual(
             1,
           );
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("keeps the wide desktop follow-up layout expanded when the footer still fits", async () => {
+    const mounted = await mountChatView({
+      viewport: WIDE_FOOTER_VIEWPORT,
+      snapshot: createSnapshotWithPlanFollowUpPrompt({
+        modelSelection: { provider: "codex", model: "gpt-5.3-codex-spark" },
+        planMarkdown:
+          "# Imaginary Long-Range Plan: T3 Code Adaptive Orchestration and Safe-Delay Execution Initiative",
+      }),
+    });
+
+    try {
+      await waitForButtonByText("Implement");
+
+      await vi.waitFor(
+        () => {
+          const footer = document.querySelector<HTMLElement>('[data-chat-composer-footer="true"]');
+          const actions = document.querySelector<HTMLElement>(
+            '[data-chat-composer-actions="right"]',
+          );
+
+          expect(footer?.dataset.chatComposerFooterCompact).toBe("false");
+          expect(actions?.dataset.chatComposerPrimaryActionsCompact).toBe("false");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("compacts the footer when a wide desktop follow-up layout starts overflowing", async () => {
+    const mounted = await mountChatView({
+      viewport: WIDE_FOOTER_VIEWPORT,
+      snapshot: createSnapshotWithPlanFollowUpPrompt({
+        modelSelection: { provider: "codex", model: "gpt-5.3-codex-spark" },
+        planMarkdown:
+          "# Imaginary Long-Range Plan: T3 Code Adaptive Orchestration and Safe-Delay Execution Initiative",
+      }),
+    });
+
+    try {
+      await waitForButtonByText("Implement");
+
+      await mounted.setContainerSize({
+        width: 804,
+        height: WIDE_FOOTER_VIEWPORT.height,
+      });
+
+      await expectComposerActionsContained();
+
+      await vi.waitFor(
+        () => {
+          const footer = document.querySelector<HTMLElement>('[data-chat-composer-footer="true"]');
+          const actions = document.querySelector<HTMLElement>(
+            '[data-chat-composer-actions="right"]',
+          );
+
+          expect(footer?.dataset.chatComposerFooterCompact).toBe("true");
+          expect(actions?.dataset.chatComposerPrimaryActionsCompact).toBe("true");
         },
         { timeout: 8_000, interval: 16 },
       );
@@ -3257,6 +3880,57 @@ describe("ChatView timeline estimator parity (full app)", () => {
           expect(menuRect.height).toBeGreaterThan(0);
           expect(menuRect.bottom).toBeLessThanOrEqual(composerRect.bottom);
           expect(hitTarget instanceof Element && menuItem.contains(hitTarget)).toBe(true);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("shows a tooltip with the skill description when hovering a skill pill", async () => {
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "msg-user-skill-tooltip-target" as MessageId,
+        targetText: "skill tooltip thread",
+      }),
+      configureFixture: (nextFixture) => {
+        const provider = nextFixture.serverConfig.providers[0];
+        if (!provider) {
+          throw new Error("Expected default provider in test fixture.");
+        }
+        (
+          provider as {
+            skills: ServerConfig["providers"][number]["skills"];
+          }
+        ).skills = [
+          {
+            name: "agent-browser",
+            displayName: "Agent Browser",
+            description: "Open pages, click around, and inspect web apps.",
+            path: "/Users/test/.agents/skills/agent-browser/SKILL.md",
+            enabled: true,
+          },
+        ];
+      },
+    });
+
+    try {
+      useComposerDraftStore.getState().setPrompt(THREAD_REF, "use the $agent-browser ");
+      await waitForComposerText("use the $agent-browser ");
+
+      await waitForElement(
+        () => document.querySelector<HTMLElement>('[data-composer-skill-chip="true"]'),
+        "Unable to find rendered composer skill chip.",
+      );
+      await page.getByText("Agent Browser").hover();
+
+      await vi.waitFor(
+        () => {
+          const tooltip = document.querySelector<HTMLElement>('[data-slot="tooltip-popup"]');
+          expect(tooltip).not.toBeNull();
+          expect(tooltip?.textContent).toContain("Open pages, click around, and inspect web apps.");
         },
         { timeout: 8_000, interval: 16 },
       );

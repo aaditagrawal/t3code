@@ -39,7 +39,7 @@ import {
   SchemaIssue,
   SchemaTransformation,
   Ref,
-  ServiceMap,
+  Context,
   Scope,
   Stream,
 } from "effect";
@@ -323,7 +323,7 @@ export const ResolvedKeybindingFromConfig = KeybindingRule.pipe(
             Predicate.isNotNull,
             () =>
               new SchemaIssue.InvalidValue(Option.some(rule), {
-                title: "Invalid keybinding rule",
+                message: "Invalid keybinding rule",
               }),
           ),
           Effect.map((resolved) => resolved),
@@ -335,7 +335,7 @@ export const ResolvedKeybindingFromConfig = KeybindingRule.pipe(
           if (!key) {
             return yield* Effect.fail(
               new SchemaIssue.InvalidValue(Option.some(resolved), {
-                title: "Resolved shortcut cannot be encoded to key string",
+                message: "Resolved shortcut cannot be encoded to key string",
               }),
             );
           }
@@ -529,7 +529,7 @@ export interface KeybindingsShape {
 /**
  * Keybindings - Service tag for keybinding configuration operations.
  */
-export class Keybindings extends ServiceMap.Service<Keybindings, KeybindingsShape>()(
+export class Keybindings extends Context.Service<Keybindings, KeybindingsShape>()(
   "t3/keybindings",
 ) {}
 

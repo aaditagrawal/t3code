@@ -113,20 +113,15 @@ vi.mock("~/environmentApi", () => ({
 }));
 
 vi.mock("~/localApi", () => ({
-  readLocalApi: readLocalApiMock,
   ensureLocalApi: vi.fn(() => {
-    const api = readLocalApiMock();
-    if (!api) {
-      throw new Error("Local API not available in browser test");
-    }
-    return api;
+    throw new Error("ensureLocalApi not implemented in browser test");
   }),
-  __resetLocalApiForTests: vi.fn(async () => undefined),
+  readLocalApi: readLocalApiMock,
 }));
 
 import { TerminalViewport } from "./ThreadTerminalDrawer";
 
-const THREAD_ID = ThreadId.makeUnsafe("thread-terminal-browser");
+const THREAD_ID = ThreadId.make("thread-terminal-browser");
 
 function createEnvironmentApi() {
   return {
@@ -149,11 +144,25 @@ function createEnvironmentApi() {
   };
 }
 
-async function mountTerminalViewport(props: { threadRef: ReturnType<typeof scopeThreadRef> }) {
+async function mountTerminalViewport(props: {
+  threadRef: ReturnType<typeof scopeThreadRef>;
+  drawerBackgroundColor?: string;
+  drawerTextColor?: string;
+}) {
+  const drawer = document.createElement("div");
+  drawer.className = "thread-terminal-drawer";
+  if (props.drawerBackgroundColor) {
+    drawer.style.backgroundColor = props.drawerBackgroundColor;
+  }
+  if (props.drawerTextColor) {
+    drawer.style.color = props.drawerTextColor;
+  }
+
   const host = document.createElement("div");
   host.style.width = "800px";
   host.style.height = "400px";
-  document.body.append(host);
+  drawer.append(host);
+  document.body.append(drawer);
 
   const screen = await render(
     <TerminalViewport
@@ -192,7 +201,7 @@ async function mountTerminalViewport(props: { threadRef: ReturnType<typeof scope
     },
     cleanup: async () => {
       await screen.unmount();
-      host.remove();
+      drawer.remove();
     },
   };
 }
@@ -248,6 +257,60 @@ describe("TerminalViewport", () => {
         expect(environmentB.terminal.open).toHaveBeenCalledTimes(1);
       });
       expect(terminalDisposeSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("does not reopen the terminal when the scoped thread reference values stay the same", async () => {
+    const environment = createEnvironmentApi();
+    environmentApiById.set("environment-a", environment);
+
+    const mounted = await mountTerminalViewport({
+      threadRef: scopeThreadRef("environment-a" as never, THREAD_ID),
+    });
+
+    try {
+      await vi.waitFor(() => {
+        expect(environment.terminal.open).toHaveBeenCalledTimes(1);
+      });
+
+      await mounted.rerender({
+        threadRef: scopeThreadRef("environment-a" as never, THREAD_ID),
+      });
+
+      await vi.waitFor(() => {
+        expect(environment.terminal.open).toHaveBeenCalledTimes(1);
+      });
+      expect(terminalDisposeSpy).not.toHaveBeenCalled();
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("uses the drawer surface colors for the terminal theme", async () => {
+    const environment = createEnvironmentApi();
+    environmentApiById.set("environment-a", environment);
+
+    const mounted = await mountTerminalViewport({
+      threadRef: scopeThreadRef("environment-a" as never, THREAD_ID),
+      drawerBackgroundColor: "rgb(24, 28, 36)",
+      drawerTextColor: "rgb(228, 232, 240)",
+    });
+
+    try {
+      await vi.waitFor(() => {
+        expect(terminalConstructorSpy).toHaveBeenCalledTimes(1);
+      });
+
+      expect(terminalConstructorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          theme: expect.objectContaining({
+            background: "rgb(24, 28, 36)",
+            foreground: "rgb(228, 232, 240)",
+          }),
+        }),
+      );
     } finally {
       await mounted.cleanup();
     }

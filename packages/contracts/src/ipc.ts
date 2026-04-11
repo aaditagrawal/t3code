@@ -55,8 +55,9 @@ import type {
   OrchestrationEvent,
   OrchestrationReadModel,
 } from "./orchestration";
+import type { EnvironmentId } from "./baseSchemas";
 import { EditorId } from "./editor";
-import { ServerSettings, ServerSettingsPatch } from "./settings";
+import { ClientSettings, ServerSettings, ServerSettingsPatch } from "./settings";
 
 export interface ContextMenuItem<T extends string = string> {
   id: T;
@@ -113,11 +114,41 @@ export interface DesktopUpdateCheckResult {
 
 export interface DesktopEnvironmentBootstrap {
   label: string;
-  wsUrl: string | null;
+  httpBaseUrl: string | null;
+  wsBaseUrl: string | null;
+  bootstrapToken?: string;
 }
+
+export interface PersistedSavedEnvironmentRecord {
+  environmentId: EnvironmentId;
+  label: string;
+  wsBaseUrl: string;
+  httpBaseUrl: string;
+  createdAt: string;
+  lastConnectedAt: string | null;
+}
+
+export type DesktopServerExposureMode = "local-only" | "network-accessible";
+
+export interface DesktopServerExposureState {
+  mode: DesktopServerExposureMode;
+  endpointUrl: string | null;
+  advertisedHost: string | null;
+}
+
 export interface DesktopBridge {
-  getWsUrl: () => string | null;
   getLocalEnvironmentBootstrap: () => DesktopEnvironmentBootstrap | null;
+  getClientSettings: () => Promise<ClientSettings | null>;
+  setClientSettings: (settings: ClientSettings) => Promise<void>;
+  getSavedEnvironmentRegistry: () => Promise<readonly PersistedSavedEnvironmentRecord[]>;
+  setSavedEnvironmentRegistry: (
+    records: readonly PersistedSavedEnvironmentRecord[],
+  ) => Promise<void>;
+  getSavedEnvironmentSecret: (environmentId: EnvironmentId) => Promise<string | null>;
+  setSavedEnvironmentSecret: (environmentId: EnvironmentId, secret: string) => Promise<boolean>;
+  removeSavedEnvironmentSecret: (environmentId: EnvironmentId) => Promise<void>;
+  getServerExposureState: () => Promise<DesktopServerExposureState>;
+  setServerExposureMode: (mode: DesktopServerExposureMode) => Promise<DesktopServerExposureState>;
   pickFolder: () => Promise<string | null>;
   confirm: (message: string) => Promise<boolean>;
   setTheme: (theme: DesktopTheme) => Promise<void>;
@@ -136,6 +167,7 @@ export interface DesktopBridge {
   listLogFiles: () => Promise<string[]>;
   readLogFile: (filename: string) => Promise<string>;
   openLogDir: () => Promise<void>;
+  getWsUrl: () => string | null;
 }
 
 /**
@@ -153,24 +185,6 @@ export interface LocalApi {
     pickFolder: () => Promise<string | null>;
     confirm: (message: string) => Promise<boolean>;
   };
-  terminal: {
-    open: (input: typeof TerminalOpenInput.Encoded) => Promise<TerminalSessionSnapshot>;
-    write: (input: typeof TerminalWriteInput.Encoded) => Promise<void>;
-    resize: (input: typeof TerminalResizeInput.Encoded) => Promise<void>;
-    clear: (input: typeof TerminalClearInput.Encoded) => Promise<void>;
-    restart: (input: typeof TerminalRestartInput.Encoded) => Promise<TerminalSessionSnapshot>;
-    close: (input: typeof TerminalCloseInput.Encoded) => Promise<void>;
-    onEvent: (callback: (event: TerminalEvent) => void) => () => void;
-  };
-  projects: {
-    searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
-    writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
-  };
-  logs: {
-    getDir: () => Promise<{ dir: string }>;
-    list: () => Promise<{ files: string[] }>;
-    read: (filename: string) => Promise<{ content: string }>;
-  };
   shell: {
     openInEditor: (cwd: string, editor: EditorId) => Promise<void>;
     openExternal: (url: string) => Promise<void>;
@@ -181,9 +195,16 @@ export interface LocalApi {
       position?: { x: number; y: number },
     ) => Promise<T | null>;
   };
-  provider: {
-    listModels: (input: ProviderListModelsInput) => Promise<ProviderListModelsResult>;
-    getUsage: (input: ProviderGetUsageInput) => Promise<ProviderUsageResult>;
+  persistence: {
+    getClientSettings: () => Promise<ClientSettings | null>;
+    setClientSettings: (settings: ClientSettings) => Promise<void>;
+    getSavedEnvironmentRegistry: () => Promise<readonly PersistedSavedEnvironmentRecord[]>;
+    setSavedEnvironmentRegistry: (
+      records: readonly PersistedSavedEnvironmentRecord[],
+    ) => Promise<void>;
+    getSavedEnvironmentSecret: (environmentId: EnvironmentId) => Promise<string | null>;
+    setSavedEnvironmentSecret: (environmentId: EnvironmentId, secret: string) => Promise<boolean>;
+    removeSavedEnvironmentSecret: (environmentId: EnvironmentId) => Promise<void>;
   };
   server: {
     getConfig: () => Promise<ServerConfig>;
@@ -237,6 +258,10 @@ export interface EnvironmentApi {
         onResubscribe?: () => void;
       },
     ) => () => void;
+  };
+  provider?: {
+    listModels: (input: ProviderListModelsInput) => Promise<ProviderListModelsResult>;
+    getUsage: (input: ProviderGetUsageInput) => Promise<ProviderUsageResult>;
   };
   orchestration: {
     getSnapshot: () => Promise<OrchestrationReadModel>;

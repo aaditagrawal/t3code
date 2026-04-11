@@ -17,7 +17,7 @@ import {
   resolveCodexModelForAccount,
 } from "./codexAppServerManager";
 
-const asThreadId = (value: string): ThreadId => ThreadId.makeUnsafe(value);
+const asThreadId = (value: string): ThreadId => ThreadId.make(value);
 
 function createSendTurnHarness() {
   const manager = new CodexAppServerManager();
@@ -140,9 +140,9 @@ function createPendingUserInputHarness() {
     },
     pendingUserInputs: new Map([
       [
-        ApprovalRequestId.makeUnsafe("req-user-input-1"),
+        ApprovalRequestId.make("req-user-input-1"),
         {
-          requestId: ApprovalRequestId.makeUnsafe("req-user-input-1"),
+          requestId: ApprovalRequestId.make("req-user-input-1"),
           jsonRpcId: 42,
           threadId: asThreadId("thread_1"),
         },
@@ -806,7 +806,7 @@ describe("respondToUserInput", () => {
 
     await manager.respondToUserInput(
       asThreadId("thread_1"),
-      ApprovalRequestId.makeUnsafe("req-user-input-1"),
+      ApprovalRequestId.make("req-user-input-1"),
       {
         scope: "All request methods",
         compat: "Keep current envelope",
@@ -843,7 +843,7 @@ describe("respondToUserInput", () => {
 
     await manager.respondToUserInput(
       asThreadId("thread_1"),
-      ApprovalRequestId.makeUnsafe("req-user-input-1"),
+      ApprovalRequestId.make("req-user-input-1"),
       {
         scope: [],
       },

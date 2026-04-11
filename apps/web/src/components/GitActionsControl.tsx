@@ -51,6 +51,7 @@ import {
 import { refreshGitStatus, useGitStatus } from "~/lib/gitStatusState";
 import { newCommandId, randomUUID } from "~/lib/utils";
 import { resolvePathLinkTarget } from "~/terminal-links";
+import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { readEnvironmentApi } from "~/environmentApi";
 import { readLocalApi } from "~/localApi";
 import { useStore } from "~/store";
@@ -61,6 +62,7 @@ interface GitActionsControlProps {
   activeThreadRef: ScopedThreadRef | null;
   provider?: ProviderKind;
   model?: string;
+  draftId?: DraftId;
 }
 
 interface PendingDefaultBranchAction {
@@ -217,19 +219,27 @@ export default function GitActionsControl({
   activeThreadRef,
   provider,
   model,
+  draftId,
 }: GitActionsControlProps) {
   const { settings } = useAppSettings();
-  const activeThreadId = activeThreadRef?.threadId ?? null;
   const activeEnvironmentId = activeThreadRef?.environmentId ?? null;
   const threadToastData = useMemo(
-    () => (activeThreadId ? { threadId: activeThreadId } : undefined),
-    [activeThreadId],
+    () => (activeThreadRef ? { threadRef: activeThreadRef } : undefined),
+    [activeThreadRef],
   );
   const activeServerThreadSelector = useMemo(
     () => createThreadSelectorByRef(activeThreadRef),
     [activeThreadRef],
   );
   const activeServerThread = useStore(activeServerThreadSelector);
+  const activeDraftThread = useComposerDraftStore((store) =>
+    draftId
+      ? store.getDraftSession(draftId)
+      : activeThreadRef
+        ? store.getDraftThreadByRef(activeThreadRef)
+        : null,
+  );
+  const setDraftThreadContext = useComposerDraftStore((store) => store.setDraftThreadContext);
   const setThreadBranch = useStore((store) => store.setThreadBranch);
   const queryClient = useQueryClient();
   const [isCommitDialogOpen, setIsCommitDialogOpen] = useState(false);
@@ -264,27 +274,50 @@ export default function GitActionsControl({
 
   const persistThreadBranchSync = useCallback(
     (branch: string | null) => {
-      if (!activeThreadId || !activeServerThread || activeServerThread.branch === branch) {
+      if (!activeThreadRef) {
         return;
       }
 
-      const worktreePath = activeServerThread.worktreePath;
-      const api = activeEnvironmentId ? readEnvironmentApi(activeEnvironmentId) : undefined;
-      if (api) {
-        void api.orchestration
-          .dispatchCommand({
-            type: "thread.meta.update",
-            commandId: newCommandId(),
-            threadId: activeThreadId,
-            branch,
-            worktreePath,
-          })
-          .catch(() => undefined);
+      if (activeServerThread) {
+        if (activeServerThread.branch === branch) {
+          return;
+        }
+
+        const worktreePath = activeServerThread.worktreePath;
+        const api = readEnvironmentApi(activeThreadRef.environmentId);
+        if (api) {
+          void api.orchestration
+            .dispatchCommand({
+              type: "thread.meta.update",
+              commandId: newCommandId(),
+              threadId: activeThreadRef.threadId,
+              branch,
+              worktreePath,
+            })
+            .catch(() => undefined);
+        }
+
+        setThreadBranch(activeThreadRef, branch, worktreePath);
+        return;
       }
 
-      setThreadBranch(activeThreadId, branch, worktreePath);
+      if (!activeDraftThread || activeDraftThread.branch === branch) {
+        return;
+      }
+
+      setDraftThreadContext(draftId ?? activeThreadRef, {
+        branch,
+        worktreePath: activeDraftThread.worktreePath,
+      });
     },
-    [activeEnvironmentId, activeServerThread, activeThreadId, setThreadBranch],
+    [
+      activeDraftThread,
+      activeServerThread,
+      activeThreadRef,
+      draftId,
+      setDraftThreadContext,
+      setThreadBranch,
+    ],
   );
 
   const syncThreadBranchAfterGitAction = useCallback(
@@ -335,14 +368,18 @@ export default function GitActionsControl({
   const isPullRunning =
     useIsMutating({ mutationKey: gitMutationKeys.pull(activeEnvironmentId, gitCwd) }) > 0;
   const isGitActionRunning = isRunStackedActionRunning || isPullRunning;
+  const isSelectingWorktreeBase =
+    !activeServerThread &&
+    activeDraftThread?.envMode === "worktree" &&
+    activeDraftThread.worktreePath === null;
 
   useEffect(() => {
-    if (isGitActionRunning) {
+    if (isGitActionRunning || isSelectingWorktreeBase) {
       return;
     }
 
     const branchUpdate = resolveLiveThreadBranchUpdate({
-      threadBranch: activeServerThread?.branch ?? null,
+      threadBranch: activeServerThread?.branch ?? activeDraftThread?.branch ?? null,
       gitStatus: gitStatusForActions,
     });
     if (!branchUpdate) {
@@ -352,8 +389,10 @@ export default function GitActionsControl({
     persistThreadBranchSync(branchUpdate.branch);
   }, [
     activeServerThread?.branch,
+    activeDraftThread?.branch,
     gitStatusForActions,
     isGitActionRunning,
+    isSelectingWorktreeBase,
     persistThreadBranchSync,
   ]);
 

@@ -76,7 +76,7 @@ interface PendingPermission {
 
 interface CursorTurnState {
   readonly turnId: TurnId;
-  readonly assistantItemId: ReturnType<typeof ProviderItemId.makeUnsafe>;
+  readonly assistantItemId: ReturnType<typeof ProviderItemId.make>;
   readonly startedToolCalls: Set<string>;
   readonly toolCalls: Map<string, { itemType: CanonicalItemType; title: string }>;
   readonly items: Array<unknown>;
@@ -248,15 +248,15 @@ export interface CursorAdapterLiveOptions {
 }
 
 function asRuntimeItemId(value: string): RuntimeItemId {
-  return RuntimeItemId.makeUnsafe(value);
+  return RuntimeItemId.make(value);
 }
 
 function asProviderItemId(value: string): ProviderItemId {
-  return ProviderItemId.makeUnsafe(value);
+  return ProviderItemId.make(value);
 }
 
 function asRuntimeRequestId(value: ApprovalRequestId): RuntimeRequestId {
-  return RuntimeRequestId.makeUnsafe(value);
+  return RuntimeRequestId.make(value);
 }
 
 const { toRequestError } = makeErrorHelpers(PROVIDER, {
@@ -498,7 +498,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
         : undefined);
 
     const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
-    const nextEventId = Effect.map(Random.nextUUIDv4, (id) => EventId.makeUnsafe(id));
+    const nextEventId = Effect.map(Random.nextUUIDv4, (id) => EventId.make(id));
     const makeEventStamp = () => Effect.all({ eventId: nextEventId, createdAt: nowIso });
 
     const sessions = new Map<ThreadId, CursorSessionContext>();
@@ -699,7 +699,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
       }
 
       return Effect.gen(function* () {
-        const requestId = ApprovalRequestId.makeUnsafe(randomUUID());
+        const requestId = ApprovalRequestId.make(randomUUID());
         const requestType = normalizeRequestType(decoded.params.toolCall);
         const options = decoded.params.options.map((entry) => ({ optionId: entry.optionId }));
         const detail = asString(asObject(decoded.params.toolCall)?.title);
@@ -1011,7 +1011,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
               {
                 observedAt: new Date().toISOString(),
                 event: {
-                  id: EventId.makeUnsafe(randomUUID()),
+                  id: EventId.make(randomUUID()),
                   kind: nativeKind,
                   provider: PROVIDER,
                   createdAt: new Date().toISOString(),
@@ -1512,7 +1512,7 @@ function makeCursorAdapter(options?: CursorAdapterLiveOptions) {
           });
         }
 
-        const turnId = TurnId.makeUnsafe(yield* Random.nextUUIDv4);
+        const turnId = TurnId.make(yield* Random.nextUUIDv4);
         const turnState: CursorTurnState = {
           turnId,
           assistantItemId: asProviderItemId(yield* Random.nextUUIDv4),

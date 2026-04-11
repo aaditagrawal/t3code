@@ -1,39 +1,6 @@
 import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime";
 import { ThreadId, type TerminalEvent } from "@t3tools/contracts";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-// Ensure a full Storage-compatible localStorage exists before any module that
-// uses zustand persist is imported.  Vitest `vi.hoisted` runs the factory
-// before ES-module imports are evaluated, so the mock is in place by the time
-// `terminalStateStore.ts` creates the zustand store with `createJSONStorage`.
-const { mockLocalStorage } = vi.hoisted(() => {
-  const store = new Map<string, string>();
-  const mockLocalStorage: Storage = {
-    get length() {
-      return store.size;
-    },
-    clear() {
-      store.clear();
-    },
-    getItem(key: string) {
-      return store.get(key) ?? null;
-    },
-    key(index: number) {
-      return Array.from(store.keys())[index] ?? null;
-    },
-    removeItem(key: string) {
-      store.delete(key);
-    },
-    setItem(key: string, value: string) {
-      store.set(key, String(value));
-    },
-  };
-  Object.defineProperty(globalThis, "localStorage", {
-    configurable: true,
-    value: mockLocalStorage,
-  });
-  return { mockLocalStorage };
-});
+import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   migratePersistedTerminalStateStoreState,
@@ -42,7 +9,7 @@ import {
   useTerminalStateStore,
 } from "./terminalStateStore";
 
-const THREAD_ID = ThreadId.makeUnsafe("thread-1");
+const THREAD_ID = ThreadId.make("thread-1");
 const THREAD_REF = scopeThreadRef("environment-a" as never, THREAD_ID);
 const OTHER_THREAD_REF = scopeThreadRef("environment-b" as never, THREAD_ID);
 
@@ -91,7 +58,7 @@ function makeTerminalEvent(
 
 describe("terminalStateStore actions", () => {
   beforeEach(() => {
-    mockLocalStorage.clear();
+    useTerminalStateStore.persist.clearStorage();
     useTerminalStateStore.setState({
       terminalStateByThreadKey: {},
       terminalLaunchContextByThreadKey: {},

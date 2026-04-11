@@ -25,7 +25,10 @@ layer("021_RepairProjectionThreadProposedPlanImplementationColumns", (it) => {
           (17, 'ProjectionThreadsArchivedAt'),
           (18, 'ProjectionThreadsArchivedAtIndex'),
           (19, 'ProjectionSnapshotLookupIndexes'),
-          (20, 'NormalizeLegacyProviderKinds')
+          (20, 'AuthAccessManagement'),
+          (21, 'AuthSessionClientMetadata'),
+          (22, 'AuthSessionLastConnectedAt'),
+          (23, 'NormalizeLegacyProviderKinds')
       `;
 
         const columnsBeforeRepair = yield* sql<{ readonly name: string }>`

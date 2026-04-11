@@ -438,7 +438,7 @@ export class KiloServerManager extends EventEmitter<KiloManagerEvents> {
       const info = asRecord(asRecord(entry)?.info);
       const messageId = asString(info?.id) ?? randomUUID();
       return {
-        id: TurnId.makeUnsafe(messageId),
+        id: TurnId.make(messageId),
         items: [entry],
       };
     });

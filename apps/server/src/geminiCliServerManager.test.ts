@@ -7,7 +7,7 @@ import {
   resolveGeminiSpawnPlan,
 } from "./geminiCliServerManager";
 
-const asThreadId = (value: string): ThreadId => ThreadId.makeUnsafe(value);
+const asThreadId = (value: string): ThreadId => ThreadId.make(value);
 
 // ---------------------------------------------------------------------------
 // Helpers to inspect spawned processes
@@ -378,7 +378,7 @@ describe("GeminiCliServerManager JSON event mapping", () => {
 
   /** Invoke the private handleJsonLine method for testing. */
   function feedJsonLine(line: string): void {
-    const turnId = TurnId.makeUnsafe("test-turn-1");
+    const turnId = TurnId.make("test-turn-1");
     (
       manager as unknown as {
         handleJsonLine: (threadId: ThreadId, turnId: TurnId, line: string) => void;

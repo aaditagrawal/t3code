@@ -421,7 +421,7 @@ export class GeminiCliServerManager extends EventEmitter<{
       throw new Error("Gemini CLI does not support attachments");
     }
 
-    const turnId = TurnId.makeUnsafe(randomUUID());
+    const turnId = TurnId.make(randomUUID());
     session.activeTurnId = turnId;
     session.status = "running";
     session.updatedAt = new Date().toISOString();
@@ -681,7 +681,7 @@ export class GeminiCliServerManager extends EventEmitter<{
         if (event.role === "assistant" && event.content) {
           // Reuse a stable itemId so all deltas aggregate into one assistant message.
           if (!session.activeAssistantItemId) {
-            session.activeAssistantItemId = RuntimeItemId.makeUnsafe(randomUUID());
+            session.activeAssistantItemId = RuntimeItemId.make(randomUUID());
           }
           this.emitEvent(threadId, turnId, {
             type: "content.delta",
@@ -710,7 +710,7 @@ export class GeminiCliServerManager extends EventEmitter<{
           session.activeAssistantItemId = undefined;
         }
 
-        const itemId = RuntimeItemId.makeUnsafe(randomUUID());
+        const itemId = RuntimeItemId.make(randomUUID());
         const toolTitle = summarizeToolCall(event.tool_name, event.parameters);
         const paramSummary =
           typeof event.parameters === "object" ? JSON.stringify(event.parameters) : undefined;
@@ -848,7 +848,7 @@ export class GeminiCliServerManager extends EventEmitter<{
   ): void {
     const event = {
       type: partial.type,
-      eventId: EventId.makeUnsafe(randomUUID()),
+      eventId: EventId.make(randomUUID()),
       provider: PROVIDER,
       createdAt: new Date().toISOString(),
       threadId,
