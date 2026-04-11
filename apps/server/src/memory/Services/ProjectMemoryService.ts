@@ -56,46 +56,52 @@ const makeProjectMemoryService = Effect.gen(function* () {
   const search: ProjectMemoryServiceShape["search"] = (input) =>
     Effect.gen(function* () {
       const start = Date.now();
-      const kindClause = input.kind ? "AND m.kind = ?" : "";
-      const queryParams: Array<string | number> = input.kind
-        ? [input.query, input.projectId, input.kind, input.limit]
-        : [input.query, input.projectId, input.limit];
-      // Use FTS5 for full-text search
-      const rows = yield* sql.unsafe<{
-        id: string;
-        project_id: string;
-        thread_id: string | null;
-        kind: string;
-        title: string;
-        content: string;
-        tags: string;
-        relevance_score: number;
-        access_count: number;
-        created_at: string;
-        updated_at: string;
-        expires_at: string | null;
-        rank: number;
-      }>(
-        `SELECT m.*, fts.rank
-         FROM memory_fts fts
-         JOIN memory_entries m ON m.rowid = fts.rowid
-         WHERE memory_fts MATCH ?
-           AND m.project_id = ?
-           ${kindClause}
-           AND (m.expires_at IS NULL OR m.expires_at > datetime('now'))
-         ORDER BY fts.rank
-         LIMIT ?`,
-        queryParams,
-      );
+      const pattern = `%${input.query}%`;
+      const rows = yield* (input.kind
+        ? sql<{
+            id: string;
+            project_id: string;
+            thread_id: string | null;
+            kind: string;
+            title: string;
+            content: string;
+            tags: string;
+            relevance_score: number;
+            access_count: number;
+            created_at: string;
+            updated_at: string;
+            expires_at: string | null;
+          }>`SELECT * FROM memory_entries
+             WHERE project_id = ${input.projectId}
+               AND kind = ${input.kind}
+               AND (title LIKE ${pattern} OR content LIKE ${pattern} OR tags LIKE ${pattern})
+               AND (expires_at IS NULL OR expires_at > datetime('now'))
+             ORDER BY relevance_score DESC
+             LIMIT ${input.limit}`
+        : sql<{
+            id: string;
+            project_id: string;
+            thread_id: string | null;
+            kind: string;
+            title: string;
+            content: string;
+            tags: string;
+            relevance_score: number;
+            access_count: number;
+            created_at: string;
+            updated_at: string;
+            expires_at: string | null;
+          }>`SELECT * FROM memory_entries
+             WHERE project_id = ${input.projectId}
+               AND (title LIKE ${pattern} OR content LIKE ${pattern} OR tags LIKE ${pattern})
+               AND (expires_at IS NULL OR expires_at > datetime('now'))
+             ORDER BY relevance_score DESC
+             LIMIT ${input.limit}`);
 
       // Increment access count
       if (rows.length > 0) {
-        const placeholders = rows.map(() => "?").join(",");
         const ids = rows.map((r) => r.id);
-        yield* sql.unsafe(
-          `UPDATE memory_entries SET access_count = access_count + 1 WHERE id IN (${placeholders})`,
-          ids,
-        );
+        yield* sql`UPDATE memory_entries SET access_count = access_count + 1 WHERE id IN ${sql.in(ids)}`;
       }
 
       const results: MemorySearchResult[] = rows.map((r) => ({
@@ -113,7 +119,7 @@ const makeProjectMemoryService = Effect.gen(function* () {
           updatedAt: r.updated_at,
           expiresAt: (r.expires_at ?? null) as MemoryEntry["expiresAt"],
         } as MemoryEntry,
-        matchScore: -r.rank, // FTS5 rank is negative; flip for display
+        matchScore: r.relevance_score,
         matchSnippet: null,
       }));
 
@@ -169,10 +175,7 @@ const makeProjectMemoryService = Effect.gen(function* () {
   const index: ProjectMemoryServiceShape["index"] = (input) =>
     Effect.gen(function* () {
       const start = Date.now();
-      if (input.forceReindex) {
-        // Rebuild FTS index
-        yield* sql.unsafe("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
-      }
+      // forceReindex is a no-op with LIKE-based search (no external index to rebuild)
       const rows = yield* sql<{
         count: number;
       }>`SELECT COUNT(*) as count FROM memory_entries WHERE project_id = ${input.projectId}`;

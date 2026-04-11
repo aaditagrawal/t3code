@@ -222,35 +222,6 @@ export default Effect.gen(function* () {
     CREATE INDEX IF NOT EXISTS idx_memory_entries_kind ON memory_entries(kind)
   `;
 
-  yield* sql`
-    CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
-      title,
-      content,
-      tags,
-      content=memory_entries,
-      content_rowid=rowid
-    )
-  `;
-
-  yield* sql.unsafe(`
-    CREATE TRIGGER IF NOT EXISTS memory_fts_insert AFTER INSERT ON memory_entries BEGIN
-      INSERT INTO memory_fts(rowid, title, content, tags) VALUES (new.rowid, new.title, new.content, new.tags);
-    END
-  `);
-
-  yield* sql.unsafe(`
-    CREATE TRIGGER IF NOT EXISTS memory_fts_delete AFTER DELETE ON memory_entries BEGIN
-      INSERT INTO memory_fts(memory_fts, rowid, title, content, tags) VALUES ('delete', old.rowid, old.title, old.content, old.tags);
-    END
-  `);
-
-  yield* sql.unsafe(`
-    CREATE TRIGGER IF NOT EXISTS memory_fts_update AFTER UPDATE ON memory_entries BEGIN
-      INSERT INTO memory_fts(memory_fts, rowid, title, content, tags) VALUES ('delete', old.rowid, old.title, old.content, old.tags);
-      INSERT INTO memory_fts(rowid, title, content, tags) VALUES (new.rowid, new.title, new.content, new.tags);
-    END
-  `);
-
   // ── Presence / Session Sharing ─────────────────────────────────────
 
   yield* sql`
