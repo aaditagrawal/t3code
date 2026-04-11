@@ -13,7 +13,7 @@ type Loader = {
   layer: (config: RuntimeSqliteLayerConfig) => Layer.Layer<SqlClient.SqlClient>;
 };
 const defaultSqliteClientLoaders = {
-  bun: () => import("@effect/sql-sqlite-bun/SqliteClient"),
+  bun: () => import("../NodeSqliteClient.ts"),
   node: () => import("../NodeSqliteClient.ts"),
 } satisfies Record<string, () => Promise<Loader>>;
 
@@ -42,21 +42,22 @@ export const makeSqlitePersistenceLive = Effect.fn("makeSqlitePersistenceLive")(
   const path = yield* Path.Path;
   yield* fs.makeDirectory(path.dirname(dbPath), { recursive: true });
 
-  return Layer.provideMerge(
-    setup,
-    makeRuntimeSqliteLayer({
-      filename: dbPath,
-      spanAttributes: {
-        "db.name": path.basename(dbPath),
-        "service.name": "t3-server",
-      },
-    }),
-  );
+  const sqliteLayer = makeRuntimeSqliteLayer({
+    filename: dbPath,
+    spanAttributes: {
+      "db.name": path.basename(dbPath),
+      "service.name": "t3-server",
+    },
+  });
+
+  return Layer.merge(sqliteLayer, setup.pipe(Layer.provide(sqliteLayer)));
 }, Layer.unwrap);
 
-export const SqlitePersistenceMemory = Layer.provideMerge(
-  setup,
-  makeRuntimeSqliteLayer({ filename: ":memory:" }),
+const sqliteMemoryLayer = makeRuntimeSqliteLayer({ filename: ":memory:" });
+
+export const SqlitePersistenceMemory = Layer.merge(
+  sqliteMemoryLayer,
+  setup.pipe(Layer.provide(sqliteMemoryLayer)),
 );
 
 export const layerConfig = Layer.unwrap(
