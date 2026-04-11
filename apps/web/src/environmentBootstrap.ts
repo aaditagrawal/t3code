@@ -8,7 +8,7 @@ import type { DesktopEnvironmentBootstrap } from "@t3tools/contracts";
 function createKnownEnvironmentFromDesktopBootstrap(
   bootstrap: DesktopEnvironmentBootstrap | null | undefined,
 ): KnownEnvironment | null {
-  if (!bootstrap?.wsUrl) {
+  if (!bootstrap?.wsBaseUrl) {
     return null;
   }
 
@@ -16,7 +16,7 @@ function createKnownEnvironmentFromDesktopBootstrap(
     id: `desktop:${bootstrap.label}`,
     label: bootstrap.label,
     source: "desktop-managed",
-    wsUrl: bootstrap.wsUrl,
+    wsUrl: bootstrap.wsBaseUrl,
   });
 }
 

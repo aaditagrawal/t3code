@@ -337,7 +337,7 @@ export class AmpServerManager extends EventEmitter<{
       throw new Error("Attachments are not supported by AMP");
     }
 
-    const turnId = TurnId.makeUnsafe(randomUUID());
+    const turnId = TurnId.make(randomUUID());
     const prompt = input.input ?? "";
 
     // Write a JSONL user message to stdin for the persistent AMP process.
@@ -605,7 +605,7 @@ export class AmpServerManager extends EventEmitter<{
     switch (block.type) {
       case "text": {
         if (!session.activeAssistantItemId) {
-          session.activeAssistantItemId = RuntimeItemId.makeUnsafe(randomUUID());
+          session.activeAssistantItemId = RuntimeItemId.make(randomUUID());
         }
         this.emitEvent(
           threadId,
@@ -624,7 +624,7 @@ export class AmpServerManager extends EventEmitter<{
 
       case "thinking": {
         if (!session.activeAssistantItemId) {
-          session.activeAssistantItemId = RuntimeItemId.makeUnsafe(randomUUID());
+          session.activeAssistantItemId = RuntimeItemId.make(randomUUID());
         }
         this.emitEvent(
           threadId,
@@ -646,7 +646,7 @@ export class AmpServerManager extends EventEmitter<{
         session.activeAssistantItemId = undefined;
         const itemType = classifyToolName(block.name);
         session.toolItemTypes.set(block.id, itemType);
-        const itemId = RuntimeItemId.makeUnsafe(block.id);
+        const itemId = RuntimeItemId.make(block.id);
         this.emitEvent(
           threadId,
           session.activeTurnId,
@@ -681,7 +681,7 @@ export class AmpServerManager extends EventEmitter<{
     const existing = session.subagentTasks.get(parentToolUseId);
     if (!existing) {
       // First occurrence — emit task.started.
-      const taskId = RuntimeTaskId.makeUnsafe(randomUUID());
+      const taskId = RuntimeTaskId.make(randomUUID());
       session.subagentTasks.set(parentToolUseId, taskId);
       this.emitEvent(threadId, session.activeTurnId, {
         type: "task.started",
@@ -696,7 +696,7 @@ export class AmpServerManager extends EventEmitter<{
       this.emitEvent(threadId, session.activeTurnId, {
         type: "task.progress",
         payload: {
-          taskId: RuntimeTaskId.makeUnsafe(existing),
+          taskId: RuntimeTaskId.make(existing),
           description: `Subagent progress for tool ${parentToolUseId}`,
         },
       });
@@ -708,7 +708,7 @@ export class AmpServerManager extends EventEmitter<{
       this.emitEvent(threadId, session.activeTurnId, {
         type: "task.completed",
         payload: {
-          taskId: RuntimeTaskId.makeUnsafe(taskId),
+          taskId: RuntimeTaskId.make(taskId),
           status: "completed",
           summary: `Subagent for tool ${parentToolUseId} completed`,
         },
@@ -731,7 +731,7 @@ export class AmpServerManager extends EventEmitter<{
             data: null,
           },
         },
-        RuntimeItemId.makeUnsafe(toolUseId),
+        RuntimeItemId.make(toolUseId),
       );
     }
     session.toolItemTypes.clear();
@@ -746,7 +746,7 @@ export class AmpServerManager extends EventEmitter<{
       for (const block of content) {
         if (block.type === "tool_result") {
           const resultBlock = block as AmpToolResultContentBlock;
-          const itemId = RuntimeItemId.makeUnsafe(resultBlock.tool_use_id);
+          const itemId = RuntimeItemId.make(resultBlock.tool_use_id);
           const itemType =
             session.toolItemTypes.get(resultBlock.tool_use_id) ?? "dynamic_tool_call";
           session.toolItemTypes.delete(resultBlock.tool_use_id);
@@ -825,7 +825,7 @@ export class AmpServerManager extends EventEmitter<{
   ): void {
     const event = {
       type: partial.type,
-      eventId: EventId.makeUnsafe(randomUUID()),
+      eventId: EventId.make(randomUUID()),
       provider: PROVIDER,
       createdAt: new Date().toISOString(),
       threadId,
@@ -833,7 +833,7 @@ export class AmpServerManager extends EventEmitter<{
       ...(itemId
         ? { itemId }
         : partial.type === "content.delta"
-          ? { itemId: RuntimeItemId.makeUnsafe(randomUUID()) }
+          ? { itemId: RuntimeItemId.make(randomUUID()) }
           : {}),
       payload: partial.payload,
     } as unknown as ProviderRuntimeEvent;

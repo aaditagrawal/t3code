@@ -1,4 +1,4 @@
-import { ServiceMap } from "effect";
+import { Context } from "effect";
 import type { Effect } from "effect";
 
 import type { TextGenerationError } from "@t3tools/contracts";
@@ -18,7 +18,7 @@ export interface CopilotTextGenerationShape {
   ) => Effect.Effect<PrContentGenerationResult, TextGenerationError>;
 }
 
-export class CopilotTextGeneration extends ServiceMap.Service<
+export class CopilotTextGeneration extends Context.Service<
   CopilotTextGeneration,
   CopilotTextGenerationShape
 >()("t3/git/Services/CopilotTextGeneration") {}

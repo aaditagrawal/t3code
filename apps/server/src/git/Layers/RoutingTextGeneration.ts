@@ -12,7 +12,7 @@
  *
  * @module RoutingTextGeneration
  */
-import { Effect, Layer, ServiceMap } from "effect";
+import { Effect, Layer, Context } from "effect";
 
 import type { ProviderKind } from "@t3tools/contracts";
 import { TextGeneration, type TextGenerationShape } from "../Services/TextGeneration.ts";
@@ -31,15 +31,15 @@ import { makeCopilotTextGenerationLive } from "./CopilotTextGeneration.ts";
 
 const GIT_TEXT_GEN_PROVIDERS = new Set<ProviderKind>(["codex", "claudeAgent", "copilot"]);
 
-class CodexTextGen extends ServiceMap.Service<CodexTextGen, TextGenerationShape>()(
+class CodexTextGen extends Context.Service<CodexTextGen, TextGenerationShape>()(
   "t3/git/Layers/RoutingTextGeneration/CodexTextGen",
 ) {}
 
-class ClaudeTextGen extends ServiceMap.Service<ClaudeTextGen, TextGenerationShape>()(
+class ClaudeTextGen extends Context.Service<ClaudeTextGen, TextGenerationShape>()(
   "t3/git/Layers/RoutingTextGeneration/ClaudeTextGen",
 ) {}
 
-class CopilotTextGen extends ServiceMap.Service<CopilotTextGen, CopilotTextGenerationShape>()(
+class CopilotTextGen extends Context.Service<CopilotTextGen, CopilotTextGenerationShape>()(
   "t3/git/Layers/RoutingTextGeneration/CopilotTextGen",
 ) {}
 

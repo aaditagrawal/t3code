@@ -11,12 +11,15 @@ import {
 } from "effect";
 import { RpcClient } from "effect/unstable/rpc";
 
-import { ClientTracingLive, configureClientTracing } from "./observability/clientTracing";
+import { ClientTracingLive } from "../observability/clientTracing";
 import {
   createWsRpcProtocolLayer,
   makeWsRpcProtocolClient,
+  type WsProtocolLifecycleHandlers,
   type WsRpcProtocolClient,
-} from "./rpc/protocol";
+  type WsRpcProtocolSocketUrlProvider,
+} from "./protocol";
+import { isTransportConnectionErrorMessage } from "./transportError";
 
 interface SubscribeOptions {
   readonly retryDelay?: Duration.Input;
@@ -44,15 +47,19 @@ function formatErrorMessage(error: unknown): string {
 }
 
 export class WsTransport {
-  private readonly tracingReady: Promise<void>;
-  private readonly url: string | undefined;
+  private readonly url: WsRpcProtocolSocketUrlProvider;
+  private readonly lifecycleHandlers: WsProtocolLifecycleHandlers | undefined;
   private disposed = false;
+  private hasReportedTransportDisconnect = false;
   private reconnectChain: Promise<void> = Promise.resolve();
   private session: TransportSession;
 
-  constructor(url?: string) {
+  constructor(
+    url: WsRpcProtocolSocketUrlProvider,
+    lifecycleHandlers?: WsProtocolLifecycleHandlers,
+  ) {
     this.url = url;
-    this.tracingReady = configureClientTracing();
+    this.lifecycleHandlers = lifecycleHandlers;
     this.session = this.createSession();
   }
 
@@ -64,7 +71,6 @@ export class WsTransport {
       throw new Error("Transport disposed");
     }
 
-    await this.tracingReady;
     const session = this.session;
     const client = await session.clientPromise;
     return await session.runtime.runPromise(Effect.suspend(() => execute(client)));
@@ -78,7 +84,6 @@ export class WsTransport {
       throw new Error("Transport disposed");
     }
 
-    await this.tracingReady;
     const session = this.session;
     const client = await session.clientPromise;
     await session.runtime.runPromise(
@@ -132,6 +137,7 @@ export class WsTransport {
             listener,
             () => active,
             () => {
+              this.hasReportedTransportDisconnect = false;
               hasReceivedValue = true;
             },
           );
@@ -144,9 +150,20 @@ export class WsTransport {
             return;
           }
 
-          console.warn("WebSocket RPC subscription disconnected", {
-            error: formatErrorMessage(error),
-          });
+          const formattedError = formatErrorMessage(error);
+          if (!isTransportConnectionErrorMessage(formattedError)) {
+            console.warn("WebSocket RPC subscription failed", {
+              error: formattedError,
+            });
+            return;
+          }
+
+          if (!this.hasReportedTransportDisconnect) {
+            console.warn("WebSocket RPC subscription disconnected", {
+              error: formattedError,
+            });
+          }
+          this.hasReportedTransportDisconnect = true;
           await sleep(retryDelayMs);
         }
       }
@@ -193,7 +210,7 @@ export class WsTransport {
 
   private createSession(): TransportSession {
     const runtime = ManagedRuntime.make(
-      Layer.mergeAll(createWsRpcProtocolLayer(this.url), ClientTracingLive),
+      Layer.mergeAll(createWsRpcProtocolLayer(this.url, this.lifecycleHandlers), ClientTracingLive),
     );
     const clientScope = runtime.runSync(Scope.make());
     return {
@@ -220,8 +237,7 @@ export class WsTransport {
       rejectCompleted = reject;
     });
     const cancel = session.runtime.runCallback(
-      Effect.promise(() => this.tracingReady).pipe(
-        Effect.flatMap(() => Effect.promise(() => session.clientPromise)),
+      Effect.promise(() => session.clientPromise).pipe(
         Effect.flatMap((client) =>
           Stream.runForEach(connect(client), (value) =>
             Effect.sync(() => {

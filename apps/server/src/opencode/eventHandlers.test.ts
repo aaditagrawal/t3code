@@ -12,7 +12,7 @@ import {
 function createContext(): OpenCodeSessionContext {
   const now = new Date().toISOString();
   return {
-    threadId: ThreadId.makeUnsafe("thread-opencode"),
+    threadId: ThreadId.make("thread-opencode"),
     directory: process.cwd(),
     providerSessionId: "session-opencode",
     client: {
@@ -51,12 +51,12 @@ function createContext(): OpenCodeSessionContext {
       provider: PROVIDER,
       status: "running",
       runtimeMode: "approval-required",
-      threadId: ThreadId.makeUnsafe("thread-opencode"),
+      threadId: ThreadId.make("thread-opencode"),
       createdAt: now,
       updatedAt: now,
       resumeCursor: { sessionId: "session-opencode" },
     } as OpenCodeProviderSession,
-    activeTurnId: TurnId.makeUnsafe("turn-opencode"),
+    activeTurnId: TurnId.make("turn-opencode"),
     lastError: undefined,
   };
 }

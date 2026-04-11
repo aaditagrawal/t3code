@@ -147,32 +147,32 @@ interface CopilotClientHandle {
 }
 
 function makeEventId(prefix: string) {
-  return EventId.makeUnsafe(`${prefix}-${randomUUID()}`);
+  return EventId.make(`${prefix}-${randomUUID()}`);
 }
 
 function toTurnId(value: string | undefined): TurnId | undefined {
   if (!value || value.trim().length === 0) return undefined;
-  return TurnId.makeUnsafe(value);
+  return TurnId.make(value);
 }
 
 function toRuntimeItemId(value: string | undefined) {
   if (!value || value.trim().length === 0) return undefined;
-  return RuntimeItemId.makeUnsafe(value);
+  return RuntimeItemId.make(value);
 }
 
 function toProviderItemId(value: string | undefined) {
   if (!value || value.trim().length === 0) return undefined;
-  return ProviderItemId.makeUnsafe(value);
+  return ProviderItemId.make(value);
 }
 
 function toRuntimeRequestId(value: string | undefined) {
   if (!value || value.trim().length === 0) return undefined;
-  return RuntimeRequestId.makeUnsafe(value);
+  return RuntimeRequestId.make(value);
 }
 
 function toRuntimeTaskId(value: string | undefined) {
   if (!value || value.trim().length === 0) return undefined;
-  return RuntimeTaskId.makeUnsafe(value);
+  return RuntimeTaskId.make(value);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -335,7 +335,7 @@ function mapHistoryToTurns(
   for (const event of events) {
     if (event.type === "assistant.turn_start") {
       current = {
-        id: TurnId.makeUnsafe(event.data.turnId),
+        id: TurnId.make(event.data.turnId),
         items: [event],
       };
       turns.push(current);
@@ -538,7 +538,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
       }) =>
         withRefs({
           threadId: record.threadId,
-          eventId: EventId.makeUnsafe(event.id),
+          eventId: EventId.make(event.id),
           createdAt: event.timestamp,
           turnId: resolveOrchestrationTurnId(input?.providerTurnId ?? input?.turnId),
           providerTurnId: input?.providerTurnId ?? input?.turnId,
@@ -725,8 +725,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
               ...base(),
               type: "task.completed",
               payload: {
-                taskId:
-                  toRuntimeTaskId(record.threadId) ?? RuntimeTaskId.makeUnsafe(record.threadId),
+                taskId: toRuntimeTaskId(record.threadId) ?? RuntimeTaskId.make(record.threadId),
                 status: "completed",
                 ...(trimToUndefined(event.data.summary) ? { summary: event.data.summary } : {}),
               },
@@ -906,8 +905,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
               ...base(),
               type: "task.progress",
               payload: {
-                taskId:
-                  toRuntimeTaskId(event.data.name) ?? RuntimeTaskId.makeUnsafe(event.data.name),
+                taskId: toRuntimeTaskId(event.data.name) ?? RuntimeTaskId.make(event.data.name),
                 description: `Invoked skill ${event.data.name}`,
               },
             },
@@ -920,7 +918,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
               payload: {
                 taskId:
                   toRuntimeTaskId(event.data.toolCallId) ??
-                  RuntimeTaskId.makeUnsafe(event.data.toolCallId),
+                  RuntimeTaskId.make(event.data.toolCallId),
                 description: trimToUndefined(event.data.agentDescription),
                 taskType: "subagent",
               },
@@ -934,7 +932,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
               payload: {
                 taskId:
                   toRuntimeTaskId(event.data.toolCallId) ??
-                  RuntimeTaskId.makeUnsafe(event.data.toolCallId),
+                  RuntimeTaskId.make(event.data.toolCallId),
                 status: "completed",
                 ...(trimToUndefined(event.data.agentDisplayName)
                   ? { summary: event.data.agentDisplayName }
@@ -950,7 +948,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
               payload: {
                 taskId:
                   toRuntimeTaskId(event.data.toolCallId) ??
-                  RuntimeTaskId.makeUnsafe(event.data.toolCallId),
+                  RuntimeTaskId.make(event.data.toolCallId),
                 status: "failed",
                 ...(trimToUndefined(event.data.error) ? { summary: event.data.error } : {}),
               },
@@ -1166,7 +1164,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
     const handleSessionEvent = (record: ActiveCopilotSession, event: SessionEvent) => {
       record.updatedAt = event.timestamp;
       if (event.type === "assistant.turn_start") {
-        beginCopilotTurn(record, TurnId.makeUnsafe(event.data.turnId));
+        beginCopilotTurn(record, TurnId.make(event.data.turnId));
       }
       if (event.type === "assistant.usage") {
         recordTurnUsage(record, event.data);
@@ -1478,7 +1476,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
         const interactionMode = input.interactionMode ?? record.interactionMode ?? "default";
         yield* syncInteractionMode(record, interactionMode);
 
-        const turnId = TurnId.makeUnsafe(`copilot-turn-${randomUUID()}`);
+        const turnId = TurnId.make(`copilot-turn-${randomUUID()}`);
         record.pendingTurnIds.push(turnId);
         record.currentTurnId = turnId;
         record.currentProviderTurnId = undefined;
@@ -1673,7 +1671,7 @@ const makeCopilotAdapter = (options?: CopilotAdapterLiveOptions) =>
         catch: (cause) =>
           new ProviderAdapterProcessError({
             provider: PROVIDER,
-            threadId: ThreadId.makeUnsafe("_all"),
+            threadId: ThreadId.make("_all"),
             detail: toMessage(cause, "Failed to stop GitHub Copilot sessions."),
             cause,
           }),

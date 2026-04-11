@@ -1,5 +1,6 @@
 import {
   CommandId,
+  DEFAULT_MODEL_BY_PROVIDER,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   type ModelSelection,
   ProjectId,
@@ -16,7 +17,8 @@ import {
   Queue,
   Ref,
   Scope,
-  ServiceMap,
+  Context,
+  Console,
 } from "effect";
 
 import { ServerConfig } from "./config";
@@ -29,12 +31,13 @@ import { ServerLifecycleEvents } from "./serverLifecycleEvents";
 import { ServerSettingsService } from "./serverSettings";
 import { ServerEnvironment } from "./environment/Services/ServerEnvironment";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService";
-
-const isWildcardHost = (host: string | undefined): boolean =>
-  host === "0.0.0.0" || host === "::" || host === "[::]";
-
-const formatHostForUrl = (host: string): string =>
-  host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+import { ServerAuth } from "./auth/Services/ServerAuth";
+import {
+  formatHeadlessServeOutput,
+  formatHostForUrl,
+  isWildcardHost,
+  issueHeadlessServeAccessInfo,
+} from "./startupAccess";
 
 export class ServerRuntimeStartupError extends Data.TaggedError("ServerRuntimeStartupError")<{
   readonly message: string;
@@ -49,7 +52,7 @@ export interface ServerRuntimeStartupShape {
   ) => Effect.Effect<A, E | ServerRuntimeStartupError>;
 }
 
-export class ServerRuntimeStartup extends ServiceMap.Service<
+export class ServerRuntimeStartup extends Context.Service<
   ServerRuntimeStartup,
   ServerRuntimeStartupShape
 >()("t3/serverRuntimeStartup") {}
@@ -149,6 +152,11 @@ export const launchStartupHeartbeat = recordStartupHeartbeat.pipe(
   Effect.asVoid,
 );
 
+export const getAutoBootstrapDefaultModelSelection = (): ModelSelection => ({
+  provider: "codex",
+  model: DEFAULT_MODEL_BY_PROVIDER.codex,
+});
+
 const autoBootstrapWelcome = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig;
   const projectionReadModelQuery = yield* ProjectionSnapshotQuery;
@@ -168,15 +176,12 @@ const autoBootstrapWelcome = Effect.gen(function* () {
 
       if (Option.isNone(existingProject)) {
         const createdAt = new Date().toISOString();
-        nextProjectId = ProjectId.makeUnsafe(crypto.randomUUID());
+        nextProjectId = ProjectId.make(crypto.randomUUID());
         const bootstrapProjectTitle = path.basename(serverConfig.cwd) || "project";
-        nextProjectDefaultModelSelection = {
-          provider: "codex",
-          model: "gpt-5-codex",
-        };
+        nextProjectDefaultModelSelection = getAutoBootstrapDefaultModelSelection();
         yield* orchestrationEngine.dispatch({
           type: "project.create",
-          commandId: CommandId.makeUnsafe(crypto.randomUUID()),
+          commandId: CommandId.make(crypto.randomUUID()),
           projectId: nextProjectId,
           title: bootstrapProjectTitle,
           workspaceRoot: serverConfig.cwd,
@@ -185,20 +190,18 @@ const autoBootstrapWelcome = Effect.gen(function* () {
         });
       } else {
         nextProjectId = existingProject.value.id;
-        nextProjectDefaultModelSelection = existingProject.value.defaultModelSelection ?? {
-          provider: "codex",
-          model: "gpt-5-codex",
-        };
+        nextProjectDefaultModelSelection =
+          existingProject.value.defaultModelSelection ?? getAutoBootstrapDefaultModelSelection();
       }
 
       const existingThreadId =
         yield* projectionReadModelQuery.getFirstActiveThreadIdByProjectId(nextProjectId);
       if (Option.isNone(existingThreadId)) {
         const createdAt = new Date().toISOString();
-        const createdThreadId = ThreadId.makeUnsafe(crypto.randomUUID());
+        const createdThreadId = ThreadId.make(crypto.randomUUID());
         yield* orchestrationEngine.dispatch({
           type: "thread.create",
-          commandId: CommandId.makeUnsafe(crypto.randomUUID()),
+          commandId: CommandId.make(crypto.randomUUID()),
           threadId: createdThreadId,
           projectId: nextProjectId,
           title: "New thread",
@@ -229,27 +232,38 @@ const autoBootstrapWelcome = Effect.gen(function* () {
   } as const;
 });
 
-const maybeOpenBrowser = Effect.gen(function* () {
+const resolveStartupBrowserTarget = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig;
-  if (serverConfig.noBrowser) {
-    return;
-  }
-  const { openBrowser } = yield* Open;
+  const serverAuth = yield* ServerAuth;
   const localUrl = `http://localhost:${serverConfig.port}`;
   const bindUrl =
     serverConfig.host && !isWildcardHost(serverConfig.host)
       ? `http://${formatHostForUrl(serverConfig.host)}:${serverConfig.port}`
       : localUrl;
-  const target = serverConfig.devUrl?.toString() ?? bindUrl;
-
-  yield* openBrowser(target).pipe(
-    Effect.catch(() =>
-      Effect.logInfo("browser auto-open unavailable", {
-        hint: `Open ${target} in your browser.`,
-      }),
+  const baseTarget = serverConfig.devUrl?.toString() ?? bindUrl;
+  return yield* Effect.succeed(serverConfig.mode === "desktop" ? baseTarget : undefined).pipe(
+    Effect.flatMap((target) =>
+      target ? Effect.succeed(target) : serverAuth.issueStartupPairingUrl(baseTarget),
     ),
   );
 });
+
+const maybeOpenBrowser = (target: string) =>
+  Effect.gen(function* () {
+    const serverConfig = yield* ServerConfig;
+    if (serverConfig.noBrowser) {
+      return;
+    }
+    const { openBrowser } = yield* Open;
+
+    yield* openBrowser(target).pipe(
+      Effect.catch(() =>
+        Effect.logInfo("browser auto-open unavailable", {
+          hint: `Open ${target} in your browser.`,
+        }),
+      ),
+    );
+  });
 
 const runStartupPhase = <A, E, R>(phase: string, effect: Effect.Effect<A, E, R>) =>
   effect.pipe(
@@ -370,8 +384,23 @@ const makeServerRuntimeStartup = Effect.gen(function* () {
 
       yield* Effect.logDebug("startup phase: recording startup heartbeat");
       yield* launchStartupHeartbeat;
-      yield* Effect.logDebug("startup phase: browser open check");
-      yield* runStartupPhase("browser.open", maybeOpenBrowser);
+      if (serverConfig.startupPresentation === "headless") {
+        yield* Effect.logDebug("startup phase: headless access info");
+        const accessInfo = yield* issueHeadlessServeAccessInfo();
+        yield* runStartupPhase(
+          "headless.output",
+          Console.log(formatHeadlessServeOutput(accessInfo)),
+        );
+      } else {
+        yield* Effect.logDebug("startup phase: browser open check");
+        const startupBrowserTarget = yield* resolveStartupBrowserTarget;
+        if (serverConfig.mode !== "desktop") {
+          yield* Effect.logInfo(
+            "Authentication required. Open T3 Code using the pairing URL.",
+          ).pipe(Effect.annotateLogs({ pairingUrl: startupBrowserTarget }));
+        }
+        yield* runStartupPhase("browser.open", maybeOpenBrowser(startupBrowserTarget));
+      }
       yield* Effect.logDebug("startup phase: complete");
     }),
   );

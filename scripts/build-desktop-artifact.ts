@@ -9,7 +9,6 @@ import desktopPackageJson from "../apps/desktop/package.json" with { type: "json
 import serverPackageJson from "../apps/server/package.json" with { type: "json" };
 
 import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
-import { generateAssetCatalogForIcon } from "./lib/macos-icon-composer.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
@@ -28,11 +27,6 @@ const ProductionMacIconSource = Effect.zipWith(
   RepoRoot,
   Effect.service(Path.Path),
   (repoRoot, path) => path.join(repoRoot, BRAND_ASSET_PATHS.productionMacIconPng),
-);
-const ProductionMacIconComposerSource = Effect.zipWith(
-  RepoRoot,
-  Effect.service(Path.Path),
-  (repoRoot, path) => path.join(repoRoot, BRAND_ASSET_PATHS.productionMacIconComposer),
 );
 const ProductionLinuxIconSource = Effect.zipWith(
   RepoRoot,
@@ -80,6 +74,8 @@ interface BuildCliInput {
   readonly keepStage: Option.Option<boolean>;
   readonly signed: Option.Option<boolean>;
   readonly verbose: Option.Option<boolean>;
+  readonly mockUpdates: Option.Option<boolean>;
+  readonly mockUpdateServerPort: Option.Option<string>;
 }
 
 function detectHostBuildPlatform(hostPlatform: string): typeof BuildPlatform.Type | undefined {
@@ -168,6 +164,8 @@ interface ResolvedBuildOptions {
   readonly keepStage: boolean;
   readonly signed: boolean;
   readonly verbose: boolean;
+  readonly mockUpdates: boolean;
+  readonly mockUpdateServerPort: string | undefined;
 }
 
 function resolveBundledCopilotPlatformPackages(
@@ -200,6 +198,7 @@ interface StagePackageJson {
   readonly devDependencies: {
     readonly electron: string;
   };
+  readonly overrides: Record<string, unknown>;
 }
 
 const AzureTrustedSigningOptionsConfig = Config.all({
@@ -226,14 +225,18 @@ const BuildEnvConfig = Config.all({
   keepStage: Config.boolean("T3CODE_DESKTOP_KEEP_STAGE").pipe(Config.withDefault(false)),
   signed: Config.boolean("T3CODE_DESKTOP_SIGNED").pipe(Config.withDefault(false)),
   verbose: Config.boolean("T3CODE_DESKTOP_VERBOSE").pipe(Config.withDefault(false)),
+  mockUpdates: Config.boolean("T3CODE_DESKTOP_MOCK_UPDATES").pipe(Config.withDefault(false)),
+  mockUpdateServerPort: Config.string("T3CODE_DESKTOP_MOCK_UPDATE_SERVER_PORT").pipe(Config.option),
 });
 
 const resolveBooleanFlag = (flag: Option.Option<boolean>, envValue: boolean) =>
-  Option.getOrElse(Option.filter(flag, Boolean), () => envValue);
+  Option.getOrElse(flag, () => envValue);
 const mergeOptions = <A>(a: Option.Option<A>, b: Option.Option<A>, defaultValue: A) =>
   Option.getOrElse(a, () => Option.getOrElse(b, () => defaultValue));
 
-const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (input: BuildCliInput) {
+export const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (
+  input: BuildCliInput,
+) {
   const path = yield* Path.Path;
   const repoRoot = yield* RepoRoot;
   const env = yield* BuildEnvConfig.asEffect();
@@ -253,12 +256,25 @@ const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (input: B
   const target = mergeOptions(input.target, env.target, PLATFORM_CONFIG[platform].defaultTarget);
   const arch = mergeOptions(input.arch, env.arch, getDefaultArch(platform));
   const version = mergeOptions(input.buildVersion, env.version, undefined);
-  const outputDir = path.resolve(repoRoot, mergeOptions(input.outputDir, env.outputDir, "release"));
+  const releaseDir = resolveBooleanFlag(input.mockUpdates, env.mockUpdates)
+    ? "release-mock"
+    : "release";
+  const outputDir = path.resolve(
+    repoRoot,
+    mergeOptions(input.outputDir, env.outputDir, releaseDir),
+  );
 
   const skipBuild = resolveBooleanFlag(input.skipBuild, env.skipBuild);
   const keepStage = resolveBooleanFlag(input.keepStage, env.keepStage);
   const signed = resolveBooleanFlag(input.signed, env.signed);
   const verbose = resolveBooleanFlag(input.verbose, env.verbose);
+
+  const mockUpdates = resolveBooleanFlag(input.mockUpdates, env.mockUpdates);
+  const mockUpdateServerPort = mergeOptions(
+    input.mockUpdateServerPort,
+    env.mockUpdateServerPort,
+    undefined,
+  );
 
   return {
     platform,
@@ -270,6 +286,8 @@ const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (input: B
     keepStage,
     signed,
     verbose,
+    mockUpdates,
+    mockUpdateServerPort,
   } satisfies ResolvedBuildOptions;
 });
 
@@ -332,7 +350,6 @@ function stageMacIcons(stageResourcesDir: string, verbose: boolean) {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const iconSource = yield* ProductionMacIconSource;
-    const iconComposerSource = yield* ProductionMacIconComposerSource;
     if (!(yield* fs.exists(iconSource))) {
       return yield* new BuildScriptError({
         message: `Production icon source is missing at ${iconSource}`,
@@ -345,29 +362,12 @@ function stageMacIcons(stageResourcesDir: string, verbose: boolean) {
 
     const iconPngPath = path.join(stageResourcesDir, "icon.png");
     const iconIcnsPath = path.join(stageResourcesDir, "icon.icns");
-    const iconComposerPath = path.join(stageResourcesDir, "icon.icon");
 
     yield* runCommand(
       ChildProcess.make({
         ...commandOutputOptions(verbose),
       })`sips -z 512 512 ${iconSource} --out ${iconPngPath}`,
     );
-
-    if (yield* fs.exists(iconComposerSource)) {
-      yield* fs.copy(iconComposerSource, iconComposerPath);
-
-      const compiled = yield* Effect.tryPromise({
-        try: () => generateAssetCatalogForIcon(iconComposerSource),
-        catch: (cause) =>
-          new BuildScriptError({
-            message: `Failed to compile macOS icon composer asset at ${iconComposerSource}`,
-            cause,
-          }),
-      });
-
-      yield* fs.writeFile(iconIcnsPath, compiled.icnsFile);
-      return;
-    }
 
     yield* generateMacIconSet(iconSource, iconIcnsPath, tmpRoot, path, verbose);
   });
@@ -443,9 +443,9 @@ function validateBundledClientAssets(clientDir: string) {
 }
 
 function resolveDesktopRuntimeDependencies(
-  dependencies: Record<string, unknown> | undefined,
-  catalog: Record<string, unknown>,
-): Record<string, unknown> {
+  dependencies: Record<string, string> | undefined,
+  catalog: Record<string, string>,
+): Record<string, string> {
   if (!dependencies || Object.keys(dependencies).length === 0) {
     return {};
   }
@@ -487,7 +487,8 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   target: string,
   productName: string,
   signed: boolean,
-  useMacIconComposer: boolean,
+  mockUpdates: boolean,
+  mockUpdateServerPort: string | undefined,
 ) {
   const buildConfig: Record<string, unknown> = {
     appId: "com.t3tools.t3code",
@@ -501,12 +502,19 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   const publishConfig = resolveGitHubPublishConfig();
   if (publishConfig) {
     buildConfig.publish = [publishConfig];
+  } else if (mockUpdates) {
+    buildConfig.publish = [
+      {
+        provider: "generic",
+        url: `http://localhost:${mockUpdateServerPort ?? 3000}`,
+      },
+    ];
   }
 
   if (platform === "mac") {
     buildConfig.mac = {
       target: target === "dmg" ? [target, "zip"] : [target],
-      icon: useMacIconComposer ? "icon.icon" : "icon.icns",
+      icon: "icon.icns",
       category: "public.app-category.developer-tools",
     };
   }
@@ -595,6 +603,20 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     ]),
   );
 
+  const resolvedOverrides = yield* Effect.try({
+    try: () =>
+      resolveCatalogDependencies(
+        rootPackageJson.overrides,
+        rootPackageJson.workspaces.catalog,
+        "apps/desktop",
+      ),
+    catch: (cause) =>
+      new BuildScriptError({
+        message: "Could not resolve overrides from package.json.",
+        cause,
+      }),
+  });
+
   const resolvedServerDependencies = yield* Effect.try({
     try: () =>
       resolveCatalogDependencies(
@@ -674,8 +696,6 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   yield* fs.copy(distDirs.serverDist, path.join(stageAppDir, "apps/server/dist"));
 
   yield* assertPlatformBuildResources(options.platform, stageResourcesDir, options.verbose);
-  const useMacIconComposer =
-    options.platform === "mac" && (yield* fs.exists(path.join(stageResourcesDir, "icon.icon")));
 
   // electron-builder is filtering out stageResourcesDir directory in the AppImage for production
   yield* fs.copy(stageResourcesDir, path.join(stageAppDir, "apps/desktop/prod-resources"));
@@ -694,16 +714,18 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       options.target,
       desktopPackageJson.productName ?? "T3 Code",
       options.signed,
-      useMacIconComposer,
+      options.mockUpdates,
+      options.mockUpdateServerPort,
     ),
     dependencies: {
       ...resolvedServerDependencies,
-      ...bundledCopilotPlatformDependencies,
       ...resolvedDesktopRuntimeDependencies,
+      ...bundledCopilotPlatformDependencies,
     },
     devDependencies: {
       electron: electronVersion,
     },
+    overrides: resolvedOverrides,
   };
 
   const stagePackageJsonString = yield* encodeJsonString(stagePackageJson);
@@ -834,6 +856,14 @@ const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
     Flag.withDescription("Stream subprocess stdout (env: T3CODE_DESKTOP_VERBOSE)."),
     Flag.optional,
   ),
+  mockUpdates: Flag.boolean("mock-updates").pipe(
+    Flag.withDescription("Enable mock updates (env: T3CODE_DESKTOP_MOCK_UPDATES)."),
+    Flag.optional,
+  ),
+  mockUpdateServerPort: Flag.string("mock-update-server-port").pipe(
+    Flag.withDescription("Mock update server port (env: T3CODE_DESKTOP_MOCK_UPDATE_SERVER_PORT)."),
+    Flag.optional,
+  ),
 }).pipe(
   Command.withDescription("Build a desktop artifact for T3 Code."),
   Command.withHandler((input) => Effect.flatMap(resolveBuildOptions(input), buildDesktopArtifact)),
@@ -841,8 +871,10 @@ const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
 
 const cliRuntimeLayer = Layer.mergeAll(Logger.layer([Logger.consolePretty()]), NodeServices.layer);
 
-Command.run(buildDesktopArtifactCli, { version: "0.0.0" }).pipe(
-  Effect.scoped,
-  Effect.provide(cliRuntimeLayer),
-  NodeRuntime.runMain,
-);
+if (import.meta.main) {
+  Command.run(buildDesktopArtifactCli, { version: "0.0.0" }).pipe(
+    Effect.scoped,
+    Effect.provide(cliRuntimeLayer),
+    NodeRuntime.runMain,
+  );
+}

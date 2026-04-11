@@ -11,9 +11,9 @@ import { CursorAdapter } from "../Services/CursorAdapter.ts";
 import { makeCursorAdapterLive, parseCursorModelCommandOutput } from "./CursorAdapter.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 
-const THREAD_ID = ThreadId.makeUnsafe("thread-cursor-1");
-const RESUME_THREAD_ID = ThreadId.makeUnsafe("thread-cursor-resume");
-const LEGACY_RESUME_THREAD_ID = ThreadId.makeUnsafe("thread-cursor-legacy");
+const THREAD_ID = ThreadId.make("thread-cursor-1");
+const RESUME_THREAD_ID = ThreadId.make("thread-cursor-resume");
+const LEGACY_RESUME_THREAD_ID = ThreadId.make("thread-cursor-legacy");
 
 class FakeCursorAcpProcess extends EventEmitter {
   readonly stdin = new PassThrough();
@@ -602,7 +602,7 @@ opus-4.6-thinking - Claude 4.6 Opus (Thinking)  (default)
 
       yield* adapter.respondToRequest(
         session.threadId,
-        ApprovalRequestId.makeUnsafe(runtimeRequestId),
+        ApprovalRequestId.make(runtimeRequestId),
         "acceptForSession",
       );
 

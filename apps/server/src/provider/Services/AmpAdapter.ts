@@ -1,4 +1,4 @@
-import { ServiceMap } from "effect";
+import { Context } from "effect";
 
 import type { ProviderAdapterError } from "../Errors.ts";
 import type { ProviderAdapterShape } from "./ProviderAdapter.ts";
@@ -10,6 +10,6 @@ export interface AmpAdapterShape extends Omit<
   readonly provider: "amp";
 }
 
-export class AmpAdapter extends ServiceMap.Service<AmpAdapter, AmpAdapterShape>()(
+export class AmpAdapter extends Context.Service<AmpAdapter, AmpAdapterShape>()(
   "t3/provider/Services/AmpAdapter",
 ) {}

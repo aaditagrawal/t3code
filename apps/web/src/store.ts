@@ -1,21 +1,21 @@
-import {
-  type EnvironmentId,
-  type MessageId,
-  type OrchestrationCheckpointSummary,
-  type OrchestrationEvent,
-  type OrchestrationMessage,
-  type OrchestrationProposedPlan,
-  type OrchestrationReadModel,
-  type OrchestrationSession,
-  type OrchestrationSessionStatus,
-  type OrchestrationThread,
-  type OrchestrationThreadActivity,
-  type ProjectId,
-  type ProviderKind,
-  type ScopedProjectRef,
-  type ScopedThreadRef,
+import type {
+  EnvironmentId,
+  MessageId,
+  OrchestrationCheckpointSummary,
+  OrchestrationEvent,
+  OrchestrationMessage,
+  OrchestrationProposedPlan,
+  OrchestrationReadModel,
+  OrchestrationSession,
+  OrchestrationSessionStatus,
+  OrchestrationThread,
+  OrchestrationThreadActivity,
+  ProjectId,
+  ProviderKind,
+  ScopedProjectRef,
+  ScopedThreadRef,
   ThreadId,
-  type TurnId,
+  TurnId,
 } from "@t3tools/contracts";
 import { resolveModelSlugForProvider } from "@t3tools/shared/model";
 import { create } from "zustand";
@@ -36,7 +36,9 @@ import {
   type ThreadTurnState,
   type TurnDiffSummary,
 } from "./types";
+import { resolveEnvironmentHttpUrl } from "./environments/runtime";
 import { sanitizeThreadErrorMessage } from "./rpc/transportError";
+import { getThreadFromEnvironmentState } from "./threadDerivation";
 
 export interface EnvironmentState {
   projectIds: ProjectId[];
@@ -93,19 +95,6 @@ const MAX_THREAD_CHECKPOINTS = 500;
 const MAX_THREAD_PROPOSED_PLANS = 200;
 const MAX_THREAD_ACTIVITIES = 500;
 const EMPTY_THREAD_IDS: ThreadId[] = [];
-const EMPTY_MESSAGE_IDS: MessageId[] = [];
-const EMPTY_ACTIVITY_IDS: string[] = [];
-const EMPTY_PROPOSED_PLAN_IDS: string[] = [];
-const EMPTY_TURN_IDS: TurnId[] = [];
-const EMPTY_MESSAGES: ChatMessage[] = [];
-const EMPTY_ACTIVITIES: OrchestrationThreadActivity[] = [];
-const EMPTY_PROPOSED_PLANS: ProposedPlan[] = [];
-const EMPTY_TURN_DIFF_SUMMARIES: TurnDiffSummary[] = [];
-const EMPTY_MESSAGE_MAP: Record<MessageId, ChatMessage> = {};
-const EMPTY_ACTIVITY_MAP: Record<string, OrchestrationThreadActivity> = {};
-const EMPTY_PROPOSED_PLAN_MAP: Record<string, ProposedPlan> = {};
-const EMPTY_TURN_DIFF_MAP: Record<TurnId, TurnDiffSummary> = {};
-const EMPTY_THREAD_TURN_STATE: ThreadTurnState = Object.freeze({ latestTurn: null });
 
 function arraysEqual<T>(left: readonly T[], right: readonly T[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
@@ -134,14 +123,17 @@ function mapSession(session: OrchestrationSession): ThreadSession {
   };
 }
 
-function mapMessage(message: OrchestrationMessage): ChatMessage {
+function mapMessage(environmentId: EnvironmentId, message: OrchestrationMessage): ChatMessage {
   const attachments = message.attachments?.map((attachment) => ({
     type: "image" as const,
     id: attachment.id,
     name: attachment.name,
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
-    previewUrl: toAttachmentPreviewUrl(attachmentPreviewRoutePath(attachment.id)),
+    previewUrl: resolveEnvironmentHttpUrl({
+      environmentId,
+      pathname: attachmentPreviewRoutePath(attachment.id),
+    }),
   }));
 
   return {
@@ -210,7 +202,7 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     runtimeMode: thread.runtimeMode,
     interactionMode: thread.interactionMode,
     session: thread.session ? mapSession(thread.session) : null,
-    messages: thread.messages.map(mapMessage),
+    messages: thread.messages.map((message) => mapMessage(environmentId, message)),
     proposedPlans: thread.proposedPlans.map(mapProposedPlan),
     error: sanitizeThreadErrorMessage(thread.session?.lastError),
     createdAt: thread.createdAt,
@@ -280,7 +272,7 @@ function buildSidebarThreadSummary(thread: Thread): SidebarThreadSummary {
     latestTurn: thread.latestTurn,
     branch: thread.branch,
     worktreePath: thread.worktreePath,
-    latestUserMessageAt: getLatestUserMessageAt(thread.messages) ?? null,
+    latestUserMessageAt: getLatestUserMessageAt(thread.messages),
     hasPendingApprovals: derivePendingApprovals(thread.activities).length > 0,
     hasPendingUserInput: derivePendingUserInputs(thread.activities).length > 0,
     hasActionableProposedPlan: hasActionableProposedPlan(
@@ -397,78 +389,6 @@ function buildTurnDiffSlice(thread: Thread): {
   };
 }
 
-function selectThreadMessages(state: EnvironmentState, threadId: ThreadId): ChatMessage[] {
-  const ids = state.messageIdsByThreadId[threadId] ?? EMPTY_MESSAGE_IDS;
-  const byId = state.messageByThreadId[threadId] ?? EMPTY_MESSAGE_MAP;
-  if (ids.length === 0) {
-    return EMPTY_MESSAGES;
-  }
-  return ids.flatMap((id) => {
-    const message = byId[id];
-    return message ? [message] : [];
-  });
-}
-
-function selectThreadActivities(
-  state: EnvironmentState,
-  threadId: ThreadId,
-): OrchestrationThreadActivity[] {
-  const ids = state.activityIdsByThreadId[threadId] ?? EMPTY_ACTIVITY_IDS;
-  const byId = state.activityByThreadId[threadId] ?? EMPTY_ACTIVITY_MAP;
-  if (ids.length === 0) {
-    return EMPTY_ACTIVITIES;
-  }
-  return ids.flatMap((id) => {
-    const activity = byId[id];
-    return activity ? [activity] : [];
-  });
-}
-
-function selectThreadProposedPlans(state: EnvironmentState, threadId: ThreadId): ProposedPlan[] {
-  const ids = state.proposedPlanIdsByThreadId[threadId] ?? EMPTY_PROPOSED_PLAN_IDS;
-  const byId = state.proposedPlanByThreadId[threadId] ?? EMPTY_PROPOSED_PLAN_MAP;
-  if (ids.length === 0) {
-    return EMPTY_PROPOSED_PLANS;
-  }
-  return ids.flatMap((id) => {
-    const plan = byId[id];
-    return plan ? [plan] : [];
-  });
-}
-
-function selectThreadTurnDiffSummaries(
-  state: EnvironmentState,
-  threadId: ThreadId,
-): TurnDiffSummary[] {
-  const ids = state.turnDiffIdsByThreadId[threadId] ?? EMPTY_TURN_IDS;
-  const byId = state.turnDiffSummaryByThreadId[threadId] ?? EMPTY_TURN_DIFF_MAP;
-  if (ids.length === 0) {
-    return EMPTY_TURN_DIFF_SUMMARIES;
-  }
-  return ids.flatMap((id) => {
-    const summary = byId[id];
-    return summary ? [summary] : [];
-  });
-}
-
-function getThread(state: EnvironmentState, threadId: ThreadId): Thread | undefined {
-  const shell = state.threadShellById[threadId];
-  if (!shell) {
-    return undefined;
-  }
-  const turnState = state.threadTurnStateById[threadId] ?? EMPTY_THREAD_TURN_STATE;
-  return {
-    ...shell,
-    session: state.threadSessionById[threadId] ?? null,
-    latestTurn: turnState.latestTurn,
-    pendingSourceProposedPlan: turnState.pendingSourceProposedPlan,
-    messages: selectThreadMessages(state, threadId),
-    activities: selectThreadActivities(state, threadId),
-    proposedPlans: selectThreadProposedPlans(state, threadId),
-    turnDiffSummaries: selectThreadTurnDiffSummaries(state, threadId),
-  };
-}
-
 function getProjects(state: EnvironmentState): Project[] {
   return state.projectIds.flatMap((projectId) => {
     const project = state.projectById[projectId];
@@ -478,7 +398,7 @@ function getProjects(state: EnvironmentState): Project[] {
 
 function getThreads(state: EnvironmentState): Thread[] {
   return state.threadIds.flatMap((threadId) => {
-    const thread = getThread(state, threadId);
+    const thread = getThreadFromEnvironmentState(state, threadId);
     return thread ? [thread] : [];
   });
 }
@@ -875,48 +795,19 @@ function toLegacySessionStatus(
 }
 
 function toLegacyProvider(providerName: string | null): ProviderKind {
-  const validProviders: readonly ProviderKind[] = [
-    "codex",
-    "copilot",
-    "claudeAgent",
-    "cursor",
-    "opencode",
-    "geminiCli",
-    "amp",
-    "kilo",
-  ];
-  if (providerName != null && validProviders.includes(providerName as ProviderKind)) {
-    return providerName as ProviderKind;
+  if (
+    providerName === "codex" ||
+    providerName === "claudeAgent" ||
+    providerName === "copilot" ||
+    providerName === "cursor" ||
+    providerName === "opencode" ||
+    providerName === "geminiCli" ||
+    providerName === "amp" ||
+    providerName === "kilo"
+  ) {
+    return providerName;
   }
   return "codex";
-}
-
-function resolveWsHttpOrigin(): string {
-  if (typeof window === "undefined") return "";
-  const bridgeWsUrl = window.desktopBridge?.getWsUrl?.();
-  const envWsUrl = import.meta.env.VITE_WS_URL as string | undefined;
-  const wsCandidate =
-    typeof bridgeWsUrl === "string" && bridgeWsUrl.length > 0
-      ? bridgeWsUrl
-      : typeof envWsUrl === "string" && envWsUrl.length > 0
-        ? envWsUrl
-        : null;
-  if (!wsCandidate) return window.location.origin;
-  try {
-    const wsUrl = new URL(wsCandidate);
-    const protocol =
-      wsUrl.protocol === "wss:" ? "https:" : wsUrl.protocol === "ws:" ? "http:" : wsUrl.protocol;
-    return `${protocol}//${wsUrl.host}`;
-  } catch {
-    return window.location.origin;
-  }
-}
-
-function toAttachmentPreviewUrl(rawUrl: string): string {
-  if (rawUrl.startsWith("/")) {
-    return `${resolveWsHttpOrigin()}${rawUrl}`;
-  }
-  return rawUrl;
 }
 
 function attachmentPreviewRoutePath(attachmentId: string): string {
@@ -928,7 +819,7 @@ function updateThreadState(
   threadId: ThreadId,
   updater: (thread: Thread) => Thread,
 ): EnvironmentState {
-  const currentThread = getThread(state, threadId);
+  const currentThread = getThreadFromEnvironmentState(state, threadId);
   if (!currentThread) {
     return state;
   }
@@ -1195,7 +1086,7 @@ function applyEnvironmentOrchestrationEvent(
     }
 
     case "thread.created": {
-      const previousThread = getThread(state, event.payload.threadId);
+      const previousThread = getThreadFromEnvironmentState(state, event.payload.threadId);
       const nextThread = mapThread(
         {
           id: event.payload.threadId,
@@ -1306,7 +1197,7 @@ function applyEnvironmentOrchestrationEvent(
 
     case "thread.message-sent":
       return updateThreadState(state, event.payload.threadId, (thread) => {
-        const message = mapMessage({
+        const message = mapMessage(thread.environmentId, {
           id: event.payload.messageId,
           role: event.payload.role,
           text: event.payload.text,
@@ -1639,6 +1530,16 @@ export function selectThreadsAcrossEnvironments(state: AppState): Thread[] {
   );
 }
 
+/** Like `selectThreadsAcrossEnvironments` but returns stable `ThreadShell` references from the store (no derived data). */
+export function selectThreadShellsAcrossEnvironments(state: AppState): ThreadShell[] {
+  return getEnvironmentEntries(state).flatMap(([, environmentState]) =>
+    environmentState.threadIds.flatMap((threadId) => {
+      const shell = environmentState.threadShellById[threadId];
+      return shell ? [shell] : [];
+    }),
+  );
+}
+
 export function selectSidebarThreadsAcrossEnvironments(state: AppState): SidebarThreadSummary[] {
   return getEnvironmentEntries(state).flatMap(([environmentId, environmentState]) =>
     environmentState.threadIds.flatMap((threadId) => {
@@ -1664,6 +1565,15 @@ export function selectSidebarThreadsForProjectRef(
   });
 }
 
+export function selectSidebarThreadsForProjectRefs(
+  state: AppState,
+  refs: readonly ScopedProjectRef[],
+): SidebarThreadSummary[] {
+  if (refs.length === 0) return [];
+  if (refs.length === 1) return selectSidebarThreadsForProjectRef(state, refs[0]);
+  return refs.flatMap((ref) => selectSidebarThreadsForProjectRef(state, ref));
+}
+
 export function selectBootstrapCompleteForActiveEnvironment(state: AppState): boolean {
   return selectEnvironmentState(state, state.activeEnvironmentId).bootstrapComplete;
 }
@@ -1682,8 +1592,17 @@ export function selectThreadByRef(
   ref: ScopedThreadRef | null | undefined,
 ): Thread | undefined {
   return ref
-    ? getThread(selectEnvironmentState(state, ref.environmentId), ref.threadId)
+    ? getThreadFromEnvironmentState(selectEnvironmentState(state, ref.environmentId), ref.threadId)
     : undefined;
+}
+
+export function selectThreadExistsByRef(
+  state: AppState,
+  ref: ScopedThreadRef | null | undefined,
+): boolean {
+  return ref
+    ? selectEnvironmentState(state, ref.environmentId).threadShellById[ref.threadId] !== undefined
+    : false;
 }
 
 export function selectSidebarThreadSummaryByRef(
@@ -1750,17 +1669,13 @@ export function setActiveEnvironmentId(state: AppState, environmentId: Environme
 
 export function setThreadBranch(
   state: AppState,
-  threadId: ThreadId,
+  threadRef: ScopedThreadRef,
   branch: string | null,
   worktreePath: string | null,
 ): AppState {
-  if (state.activeEnvironmentId === null) {
-    return state;
-  }
-
   const nextEnvironmentState = updateThreadState(
-    getStoredEnvironmentState(state, state.activeEnvironmentId),
-    threadId,
+    getStoredEnvironmentState(state, threadRef.environmentId),
+    threadRef.threadId,
     (thread) => {
       if (thread.branch === branch && thread.worktreePath === worktreePath) return thread;
       const cwdChanged = thread.worktreePath !== worktreePath;
@@ -1772,7 +1687,7 @@ export function setThreadBranch(
       };
     },
   );
-  return commitEnvironmentState(state, state.activeEnvironmentId, nextEnvironmentState);
+  return commitEnvironmentState(state, threadRef.environmentId, nextEnvironmentState);
 }
 
 interface AppStore extends AppState {
@@ -1784,7 +1699,11 @@ interface AppStore extends AppState {
     environmentId: EnvironmentId,
   ) => void;
   setError: (threadId: ThreadId, error: string | null) => void;
-  setThreadBranch: (threadId: ThreadId, branch: string | null, worktreePath: string | null) => void;
+  setThreadBranch: (
+    threadRef: ScopedThreadRef,
+    branch: string | null,
+    worktreePath: string | null,
+  ) => void;
 }
 
 export const useStore = create<AppStore>((set) => ({
@@ -1798,6 +1717,6 @@ export const useStore = create<AppStore>((set) => ({
   applyOrchestrationEvents: (events, environmentId) =>
     set((state) => applyOrchestrationEvents(state, events, environmentId)),
   setError: (threadId, error) => set((state) => setError(state, threadId, error)),
-  setThreadBranch: (threadId, branch, worktreePath) =>
-    set((state) => setThreadBranch(state, threadId, branch, worktreePath)),
+  setThreadBranch: (threadRef, branch, worktreePath) =>
+    set((state) => setThreadBranch(state, threadRef, branch, worktreePath)),
 }));

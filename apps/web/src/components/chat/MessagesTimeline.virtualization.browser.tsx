@@ -61,6 +61,9 @@ function MessagesTimelineBrowserHarness(
   const [expandedWorkGroups, setExpandedWorkGroups] = useState<Record<string, boolean>>(
     () => props.expandedWorkGroups,
   );
+  const [changedFilesExpandedByTurnId, setChangedFilesExpandedByTurnId] = useState<
+    Record<string, boolean>
+  >(() => props.changedFilesExpandedByTurnId);
   const handleToggleWorkGroup = useCallback(
     (groupId: string) => {
       setExpandedWorkGroups((current) => ({
@@ -68,6 +71,16 @@ function MessagesTimelineBrowserHarness(
         [groupId]: !(current[groupId] ?? false),
       }));
       props.onToggleWorkGroup(groupId);
+    },
+    [props],
+  );
+  const handleSetChangedFilesExpanded = useCallback(
+    (turnId: TurnId, expanded: boolean) => {
+      setChangedFilesExpandedByTurnId((current) => ({
+        ...current,
+        [turnId]: expanded,
+      }));
+      props.onSetChangedFilesExpanded(turnId, expanded);
     },
     [props],
   );
@@ -84,6 +97,8 @@ function MessagesTimelineBrowserHarness(
         scrollContainer={scrollContainer}
         expandedWorkGroups={expandedWorkGroups}
         onToggleWorkGroup={handleToggleWorkGroup}
+        changedFilesExpandedByTurnId={changedFilesExpandedByTurnId}
+        onSetChangedFilesExpanded={handleSetChangedFilesExpanded}
       />
     </div>
   );
@@ -101,7 +116,7 @@ function createMessage(input: {
   attachments?: ChatMessage["attachments"];
 }): ChatMessage {
   return {
-    id: MessageId.makeUnsafe(input.id),
+    id: MessageId.make(input.id),
     role: input.role,
     text: input.text,
     ...(input.attachments ? { attachments: input.attachments } : {}),
@@ -169,6 +184,8 @@ function createBaseTimelineProps(input: {
     nowIso: isoAt(10_000),
     expandedWorkGroups: input.expandedWorkGroups ?? {},
     onToggleWorkGroup: () => {},
+    changedFilesExpandedByTurnId: {},
+    onSetChangedFilesExpanded: () => {},
     onOpenTurnDiff: () => {},
     revertTurnCountByUserMessageId: new Map(),
     onRevertUserMessage: () => {},

@@ -5,10 +5,10 @@ import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE, type Thread } from "../
 
 function makeThread(overrides: Partial<Thread> = {}): Thread {
   return {
-    id: ThreadId.makeUnsafe("thread-1"),
-    environmentId: EnvironmentId.makeUnsafe("environment-local"),
+    id: ThreadId.make("thread-1"),
+    environmentId: EnvironmentId.make("environment-local"),
     codexThreadId: null,
-    projectId: ProjectId.makeUnsafe("project-1"),
+    projectId: ProjectId.make("project-1"),
     title: "Thread",
     modelSelection: { provider: "codex", model: "gpt-5.4" },
     runtimeMode: DEFAULT_RUNTIME_MODE,
@@ -45,19 +45,19 @@ describe("resolveDraftThreadDefaults", () => {
     const defaults = resolveDraftThreadDefaults({
       threads: [
         makeThread({
-          id: ThreadId.makeUnsafe("thread-project"),
-          projectId: ProjectId.makeUnsafe("project-1"),
+          id: ThreadId.make("thread-project"),
+          projectId: ProjectId.make("project-1"),
           modelSelection: { provider: "cursor", model: "composer-1.5" },
           createdAt: "2026-03-08T10:00:00.000Z",
         }),
         makeThread({
-          id: ThreadId.makeUnsafe("thread-other-project"),
-          projectId: ProjectId.makeUnsafe("project-2"),
+          id: ThreadId.make("thread-other-project"),
+          projectId: ProjectId.make("project-2"),
           modelSelection: { provider: "claudeAgent", model: "claude-sonnet-4-6" },
           createdAt: "2026-03-09T10:00:00.000Z",
         }),
       ],
-      projectId: ProjectId.makeUnsafe("project-1"),
+      projectId: ProjectId.make("project-1"),
       fallbackModel: "gpt-5.4",
     });
 
@@ -71,20 +71,20 @@ describe("resolveDraftThreadDefaults", () => {
     const defaults = resolveDraftThreadDefaults({
       threads: [
         makeThread({
-          id: ThreadId.makeUnsafe("thread-older"),
+          id: ThreadId.make("thread-older"),
           modelSelection: { provider: "codex", model: "gpt-5.4" },
           createdAt: "2026-03-08T10:00:00.000Z",
           updatedAt: "2026-03-08T10:00:00.000Z",
         }),
         makeThread({
-          id: ThreadId.makeUnsafe("thread-newest"),
-          projectId: ProjectId.makeUnsafe("project-2"),
+          id: ThreadId.make("thread-newest"),
+          projectId: ProjectId.make("project-2"),
           modelSelection: { provider: "claudeAgent", model: "claude-sonnet-4-6" },
           createdAt: "2026-03-09T10:00:00.000Z",
           updatedAt: "2026-03-09T10:00:00.000Z",
         }),
       ],
-      projectId: ProjectId.makeUnsafe("project-3"),
+      projectId: ProjectId.make("project-3"),
       fallbackModel: "gpt-5.4",
     });
 
@@ -98,19 +98,19 @@ describe("resolveDraftThreadDefaults", () => {
     const defaults = resolveDraftThreadDefaults({
       threads: [
         makeThread({
-          id: ThreadId.makeUnsafe("thread-revisited"),
+          id: ThreadId.make("thread-revisited"),
           modelSelection: { provider: "cursor", model: "composer-1.5" },
           createdAt: "2026-03-01T10:00:00.000Z",
           updatedAt: "2026-03-09T11:00:00.000Z",
           latestTurn: completedTurn("2026-03-09T10:59:00.000Z"),
         }),
         makeThread({
-          id: ThreadId.makeUnsafe("thread-newer"),
+          id: ThreadId.make("thread-newer"),
           modelSelection: { provider: "claudeAgent", model: "claude-sonnet-4-6" },
           createdAt: "2026-03-08T10:00:00.000Z",
         }),
       ],
-      projectId: ProjectId.makeUnsafe("project-1"),
+      projectId: ProjectId.make("project-1"),
       fallbackModel: "gpt-5.4",
     });
 
@@ -123,7 +123,7 @@ describe("resolveDraftThreadDefaults", () => {
   it("falls back to the supplied model when there is no previous conversation", () => {
     const defaults = resolveDraftThreadDefaults({
       threads: [],
-      projectId: ProjectId.makeUnsafe("project-1"),
+      projectId: ProjectId.make("project-1"),
       fallbackModel: "claude-sonnet-4-6",
     });
 

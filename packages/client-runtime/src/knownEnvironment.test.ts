@@ -1,7 +1,11 @@
 import { EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
 import { describe, expect, it } from "vitest";
 
-import { createKnownEnvironmentFromWsUrl } from "./knownEnvironment";
+import {
+  createKnownEnvironment,
+  createKnownEnvironmentFromWsUrl,
+  getKnownEnvironmentHttpBaseUrl,
+} from "./knownEnvironment";
 import {
   parseScopedProjectKey,
   parseScopedThreadKey,
@@ -13,6 +17,26 @@ import {
 } from "./scoped";
 
 describe("known environment bootstrap helpers", () => {
+  it("creates known environments from explicit server base urls", () => {
+    expect(
+      createKnownEnvironment({
+        label: "Remote environment",
+        target: {
+          httpBaseUrl: "https://remote.example.com",
+          wsBaseUrl: "wss://remote.example.com",
+        },
+      }),
+    ).toEqual({
+      id: "ws:Remote environment",
+      label: "Remote environment",
+      source: "manual",
+      target: {
+        httpBaseUrl: "https://remote.example.com",
+        wsBaseUrl: "wss://remote.example.com",
+      },
+    });
+  });
+
   it("creates known environments from explicit ws urls", () => {
     expect(
       createKnownEnvironmentFromWsUrl({
@@ -24,17 +48,43 @@ describe("known environment bootstrap helpers", () => {
       label: "Remote environment",
       source: "manual",
       target: {
-        type: "ws",
-        wsUrl: "wss://remote.example.com/ws",
+        httpBaseUrl: "https://remote.example.com/ws",
+        wsBaseUrl: "wss://remote.example.com/ws",
       },
     });
+  });
+
+  it("returns the explicit fetchable http origin", () => {
+    expect(
+      getKnownEnvironmentHttpBaseUrl(
+        createKnownEnvironment({
+          label: "Local environment",
+          target: {
+            httpBaseUrl: "http://localhost:3773",
+            wsBaseUrl: "ws://localhost:3773",
+          },
+        }),
+      ),
+    ).toBe("http://localhost:3773");
+
+    expect(
+      getKnownEnvironmentHttpBaseUrl(
+        createKnownEnvironment({
+          label: "Remote environment",
+          target: {
+            httpBaseUrl: "https://remote.example.com/api",
+            wsBaseUrl: "wss://remote.example.com/api",
+          },
+        }),
+      ),
+    ).toBe("https://remote.example.com/api");
   });
 });
 
 describe("scoped refs", () => {
-  const environmentId = EnvironmentId.makeUnsafe("environment-test");
-  const projectRef = scopeProjectRef(environmentId, ProjectId.makeUnsafe("project-1"));
-  const threadRef = scopeThreadRef(environmentId, ThreadId.makeUnsafe("thread-1"));
+  const environmentId = EnvironmentId.make("environment-test");
+  const projectRef = scopeProjectRef(environmentId, ProjectId.make("project-1"));
+  const threadRef = scopeThreadRef(environmentId, ThreadId.make("thread-1"));
 
   it("builds stable scoped project and thread keys", () => {
     expect(scopedRefKey(projectRef)).toBe("environment-test:project-1");
@@ -46,11 +96,11 @@ describe("scoped refs", () => {
   it("returns typed scoped refs", () => {
     expect(projectRef).toEqual({
       environmentId,
-      projectId: ProjectId.makeUnsafe("project-1"),
+      projectId: ProjectId.make("project-1"),
     });
     expect(threadRef).toEqual({
       environmentId,
-      threadId: ThreadId.makeUnsafe("thread-1"),
+      threadId: ThreadId.make("thread-1"),
     });
   });
 

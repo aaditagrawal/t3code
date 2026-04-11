@@ -50,16 +50,16 @@ function createClient() {
 function createContext(client: KiloClient): KiloSessionContext {
   const now = new Date().toISOString();
   return {
-    threadId: ThreadId.makeUnsafe("thread-kilo"),
+    threadId: ThreadId.make("thread-kilo"),
     directory: process.cwd(),
     workspace: "/workspace/project",
     client,
     providerSessionId: "session-kilo",
     pendingPermissions: new Map([
       [
-        ApprovalRequestId.makeUnsafe("approval-kilo"),
+        ApprovalRequestId.make("approval-kilo"),
         {
-          requestId: ApprovalRequestId.makeUnsafe("approval-kilo"),
+          requestId: ApprovalRequestId.make("approval-kilo"),
           requestType: "exec_command_approval",
         },
       ],
@@ -73,13 +73,13 @@ function createContext(client: KiloClient): KiloSessionContext {
       provider: PROVIDER,
       status: "running",
       runtimeMode: "approval-required",
-      threadId: ThreadId.makeUnsafe("thread-kilo"),
+      threadId: ThreadId.make("thread-kilo"),
       createdAt: now,
       updatedAt: now,
       resumeCursor: { sessionId: "session-kilo" },
-      activeTurnId: TurnId.makeUnsafe("turn-kilo"),
+      activeTurnId: TurnId.make("turn-kilo"),
     } as KiloProviderSession,
-    activeTurnId: TurnId.makeUnsafe("turn-kilo"),
+    activeTurnId: TurnId.make("turn-kilo"),
     lastError: undefined,
   };
 }
@@ -97,7 +97,7 @@ describe("KiloServerManager.respondToRequest", () => {
 
     await manager.respondToRequest(
       context.threadId,
-      ApprovalRequestId.makeUnsafe("approval-kilo"),
+      ApprovalRequestId.make("approval-kilo"),
       "cancel",
     );
 
@@ -126,7 +126,7 @@ describe("KiloServerManager.respondToRequest", () => {
 
     await manager.respondToRequest(
       context.threadId,
-      ApprovalRequestId.makeUnsafe("approval-kilo"),
+      ApprovalRequestId.make("approval-kilo"),
       "decline",
     );
 
@@ -136,6 +136,6 @@ describe("KiloServerManager.respondToRequest", () => {
       reply: "reject",
     });
     expect(client.session.abort).not.toHaveBeenCalled();
-    expect(context.activeTurnId).toBe(TurnId.makeUnsafe("turn-kilo"));
+    expect(context.activeTurnId).toBe(TurnId.make("turn-kilo"));
   });
 });

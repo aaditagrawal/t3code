@@ -34,6 +34,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { EnvironmentApi } from "@t3tools/contracts";
 import { readNativeApi } from "~/nativeApi";
 import type { ThreadId } from "@t3tools/contracts";
 import {
@@ -227,7 +228,9 @@ function GhosttyPane({
         setStatus("ready");
 
         // Connect to backend PTY
-        const api = readNativeApi();
+        // GhosttyTerminalSplitView accesses terminal via the environment API surface.
+        // Cast to EnvironmentApi since the local API includes terminal at runtime.
+        const api = readNativeApi() as unknown as EnvironmentApi | undefined;
         if (!api) return;
 
         // Handle user input → send to PTY
@@ -353,7 +356,7 @@ function GhosttyPane({
 
   // Handle resize
   useEffect(() => {
-    const api = readNativeApi();
+    const api = readNativeApi() as unknown as EnvironmentApi | undefined;
     const terminal = terminalRef.current;
     const fitAddon = fitAddonRef.current;
     if (!api || !terminal || !fitAddon) return;

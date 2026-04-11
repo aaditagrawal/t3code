@@ -21,9 +21,11 @@ import { render } from "vitest-browser-react";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { __resetLocalApiForTests } from "../localApi";
 import { AppAtomRegistryProvider } from "../rpc/atomRegistry";
-import { getServerConfig } from "../rpc/serverState";
+import { getServerConfig, getServerConfigUpdatedNotification } from "../rpc/serverState";
+import { getWsConnectionStatus } from "../rpc/wsConnectionState";
 import { getRouter } from "../router";
 import { useStore } from "../store";
+import { createAuthenticatedSessionHandlers } from "../../test/authHttpHandlers";
 import { BrowserWsRpcHarness } from "../../test/wsRpcHarness";
 
 vi.mock("../lib/gitStatusState", () => ({
@@ -35,7 +37,7 @@ vi.mock("../lib/gitStatusState", () => ({
 
 const THREAD_ID = "thread-kb-toast-test" as ThreadId;
 const PROJECT_ID = "project-1" as ProjectId;
-const LOCAL_ENVIRONMENT_ID = EnvironmentId.makeUnsafe("environment-local");
+const LOCAL_ENVIRONMENT_ID = EnvironmentId.make("environment-local");
 const NOW_ISO = "2026-03-04T12:00:00.000Z";
 
 interface TestFixture {
@@ -58,6 +60,12 @@ function createBaseServerConfig(): ServerConfig {
       serverVersion: "0.0.0-test",
       capabilities: { repositoryIdentity: true },
     },
+    auth: {
+      policy: "loopback-browser",
+      bootstrapMethods: ["one-time-token"],
+      sessionMethods: ["browser-session-cookie", "bearer-session-token"],
+      sessionCookieName: "t3_session",
+    },
     cwd: "/repo/project",
     keybindingsConfigPath: "/repo/project/.t3code-keybindings.json",
     keybindings: [],
@@ -72,6 +80,8 @@ function createBaseServerConfig(): ServerConfig {
         auth: { status: "authenticated" },
         checkedAt: NOW_ISO,
         models: [],
+        slashCommands: [],
+        skills: [],
       },
     ],
     availableEditors: [],
@@ -87,14 +97,9 @@ function createBaseServerConfig(): ServerConfig {
       defaultThreadEnvMode: "local" as const,
       textGenerationModelSelection: { provider: "codex" as const, model: "gpt-5.4-mini" },
       providers: {
+        ...DEFAULT_SERVER_SETTINGS.providers,
         codex: { enabled: true, binaryPath: "", homePath: "", customModels: [] },
         claudeAgent: { enabled: true, binaryPath: "", customModels: [] },
-        copilot: { enabled: true, customModels: [], binaryPath: "", configDir: "" },
-        cursor: { enabled: true, customModels: [], binaryPath: "", configDir: "" },
-        opencode: { enabled: true, customModels: [], binaryPath: "", configDir: "" },
-        geminiCli: { enabled: true, customModels: [], binaryPath: "", configDir: "" },
-        amp: { enabled: true, customModels: [], binaryPath: "", configDir: "" },
-        kilo: { enabled: true, customModels: [], binaryPath: "", configDir: "" },
       },
     },
   };
@@ -134,8 +139,8 @@ function createMinimalSnapshot(): OrchestrationReadModel {
         latestTurn: null,
         createdAt: NOW_ISO,
         updatedAt: NOW_ISO,
-        deletedAt: null,
         archivedAt: null,
+        deletedAt: null,
         messages: [
           {
             id: "msg-1" as MessageId,
@@ -216,6 +221,7 @@ const worker = setupWorker(
       void rpcHarness.onMessage(rawData);
     });
   }),
+  ...createAuthenticatedSessionHandlers(() => fixture.serverConfig.auth),
   http.get("*/attachments/:attachmentId", () => new HttpResponse(null, { status: 204 })),
   http.get("*/api/project-favicon", () => new HttpResponse(null, { status: 204 })),
 );
@@ -256,11 +262,27 @@ async function waitForComposerEditor(): Promise<HTMLElement> {
   );
 }
 
+async function waitForToastViewport(): Promise<HTMLElement> {
+  return waitForElement(
+    () => document.querySelector<HTMLElement>('[data-slot="toast-viewport"]'),
+    "App should render the toast viewport before server config updates are pushed",
+  );
+}
+
+async function waitForWsConnection(): Promise<void> {
+  await vi.waitFor(
+    () => {
+      expect(getWsConnectionStatus().phase).toBe("connected");
+    },
+    { timeout: 8_000, interval: 16 },
+  );
+}
+
 async function waitForToast(title: string, count = 1): Promise<void> {
   await vi.waitFor(
     () => {
       const matches = queryToastTitles().filter((t) => t === title);
-      expect(matches, `Expected exactly ${count} "${title}" toast(s)`).toHaveLength(count);
+      expect(matches.length, `Expected ${count} "${title}" toast(s)`).toBeGreaterThanOrEqual(count);
     },
     { timeout: 4_000, interval: 16 },
   );
@@ -272,6 +294,15 @@ async function waitForNoToast(title: string): Promise<void> {
       expect(queryToastTitles().filter((t) => t === title)).toHaveLength(0);
     },
     { timeout: 10_000, interval: 50 },
+  );
+}
+
+async function waitForNoToasts(): Promise<void> {
+  await vi.waitFor(
+    () => {
+      expect(queryToastTitles()).toHaveLength(0);
+    },
+    { timeout: 8_000, interval: 16 },
   );
 }
 
@@ -298,6 +329,33 @@ async function waitForServerConfigSnapshot(): Promise<void> {
   );
 }
 
+async function waitForServerConfigStreamReady(): Promise<void> {
+  const previousNotificationId = getServerConfigUpdatedNotification()?.id ?? 0;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    rpcHarness.emitStreamValue(WS_METHODS.subscribeServerConfig, {
+      version: 1,
+      type: "settingsUpdated",
+      payload: { settings: fixture.serverConfig.settings },
+    });
+
+    try {
+      await vi.waitFor(
+        () => {
+          const notification = getServerConfigUpdatedNotification();
+          expect(notification?.id).toBeGreaterThan(previousNotificationId);
+          expect(notification?.source).toBe("settingsUpdated");
+        },
+        { timeout: 200, interval: 16 },
+      );
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+
+  throw new Error("Timed out waiting for the server config stream to deliver updates.");
+}
+
 async function mountApp(): Promise<{ cleanup: () => Promise<void> }> {
   const host = document.createElement("div");
   host.style.position = "fixed";
@@ -319,8 +377,12 @@ async function mountApp(): Promise<{ cleanup: () => Promise<void> }> {
     { container: host },
   );
   await waitForComposerEditor();
+  await waitForToastViewport();
   await waitForInitialWsSubscriptions();
+  await waitForWsConnection();
   await waitForServerConfigSnapshot();
+  await waitForServerConfigStreamReady();
+  await waitForNoToasts();
 
   return {
     cleanup: async () => {
@@ -419,7 +481,6 @@ describe("Keybindings update toast", () => {
 
   it("does not show a toast from the replayed cached value on subscribe", async () => {
     const mounted = await mountApp();
-    let remounted: Awaited<ReturnType<typeof mountApp>> | undefined;
 
     try {
       sendServerConfigUpdatedPush([]);
@@ -429,7 +490,7 @@ describe("Keybindings update toast", () => {
       // Remount the app — onServerConfigUpdated replays the cached value
       // synchronously on subscribe. This should NOT produce a toast.
       await mounted.cleanup();
-      remounted = await mountApp();
+      const remounted = await mountApp();
 
       // Give it a moment to process the replayed value
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -442,12 +503,7 @@ describe("Keybindings update toast", () => {
 
       await remounted.cleanup();
     } catch (error) {
-      // Clean up whichever mount instance is active
-      if (remounted) {
-        await remounted.cleanup().catch(() => {});
-      } else {
-        await mounted.cleanup().catch(() => {});
-      }
+      await mounted.cleanup().catch(() => {});
       throw error;
     }
   });

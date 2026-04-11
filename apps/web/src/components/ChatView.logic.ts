@@ -1,8 +1,8 @@
 import {
-  type OrchestrationThreadActivity,
   type EnvironmentId,
   ProjectId,
   type ModelSelection,
+  type OrchestrationThreadActivity,
   type ProviderKind,
   type ScopedThreadRef,
   type ThreadId,
@@ -250,6 +250,17 @@ export function threadHasStarted(thread: Thread | null | undefined): boolean {
   return Boolean(
     thread && (thread.latestTurn !== null || thread.messages.length > 0 || thread.session !== null),
   );
+}
+
+export function deriveLockedProvider(input: {
+  thread: Thread | null | undefined;
+  selectedProvider: ProviderKind | null;
+  threadProvider: ProviderKind | null;
+}): ProviderKind | null {
+  if (!threadHasStarted(input.thread)) {
+    return null;
+  }
+  return input.thread?.session?.provider ?? input.threadProvider ?? input.selectedProvider ?? null;
 }
 
 export async function waitForStartedServerThread(

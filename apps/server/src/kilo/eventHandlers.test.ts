@@ -12,7 +12,7 @@ import {
 function createContext(): KiloSessionContext {
   const now = new Date().toISOString();
   return {
-    threadId: ThreadId.makeUnsafe("thread-kilo"),
+    threadId: ThreadId.make("thread-kilo"),
     directory: process.cwd(),
     providerSessionId: "session-kilo",
     client: {
@@ -51,12 +51,12 @@ function createContext(): KiloSessionContext {
       provider: PROVIDER,
       status: "running",
       runtimeMode: "approval-required",
-      threadId: ThreadId.makeUnsafe("thread-kilo"),
+      threadId: ThreadId.make("thread-kilo"),
       createdAt: now,
       updatedAt: now,
       resumeCursor: { sessionId: "session-kilo" },
     } as KiloProviderSession,
-    activeTurnId: TurnId.makeUnsafe("turn-kilo"),
+    activeTurnId: TurnId.make("turn-kilo"),
     lastError: undefined,
   };
 }

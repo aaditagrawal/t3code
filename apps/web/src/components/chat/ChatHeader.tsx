@@ -9,6 +9,7 @@ import {
 import { scopeThreadRef } from "@t3tools/client-runtime";
 import { memo } from "react";
 import GitActionsControl from "../GitActionsControl";
+import { type DraftId } from "~/composerDraftStore";
 import { DiffIcon, TerminalSquareIcon } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -20,6 +21,7 @@ import { OpenInPicker } from "./OpenInPicker";
 interface ChatHeaderProps {
   activeThreadEnvironmentId: EnvironmentId;
   activeThreadId: ThreadId;
+  draftId?: DraftId;
   activeThreadTitle: string;
   activeProjectName: string | undefined;
   isGitRepo: boolean;
@@ -33,8 +35,8 @@ interface ChatHeaderProps {
   terminalToggleShortcutLabel: string | null;
   diffToggleShortcutLabel: string | null;
   gitCwd: string | null;
-  gitProvider: ProviderKind;
-  gitModel: string;
+  gitProvider?: ProviderKind;
+  gitModel?: string;
   diffOpen: boolean;
   onRunProjectScript: (script: ProjectScript) => void;
   onAddProjectScript: (input: NewProjectScriptInput) => Promise<void>;
@@ -47,6 +49,7 @@ interface ChatHeaderProps {
 export const ChatHeader = memo(function ChatHeader({
   activeThreadEnvironmentId,
   activeThreadId,
+  draftId,
   activeThreadTitle,
   activeProjectName,
   isGitRepo,
@@ -114,8 +117,9 @@ export const ChatHeader = memo(function ChatHeader({
           <GitActionsControl
             gitCwd={gitCwd}
             activeThreadRef={scopeThreadRef(activeThreadEnvironmentId, activeThreadId)}
-            provider={gitProvider}
-            model={gitModel}
+            {...(gitProvider ? { provider: gitProvider } : {})}
+            {...(gitModel ? { model: gitModel } : {})}
+            {...(draftId ? { draftId } : {})}
           />
         )}
         <Tooltip>

@@ -20,10 +20,10 @@ import { KiloAdapter } from "../Services/KiloAdapter.ts";
 import { makeKiloAdapterLive } from "./KiloAdapter.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 
-const asThreadId = (value: string): ThreadId => ThreadId.makeUnsafe(value);
-const asTurnId = (value: string): TurnId => TurnId.makeUnsafe(value);
-const asEventId = (value: string): EventId => EventId.makeUnsafe(value);
-const asItemId = (value: string): RuntimeItemId => RuntimeItemId.makeUnsafe(value);
+const asThreadId = (value: string): ThreadId => ThreadId.make(value);
+const asTurnId = (value: string): TurnId => TurnId.make(value);
+const asEventId = (value: string): EventId => EventId.make(value);
+const asItemId = (value: string): RuntimeItemId => RuntimeItemId.make(value);
 
 class FakeKiloManager extends KiloServerManager {
   public startSessionImpl = vi.fn(async (threadId: ThreadId): Promise<ProviderSession> => {
