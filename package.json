@@ -56,6 +56,9 @@
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/*/dist-electron packages/*/dist .turbo apps/*/.turbo packages/*/.turbo",
     "sync:vscode-icons": "node scripts/sync-vscode-icons.mjs"
   },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.104"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
     "oxfmt": "^0.40.0",
