@@ -43,6 +43,7 @@ export const makeSqlitePersistenceLive = Effect.fn("makeSqlitePersistenceLive")(
   yield* fs.makeDirectory(path.dirname(dbPath), { recursive: true });
 
   return Layer.provideMerge(
+    setup,
     makeRuntimeSqliteLayer({
       filename: dbPath,
       spanAttributes: {
@@ -50,13 +51,12 @@ export const makeSqlitePersistenceLive = Effect.fn("makeSqlitePersistenceLive")(
         "service.name": "t3-server",
       },
     }),
-    setup,
   );
 }, Layer.unwrap);
 
 export const SqlitePersistenceMemory = Layer.provideMerge(
-  makeRuntimeSqliteLayer({ filename: ":memory:" }),
   setup,
+  makeRuntimeSqliteLayer({ filename: ":memory:" }),
 );
 
 export const layerConfig = Layer.unwrap(
