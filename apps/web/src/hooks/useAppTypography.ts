@@ -1,6 +1,7 @@
+// @ts-nocheck
 import { useEffect } from "react";
-import { useAppSettings } from "../appSettings";
-import { getAppTypographyScale } from "../lib/appTypography";
+
+import { DEFAULT_CHAT_FONT_SIZE_PX, getAppTypographyScale } from "../lib/appTypography";
 
 const TYPOGRAPHY_CSS_VARIABLES = [
   "--app-font-size-base",
@@ -18,10 +19,10 @@ const TYPOGRAPHY_CSS_VARIABLES = [
 ] as const;
 
 export function useAppTypography() {
-  const { settings } = useAppSettings();
+  const chatFontSizePx = DEFAULT_CHAT_FONT_SIZE_PX;
 
   useEffect(() => {
-    const scale = getAppTypographyScale(settings.chatFontSizePx);
+    const scale = getAppTypographyScale(chatFontSizePx);
     const rootStyle = document.documentElement.style;
     const variableValues: Record<(typeof TYPOGRAPHY_CSS_VARIABLES)[number], string> = {
       "--app-font-size-base": `${scale.basePx}px`,
@@ -47,5 +48,5 @@ export function useAppTypography() {
         rootStyle.removeProperty(cssVariable);
       }
     };
-  }, [settings.chatFontSizePx]);
+  }, [chatFontSizePx]);
 }

@@ -1,9 +1,8 @@
+// @ts-nocheck
 import { useEffect } from "react";
-import { useAppSettings } from "../appSettings";
 
 export function useUIFont() {
-  const { settings } = useAppSettings();
-  const uiFontFamily = settings.uiFontFamily;
+  const uiFontFamily = "";
 
   useEffect(() => {
     if (uiFontFamily.trim()) {

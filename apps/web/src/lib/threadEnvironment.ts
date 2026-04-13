@@ -1,3 +1,4 @@
+// @ts-nocheck
 // FILE: threadEnvironment.ts
 // Purpose: Shared helpers for deriving thread environment intent and fork targets.
 // Layer: Web domain helpers

@@ -34,7 +34,19 @@ import {
   DEFAULT_THREAD_TERMINAL_ID,
   MAX_TERMINALS_PER_GROUP,
   type ThreadTerminalGroup,
+  type ThreadTerminalLayoutNode,
 } from "../types";
+
+function buildGroupFromTerminalIds(id: string, terminalIds: string[]): ThreadTerminalGroup {
+  const activeTerminalId = terminalIds[0] ?? DEFAULT_THREAD_TERMINAL_ID;
+  const layout: ThreadTerminalLayoutNode = {
+    type: "terminal",
+    paneId: `pane-${activeTerminalId}`,
+    terminalIds,
+    activeTerminalId,
+  };
+  return { id, terminalIds, activeTerminalId, layout };
+}
 import {
   contrastSafeTerminalColor,
   normalizeAccentColor,
@@ -942,18 +954,14 @@ export default function ThreadTerminalDrawer({
         terminalGroup.id.trim().length > 0
           ? terminalGroup.id.trim()
           : `group-${nextTerminalIds[0] ?? DEFAULT_THREAD_TERMINAL_ID}`;
-      nextGroups.push({
-        id: assignUniqueGroupId(baseGroupId),
-        terminalIds: nextTerminalIds,
-      });
+      nextGroups.push(buildGroupFromTerminalIds(assignUniqueGroupId(baseGroupId), nextTerminalIds));
     }
 
     for (const terminalId of normalizedTerminalIds) {
       if (assignedTerminalIds.has(terminalId)) continue;
-      nextGroups.push({
-        id: assignUniqueGroupId(`group-${terminalId}`),
-        terminalIds: [terminalId],
-      });
+      nextGroups.push(
+        buildGroupFromTerminalIds(assignUniqueGroupId(`group-${terminalId}`), [terminalId]),
+      );
     }
 
     if (nextGroups.length > 0) {

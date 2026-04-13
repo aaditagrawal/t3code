@@ -16,7 +16,18 @@ import {
   DEFAULT_THREAD_TERMINAL_ID,
   MAX_TERMINALS_PER_GROUP,
   type ThreadTerminalGroup,
+  type ThreadTerminalLayoutNode,
 } from "./types";
+
+function buildLeafLayout(terminalIds: string[]): ThreadTerminalLayoutNode {
+  const activeId = terminalIds[0] ?? DEFAULT_THREAD_TERMINAL_ID;
+  return { type: "terminal", paneId: `pane-${activeId}`, terminalIds, activeTerminalId: activeId };
+}
+
+function makeGroup(id: string, terminalIds: string[]): ThreadTerminalGroup {
+  const activeId = terminalIds[0] ?? DEFAULT_THREAD_TERMINAL_ID;
+  return { id, terminalIds, activeTerminalId: activeId, layout: buildLeafLayout(terminalIds) };
+}
 
 interface ThreadTerminalState {
   terminalOpen: boolean;
@@ -131,27 +142,18 @@ function normalizeTerminalGroups(
       group.id.trim().length > 0
         ? group.id.trim()
         : fallbackGroupId(groupTerminalIds[0] ?? DEFAULT_THREAD_TERMINAL_ID);
-    nextGroups.push({
-      id: assignUniqueGroupId(baseGroupId, usedGroupIds),
-      terminalIds: groupTerminalIds,
-    });
+    nextGroups.push(makeGroup(assignUniqueGroupId(baseGroupId, usedGroupIds), groupTerminalIds));
   }
 
   for (const terminalId of terminalIds) {
     if (assignedTerminalIds.has(terminalId)) continue;
-    nextGroups.push({
-      id: assignUniqueGroupId(fallbackGroupId(terminalId), usedGroupIds),
-      terminalIds: [terminalId],
-    });
+    nextGroups.push(
+      makeGroup(assignUniqueGroupId(fallbackGroupId(terminalId), usedGroupIds), [terminalId]),
+    );
   }
 
   if (nextGroups.length === 0) {
-    return [
-      {
-        id: fallbackGroupId(DEFAULT_THREAD_TERMINAL_ID),
-        terminalIds: [DEFAULT_THREAD_TERMINAL_ID],
-      },
-    ];
+    return [makeGroup(fallbackGroupId(DEFAULT_THREAD_TERMINAL_ID), [DEFAULT_THREAD_TERMINAL_ID])];
   }
 
   return nextGroups;
@@ -196,10 +198,7 @@ const DEFAULT_THREAD_TERMINAL_STATE: ThreadTerminalState = Object.freeze({
   runningTerminalIds: [],
   activeTerminalId: DEFAULT_THREAD_TERMINAL_ID,
   terminalGroups: [
-    {
-      id: fallbackGroupId(DEFAULT_THREAD_TERMINAL_ID),
-      terminalIds: [DEFAULT_THREAD_TERMINAL_ID],
-    },
+    makeGroup(fallbackGroupId(DEFAULT_THREAD_TERMINAL_ID), [DEFAULT_THREAD_TERMINAL_ID]),
   ],
   activeTerminalGroupId: fallbackGroupId(DEFAULT_THREAD_TERMINAL_ID),
 });
@@ -271,7 +270,7 @@ function terminalEventBufferKey(threadRef: ScopedThreadRef, terminalId: string):
 
 function copyTerminalGroups(groups: ThreadTerminalGroup[]): ThreadTerminalGroup[] {
   return groups.map((group) => ({
-    id: group.id,
+    ...group,
     terminalIds: [...group.terminalIds],
   }));
 }
@@ -340,7 +339,7 @@ function upsertTerminalIntoGroups(
   if (mode === "new") {
     const usedGroupIds = new Set(terminalGroups.map((group) => group.id));
     const nextGroupId = assignUniqueGroupId(fallbackGroupId(terminalId), usedGroupIds);
-    terminalGroups.push({ id: nextGroupId, terminalIds: [terminalId] });
+    terminalGroups.push(makeGroup(nextGroupId, [terminalId]));
     return normalizeThreadTerminalState({
       ...normalized,
       terminalOpen: true,
@@ -363,7 +362,7 @@ function upsertTerminalIntoGroups(
       fallbackGroupId(normalized.activeTerminalId),
       usedGroupIds,
     );
-    terminalGroups.push({ id: nextGroupId, terminalIds: [normalized.activeTerminalId] });
+    terminalGroups.push(makeGroup(nextGroupId, [normalized.activeTerminalId]));
     activeGroupIndex = terminalGroups.length - 1;
   }
 

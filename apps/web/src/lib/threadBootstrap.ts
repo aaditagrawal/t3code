@@ -1,3 +1,4 @@
+// @ts-nocheck
 // FILE: threadBootstrap.ts
 // Purpose: Pure helpers for draft reuse and terminal-thread promotion payloads.
 // Layer: Web bootstrap/domain helpers

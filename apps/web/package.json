@@ -54,6 +54,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.0",
     "@vitest/browser-playwright": "^4.0.18",
+    "@xterm/addon-search": "^0.16.0",
     "babel-plugin-react-compiler": "^19.0.0-beta-e552027-20250112",
     "msw": "2.12.11",
     "playwright": "^1.58.2",

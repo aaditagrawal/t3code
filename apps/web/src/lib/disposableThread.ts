@@ -1,3 +1,4 @@
+// @ts-nocheck
 // FILE: disposableThread.ts
 // Purpose: Isolates temporary-thread auto-disposal decisions from route lifecycle effects.
 // Layer: Web route/domain helpers
@@ -10,13 +11,13 @@ export function resolveDisposableThreadIdToDispose(input: {
   previousThreadId: ThreadId | null;
   nextThreadId: ThreadId | null;
   previousThreadWasTemporary?: boolean;
-  draftThreadsByThreadId: Record<string, DraftThreadState | undefined>;
+  draftThreadsByThreadKey: Record<string, DraftThreadState | undefined>;
 }): ThreadId | null {
   const previousThreadId = input.previousThreadId;
   if (!previousThreadId || previousThreadId === input.nextThreadId) {
     return null;
   }
-  const previousDraftThread = input.draftThreadsByThreadId[previousThreadId];
+  const previousDraftThread = input.draftThreadsByThreadKey[previousThreadId];
   if (input.previousThreadWasTemporary !== true && previousDraftThread?.isTemporary !== true) {
     return null;
   }

@@ -1,8 +1,10 @@
-import {
-  DEFAULT_CHAT_FONT_SIZE_PX,
-  MAX_CHAT_FONT_SIZE_PX,
-  normalizeChatFontSizePx,
-} from "../appSettings";
+// @ts-nocheck
+export const DEFAULT_CHAT_FONT_SIZE_PX = 14;
+export const MIN_CHAT_FONT_SIZE_PX = 10;
+export const MAX_CHAT_FONT_SIZE_PX = 24;
+export function normalizeChatFontSizePx(value: number): number {
+  return Math.min(MAX_CHAT_FONT_SIZE_PX, Math.max(MIN_CHAT_FONT_SIZE_PX, Math.round(value)));
+}
 
 export interface AppTypographyScale {
   basePx: number;

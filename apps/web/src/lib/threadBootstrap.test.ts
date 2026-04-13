@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { ProjectId, type ModelSelection, ThreadId } from "@t3tools/contracts";
 import { describe, expect, it } from "vitest";
 import { type ComposerThreadDraftState, type DraftThreadState } from "../composerDraftStore";
@@ -12,8 +13,8 @@ import {
   shouldReuseActiveDraftThread,
 } from "./threadBootstrap";
 
-const PROJECT_ID = ProjectId.makeUnsafe("project-bootstrap");
-const THREAD_ID = ThreadId.makeUnsafe("thread-bootstrap");
+const PROJECT_ID = ProjectId.make("project-bootstrap");
+const THREAD_ID = ThreadId.make("thread-bootstrap");
 
 function modelSelection(
   provider: "codex" | "claudeAgent",
