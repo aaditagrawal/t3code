@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ApprovalRequestId,
+  EnvironmentId,
   EventId,
   MessageId,
   ProjectId,
@@ -18,6 +19,7 @@ import type { Thread } from "../types";
 function makeThread(overrides: Partial<Thread>): Thread {
   return {
     id: "thread-1" as ThreadId,
+    environmentId: EnvironmentId.make("env-1"),
     codexThreadId: null,
     projectId: "project-1" as ProjectId,
     title: "Polish notifications",
