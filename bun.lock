@@ -14,7 +14,7 @@
     },
     "apps/desktop": {
       "name": "@t3tools/desktop",
-      "version": "0.0.17",
+      "version": "0.0.10",
       "dependencies": {
         "effect": "catalog:",
         "electron": "40.8.5",
@@ -42,7 +42,7 @@
     },
     "apps/server": {
       "name": "t3",
-      "version": "0.0.17",
+      "version": "0.0.10",
       "bin": {
         "t3": "./dist/bin.mjs",
       },
@@ -74,7 +74,7 @@
     },
     "apps/web": {
       "name": "@t3tools/web",
-      "version": "0.0.17",
+      "version": "0.0.10",
       "dependencies": {
         "@base-ui/react": "^1.2.0",
         "@dnd-kit/core": "^6.3.1",
@@ -116,6 +116,7 @@
         "@types/react-dom": "^19.0.0",
         "@vitejs/plugin-react": "^6.0.0",
         "@vitest/browser-playwright": "^4.0.18",
+        "@xterm/addon-search": "^0.16.0",
         "babel-plugin-react-compiler": "^19.0.0-beta-e552027-20250112",
         "msw": "2.12.11",
         "playwright": "^1.58.2",
@@ -140,7 +141,7 @@
     },
     "packages/contracts": {
       "name": "@t3tools/contracts",
-      "version": "0.0.17",
+      "version": "0.0.10",
       "dependencies": {
         "effect": "catalog:",
       },
@@ -875,6 +876,8 @@
     "@vscode/l10n": ["@vscode/l10n@0.0.18", "", {}, "sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ=="],
 
     "@xterm/addon-fit": ["@xterm/addon-fit@0.11.0", "", {}, "sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g=="],
+
+    "@xterm/addon-search": ["@xterm/addon-search@0.16.0", "", {}, "sha512-9OeuBFu0/uZJPu+9AHKY6g/w0Czyb/Ut0A5t79I4ULoU4IfU5BEpPFVGQxP4zTTMdfZEYkVIRYbHBX1xWwjeSA=="],
 
     "@xterm/xterm": ["@xterm/xterm@6.0.0", "", {}, "sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg=="],
 

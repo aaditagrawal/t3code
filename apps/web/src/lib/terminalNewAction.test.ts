@@ -19,6 +19,7 @@ describe("resolveTerminalNewAction", () => {
   it("adds a tab to the active terminal group when one is open", () => {
     const activeGroup: ThreadTerminalGroup = {
       id: "group-terminal-2",
+      terminalIds: ["terminal-2", "terminal-3"],
       activeTerminalId: "terminal-3",
       layout: {
         type: "terminal",

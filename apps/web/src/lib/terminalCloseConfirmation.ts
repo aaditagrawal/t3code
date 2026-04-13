@@ -3,7 +3,7 @@
 // Layer: UI logic helper
 // Depends on: Native dialog contract from the app shell.
 
-import type { NativeApi } from "@t3tools/contracts";
+import type { LocalApi } from "@t3tools/contracts";
 
 function formatTerminalCloseSubject(terminalTitle: string | null | undefined): string {
   const trimmedTitle = terminalTitle?.trim();
@@ -36,7 +36,7 @@ export function buildTerminalCloseConfirmationMessage(options: {
 }
 
 export async function confirmTerminalTabClose(options: {
-  api: Pick<NativeApi, "dialogs"> | null | undefined;
+  api: Pick<LocalApi, "dialogs"> | null | undefined;
   enabled: boolean;
   terminalTitle: string | null | undefined;
   willDeleteThread?: boolean;

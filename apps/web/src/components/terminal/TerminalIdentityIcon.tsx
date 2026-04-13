@@ -5,7 +5,7 @@
 
 import type { TerminalIconKey } from "@t3tools/shared/terminalThreads";
 
-import { TerminalSquare } from "~/lib/icons";
+import { SquareTerminalIcon as TerminalSquare } from "lucide-react";
 import { cn } from "~/lib/utils";
 
 import { ClaudeAI, OpenAI } from "../Icons";

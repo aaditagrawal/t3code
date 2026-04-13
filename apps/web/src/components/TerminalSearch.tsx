@@ -1,6 +1,6 @@
 import type { SearchAddon, ISearchOptions } from "@xterm/addon-search";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDownIcon, ChevronUpIcon, XIcon } from "~/lib/icons";
+import { ChevronDownIcon, ChevronUpIcon, XIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 
 interface TerminalSearchProps {

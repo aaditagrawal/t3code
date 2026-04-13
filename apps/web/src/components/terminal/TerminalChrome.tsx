@@ -11,7 +11,7 @@ import type {
 } from "@t3tools/shared/terminalThreads";
 
 import { Popover, PopoverPopup, PopoverTrigger } from "~/components/ui/popover";
-import { XIcon } from "~/lib/icons";
+import { XIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 
 import type { ResolvedTerminalGroupLayout } from "./TerminalLayout";
@@ -29,6 +29,7 @@ function terminalVisualStatePriority(state: TerminalVisualState): number {
     case "idle":
       return 1;
   }
+  return 0;
 }
 
 export interface TerminalChromeActionItem {
