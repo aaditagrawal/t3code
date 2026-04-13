@@ -41,7 +41,7 @@ function formatEnvironmentLabel(
   if (envMode === "local") {
     return "Local";
   }
-  return envState === "worktree-pending" ? "New worktree (pending)" : "Worktree";
+  return "Worktree";
 }
 
 export function ComposerSlashStatusDialog(props: {
@@ -143,7 +143,7 @@ export function ComposerSlashStatusDialog(props: {
                 <div>
                   <p className="text-muted-foreground">Window</p>
                   <p className="font-medium text-foreground">
-                    {formatContextWindowTokens(contextWindow.maxTokens)}
+                    {formatContextWindowTokens(contextWindow.maxTokens ?? null)}
                   </p>
                 </div>
                 <div>
