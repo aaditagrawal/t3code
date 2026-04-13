@@ -4,7 +4,13 @@
 // Exports: transcript measurement helpers and inline styles for chat text
 
 import type { CSSProperties } from "react";
-import { DEFAULT_CHAT_FONT_SIZE_PX, normalizeChatFontSizePx } from "../../appSettings";
+const DEFAULT_CHAT_FONT_SIZE_PX = 14;
+const MIN_CHAT_FONT_SIZE_PX = 10;
+const MAX_CHAT_FONT_SIZE_PX = 24;
+function normalizeChatFontSizePx(size: number | undefined): number {
+  if (size === undefined) return DEFAULT_CHAT_FONT_SIZE_PX;
+  return Math.max(MIN_CHAT_FONT_SIZE_PX, Math.min(MAX_CHAT_FONT_SIZE_PX, Math.round(size)));
+}
 
 const CHAT_TRANSCRIPT_USER_CHAR_WIDTH_RATIO = 0.6;
 const CHAT_TRANSCRIPT_ASSISTANT_CHAR_WIDTH_RATIO = 0.52;

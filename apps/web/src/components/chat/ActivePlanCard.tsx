@@ -6,7 +6,7 @@
 import { memo } from "react";
 
 import type { ActivePlanState } from "../../session-logic";
-import { BotIcon, CheckIcon, ChevronRightIcon, ListTodoIcon, LoaderIcon } from "~/lib/icons";
+import { BotIcon, CheckIcon, ChevronRightIcon, ListTodoIcon, LoaderIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 

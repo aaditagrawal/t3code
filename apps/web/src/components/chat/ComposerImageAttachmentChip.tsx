@@ -5,7 +5,7 @@
 
 import { memo } from "react";
 import { type ComposerImageAttachment } from "../../composerDraftStore";
-import { CircleAlertIcon, XIcon } from "~/lib/icons";
+import { CircleAlertIcon, XIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { COMPOSER_INLINE_CHIP_DISMISS_BUTTON_CLASS_NAME } from "../composerInlineChip";

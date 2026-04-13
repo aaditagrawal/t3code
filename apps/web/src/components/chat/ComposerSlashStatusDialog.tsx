@@ -1,12 +1,13 @@
-import type { ResolvedThreadWorkspaceState } from "@t3tools/shared/threadEnvironment";
 import type { ProviderInteractionMode } from "@t3tools/contracts";
 import type { DraftThreadEnvMode } from "../../composerDraftStore";
-import {
-  type ContextWindowSnapshot,
-  formatContextWindowTokens,
-  formatCostUsd,
-} from "../../lib/contextWindow";
-import type { RateLimitStatus } from "./RateLimitBanner";
+import { type ContextWindowSnapshot, formatContextWindowTokens } from "../../lib/contextWindow";
+type RateLimitStatus = {
+  status: "warning" | "rejected";
+  utilization?: number;
+  resetsAt?: number;
+};
+
+type ResolvedThreadWorkspaceState = Record<string, unknown>;
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -54,7 +55,6 @@ export function ComposerSlashStatusDialog(props: {
   envState: ResolvedThreadWorkspaceState;
   branch: string | null;
   contextWindow: ContextWindowSnapshot | null;
-  cumulativeCostUsd: number | null;
   rateLimitStatus: RateLimitStatus | null;
 }) {
   const {
@@ -68,7 +68,6 @@ export function ComposerSlashStatusDialog(props: {
     envState,
     branch,
     contextWindow,
-    cumulativeCostUsd,
     rateLimitStatus,
   } = props;
 
@@ -125,9 +124,7 @@ export function ComposerSlashStatusDialog(props: {
                   Latest usage reported by the active thread.
                 </p>
               </div>
-              {contextWindow ? (
-                <ContextWindowMeter usage={contextWindow} cumulativeCostUsd={cumulativeCostUsd} />
-              ) : null}
+              {contextWindow ? <ContextWindowMeter usage={contextWindow} /> : null}
             </div>
             {contextWindow ? (
               <div className="grid gap-3 text-sm sm:grid-cols-2">
@@ -151,11 +148,7 @@ export function ComposerSlashStatusDialog(props: {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Cost</p>
-                  <p className="font-medium text-foreground">
-                    {cumulativeCostUsd !== null
-                      ? formatCostUsd(cumulativeCostUsd)
-                      : "Not available"}
-                  </p>
+                  <p className="font-medium text-foreground">{"Not available"}</p>
                 </div>
               </div>
             ) : (

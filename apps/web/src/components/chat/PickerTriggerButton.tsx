@@ -4,7 +4,7 @@
 // Depends on: button primitives, shared picker text styles, and icon slots supplied by callers.
 
 import { type ComponentProps, type ReactNode } from "react";
-import { ChevronDownIcon } from "~/lib/icons";
+import { ChevronDownIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { COMPOSER_PICKER_TRIGGER_TEXT_CLASS_NAME } from "./composerPickerStyles";
