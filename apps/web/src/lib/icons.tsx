@@ -1,160 +1,144 @@
-// TODO: @tabler/icons-react and react-icons (pi, ri, tb) are not in our package.json — install them: bun add @tabler/icons-react react-icons
-import { type FC, type SVGProps } from "react";
-import { PiGitCommit, PiSquareSplitHorizontal, PiSquareSplitVertical } from "react-icons/pi";
-import { RiApps2Line } from "react-icons/ri";
-import { TbArrowsRightLeft, TbPlug } from "react-icons/tb";
+// Re-export icons from lucide-react under the names used across the app.
+import type { LucideIcon } from "lucide-react";
 import {
-  IconAlertCircle,
-  IconAlertTriangle,
-  IconArrowBackUp,
-  IconArrowDown,
-  IconArrowLeft,
-  IconArrowRight,
-  IconArrowsUpDown,
-  IconBolt,
-  IconBug,
-  IconCheck,
-  IconChevronDown,
-  IconChevronLeft,
-  IconChevronRight,
-  IconChevronUp,
-  IconCircleCheck,
-  IconCloudUpload,
-  IconColumns2,
-  IconCopy,
-  IconDots,
-  IconExternalLink,
-  IconEye,
-  IconFile,
-  IconFlask2,
-  IconFolder,
-  IconFolderOpen,
-  IconGitCompare,
-  IconGitFork,
-  IconGitPullRequest,
-  IconEdit,
-  IconInfoCircle,
-  IconLayoutSidebarLeftCollapse,
-  IconLayoutSidebarLeftExpand,
-  IconLayoutSidebarRightCollapse,
-  IconLayoutDistributeHorizontal,
-  IconListCheck,
-  IconListDetails,
-  IconLoader2,
-  IconLock,
-  IconLockOpen,
-  IconMaximize,
-  IconMinimize,
-  IconPin,
-  IconPinnedFilled,
-  IconPlayerPlay,
-  IconPlus,
-  IconRefresh,
-  IconRocket,
-  IconRobot,
-  IconRotate2,
-  IconSearch,
-  IconSelector,
-  IconSettings,
-  IconTerminal,
-  IconTerminal2,
-  IconTextWrap,
-  IconTool,
-  IconTrash,
-  IconWorld,
-  IconX,
-  type TablerIcon,
-} from "@tabler/icons-react";
+  AlertCircleIcon,
+  AlertTriangleIcon,
+  AppWindowIcon,
+  ArrowDownIcon as LuArrowDown,
+  ArrowLeftIcon as LuArrowLeft,
+  ArrowLeftRightIcon,
+  ArrowRightIcon as LuArrowRight,
+  ArrowUpDownIcon as LuArrowUpDown,
+  BoltIcon,
+  BotIcon as LuBot,
+  BugIcon as LuBug,
+  CheckIcon as LuCheck,
+  ChevronDownIcon as LuChevronDown,
+  ChevronLeftIcon as LuChevronLeft,
+  ChevronRightIcon as LuChevronRight,
+  ChevronUpIcon as LuChevronUp,
+  ChevronsUpDownIcon as LuChevronsUpDown,
+  CircleAlertIcon as LuCircleAlert,
+  CircleCheckIcon as LuCircleCheck,
+  CloudUploadIcon as LuCloudUpload,
+  Columns2Icon as LuColumns2,
+  CopyIcon as LuCopy,
+  EllipsisIcon as LuEllipsis,
+  ExternalLinkIcon as LuExternalLink,
+  EyeIcon as LuEye,
+  FileIcon as LuFile,
+  FlaskConicalIcon as LuFlaskConical,
+  FolderIcon as LuFolder,
+  FolderOpenIcon as LuFolderOpen,
+  GitCompareIcon,
+  GitCommitHorizontalIcon,
+  GitForkIcon as LuGitFork,
+  GitPullRequestIcon as LuGitPullRequest,
+  GlobeIcon as LuGlobe,
+  HammerIcon as LuHammer,
+  InfoIcon as LuInfo,
+  ListChecksIcon as LuListChecks,
+  ListTodoIcon as LuListTodo,
+  Loader2Icon as LuLoader2,
+  LockIcon as LuLock,
+  LockOpenIcon as LuLockOpen,
+  Maximize2Icon,
+  Minimize2Icon,
+  PanelLeftCloseIcon as LuPanelLeftClose,
+  PanelLeftIcon as LuPanelLeft,
+  PanelRightCloseIcon as LuPanelRightClose,
+  PinIcon as LuPin,
+  PlayIcon as LuPlay,
+  PlugIcon as LuPlug,
+  PlusIcon as LuPlus,
+  RefreshCwIcon as LuRefreshCw,
+  RocketIcon as LuRocket,
+  RotateCcwIcon as LuRotateCcw,
+  Rows3Icon as LuRows3,
+  SearchIcon as LuSearch,
+  SettingsIcon as LuSettings,
+  SplitIcon,
+  SquarePenIcon as LuSquarePen,
+  TerminalIcon as LuTerminal,
+  TerminalSquareIcon as LuTerminalSquare,
+  WrapTextIcon,
+  Trash2Icon,
+  Undo2Icon as LuUndo2,
+  WrenchIcon as LuWrench,
+  XIcon as LuX,
+  ZapIcon as LuZap,
+} from "lucide-react";
 
-// Keep the existing icon API stable while the app moves from Lucide to Tabler.
-export type LucideIcon = FC<SVGProps<SVGSVGElement>>;
+export type { LucideIcon };
 
-function adaptIcon(Component: TablerIcon): LucideIcon {
-  return function AdaptedIcon(props) {
-    return <Component {...(props as unknown as Record<string, unknown>)} />;
-  };
-}
-
-export const AppsIcon: LucideIcon = (props) => (
-  <RiApps2Line className={props.className} style={props.style} />
-);
-export const ArrowLeftIcon = adaptIcon(IconArrowLeft);
-export const ArrowRightIcon = adaptIcon(IconArrowRight);
-export const ArrowDownIcon = adaptIcon(IconArrowDown);
-export const ArrowUpDownIcon = adaptIcon(IconArrowsUpDown);
-export const BotIcon = adaptIcon(IconRobot);
-export const BugIcon = adaptIcon(IconBug);
-export const CheckIcon = adaptIcon(IconCheck);
-export const ChevronDownIcon = adaptIcon(IconChevronDown);
-export const ChevronLeftIcon = adaptIcon(IconChevronLeft);
-export const ChevronRightIcon = adaptIcon(IconChevronRight);
-export const ChevronUpIcon = adaptIcon(IconChevronUp);
-export const ChevronsUpDownIcon = adaptIcon(IconSelector);
-export const CircleAlertIcon = adaptIcon(IconAlertCircle);
-export const CircleCheckIcon = adaptIcon(IconCircleCheck);
-export const CloudUploadIcon = adaptIcon(IconCloudUpload);
-export const Columns2Icon = adaptIcon(IconColumns2);
-export const CopyIcon = adaptIcon(IconCopy);
-export const DiffIcon = adaptIcon(IconGitCompare);
-export const EllipsisIcon = adaptIcon(IconDots);
-export const ExternalLinkIcon = adaptIcon(IconExternalLink);
-export const EyeIcon = adaptIcon(IconEye);
-export const FileIcon = adaptIcon(IconFile);
-export const FlaskConicalIcon = adaptIcon(IconFlask2);
-export const FolderClosedIcon = adaptIcon(IconFolder);
-export const FolderIcon = adaptIcon(IconFolder);
-export const FolderOpenIcon = adaptIcon(IconFolderOpen);
-export const GitCommitIcon: LucideIcon = (props) => (
-  <PiGitCommit className={props.className} style={props.style} />
-);
-export const GitForkIcon = adaptIcon(IconGitFork);
-export const GitPullRequestIcon = adaptIcon(IconGitPullRequest);
-export const GlobeIcon = adaptIcon(IconWorld);
-export const PlugIcon: LucideIcon = (props) => (
-  <TbPlug className={props.className} style={props.style} />
-);
-export const HammerIcon = adaptIcon(IconTool);
-export const HandoffIcon: LucideIcon = (props) => (
-  <TbArrowsRightLeft className={props.className} style={props.style} />
-);
-export const InfoIcon = adaptIcon(IconInfoCircle);
-export const ListChecksIcon = adaptIcon(IconListCheck);
-export const ListTodoIcon = adaptIcon(IconListDetails);
-export const Loader2Icon = adaptIcon(IconLoader2);
-export const LoaderCircleIcon = adaptIcon(IconLoader2);
-export const LoaderIcon = adaptIcon(IconLoader2);
-export const LockIcon = adaptIcon(IconLock);
-export const LockOpenIcon = adaptIcon(IconLockOpen);
-export const Maximize2 = adaptIcon(IconMaximize);
-export const Minimize2 = adaptIcon(IconMinimize);
-export const PanelLeftCloseIcon = adaptIcon(IconLayoutSidebarLeftCollapse);
-export const PanelLeftIcon = adaptIcon(IconLayoutSidebarLeftExpand);
-export const PanelRightCloseIcon = adaptIcon(IconLayoutSidebarRightCollapse);
-export const PinIcon = adaptIcon(IconPin);
-export const PinnedFilledIcon = adaptIcon(IconPinnedFilled);
-export const PlayIcon = adaptIcon(IconPlayerPlay);
-export const Plus = adaptIcon(IconPlus);
-export const PlusIcon = adaptIcon(IconPlus);
-export const RefreshCwIcon = adaptIcon(IconRefresh);
-export const RocketIcon = adaptIcon(IconRocket);
-export const RotateCcwIcon = adaptIcon(IconRotate2);
-export const Rows3Icon = adaptIcon(IconLayoutDistributeHorizontal);
-export const SearchIcon = adaptIcon(IconSearch);
-export const SettingsIcon = adaptIcon(IconSettings);
-export const SquarePenIcon = adaptIcon(IconEdit);
-export const SquareSplitHorizontal: LucideIcon = (props) => (
-  <PiSquareSplitHorizontal className={props.className} style={props.style} />
-);
-export const SquareSplitVertical: LucideIcon = (props) => (
-  <PiSquareSplitVertical className={props.className} style={props.style} />
-);
-export const TerminalIcon = adaptIcon(IconTerminal);
-export const TerminalSquare = adaptIcon(IconTerminal2);
-export const TerminalSquareIcon = adaptIcon(IconTerminal2);
-export const TextWrapIcon = adaptIcon(IconTextWrap);
-export const Trash2 = adaptIcon(IconTrash);
-export const TriangleAlertIcon = adaptIcon(IconAlertTriangle);
-export const Undo2Icon = adaptIcon(IconArrowBackUp);
-export const WrenchIcon = adaptIcon(IconTool);
-export const XIcon = adaptIcon(IconX);
-export const ZapIcon = adaptIcon(IconBolt);
+export const AppsIcon = AppWindowIcon;
+export const ArrowLeftIcon = LuArrowLeft;
+export const ArrowRightIcon = LuArrowRight;
+export const ArrowDownIcon = LuArrowDown;
+export const ArrowUpDownIcon = LuArrowUpDown;
+export const BotIcon = LuBot;
+export const BugIcon = LuBug;
+export const CheckIcon = LuCheck;
+export const ChevronDownIcon = LuChevronDown;
+export const ChevronLeftIcon = LuChevronLeft;
+export const ChevronRightIcon = LuChevronRight;
+export const ChevronUpIcon = LuChevronUp;
+export const ChevronsUpDownIcon = LuChevronsUpDown;
+export const CircleAlertIcon = LuCircleAlert;
+export const CircleCheckIcon = LuCircleCheck;
+export const CloudUploadIcon = LuCloudUpload;
+export const Columns2Icon = LuColumns2;
+export const CopyIcon = LuCopy;
+export const DiffIcon = GitCompareIcon;
+export const EllipsisIcon = LuEllipsis;
+export const ExternalLinkIcon = LuExternalLink;
+export const EyeIcon = LuEye;
+export const FileIcon = LuFile;
+export const FlaskConicalIcon = LuFlaskConical;
+export const FolderClosedIcon = LuFolder;
+export const FolderIcon = LuFolder;
+export const FolderOpenIcon = LuFolderOpen;
+export const GitCommitIcon = GitCommitHorizontalIcon;
+export const GitForkIcon = LuGitFork;
+export const GitPullRequestIcon = LuGitPullRequest;
+export const GlobeIcon = LuGlobe;
+export const PlugIcon = LuPlug;
+export const HammerIcon = LuHammer;
+export const HandoffIcon = ArrowLeftRightIcon;
+export const InfoIcon = LuInfo;
+export const ListChecksIcon = LuListChecks;
+export const ListTodoIcon = LuListTodo;
+export const Loader2Icon = LuLoader2;
+export const LoaderCircleIcon = LuLoader2;
+export const LoaderIcon = LuLoader2;
+export const LockIcon = LuLock;
+export const LockOpenIcon = LuLockOpen;
+export const Maximize2 = Maximize2Icon;
+export const Minimize2 = Minimize2Icon;
+export const PanelLeftCloseIcon = LuPanelLeftClose;
+export const PanelLeftIcon = LuPanelLeft;
+export const PanelRightCloseIcon = LuPanelRightClose;
+export const PinIcon = LuPin;
+export const PinnedFilledIcon = LuPin;
+export const PlayIcon = LuPlay;
+export const Plus = LuPlus;
+export const PlusIcon = LuPlus;
+export const RefreshCwIcon = LuRefreshCw;
+export const RocketIcon = LuRocket;
+export const RotateCcwIcon = LuRotateCcw;
+export const Rows3Icon = LuRows3;
+export const SearchIcon = LuSearch;
+export const SettingsIcon = LuSettings;
+export const SquarePenIcon = LuSquarePen;
+export const SquareSplitHorizontal = SplitIcon;
+export const SquareSplitVertical = SplitIcon;
+export const TerminalIcon = LuTerminal;
+export const TerminalSquare = LuTerminalSquare;
+export const TerminalSquareIcon = LuTerminalSquare;
+export const TextWrapIcon = WrapTextIcon;
+export const Trash2 = Trash2Icon;
+export const TriangleAlertIcon = AlertTriangleIcon;
+export const Undo2Icon = LuUndo2;
+export const WrenchIcon = LuWrench;
+export const XIcon = LuX;
+export const ZapIcon = LuZap;

@@ -14,12 +14,12 @@ function makeActivity(
   createdAt = "2099-04-08T18:00:00.000Z",
 ): OrchestrationThreadActivity {
   return {
-    id: EventId.makeUnsafe(id),
+    id: EventId.make(id),
     tone: "info",
     kind,
     summary: kind,
     payload,
-    turnId: TurnId.makeUnsafe("turn-1"),
+    turnId: TurnId.make("turn-1"),
     createdAt,
   };
 }

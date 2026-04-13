@@ -1,7 +1,7 @@
 import { memo } from "react";
 import type { OrchestrationThreadActivity } from "@t3tools/contracts";
 import { Alert, AlertDescription } from "../ui/alert";
-import { CircleAlertIcon } from "~/lib/icons";
+import { CircleAlertIcon } from "lucide-react";
 
 export type RateLimitStatus = {
   status: "rejected" | "allowed_warning";
