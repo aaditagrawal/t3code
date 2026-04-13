@@ -6,9 +6,26 @@
  *
  * @module ProviderHealth
  */
-import type { ServerProviderStatus } from "@t3tools/contracts";
-import { ServiceMap } from "effect";
+import type { ServerProviderAuthStatus } from "@t3tools/contracts";
+import { Context } from "effect";
 import type { Effect } from "effect";
+
+/**
+ * Lightweight status snapshot returned by startup health probes.
+ *
+ * Intentionally decoupled from the full `ServerProvider` contract which
+ * carries model lists, slash-commands, etc.
+ */
+export type ServerProviderStatusState = "ready" | "warning" | "error";
+
+export interface ServerProviderStatus {
+  readonly provider: string;
+  readonly status: ServerProviderStatusState;
+  readonly available: boolean;
+  readonly authStatus: ServerProviderAuthStatus;
+  readonly checkedAt: string;
+  readonly message?: string;
+}
 
 export interface ProviderHealthShape {
   /**

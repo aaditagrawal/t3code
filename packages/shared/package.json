@@ -56,6 +56,10 @@
       "types": "./src/searchRanking.ts",
       "import": "./src/searchRanking.ts"
     },
+    "./terminalThreads": {
+      "types": "./src/terminalThreads.ts",
+      "import": "./src/terminalThreads.ts"
+    },
     "./qrCode": {
       "types": "./src/qrCode.ts",
       "import": "./src/qrCode.ts"

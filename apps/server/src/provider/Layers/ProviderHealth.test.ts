@@ -29,6 +29,7 @@ function mockHandle(result: { stdout: string; stderr: string; code: number }) {
     all: Stream.empty,
     getInputFd: () => Sink.drain,
     getOutputFd: () => Stream.empty,
+    unref: Effect.succeed({ [Symbol()]: true }) as any,
   });
 }
 

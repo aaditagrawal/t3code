@@ -9,11 +9,9 @@
  * @module ProviderHealthLive
  */
 import * as OS from "node:os";
-import type {
-  ServerProviderAuthStatus,
-  ServerProviderStatus,
-  ServerProviderStatusState,
-} from "@t3tools/contracts";
+import type { ServerProviderAuthStatus } from "@t3tools/contracts";
+
+import type { ServerProviderStatus, ServerProviderStatusState } from "../Services/ProviderHealth";
 import { Array, Effect, Fiber, FileSystem, Layer, Option, Path, Result, Stream } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
