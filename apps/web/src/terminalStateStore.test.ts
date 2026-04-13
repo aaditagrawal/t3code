@@ -78,7 +78,19 @@ describe("terminalStateStore actions", () => {
       terminalIds: ["default"],
       runningTerminalIds: [],
       activeTerminalId: "default",
-      terminalGroups: [{ id: "group-default", terminalIds: ["default"] }],
+      terminalGroups: [
+        {
+          id: "group-default",
+          terminalIds: ["default"],
+          activeTerminalId: "default",
+          layout: {
+            type: "terminal",
+            paneId: "pane-default",
+            terminalIds: ["default"],
+            activeTerminalId: "default",
+          },
+        },
+      ],
       activeTerminalGroupId: "group-default",
     });
   });
@@ -96,7 +108,17 @@ describe("terminalStateStore actions", () => {
     expect(terminalState.terminalIds).toEqual(["default", "terminal-2"]);
     expect(terminalState.activeTerminalId).toBe("terminal-2");
     expect(terminalState.terminalGroups).toEqual([
-      { id: "group-default", terminalIds: ["default", "terminal-2"] },
+      {
+        id: "group-default",
+        terminalIds: ["default", "terminal-2"],
+        activeTerminalId: "default",
+        layout: {
+          type: "terminal",
+          paneId: "pane-default",
+          terminalIds: ["default"],
+          activeTerminalId: "default",
+        },
+      },
     ]);
   });
 
@@ -118,7 +140,17 @@ describe("terminalStateStore actions", () => {
       "terminal-4",
     ]);
     expect(terminalState.terminalGroups).toEqual([
-      { id: "group-default", terminalIds: ["default", "terminal-2", "terminal-3", "terminal-4"] },
+      {
+        id: "group-default",
+        terminalIds: ["default", "terminal-2", "terminal-3", "terminal-4"],
+        activeTerminalId: "default",
+        layout: {
+          type: "terminal",
+          paneId: "pane-default",
+          terminalIds: ["default"],
+          activeTerminalId: "default",
+        },
+      },
     ]);
   });
 
@@ -133,8 +165,28 @@ describe("terminalStateStore actions", () => {
     expect(terminalState.activeTerminalId).toBe("terminal-2");
     expect(terminalState.activeTerminalGroupId).toBe("group-terminal-2");
     expect(terminalState.terminalGroups).toEqual([
-      { id: "group-default", terminalIds: ["default"] },
-      { id: "group-terminal-2", terminalIds: ["terminal-2"] },
+      {
+        id: "group-default",
+        terminalIds: ["default"],
+        activeTerminalId: "default",
+        layout: {
+          type: "terminal",
+          paneId: "pane-default",
+          terminalIds: ["default"],
+          activeTerminalId: "default",
+        },
+      },
+      {
+        id: "group-terminal-2",
+        terminalIds: ["terminal-2"],
+        activeTerminalId: "terminal-2",
+        layout: {
+          type: "terminal",
+          paneId: "pane-terminal-2",
+          terminalIds: ["terminal-2"],
+          activeTerminalId: "terminal-2",
+        },
+      },
     ]);
   });
 
@@ -150,8 +202,28 @@ describe("terminalStateStore actions", () => {
     expect(terminalState.terminalIds).toEqual(["default", "setup-setup"]);
     expect(terminalState.activeTerminalId).toBe("setup-setup");
     expect(terminalState.terminalGroups).toEqual([
-      { id: "group-default", terminalIds: ["default"] },
-      { id: "group-setup-setup", terminalIds: ["setup-setup"] },
+      {
+        id: "group-default",
+        terminalIds: ["default"],
+        activeTerminalId: "default",
+        layout: {
+          type: "terminal",
+          paneId: "pane-default",
+          terminalIds: ["default"],
+          activeTerminalId: "default",
+        },
+      },
+      {
+        id: "group-setup-setup",
+        terminalIds: ["setup-setup"],
+        activeTerminalId: "setup-setup",
+        layout: {
+          type: "terminal",
+          paneId: "pane-setup-setup",
+          terminalIds: ["setup-setup"],
+          activeTerminalId: "setup-setup",
+        },
+      },
     ]);
   });
 
@@ -264,7 +336,17 @@ describe("terminalStateStore actions", () => {
     expect(terminalState.activeTerminalId).toBe("terminal-2");
     expect(terminalState.terminalIds).toEqual(["default", "terminal-2"]);
     expect(terminalState.terminalGroups).toEqual([
-      { id: "group-default", terminalIds: ["default", "terminal-2"] },
+      {
+        id: "group-default",
+        terminalIds: ["default", "terminal-2"],
+        activeTerminalId: "default",
+        layout: {
+          type: "terminal",
+          paneId: "pane-default",
+          terminalIds: ["default"],
+          activeTerminalId: "default",
+        },
+      },
     ]);
   });
 
