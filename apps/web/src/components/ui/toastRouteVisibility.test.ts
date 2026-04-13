@@ -7,9 +7,9 @@ import {
 } from "./toastRouteVisibility";
 import type { SplitView } from "../../splitViewStore";
 
-const PROJECT_ID = ProjectId.makeUnsafe("project-1");
-const THREAD_A = ThreadId.makeUnsafe("thread-a");
-const THREAD_B = ThreadId.makeUnsafe("thread-b");
+const PROJECT_ID = ProjectId.make("project-1");
+const THREAD_A = ThreadId.make("thread-a");
+const THREAD_B = ThreadId.make("thread-b");
 
 function createSplitView(): SplitView {
   return {

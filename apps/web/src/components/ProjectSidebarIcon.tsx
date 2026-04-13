@@ -4,8 +4,7 @@
 // Exports: ProjectSidebarIcon
 
 import { useEffect, useState } from "react";
-import { HiOutlineFolderOpen } from "react-icons/hi2";
-import { IoFolderOutline } from "react-icons/io5";
+import { FolderIcon, FolderOpenIcon } from "lucide-react";
 
 const projectFaviconPresence = new Map<string, boolean>();
 
@@ -49,7 +48,7 @@ export function ProjectSidebarIcon({ cwd, expanded }: { cwd: string; expanded: b
   const [hasFavicon, setHasFavicon] = useState<boolean>(
     () => projectFaviconPresence.get(faviconSrc) === true,
   );
-  const FolderGlyph = expanded ? HiOutlineFolderOpen : IoFolderOutline;
+  const FolderGlyph = expanded ? FolderOpenIcon : FolderIcon;
 
   // Probe with Image() so Electron/file-origin behaves like the actual visible <img>.
   useEffect(() => {

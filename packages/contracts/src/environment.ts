@@ -75,3 +75,6 @@ export const ScopedThreadSessionRef = Schema.Struct({
   threadId: ThreadId,
 });
 export type ScopedThreadSessionRef = typeof ScopedThreadSessionRef.Type;
+
+export const ThreadEnvironmentMode = Schema.Literals(["local", "worktree"]);
+export type ThreadEnvironmentMode = typeof ThreadEnvironmentMode.Type;

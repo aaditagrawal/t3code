@@ -59,6 +59,10 @@
     "./qrCode": {
       "types": "./src/qrCode.ts",
       "import": "./src/qrCode.ts"
+    },
+    "./terminalThreads": {
+      "types": "./src/terminalThreads.ts",
+      "import": "./src/terminalThreads.ts"
     }
   },
   "scripts": {

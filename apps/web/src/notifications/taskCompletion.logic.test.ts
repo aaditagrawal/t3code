@@ -37,14 +37,13 @@ function makeThread(overrides: Partial<Thread>): Thread {
     createdAt: "2026-04-05T10:00:00.000Z",
     updatedAt: "2026-04-05T10:00:00.000Z",
     latestTurn: {
-      turnId: TurnId.makeUnsafe("turn-1"),
+      turnId: TurnId.make("turn-1"),
       state: "running",
       requestedAt: "2026-04-05T10:00:00.000Z",
       startedAt: "2026-04-05T10:00:00.000Z",
       completedAt: null,
       assistantMessageId: null,
     },
-    lastVisitedAt: "2026-04-05T10:00:00.000Z",
     branch: null,
     worktreePath: null,
     turnDiffSummaries: [],
@@ -76,17 +75,17 @@ describe("collectCompletedThreadCandidates", () => {
           updatedAt: "2026-04-05T10:00:05.000Z",
         },
         latestTurn: {
-          turnId: TurnId.makeUnsafe("turn-1"),
+          turnId: TurnId.make("turn-1"),
           state: "completed",
           requestedAt: "2026-04-05T10:00:00.000Z",
           startedAt: "2026-04-05T10:00:00.000Z",
           completedAt: "2026-04-05T10:00:05.000Z",
-          assistantMessageId: MessageId.makeUnsafe("msg-1"),
+          assistantMessageId: MessageId.make("msg-1"),
           sourceProposedPlan: undefined,
         },
         messages: [
           {
-            id: MessageId.makeUnsafe("msg-1"),
+            id: MessageId.make("msg-1"),
             role: "assistant",
             text: "Finished the task and everything looks good.",
             createdAt: "2026-04-05T10:00:01.000Z",
@@ -99,8 +98,8 @@ describe("collectCompletedThreadCandidates", () => {
 
     expect(collectCompletedThreadCandidates(previous, next)).toEqual([
       {
-        threadId: ThreadId.makeUnsafe("thread-1"),
-        projectId: ProjectId.makeUnsafe("project-1"),
+        threadId: ThreadId.make("thread-1"),
+        projectId: ProjectId.make("project-1"),
         title: "Polish notifications",
         completedAt: "2026-04-05T10:00:05.000Z",
         assistantSummary: "Finished the task and everything looks good.",
@@ -115,12 +114,12 @@ describe("collectCompletedThreadCandidates", () => {
           provider: "codex",
           status: "ready",
           orchestrationStatus: "ready",
-          activeTurnId: TurnId.makeUnsafe("turn-1"),
+          activeTurnId: TurnId.make("turn-1"),
           createdAt: "2026-04-05T10:00:00.000Z",
           updatedAt: "2026-04-05T10:00:01.000Z",
         },
         latestTurn: {
-          turnId: TurnId.makeUnsafe("turn-1"),
+          turnId: TurnId.make("turn-1"),
           state: "running",
           requestedAt: "2026-04-05T10:00:00.000Z",
           startedAt: "2026-04-05T10:00:00.000Z",
@@ -140,17 +139,17 @@ describe("collectCompletedThreadCandidates", () => {
           updatedAt: "2026-04-05T10:00:05.000Z",
         },
         latestTurn: {
-          turnId: TurnId.makeUnsafe("turn-1"),
+          turnId: TurnId.make("turn-1"),
           state: "completed",
           requestedAt: "2026-04-05T10:00:00.000Z",
           startedAt: "2026-04-05T10:00:00.000Z",
           completedAt: "2026-04-05T10:00:05.000Z",
-          assistantMessageId: MessageId.makeUnsafe("msg-1"),
+          assistantMessageId: MessageId.make("msg-1"),
           sourceProposedPlan: undefined,
         },
         messages: [
           {
-            id: MessageId.makeUnsafe("msg-1"),
+            id: MessageId.make("msg-1"),
             role: "assistant",
             text: "Done and verified.",
             createdAt: "2026-04-05T10:00:01.000Z",
@@ -163,8 +162,8 @@ describe("collectCompletedThreadCandidates", () => {
 
     expect(collectCompletedThreadCandidates(previous, next)).toEqual([
       {
-        threadId: ThreadId.makeUnsafe("thread-1"),
-        projectId: ProjectId.makeUnsafe("project-1"),
+        threadId: ThreadId.make("thread-1"),
+        projectId: ProjectId.make("project-1"),
         title: "Polish notifications",
         completedAt: "2026-04-05T10:00:05.000Z",
         assistantSummary: "Done and verified.",
@@ -184,7 +183,7 @@ describe("collectCompletedThreadCandidates", () => {
           updatedAt: "2026-04-05T10:00:05.000Z",
         },
         latestTurn: {
-          turnId: TurnId.makeUnsafe("turn-1"),
+          turnId: TurnId.make("turn-1"),
           state: "completed",
           requestedAt: "2026-04-05T10:00:00.000Z",
           startedAt: "2026-04-05T10:00:00.000Z",
@@ -203,8 +202,8 @@ describe("buildTaskCompletionCopy", () => {
   it("prefers assistant output when available", () => {
     expect(
       buildTaskCompletionCopy({
-        threadId: ThreadId.makeUnsafe("thread-1"),
-        projectId: ProjectId.makeUnsafe("project-1"),
+        threadId: ThreadId.make("thread-1"),
+        projectId: ProjectId.make("project-1"),
         title: "Polish notifications",
         completedAt: "2026-04-05T10:00:05.000Z",
         assistantSummary: "Finished the task and everything looks good.",
@@ -223,7 +222,7 @@ describe("collectInputNeededThreadCandidates", () => {
       makeThread({
         activities: [
           {
-            id: EventId.makeUnsafe("activity-approval-1"),
+            id: EventId.make("activity-approval-1"),
             tone: "approval",
             kind: "approval.requested",
             summary: "Command approval requested",
@@ -231,7 +230,7 @@ describe("collectInputNeededThreadCandidates", () => {
               requestId: "approval-request-1",
               requestKind: "command",
             },
-            turnId: TurnId.makeUnsafe("turn-1"),
+            turnId: TurnId.make("turn-1"),
             createdAt: "2026-04-05T10:00:04.000Z",
           },
         ],
@@ -241,11 +240,11 @@ describe("collectInputNeededThreadCandidates", () => {
     expect(collectInputNeededThreadCandidates(previous, next)).toEqual([
       {
         kind: "approval",
-        threadId: ThreadId.makeUnsafe("thread-1"),
-        projectId: ProjectId.makeUnsafe("project-1"),
+        threadId: ThreadId.make("thread-1"),
+        projectId: ProjectId.make("project-1"),
         title: "Polish notifications",
         createdAt: "2026-04-05T10:00:04.000Z",
-        requestId: ApprovalRequestId.makeUnsafe("approval-request-1"),
+        requestId: ApprovalRequestId.make("approval-request-1"),
         requestKind: "command",
       },
     ]);
@@ -257,7 +256,7 @@ describe("collectInputNeededThreadCandidates", () => {
       makeThread({
         activities: [
           {
-            id: EventId.makeUnsafe("activity-user-input-1"),
+            id: EventId.make("activity-user-input-1"),
             tone: "info",
             kind: "user-input.requested",
             summary: "User input requested",
@@ -275,7 +274,7 @@ describe("collectInputNeededThreadCandidates", () => {
                 },
               ],
             },
-            turnId: TurnId.makeUnsafe("turn-1"),
+            turnId: TurnId.make("turn-1"),
             createdAt: "2026-04-05T10:00:06.000Z",
           },
         ],
@@ -285,11 +284,11 @@ describe("collectInputNeededThreadCandidates", () => {
     expect(collectInputNeededThreadCandidates(previous, next)).toEqual([
       {
         kind: "user-input",
-        threadId: ThreadId.makeUnsafe("thread-1"),
-        projectId: ProjectId.makeUnsafe("project-1"),
+        threadId: ThreadId.make("thread-1"),
+        projectId: ProjectId.make("project-1"),
         title: "Polish notifications",
         createdAt: "2026-04-05T10:00:06.000Z",
-        requestId: ApprovalRequestId.makeUnsafe("user-input-request-1"),
+        requestId: ApprovalRequestId.make("user-input-request-1"),
       },
     ]);
   });
@@ -297,7 +296,7 @@ describe("collectInputNeededThreadCandidates", () => {
   it("ignores already-open requests from the previous snapshot", () => {
     const activities = [
       {
-        id: EventId.makeUnsafe("activity-approval-1"),
+        id: EventId.make("activity-approval-1"),
         tone: "approval" as const,
         kind: "approval.requested",
         summary: "Command approval requested",
@@ -305,7 +304,7 @@ describe("collectInputNeededThreadCandidates", () => {
           requestId: "approval-request-1",
           requestKind: "command",
         },
-        turnId: TurnId.makeUnsafe("turn-1"),
+        turnId: TurnId.make("turn-1"),
         createdAt: "2026-04-05T10:00:04.000Z",
       },
     ];
@@ -324,11 +323,11 @@ describe("buildInputNeededCopy", () => {
     expect(
       buildInputNeededCopy({
         kind: "approval",
-        threadId: ThreadId.makeUnsafe("thread-1"),
-        projectId: ProjectId.makeUnsafe("project-1"),
+        threadId: ThreadId.make("thread-1"),
+        projectId: ProjectId.make("project-1"),
         title: "Polish notifications",
         createdAt: "2026-04-05T10:00:04.000Z",
-        requestId: ApprovalRequestId.makeUnsafe("approval-request-1"),
+        requestId: ApprovalRequestId.make("approval-request-1"),
         requestKind: "command",
       }),
     ).toEqual({
@@ -341,11 +340,11 @@ describe("buildInputNeededCopy", () => {
     expect(
       buildInputNeededCopy({
         kind: "user-input",
-        threadId: ThreadId.makeUnsafe("thread-1"),
-        projectId: ProjectId.makeUnsafe("project-1"),
+        threadId: ThreadId.make("thread-1"),
+        projectId: ProjectId.make("project-1"),
         title: "Polish notifications",
         createdAt: "2026-04-05T10:00:06.000Z",
-        requestId: ApprovalRequestId.makeUnsafe("user-input-request-1"),
+        requestId: ApprovalRequestId.make("user-input-request-1"),
       }),
     ).toEqual({
       title: "Input needed",

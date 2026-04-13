@@ -773,6 +773,28 @@ export function deriveEffectiveComposerModelState(input: {
   };
 }
 
+/**
+ * Resolves the preferred model selection from the composer draft state.
+ */
+export function resolvePreferredComposerModelSelection(input: {
+  draft:
+    | Pick<ComposerThreadDraftState, "modelSelectionByProvider" | "activeProvider">
+    | null
+    | undefined;
+  threadModelSelection: ModelSelection | null | undefined;
+  projectModelSelection: ModelSelection | null | undefined;
+  defaultProvider?: ProviderKind | undefined;
+}): ModelSelection {
+  const provider = input.draft?.activeProvider ?? input.defaultProvider;
+  if (provider) {
+    const draftSelection = input.draft?.modelSelectionByProvider?.[provider];
+    if (draftSelection) return draftSelection;
+  }
+  return (
+    input.threadModelSelection ?? input.projectModelSelection ?? { provider: "codex", model: "" }
+  );
+}
+
 function revokeObjectPreviewUrl(previewUrl: string): void {
   if (typeof URL === "undefined") {
     return;
