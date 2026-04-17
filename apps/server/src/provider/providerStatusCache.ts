@@ -2,23 +2,16 @@ import * as nodePath from "node:path";
 import { type ServerProvider, ServerProvider as ServerProviderSchema } from "@t3tools/contracts";
 import { Cause, Effect, FileSystem, Path, Schema } from "effect";
 
-export const PROVIDER_CACHE_IDS = [
-  "codex",
-  "claudeAgent",
-  "copilot",
-  "cursor",
-  "opencode",
-  "geminiCli",
-  "amp",
-  "kilo",
-] as const satisfies ReadonlyArray<ServerProvider["provider"]>;
+export const PROVIDER_CACHE_IDS = ["codex", "claudeAgent"] as const satisfies ReadonlyArray<
+  ServerProvider["provider"]
+>;
 
 const decodeProviderStatusCache = Schema.decodeUnknownEffect(
   Schema.fromJsonString(ServerProviderSchema),
 );
 
 const providerOrderRank = (provider: ServerProvider["provider"]): number => {
-  const rank = PROVIDER_CACHE_IDS.indexOf(provider);
+  const rank = (PROVIDER_CACHE_IDS as ReadonlyArray<ServerProvider["provider"]>).indexOf(provider);
   return rank === -1 ? Number.MAX_SAFE_INTEGER : rank;
 };
 

@@ -642,6 +642,7 @@ let updaterConfigured = false;
 let updateState: DesktopUpdateState = initialUpdateState();
 
 function resolveUpdaterErrorContext(): DesktopUpdateErrorContext {
+  if (updateInstallInFlight) return "install";
   if (updateDownloadInFlight) return "download";
   if (updateCheckInFlight) return "check";
   return updateState.errorContext;
@@ -1219,6 +1220,7 @@ async function installDownloadedUpdate(): Promise<{ accepted: boolean; completed
   }
 
   isQuitting = true;
+  updateInstallInFlight = true;
   clearUpdatePollTimer();
   try {
     await stopBackendAndWaitForExit();
@@ -1226,6 +1228,7 @@ async function installDownloadedUpdate(): Promise<{ accepted: boolean; completed
     return { accepted: true, completed: true };
   } catch (error: unknown) {
     const message = formatErrorMessage(error);
+    updateInstallInFlight = false;
     isQuitting = false;
     setUpdateState(reduceDesktopUpdateStateOnInstallFailure(updateState, message));
     console.error(`[desktop-updater] Failed to install update: ${message}`);
@@ -1662,14 +1665,6 @@ function registerIpcHandlers(): void {
     });
     relaunchDesktopApp(`serverExposureMode=${nextMode}`);
     return nextState;
-  });
-
-  ipcMain.removeAllListeners(GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL);
-  ipcMain.on(GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL, (event) => {
-    event.returnValue = {
-      label: "Local environment",
-      wsUrl: backendWsUrl || null,
-    } as const;
   });
 
   ipcMain.removeHandler(PICK_FOLDER_CHANNEL);
