@@ -30,8 +30,8 @@ const providerSessionDirectoryTestLayer = Layer.succeed(ProviderSessionDirectory
   getProvider: () =>
     Effect.die(new Error("ProviderSessionDirectory.getProvider is not used in conformance tests")),
   getBinding: () => Effect.succeed(Option.none()),
-  remove: () => Effect.void,
   listThreadIds: () => Effect.succeed([]),
+  listBindings: () => Effect.succeed([]),
 });
 
 const codexLayer = makeCodexAdapterLive({ manager: new CodexAppServerManager() }).pipe(

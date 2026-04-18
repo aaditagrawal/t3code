@@ -11,6 +11,7 @@ export default defineConfig({
   clean: true,
   noExternal: (id) =>
     id.startsWith("@t3tools/") ||
+    id.startsWith("effect-acp") ||
     id.startsWith("@github/copilot") ||
     id.startsWith("vscode-jsonrpc") ||
     id.startsWith("@anthropic-ai/claude-agent-sdk") ||

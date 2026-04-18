@@ -37,6 +37,14 @@ export {
   resolveModelOptionsByProvider,
 } from "../../providerModelOptions";
 
+function isAvailableProviderOption(option: (typeof PROVIDER_OPTIONS)[number]): option is {
+  value: ProviderKind;
+  label: string;
+  available: true;
+} {
+  return option.available;
+}
+
 type GroupedModelEntry = {
   readonly subProvider: string;
   readonly models: ReadonlyArray<ModelOptionEntry>;
@@ -150,7 +158,7 @@ const PROVIDER_ICON_BY_PROVIDER: Record<ProviderKind, Icon> = {
   kilo: KiloIcon,
 };
 
-export const AVAILABLE_PROVIDER_OPTIONS = PROVIDER_OPTIONS.filter((option) => option.available);
+export const AVAILABLE_PROVIDER_OPTIONS = PROVIDER_OPTIONS.filter(isAvailableProviderOption);
 const UNAVAILABLE_PROVIDER_OPTIONS = PROVIDER_OPTIONS.filter((option) => !option.available);
 const COMING_SOON_PROVIDER_OPTIONS: ReadonlyArray<{ id: string; label: string; icon: Icon }> = [];
 

@@ -5,7 +5,7 @@ import {
   createKnownEnvironment,
   createKnownEnvironmentFromWsUrl,
   getKnownEnvironmentHttpBaseUrl,
-} from "./knownEnvironment";
+} from "./knownEnvironment.ts";
 import {
   parseScopedProjectKey,
   parseScopedThreadKey,
@@ -14,7 +14,7 @@ import {
   scopedThreadKey,
   scopeProjectRef,
   scopeThreadRef,
-} from "./scoped";
+} from "./scoped.ts";
 
 describe("known environment bootstrap helpers", () => {
   it("creates known environments from explicit server base urls", () => {

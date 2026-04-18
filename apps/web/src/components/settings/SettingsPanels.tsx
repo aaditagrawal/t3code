@@ -22,6 +22,7 @@ import {
 import { scopeThreadRef } from "@t3tools/client-runtime";
 import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
 import { normalizeModelSlug } from "@t3tools/shared/model";
+import { createModelSelection } from "@t3tools/shared/model";
 import { Equal } from "effect";
 import { APP_VERSION } from "../../branding";
 import {
@@ -60,6 +61,7 @@ import {
 } from "../../store";
 import { formatRelativeTime, formatRelativeTimeLabel } from "../../timestampFormat";
 import { cn } from "../../lib/utils";
+import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Collapsible, CollapsibleContent } from "../ui/collapsible";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "../ui/empty";
@@ -106,9 +108,11 @@ const TIMESTAMP_FORMAT_LABELS = {
 
 type InstallProviderSettings = {
   provider: ProviderKind;
-  label: string;
+  title: string;
+  badgeLabel?: string;
   binaryPlaceholder: string;
   binaryDescription: ReactNode;
+  homePathKey?: "codexHomePath";
   homePlaceholder?: string;
   homeDescription?: ReactNode;
   customModelExample: string;
@@ -117,58 +121,60 @@ type InstallProviderSettings = {
 const PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
   {
     provider: "codex",
-    label: "Codex",
+    title: "Codex",
     binaryPlaceholder: "Codex binary path",
     binaryDescription: "Path to the Codex binary",
+    homePathKey: "codexHomePath",
     homePlaceholder: "CODEX_HOME",
     homeDescription: "Optional custom Codex home and config directory.",
     customModelExample: "gpt-6.7-codex-ultra-preview",
   },
   {
     provider: "copilot",
-    label: "GitHub Copilot",
+    title: "GitHub Copilot",
     binaryPlaceholder: "Copilot binary path",
     binaryDescription: "Path to the Copilot CLI binary",
     customModelExample: "gpt-4o-copilot",
   },
   {
     provider: "claudeAgent",
-    label: "Claude Code",
+    title: "Claude Code",
     binaryPlaceholder: "Claude binary path",
     binaryDescription: "Path to the Claude binary",
     customModelExample: "claude-sonnet-5-0",
   },
   {
     provider: "cursor",
-    label: "Cursor Agent",
+    title: "Cursor Agent",
+    badgeLabel: "Early Access",
     binaryPlaceholder: "Cursor binary path",
     binaryDescription: "Path to the Cursor Agent binary",
     customModelExample: "cursor-fast",
   },
   {
     provider: "opencode",
-    label: "OpenCode",
+    title: "OpenCode",
     binaryPlaceholder: "OpenCode binary path",
     binaryDescription: "Path to the OpenCode binary",
     customModelExample: "opencode-pro",
   },
   {
     provider: "geminiCli",
-    label: "Gemini CLI",
+    title: "Gemini CLI",
     binaryPlaceholder: "Gemini CLI binary path",
     binaryDescription: "Path to the Gemini CLI binary",
     customModelExample: "gemini-2.0-ultra",
   },
   {
     provider: "amp",
-    label: "AMPcode",
+    title: "AMPcode",
     binaryPlaceholder: "AMPcode binary path",
     binaryDescription: "Path to the AMPcode binary",
     customModelExample: "amp-pro",
   },
   {
     provider: "kilo",
-    label: "Kilo",
+    title: "Kilo",
     binaryPlaceholder: "Kilo binary path",
     binaryDescription: "Path to the Kilo binary",
     customModelExample: "kilo-advanced",
@@ -570,8 +576,16 @@ export function GeneralSettingsPanel() {
       settings.providers.claudeAgent.launchArgs !== "",
     ),
     copilot: false,
-    cursor: false,
-    opencode: false,
+    cursor: Boolean(
+      settings.providers.cursor.binaryPath !==
+        DEFAULT_UNIFIED_SETTINGS.providers.cursor.binaryPath ||
+      settings.providers.cursor.customModels.length > 0,
+    ),
+    opencode: Boolean(
+      settings.providers.opencode.binaryPath !==
+        DEFAULT_UNIFIED_SETTINGS.providers.opencode.binaryPath ||
+      settings.providers.opencode.customModels.length > 0,
+    ),
     geminiCli: false,
     amp: false,
     kilo: false,
@@ -613,6 +627,11 @@ export function GeneralSettingsPanel() {
   const availableEditors = useServerAvailableEditors();
   const observability = useServerObservability();
   const serverProviders = useServerProviders();
+  const visibleProviderSettings = PROVIDER_SETTINGS.filter(
+    (providerSettings) =>
+      providerSettings.provider !== "cursor" ||
+      serverProviders.some((provider) => provider.provider === "cursor"),
+  );
   const codexHomePath = settings.providers.codex.homePath;
   const logsDirectoryPath = observability?.logsDirectoryPath ?? null;
   const diagnosticsDescription = (() => {
@@ -809,7 +828,7 @@ export function GeneralSettingsPanel() {
     [settings, updateSettings],
   );
 
-  const providerCards = PROVIDER_SETTINGS.map((providerSettings) => {
+  const providerCards = visibleProviderSettings.map((providerSettings) => {
     const liveProvider = serverProviders.find(
       (candidate) => candidate.provider === providerSettings.provider,
     );
@@ -834,9 +853,11 @@ export function GeneralSettingsPanel() {
 
     return {
       provider: providerSettings.provider,
-      title: providerSettings.label,
+      title: providerSettings.title,
+      badgeLabel: providerSettings.badgeLabel,
       binaryPlaceholder: providerSettings.binaryPlaceholder,
       binaryDescription: providerSettings.binaryDescription,
+      homePathKey: providerSettings.homePathKey,
       homePlaceholder: providerSettings.homePlaceholder,
       homeDescription: providerSettings.homeDescription,
       customModelExample: providerSettings.customModelExample,
@@ -1139,7 +1160,7 @@ export function GeneralSettingsPanel() {
                     textGenerationModelSelection: resolveAppModelSelectionState(
                       {
                         ...settings,
-                        textGenerationModelSelection: { provider, model },
+                        textGenerationModelSelection: createModelSelection(provider, model),
                       },
                       serverProviders,
                     ),
@@ -1164,11 +1185,11 @@ export function GeneralSettingsPanel() {
                     textGenerationModelSelection: resolveAppModelSelectionState(
                       {
                         ...settings,
-                        textGenerationModelSelection: {
-                          provider: textGenProvider,
-                          model: textGenModel,
-                          ...(nextOptions ? { options: nextOptions } : {}),
-                        } as ModelSelection,
+                        textGenerationModelSelection: createModelSelection(
+                          textGenProvider,
+                          textGenModel,
+                          nextOptions,
+                        ),
                       },
                       serverProviders,
                     ),
@@ -1225,6 +1246,11 @@ export function GeneralSettingsPanel() {
                         className={cn("size-2 shrink-0 rounded-full", providerCard.statusStyle.dot)}
                       />
                       <h3 className="text-sm font-medium text-foreground">{providerDisplayName}</h3>
+                      {providerCard.badgeLabel ? (
+                        <Badge variant="warning" size="sm" className="shrink-0">
+                          {providerCard.badgeLabel}
+                        </Badge>
+                      ) : null}
                       {providerCard.versionLabel ? (
                         <code className="text-xs text-muted-foreground">
                           {providerCard.versionLabel}
@@ -1347,7 +1373,7 @@ export function GeneralSettingsPanel() {
                       </label>
                     </div>
 
-                    {providerCard.provider === "codex" ? (
+                    {providerCard.homePathKey ? (
                       <div className="border-t border-border/60 px-4 py-3 sm:px-5">
                         <label
                           htmlFor={`provider-install-${providerCard.provider}-home-path`}

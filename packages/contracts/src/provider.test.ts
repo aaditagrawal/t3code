@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Schema } from "effect";
 
-import { ProviderSendTurnInput, ProviderSessionStartInput } from "./provider";
+import { ProviderSendTurnInput, ProviderSessionStartInput } from "./provider.ts";
 
 const decodeProviderSessionStartInput = Schema.decodeUnknownSync(ProviderSessionStartInput);
 const decodeProviderSendTurnInput = Schema.decodeUnknownSync(ProviderSendTurnInput);
@@ -102,6 +102,26 @@ describe("ProviderSessionStartInput", () => {
         : undefined,
     ).toBe(true);
     expect(parsed.runtimeMode).toBe("approval-required");
+  });
+
+  it("accepts cursor provider", () => {
+    const parsed = decodeProviderSessionStartInput({
+      threadId: "thread-1",
+      provider: "cursor",
+      cwd: "/tmp/workspace",
+      runtimeMode: "full-access",
+      modelSelection: {
+        provider: "cursor",
+        model: "composer-2",
+        options: { fastMode: true },
+      },
+    });
+    expect(parsed.provider).toBe("cursor");
+    expect(parsed.modelSelection?.provider).toBe("cursor");
+    expect(parsed.modelSelection?.model).toBe("composer-2");
+    if (parsed.modelSelection?.provider === "cursor") {
+      expect(parsed.modelSelection.options?.fastMode).toBe(true);
+    }
   });
 });
 

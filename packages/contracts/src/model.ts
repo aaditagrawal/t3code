@@ -1,15 +1,35 @@
 import { Schema } from "effect";
-import { TrimmedNonEmptyString } from "./baseSchemas";
-import type { ProviderKind } from "./orchestration";
-
-export const CURSOR_REASONING_OPTIONS = ["low", "normal", "high", "xhigh"] as const;
-export type CursorReasoningOption = (typeof CURSOR_REASONING_OPTIONS)[number];
+import { TrimmedNonEmptyString } from "./baseSchemas.ts";
+import type { ProviderKind } from "./orchestration.ts";
 
 export const CODEX_REASONING_EFFORT_OPTIONS = ["xhigh", "high", "medium", "low"] as const;
-export type CodexReasoningEffort = (typeof CODEX_REASONING_EFFORT_OPTIONS)[number];
-export const CLAUDE_CODE_EFFORT_OPTIONS = ["low", "medium", "high", "max", "ultrathink"] as const;
-export type ClaudeCodeEffort = (typeof CLAUDE_CODE_EFFORT_OPTIONS)[number];
-export type ProviderReasoningEffort = CodexReasoningEffort | ClaudeCodeEffort;
+export const CodexReasoningEffort = Schema.Literals(CODEX_REASONING_EFFORT_OPTIONS);
+export type CodexReasoningEffort = typeof CodexReasoningEffort.Type;
+export const CLAUDE_CODE_EFFORT_OPTIONS = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultrathink",
+] as const;
+export const ClaudeCodeEffort = Schema.Literals(CLAUDE_CODE_EFFORT_OPTIONS);
+export type ClaudeCodeEffort = typeof ClaudeCodeEffort.Type;
+/**
+ * Alias of ClaudeCodeEffort — upstream renamed this to ClaudeAgentEffort.
+ * Both names are exported for backward compatibility with existing fork code
+ * and newly merged upstream code.
+ */
+export const ClaudeAgentEffort = ClaudeCodeEffort;
+export type ClaudeAgentEffort = ClaudeCodeEffort;
+export const CURSOR_REASONING_OPTIONS = ["low", "normal", "high", "xhigh"] as const;
+export const CursorReasoningOption = Schema.Literals(CURSOR_REASONING_OPTIONS);
+export type CursorReasoningOption = typeof CursorReasoningOption.Type;
+
+export type ProviderReasoningEffort =
+  | CodexReasoningEffort
+  | ClaudeCodeEffort
+  | CursorReasoningOption;
 
 export const CodexModelOptions = Schema.Struct({
   reasoningEffort: Schema.optional(Schema.Literals(CODEX_REASONING_EFFORT_OPTIONS)),
@@ -30,6 +50,13 @@ export const OpencodeModelOptions = Schema.Struct({
   agent: Schema.optional(Schema.String),
 });
 export type OpencodeModelOptions = typeof OpencodeModelOptions.Type;
+/**
+ * Upstream's shorter-form OpenCode options schema. Kept as a type alias
+ * over the fork's richer OpencodeModelOptions so upstream code that imports
+ * `OpenCodeModelOptions` keeps compiling.
+ */
+export const OpenCodeModelOptions = OpencodeModelOptions;
+export type OpenCodeModelOptions = OpencodeModelOptions;
 
 export const ClaudeModelOptions = Schema.Struct({
   thinking: Schema.optional(Schema.Boolean),
@@ -43,6 +70,7 @@ export const CursorModelOptions = Schema.Struct({
   reasoning: Schema.optional(Schema.Literals(CURSOR_REASONING_OPTIONS)),
   fastMode: Schema.optional(Schema.Boolean),
   thinking: Schema.optional(Schema.Boolean),
+  contextWindow: Schema.optional(Schema.String),
 });
 export type CursorModelOptions = typeof CursorModelOptions.Type;
 
@@ -97,6 +125,8 @@ export const ModelCapabilities = Schema.Struct({
   supportsThinkingToggle: Schema.Boolean,
   contextWindowOptions: Schema.Array(ContextWindowOption),
   promptInjectedEffortLevels: Schema.Array(TrimmedNonEmptyString),
+  variantOptions: Schema.optional(Schema.Array(EffortOption)),
+  agentOptions: Schema.optional(Schema.Array(EffortOption)),
 });
 export type ModelCapabilities = typeof ModelCapabilities.Type;
 
@@ -269,6 +299,27 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
   ],
   claudeAgent: [
     {
+      slug: "claude-opus-4-7",
+      name: "Claude Opus 4.7",
+      capabilities: {
+        reasoningEffortLevels: [
+          { value: "low", label: "Low" },
+          { value: "medium", label: "Medium" },
+          { value: "high", label: "High" },
+          { value: "xhigh", label: "Extra High", isDefault: true },
+          { value: "max", label: "Max" },
+          { value: "ultrathink", label: "Ultrathink" },
+        ],
+        supportsFastMode: false,
+        supportsThinkingToggle: false,
+        contextWindowOptions: [
+          { value: "200k", label: "200k", isDefault: true },
+          { value: "1m", label: "1M" },
+        ],
+        promptInjectedEffortLevels: ["ultrathink"],
+      },
+    },
+    {
       slug: "claude-opus-4-6",
       name: "Claude Opus 4.6",
       capabilities: {
@@ -286,6 +337,22 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
           { value: "1m", label: "1M", isDefault: true },
         ],
         promptInjectedEffortLevels: ["ultrathink"],
+      },
+    },
+    {
+      slug: "claude-opus-4-5",
+      name: "Claude Opus 4.5",
+      capabilities: {
+        reasoningEffortLevels: [
+          { value: "low", label: "Low" },
+          { value: "medium", label: "Medium" },
+          { value: "high", label: "High", isDefault: true },
+          { value: "max", label: "Max" },
+        ],
+        supportsFastMode: true,
+        supportsThinkingToggle: false,
+        contextWindowOptions: [],
+        promptInjectedEffortLevels: [],
       },
     },
     {
@@ -369,8 +436,10 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
   opencode: [
     { slug: "openai/gpt-5", name: "OpenAI / GPT-5" },
     { slug: "openai/gpt-5-mini", name: "OpenAI / GPT-5 Mini" },
+    { slug: "anthropic/claude-opus-4-7", name: "Anthropic / Claude Opus 4.7" },
     { slug: "anthropic/claude-sonnet-4-6", name: "Anthropic / Claude Sonnet 4.6" },
     { slug: "anthropic/claude-opus-4-6", name: "Anthropic / Claude Opus 4.6" },
+    { slug: "anthropic/claude-opus-4-5", name: "Anthropic / Claude Opus 4.5" },
     { slug: "google/gemini-2.5-pro", name: "Google / Gemini 2.5 Pro" },
     { slug: "google/gemini-2.5-flash", name: "Google / Gemini 2.5 Flash" },
   ],
@@ -447,10 +516,14 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
     gemini: "gemini-3-pro-preview",
   },
   claudeAgent: {
-    opus: "claude-opus-4-6",
+    opus: "claude-opus-4-7",
+    "opus-4.7": "claude-opus-4-7",
+    "claude-opus-4.7": "claude-opus-4-7",
     "opus-4.6": "claude-opus-4-6",
     "claude-opus-4.6": "claude-opus-4-6",
     "claude-opus-4-6-20251117": "claude-opus-4-6",
+    "opus-4.5": "claude-opus-4-5",
+    "claude-opus-4.5": "claude-opus-4-5",
     sonnet: "claude-sonnet-4-6",
     "sonnet-4.6": "claude-sonnet-4-6",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
@@ -487,8 +560,10 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
   opencode: {
     "gpt-5": "openai/gpt-5",
     "gpt-5-mini": "openai/gpt-5-mini",
+    "claude-opus-4-7": "anthropic/claude-opus-4-7",
     "claude-sonnet-4-6": "anthropic/claude-sonnet-4-6",
     "claude-opus-4-6": "anthropic/claude-opus-4-6",
+    "claude-opus-4-5": "anthropic/claude-opus-4-5",
     "gemini-2.5-pro": "google/gemini-2.5-pro",
     "gemini-2.5-flash": "google/gemini-2.5-flash",
   },

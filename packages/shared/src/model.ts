@@ -9,17 +9,21 @@ import {
   MODEL_SLUG_ALIASES_BY_PROVIDER,
   REASONING_EFFORT_OPTIONS_BY_PROVIDER,
   DEFAULT_REASONING_EFFORT_BY_PROVIDER,
+  type ClaudeAgentEffort,
   type ClaudeModelOptions,
   type ClaudeCodeEffort,
   type CodexModelOptions,
   type CodexReasoningEffort,
   type CursorModelFamily,
+  type CursorModelOptions,
   type CursorModelSlug,
   type CursorReasoningOption,
   type ModelCapabilities,
   type ModelSelection,
   type ModelSlug,
+  type OpenCodeModelOptions,
   type ProviderKind,
+  type ProviderModelOptions,
   type ProviderReasoningEffort,
 } from "@t3tools/contracts";
 
@@ -519,6 +523,79 @@ export function normalizeClaudeModelOptionsWithCapabilities(
   return Object.keys(nextOptions).length > 0 ? nextOptions : undefined;
 }
 
+export function normalizeCursorModelOptionsWithCapabilities(
+  caps: ModelCapabilities,
+  modelOptions: CursorModelOptions | null | undefined,
+): CursorModelOptions | undefined {
+  const reasoning = resolveEffort(caps, modelOptions?.reasoning);
+  const thinking = caps.supportsThinkingToggle ? modelOptions?.thinking : undefined;
+  const fastMode = caps.supportsFastMode ? modelOptions?.fastMode : undefined;
+  const contextWindow = resolveContextWindow(caps, modelOptions?.contextWindow);
+  const nextOptions: CursorModelOptions = {
+    ...(reasoning ? { reasoning: reasoning as CursorModelOptions["reasoning"] } : {}),
+    ...(fastMode !== undefined ? { fastMode } : {}),
+    ...(thinking !== undefined ? { thinking } : {}),
+    ...(contextWindow !== undefined ? { contextWindow } : {}),
+  };
+  return Object.keys(nextOptions).length > 0 ? nextOptions : undefined;
+}
+
+function resolveLabeledOption(
+  options: ReadonlyArray<{ value: string; isDefault?: boolean | undefined }> | undefined,
+  raw: string | null | undefined,
+): string | undefined {
+  if (!options || options.length === 0) {
+    return raw ?? undefined;
+  }
+  if (raw && options.some((option) => option.value === raw)) {
+    return raw;
+  }
+  return options.find((option) => option.isDefault)?.value;
+}
+
+export function normalizeOpenCodeModelOptionsWithCapabilities(
+  caps: ModelCapabilities,
+  modelOptions: OpenCodeModelOptions | null | undefined,
+): OpenCodeModelOptions | undefined {
+  const variant = resolveLabeledOption(caps.variantOptions, trimOrNull(modelOptions?.variant));
+  const agent = resolveLabeledOption(caps.agentOptions, trimOrNull(modelOptions?.agent));
+  const nextOptions: OpenCodeModelOptions = {
+    ...(variant ? { variant } : {}),
+    ...(agent ? { agent } : {}),
+  };
+  return Object.keys(nextOptions).length > 0 ? nextOptions : undefined;
+}
+
+/**
+ * Dispatch normalization to the provider-specific helper.
+ *
+ * Only upstream providers (codex, claudeAgent, cursor, opencode) have
+ * capability-based normalization implemented. Fork-only providers
+ * (copilot, geminiCli, amp, kilo) return the original options unchanged.
+ */
+export function normalizeProviderModelOptionsWithCapabilities(
+  provider: ProviderKind,
+  caps: ModelCapabilities,
+  modelOptions: ProviderModelOptions[ProviderKind] | null | undefined,
+): ProviderModelOptions[ProviderKind] | undefined {
+  switch (provider) {
+    case "codex":
+      return normalizeCodexModelOptionsWithCapabilities(caps, modelOptions as CodexModelOptions);
+    case "claudeAgent":
+      return normalizeClaudeModelOptionsWithCapabilities(caps, modelOptions as ClaudeModelOptions);
+    case "cursor":
+      return normalizeCursorModelOptionsWithCapabilities(caps, modelOptions as CursorModelOptions);
+    case "opencode":
+      return normalizeOpenCodeModelOptionsWithCapabilities(
+        caps,
+        modelOptions as OpenCodeModelOptions,
+      );
+    default:
+      // Fork-only providers: pass through without capability-based filtering.
+      return modelOptions ?? undefined;
+  }
+}
+
 export function isClaudeUltrathinkPrompt(text: string | null | undefined): boolean {
   return typeof text === "string" && /\bultrathink\b/i.test(text);
 }
@@ -772,9 +849,55 @@ export function resolveApiModelId(modelSelection: ModelSelection): string {
   }
 }
 
+/**
+ * Upstream-compatible constructor for `ModelSelection` values.
+ *
+ * Dispatches on provider to keep TypeScript narrowing happy. Fork-only
+ * providers (copilot, geminiCli, amp, kilo) are handled via a catch-all
+ * branch that preserves options verbatim.
+ */
+export function createModelSelection(
+  provider: ProviderKind,
+  model: string,
+  options?: ProviderModelOptions[ProviderKind] | undefined,
+): ModelSelection {
+  switch (provider) {
+    case "codex":
+      return {
+        provider,
+        model,
+        ...(options ? { options: options as CodexModelOptions } : {}),
+      };
+    case "claudeAgent":
+      return {
+        provider,
+        model,
+        ...(options ? { options: options as ClaudeModelOptions } : {}),
+      };
+    case "cursor":
+      return {
+        provider,
+        model,
+        ...(options ? { options: options as CursorModelOptions } : {}),
+      };
+    case "opencode":
+      return {
+        provider,
+        model,
+        ...(options ? { options: options as OpenCodeModelOptions } : {}),
+      };
+    default:
+      return {
+        provider,
+        model,
+        ...(options ? { options } : {}),
+      } as ModelSelection;
+  }
+}
+
 export function applyClaudePromptEffortPrefix(
   text: string,
-  effort: ClaudeCodeEffort | null | undefined,
+  effort: ClaudeAgentEffort | null | undefined,
 ): string {
   const trimmed = text.trim();
   if (!trimmed) {

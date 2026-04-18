@@ -39,6 +39,7 @@ import Migration0023 from "./Migrations/020_NormalizeLegacyProviderKinds.ts";
 import Migration0024 from "./Migrations/021_RepairProjectionThreadProposedPlanImplementationColumns.ts";
 import Migration0025 from "./Migrations/023_ProjectionThreadShellSummary.ts";
 import Migration0026 from "./Migrations/024_BackfillProjectionThreadShellSummary.ts";
+import Migration0027 from "./Migrations/025_CleanupInvalidProjectionPendingApprovals.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -77,6 +78,7 @@ export const migrationEntries = [
   [24, "RepairProjectionThreadProposedPlanImplementationColumns", Migration0024],
   [25, "ProjectionThreadShellSummary", Migration0025],
   [26, "BackfillProjectionThreadShellSummary", Migration0026],
+  [27, "CleanupInvalidProjectionPendingApprovals", Migration0027],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>

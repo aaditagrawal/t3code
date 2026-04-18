@@ -1,11 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import type { PathLike } from "node:fs";
 import { ThreadId, TurnId, type ProviderRuntimeEvent } from "@t3tools/contracts";
 
 import {
   buildGeminiSpawnOptions,
   GeminiCliServerManager,
   resolveGeminiSpawnPlan,
-} from "./geminiCliServerManager";
+} from "./geminiCliServerManager.ts";
 
 const asThreadId = (value: string): ThreadId => ThreadId.make(value);
 
@@ -49,7 +50,7 @@ describe("GeminiCliServerManager", () => {
         },
         "win32",
         {
-          resolveCommandPath: (command) => {
+          resolveCommandPath: (command: string) => {
             if (command === "gemini") {
               return geminiCmd;
             }
@@ -58,7 +59,7 @@ describe("GeminiCliServerManager", () => {
             }
             return undefined;
           },
-          existsSync: (path) =>
+          existsSync: (path: PathLike) =>
             String(path).replace(/\\/g, "/") ===
             "C:/Users/user/AppData/Roaming/npm/node_modules/@google/gemini-cli/dist/index.js",
         },
@@ -292,7 +293,10 @@ describe("GeminiCliServerManager", () => {
 
         const sessions = manager.listSessions();
         expect(sessions).toHaveLength(2);
-        expect(sessions.map((s) => s.threadId).toSorted()).toEqual(["thread-1", "thread-2"]);
+        expect(sessions.map((s: { threadId: string }) => s.threadId).toSorted()).toEqual([
+          "thread-1",
+          "thread-2",
+        ]);
       } finally {
         manager.stopAll();
       }
@@ -363,7 +367,7 @@ describe("GeminiCliServerManager JSON event mapping", () => {
   beforeEach(async () => {
     manager = new GeminiCliServerManager();
     events = [];
-    manager.on("event", (event) => events.push(event));
+    manager.on("event", (event: ProviderRuntimeEvent) => events.push(event));
 
     await manager.startSession({
       threadId: asThreadId("thread-json"),
@@ -700,7 +704,7 @@ describe.skipIf(!hasGemini || process.env.RUN_GEMINI_LIVE_TESTS !== "1")(
     it("sends a prompt and receives streaming events ending with turn.completed", async () => {
       const manager = new GeminiCliServerManager();
       const events: ProviderRuntimeEvent[] = [];
-      manager.on("event", (event) => events.push(event));
+      manager.on("event", (event: ProviderRuntimeEvent) => events.push(event));
 
       try {
         await manager.startSession({

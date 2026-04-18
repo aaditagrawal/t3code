@@ -25,17 +25,17 @@ import {
   formatCodexCliUpgradeMessage,
   isCodexCliVersionSupported,
   parseCodexCliVersion,
-} from "./provider/codexCliVersion";
-import { createLogger } from "./logger";
+} from "./provider/codexCliVersion.ts";
+import { createLogger } from "./logger.ts";
 import {
   readCodexAccountSnapshot,
   resolveCodexModelForAccount,
   type CodexAccountSnapshot,
-} from "./provider/codexAccount";
-import { buildCodexInitializeParams, killCodexChildProcess } from "./provider/codexAppServer";
+} from "./provider/codexAccount.ts";
+import { buildCodexInitializeParams, killCodexChildProcess } from "./provider/codexAppServer.ts";
 
-export { buildCodexInitializeParams } from "./provider/codexAppServer";
-export { readCodexAccountSnapshot, resolveCodexModelForAccount } from "./provider/codexAccount";
+export { buildCodexInitializeParams } from "./provider/codexAppServer.ts";
+export { readCodexAccountSnapshot, resolveCodexModelForAccount } from "./provider/codexAccount.ts";
 
 type PendingRequestKey = string;
 
@@ -452,6 +452,25 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
     let context: CodexSessionContext | undefined;
 
     try {
+      const existingContext = this.sessions.get(threadId);
+      if (existingContext) {
+        await Effect.logWarning("codex app-server replacing existing session", {
+          threadId,
+          existingStatus: existingContext.session.status,
+        }).pipe(this.runPromise);
+        try {
+          this.disposeSession(existingContext, {
+            emitLifecycleEvent: false,
+          });
+        } catch (error) {
+          await Effect.logWarning("codex app-server failed to dispose existing session", {
+            threadId,
+            existingStatus: existingContext.session.status,
+            cause: error instanceof Error ? error.message : String(error),
+          }).pipe(this.runPromise);
+        }
+      }
+
       const resolvedCwd = input.cwd ?? process.cwd();
 
       const session: ProviderSession = {
@@ -903,6 +922,19 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       return;
     }
 
+    this.disposeSession(context, {
+      emitLifecycleEvent: true,
+    });
+  }
+
+  private disposeSession(
+    context: CodexSessionContext,
+    options?: { readonly emitLifecycleEvent?: boolean },
+  ): void {
+    if (context.stopping) {
+      return;
+    }
+
     context.stopping = true;
 
     for (const pending of context.pending.values()) {
@@ -923,8 +955,10 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       status: "closed",
       activeTurnId: undefined,
     });
-    this.emitLifecycleEvent(context, "session/closed", "Session stopped");
-    this.sessions.delete(threadId);
+    if (options?.emitLifecycleEvent !== false) {
+      this.emitLifecycleEvent(context, "session/closed", "Session stopped");
+    }
+    this.sessions.delete(context.session.threadId);
   }
 
   listSessions(): ProviderSession[] {

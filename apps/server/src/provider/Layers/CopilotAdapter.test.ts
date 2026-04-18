@@ -94,8 +94,11 @@ class FakeCopilotClient {
   public readonly createSessionImpl = vi.fn(async () => this.session);
   public readonly resumeSessionImpl = vi.fn(async () => this.session);
   public readonly stopImpl = vi.fn(async () => [] as Error[]);
+  private readonly session: FakeCopilotSession;
 
-  constructor(private readonly session: FakeCopilotSession) {}
+  constructor(session: FakeCopilotSession) {
+    this.session = session;
+  }
 
   start() {
     return this.startImpl();

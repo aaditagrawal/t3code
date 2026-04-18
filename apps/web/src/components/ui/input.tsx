@@ -45,10 +45,10 @@ function Input({
     >
       {nativeInput ? (
         <input
+          {...(props as React.ComponentPropsWithoutRef<"input">)}
           className={inputClassName}
           data-slot="input"
           size={typeof size === "number" ? size : undefined}
-          {...props}
         />
       ) : (
         <InputPrimitive

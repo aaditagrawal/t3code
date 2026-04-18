@@ -4,11 +4,13 @@
  *
  * Currently supported providers:
  *  - `"claudeAgent"` → Claude CLI layer
+ *  - `"copilot"`     → Copilot text-generation layer (partial – falls back to
+ *                       codex for branch names / thread titles)
  *  - `"codex"`       → Codex CLI layer (also the default fallback)
  *
- * Providers without a dedicated CLI text-generation layer (copilot, cursor,
- * opencode, geminiCli, amp, kilo) fall back to Codex.  When a dedicated
- * layer is added for one of those providers, add a route here.
+ * Providers without a dedicated CLI text-generation layer (cursor, opencode,
+ * geminiCli, amp, kilo) fall back to Codex. Cursor/OpenCode text generation
+ * runs through fork's own adapter layers, not a dedicated text-gen layer.
  *
  * @module RoutingTextGeneration
  */

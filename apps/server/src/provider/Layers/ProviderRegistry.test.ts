@@ -28,16 +28,35 @@ import {
   hasCustomModelProvider,
   parseAuthStatusFromOutput,
   readCodexConfigModelProvider,
-} from "./CodexProvider";
-import { checkClaudeProviderStatus, parseClaudeAuthStatusFromOutput } from "./ClaudeProvider";
-import { haveProvidersChanged, ProviderRegistryLive } from "./ProviderRegistry";
-import { ServerConfig } from "../../config";
-import { ServerSettingsService, type ServerSettingsShape } from "../../serverSettings";
-import { ProviderRegistry } from "../Services/ProviderRegistry";
+} from "./CodexProvider.ts";
+import { checkClaudeProviderStatus, parseClaudeAuthStatusFromOutput } from "./ClaudeProvider.ts";
+import {
+  haveProvidersChanged,
+  mergeProviderSnapshot,
+  ProviderRegistryLive,
+} from "./ProviderRegistry.ts";
+import { ServerConfig } from "../../config.ts";
+import { ServerSettingsService, type ServerSettingsShape } from "../../serverSettings.ts";
+import { ProviderRegistry } from "../Services/ProviderRegistry.ts";
+
+process.env.T3CODE_CURSOR_ENABLED = "1";
 
 // ── Test helpers ────────────────────────────────────────────────────
 
 const encoder = new TextEncoder();
+const fakeOpenCodeSnapshot: ServerProvider = {
+  provider: "opencode",
+  status: "warning",
+  enabled: true,
+  installed: false,
+  auth: { status: "unknown" },
+  checkedAt: "2026-03-25T00:00:00.000Z",
+  version: null,
+  models: [],
+  slashCommands: [],
+  skills: [],
+  message: "OpenCode test stub",
+};
 
 function mockHandle(result: { stdout: string; stderr: string; code: number }) {
   return ChildProcessSpawner.makeHandle({
@@ -587,10 +606,106 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
         assert.strictEqual(haveProvidersChanged(previousProviders, nextProviders), false);
       });
 
-      it.effect("does not probe provider health during registry startup", () =>
+      it("preserves previously discovered provider models when a refresh returns none", () => {
+        const previousProvider = {
+          provider: "cursor",
+          status: "ready",
+          enabled: true,
+          installed: true,
+          auth: { status: "authenticated" },
+          checkedAt: "2026-04-14T00:00:00.000Z",
+          version: "2026.04.09-f2b0fcd",
+          models: [
+            {
+              slug: "claude-opus-4-6",
+              name: "Opus 4.6",
+              isCustom: false,
+              capabilities: {
+                reasoningEffortLevels: [{ value: "high", label: "High", isDefault: true }],
+                supportsFastMode: true,
+                supportsThinkingToggle: true,
+                contextWindowOptions: [],
+                promptInjectedEffortLevels: [],
+              },
+            },
+          ],
+          slashCommands: [],
+          skills: [],
+        } as const satisfies ServerProvider;
+        const refreshedProvider = {
+          ...previousProvider,
+          checkedAt: "2026-04-14T00:01:00.000Z",
+          models: [],
+        } satisfies ServerProvider;
+
+        assert.deepStrictEqual(mergeProviderSnapshot(previousProvider, refreshedProvider).models, [
+          ...previousProvider.models,
+        ]);
+      });
+
+      it("fills missing capabilities from the previous provider snapshot", () => {
+        const previousProvider = {
+          provider: "cursor",
+          status: "ready",
+          enabled: true,
+          installed: true,
+          auth: { status: "authenticated" },
+          checkedAt: "2026-04-14T00:00:00.000Z",
+          version: "2026.04.09-f2b0fcd",
+          models: [
+            {
+              slug: "claude-opus-4-6",
+              name: "Opus 4.6",
+              isCustom: false,
+              capabilities: {
+                reasoningEffortLevels: [{ value: "high", label: "High", isDefault: true }],
+                supportsFastMode: true,
+                supportsThinkingToggle: true,
+                contextWindowOptions: [],
+                promptInjectedEffortLevels: [],
+              },
+            },
+          ],
+          slashCommands: [],
+          skills: [],
+        } as const satisfies ServerProvider;
+        const refreshedProvider = {
+          ...previousProvider,
+          checkedAt: "2026-04-14T00:01:00.000Z",
+          models: [
+            {
+              slug: "claude-opus-4-6",
+              name: "Opus 4.6",
+              isCustom: false,
+              capabilities: {
+                reasoningEffortLevels: [],
+                supportsFastMode: false,
+                supportsThinkingToggle: false,
+                contextWindowOptions: [],
+                promptInjectedEffortLevels: [],
+              },
+            },
+          ],
+        } satisfies ServerProvider;
+
+        assert.deepStrictEqual(mergeProviderSnapshot(previousProvider, refreshedProvider).models, [
+          ...previousProvider.models,
+        ]);
+      });
+
+      it.effect("probes enabled providers in the background during registry startup", () =>
         Effect.gen(function* () {
           let spawnCount = 0;
-          const serverSettings = yield* makeMutableServerSettingsService();
+          const serverSettings = yield* makeMutableServerSettingsService(
+            Schema.decodeSync(ServerSettings)(
+              deepMerge(DEFAULT_SERVER_SETTINGS, {
+                providers: {
+                  claudeAgent: { enabled: false },
+                  cursor: { enabled: false },
+                },
+              }),
+            ),
+          );
           const scope = yield* Scope.make();
           yield* Effect.addFinalizer(() => Scope.close(scope, Exit.void));
           const providerRegistryLayer = ProviderRegistryLive.pipe(
@@ -620,20 +735,24 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
               }),
             ),
           );
-          const runtimeServices = yield* Layer.build(
-            Layer.mergeAll(
-              Layer.succeed(ServerSettingsService, serverSettings),
-              providerRegistryLayer,
-            ),
-          ).pipe(Scope.provide(scope));
+          const runtimeServices = yield* Layer.build(providerRegistryLayer).pipe(
+            Scope.provide(scope),
+          );
 
           yield* Effect.gen(function* () {
             const registry = yield* ProviderRegistry;
-            assert.deepStrictEqual(yield* registry.getProviders, []);
-            assert.strictEqual(spawnCount, 0);
-
-            const refreshed = yield* registry.refresh("codex");
             assert.strictEqual(spawnCount > 0, true);
+            const refreshed = yield* Effect.gen(function* () {
+              for (let remainingAttempts = 50; remainingAttempts > 0; remainingAttempts -= 1) {
+                const providers = yield* registry.getProviders;
+                const codexProvider = providers.find((provider) => provider.provider === "codex");
+                if (codexProvider?.status === "ready") {
+                  return providers;
+                }
+                yield* Effect.sleep("10 millis");
+              }
+              return yield* registry.getProviders;
+            });
             assert.strictEqual(
               refreshed.find((provider) => provider.provider === "codex")?.status,
               "ready",
@@ -663,6 +782,19 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
                   }
                   return { stdout: "", stderr: "spawn ENOENT", code: 1 };
                 }
+                if (joined === "about --format json") {
+                  return {
+                    stdout: JSON.stringify({
+                      cliVersion: "2026.04.09-f2b0fcd",
+                      userEmail: null,
+                    }),
+                    stderr: "",
+                    code: 0,
+                  };
+                }
+                if (joined === "about") {
+                  return { stdout: "", stderr: "spawn ENOENT", code: 1 };
+                }
                 if (joined === "login status") {
                   return { stdout: "Logged in\n", stderr: "", code: 0 };
                 }
@@ -670,18 +802,12 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
               }),
             ),
           );
-          const runtimeServices = yield* Layer.build(
-            Layer.mergeAll(
-              Layer.succeed(ServerSettingsService, serverSettings),
-              providerRegistryLayer,
-            ),
-          ).pipe(Scope.provide(scope));
+          const runtimeServices = yield* Layer.build(providerRegistryLayer).pipe(
+            Scope.provide(scope),
+          );
 
           yield* Effect.gen(function* () {
             const registry = yield* ProviderRegistry;
-
-            const initial = yield* registry.getProviders;
-            assert.deepStrictEqual(initial, []);
 
             const refreshed = yield* registry.refresh("codex");
             assert.strictEqual(
@@ -1170,6 +1296,69 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
             mockSpawnerLayer((args) => {
               const joined = args.join(" ");
               if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
+              if (joined === "auth status")
+                return {
+                  stdout: '{"loggedIn":true,"authMethod":"claude.ai"}\n',
+                  stderr: "",
+                  code: 0,
+                };
+              throw new Error(`Unexpected args: ${joined}`);
+            }),
+          ),
+        ),
+      );
+
+      it.effect(
+        "includes Claude Opus 4.7 with xhigh as the default effort on supported versions",
+        () =>
+          Effect.gen(function* () {
+            const status = yield* checkClaudeProviderStatus();
+            const opus47 = status.models.find((model) => model.slug === "claude-opus-4-7");
+            if (!opus47) {
+              assert.fail("Expected Claude Opus 4.7 to be present for Claude Code v2.1.111.");
+            }
+            if (!opus47.capabilities) {
+              assert.fail(
+                "Expected Claude Opus 4.7 capabilities to be present for Claude Code v2.1.111.",
+              );
+            }
+            assert.deepStrictEqual(
+              opus47.capabilities.reasoningEffortLevels.find((level) => level.isDefault),
+              { value: "xhigh", label: "Extra High", isDefault: true },
+            );
+          }).pipe(
+            Effect.provide(
+              mockSpawnerLayer((args) => {
+                const joined = args.join(" ");
+                if (joined === "--version") return { stdout: "2.1.111\n", stderr: "", code: 0 };
+                if (joined === "auth status")
+                  return {
+                    stdout: '{"loggedIn":true,"authMethod":"claude.ai"}\n',
+                    stderr: "",
+                    code: 0,
+                  };
+                throw new Error(`Unexpected args: ${joined}`);
+              }),
+            ),
+          ),
+      );
+
+      it.effect("hides Claude Opus 4.7 on older Claude Code versions", () =>
+        Effect.gen(function* () {
+          const status = yield* checkClaudeProviderStatus();
+          assert.strictEqual(
+            status.models.some((model) => model.slug === "claude-opus-4-7"),
+            false,
+          );
+          assert.strictEqual(
+            status.message,
+            "Claude Code v2.1.110 is too old for Claude Opus 4.7. Upgrade to v2.1.111 or newer to access it.",
+          );
+        }).pipe(
+          Effect.provide(
+            mockSpawnerLayer((args) => {
+              const joined = args.join(" ");
+              if (joined === "--version") return { stdout: "2.1.110\n", stderr: "", code: 0 };
               if (joined === "auth status")
                 return {
                   stdout: '{"loggedIn":true,"authMethod":"claude.ai"}\n',

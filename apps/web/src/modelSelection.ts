@@ -6,7 +6,7 @@ import {
   type ServerProvider,
 } from "@t3tools/contracts";
 import type { UnifiedSettings } from "@t3tools/contracts/settings";
-import { resolveSelectableModel } from "@t3tools/shared/model";
+import { createModelSelection, resolveSelectableModel } from "@t3tools/shared/model";
 
 import { getComposerProviderState } from "./components/chat/composerProviderRegistry";
 import { getAppModelOptions, MAX_CUSTOM_MODEL_LENGTH } from "./customModels";
@@ -110,9 +110,5 @@ export function resolveAppModelSelectionState(
     modelOptions: providerModelOptions,
   });
 
-  return {
-    provider,
-    model,
-    ...(modelOptionsForDispatch ? { options: modelOptionsForDispatch } : {}),
-  } as ModelSelection;
+  return createModelSelection(provider, model, modelOptionsForDispatch);
 }

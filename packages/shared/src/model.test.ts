@@ -40,7 +40,7 @@ import {
   resolveModelSlugForProvider,
   inferProviderForModel,
   trimOrNull,
-} from "./model";
+} from "./model.ts";
 
 const codexCaps: ModelCapabilities = {
   reasoningEffortLevels: [
@@ -89,7 +89,10 @@ describe("normalizeModelSlug", () => {
 
   it("uses provider-specific aliases", () => {
     expect(normalizeModelSlug("sonnet", "claudeAgent")).toBe("claude-sonnet-4-6");
+    expect(normalizeModelSlug("opus", "claudeAgent")).toBe("claude-opus-4-7");
+    expect(normalizeModelSlug("opus-4.7", "claudeAgent")).toBe("claude-opus-4-7");
     expect(normalizeModelSlug("opus-4.6", "claudeAgent")).toBe("claude-opus-4-6");
+    expect(normalizeModelSlug("opus-4.5", "claudeAgent")).toBe("claude-opus-4-5");
     expect(normalizeModelSlug("claude-haiku-4-5-20251001", "claudeAgent")).toBe("claude-haiku-4-5");
     expect(normalizeModelSlug("composer", "cursor")).toBe("composer-1.5");
     expect(normalizeModelSlug("gpt-5.3-codex-spark", "cursor")).toBe("gpt-5.3-codex-spark-preview");
@@ -106,10 +109,9 @@ describe("normalizeModelSlug", () => {
   });
 });
 
-describe("resolveModelSlug", () => {
+describe("resolveModelSlugForProvider", () => {
   it("returns defaults when the model is missing", () => {
-    expect(resolveModelSlug(undefined, "codex")).toBe(DEFAULT_MODEL_BY_PROVIDER.codex);
-
+    expect(resolveModelSlugForProvider("codex", undefined)).toBe(DEFAULT_MODEL_BY_PROVIDER.codex);
     expect(resolveModelSlugForProvider("claudeAgent", undefined)).toBe(
       DEFAULT_MODEL_BY_PROVIDER.claudeAgent,
     );
@@ -133,7 +135,9 @@ describe("resolveModelSlug", () => {
   });
 
   it("preserves normalized unknown models", () => {
-    expect(resolveModelSlug("custom/internal-model", "codex")).toBe("custom/internal-model");
+    expect(resolveModelSlugForProvider("codex", "custom/internal-model")).toBe(
+      "custom/internal-model",
+    );
   });
 });
 
@@ -235,9 +239,19 @@ describe("capability helpers", () => {
     expect(getDefaultEffort(claudeCaps)).toBe("high");
   });
 
+  it("returns claude effort options for Opus 4.7", () => {
+    const values = getReasoningEffortOptions("claudeAgent", "claude-opus-4-7");
+    expect(values).toEqual(["low", "medium", "high", "xhigh", "max", "ultrathink"]);
+  });
+
   it("returns claude effort options for Opus 4.6", () => {
     const values = getReasoningEffortOptions("claudeAgent", "claude-opus-4-6");
     expect(values).toEqual(["low", "medium", "high", "max", "ultrathink"]);
+  });
+
+  it("returns claude effort options for Opus 4.5", () => {
+    const values = getReasoningEffortOptions("claudeAgent", "claude-opus-4-5");
+    expect(values).toEqual(["low", "medium", "high", "max"]);
   });
 
   it("returns claude effort options for Sonnet 4.6", () => {
@@ -331,6 +345,7 @@ describe("resolveEffort", () => {
 
 describe("misc helpers", () => {
   it("detects ultrathink prompts", () => {
+    expect(isClaudeUltrathinkPrompt("Please ultrathink about this")).toBe(true);
     expect(isClaudeUltrathinkPrompt("Ultrathink:\nInvestigate")).toBe(true);
     expect(isClaudeUltrathinkPrompt("Investigate")).toBe(false);
   });
@@ -386,41 +401,6 @@ describe("resolveContextWindow", () => {
   it("returns undefined for models with no context window options", () => {
     expect(resolveContextWindow(codexCaps, undefined)).toBeUndefined();
     expect(resolveContextWindow(codexCaps, "1m")).toBeUndefined();
-  });
-});
-
-describe("resolveApiModelId", () => {
-  it("appends [1m] suffix for 1m context window", () => {
-    expect(
-      resolveApiModelId({
-        provider: "claudeAgent",
-        model: "claude-opus-4-6",
-        options: { contextWindow: "1m" },
-      }),
-    ).toBe("claude-opus-4-6[1m]");
-  });
-
-  it("returns the model as-is for 200k context window", () => {
-    expect(
-      resolveApiModelId({
-        provider: "claudeAgent",
-        model: "claude-opus-4-6",
-        options: { contextWindow: "200k" },
-      }),
-    ).toBe("claude-opus-4-6");
-  });
-
-  it("returns the model as-is when no context window is set", () => {
-    expect(resolveApiModelId({ provider: "claudeAgent", model: "claude-opus-4-6" })).toBe(
-      "claude-opus-4-6",
-    );
-    expect(
-      resolveApiModelId({ provider: "claudeAgent", model: "claude-opus-4-6", options: {} }),
-    ).toBe("claude-opus-4-6");
-  });
-
-  it("returns the model as-is for Codex selections", () => {
-    expect(resolveApiModelId({ provider: "codex", model: "gpt-5.4" })).toBe("gpt-5.4");
   });
 });
 

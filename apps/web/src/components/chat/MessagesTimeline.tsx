@@ -950,11 +950,18 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
   const heading = toolWorkEntryHeading(workEntry);
   const rawPreview = workEntryPreview(workEntry, workspaceRoot);
   // When showCommandOutput is off, suppress command/detail previews but still show changed-file previews.
-  const preview = showCommandOutput
+  const gatedPreview = showCommandOutput
     ? rawPreview
     : !workEntry.command && !workEntry.detail
       ? rawPreview
       : null;
+  // Suppress previews that are effectively the same label as the heading.
+  const preview =
+    gatedPreview &&
+    normalizeCompactToolLabel(gatedPreview).toLowerCase() ===
+      normalizeCompactToolLabel(heading).toLowerCase()
+      ? null
+      : gatedPreview;
   const rawCommand = workEntryRawCommand(workEntry);
   const displayText = preview ? `${heading} - ${preview}` : heading;
   const hasChangedFiles = (workEntry.changedFiles?.length ?? 0) > 0;

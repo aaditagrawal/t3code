@@ -2,12 +2,14 @@ import { type ProviderKind, type ThreadId } from "@t3tools/contracts";
 import { Cache, Duration, Effect, Layer, Option } from "effect";
 import * as Semaphore from "effect/Semaphore";
 
+import type { ProviderSessionRuntime } from "../../persistence/Services/ProviderSessionRuntime.ts";
 import { ProviderSessionRuntimeRepository } from "../../persistence/Services/ProviderSessionRuntime.ts";
 import { ProviderSessionDirectoryPersistenceError, ProviderValidationError } from "../Errors.ts";
 import { normalizePersistedProviderKindName } from "../providerKind.ts";
 import {
   ProviderSessionDirectory,
   type ProviderRuntimeBinding,
+  type ProviderRuntimeBindingWithMetadata,
   type ProviderSessionDirectoryShape,
 } from "../Services/ProviderSessionDirectory.ts";
 
@@ -51,6 +53,27 @@ function mergeRuntimePayload(
     return { ...existing, ...next };
   }
   return next;
+}
+
+function toRuntimeBinding(
+  runtime: ProviderSessionRuntime,
+  operation: string,
+): Effect.Effect<ProviderRuntimeBindingWithMetadata, ProviderSessionDirectoryPersistenceError> {
+  return decodeProviderKind(runtime.providerName, operation).pipe(
+    Effect.map(
+      (provider) =>
+        ({
+          threadId: runtime.threadId,
+          provider,
+          adapterKey: runtime.adapterKey,
+          runtimeMode: runtime.runtimeMode,
+          status: runtime.status,
+          resumeCursor: runtime.resumeCursor,
+          runtimePayload: runtime.runtimePayload,
+          lastSeenAt: runtime.lastSeenAt,
+        }) satisfies ProviderRuntimeBindingWithMetadata,
+    ),
+  );
 }
 
 const makeProviderSessionDirectory = Effect.gen(function* () {
@@ -152,25 +175,30 @@ const makeProviderSessionDirectory = Effect.gen(function* () {
       ),
     );
 
-  const remove: ProviderSessionDirectoryShape["remove"] = (threadId) =>
-    repository
-      .deleteByThreadId({ threadId })
-      .pipe(
-        Effect.mapError(toPersistenceError("ProviderSessionDirectory.remove:deleteByThreadId")),
-      );
-
   const listThreadIds: ProviderSessionDirectoryShape["listThreadIds"] = () =>
     repository.list().pipe(
       Effect.mapError(toPersistenceError("ProviderSessionDirectory.listThreadIds:list")),
       Effect.map((rows) => rows.map((row) => row.threadId)),
     );
 
+  const listBindings: ProviderSessionDirectoryShape["listBindings"] = () =>
+    repository.list().pipe(
+      Effect.mapError(toPersistenceError("ProviderSessionDirectory.listBindings:list")),
+      Effect.flatMap((rows) =>
+        Effect.forEach(
+          rows,
+          (row) => toRuntimeBinding(row, "ProviderSessionDirectory.listBindings"),
+          { concurrency: "unbounded" },
+        ),
+      ),
+    );
+
   return {
     upsert,
     getProvider,
     getBinding,
-    remove,
     listThreadIds,
+    listBindings,
   } satisfies ProviderSessionDirectoryShape;
 });
 

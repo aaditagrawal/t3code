@@ -11,7 +11,7 @@ import {
   launchDetached,
   resolveAvailableEditors,
   resolveEditorLaunch,
-} from "./open";
+} from "./open.ts";
 
 it.layer(NodeServices.layer)("resolveEditorLaunch", (it) => {
   it.effect("returns commands for command-based editors", () =>
