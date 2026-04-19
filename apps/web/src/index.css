@@ -177,9 +177,7 @@ body::after {
 }
 
 pre,
-code,
-textarea,
-input {
+code {
   font-family:
     "Geist Mono", "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }

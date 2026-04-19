@@ -1121,6 +1121,7 @@ export default function GitActionsControl({
             <div className="space-y-1">
               <p className="text-xs font-medium">Commit message (optional)</p>
               <Textarea
+                className="font-mono"
                 value={dialogCommitMessage}
                 onChange={(event) => setDialogCommitMessage(event.target.value)}
                 placeholder="Leave empty to auto-generate"
