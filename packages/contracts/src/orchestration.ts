@@ -96,6 +96,12 @@ export const OpencodeModelSelection = Schema.Struct({
   options: Schema.optionalKey(OpencodeModelOptions),
 });
 export type OpencodeModelSelection = typeof OpencodeModelSelection.Type;
+/**
+ * Upstream-compatible alias so upstream-authored code that imports
+ * `OpenCodeModelSelection` still resolves against the fork's richer schema.
+ */
+export const OpenCodeModelSelection = OpencodeModelSelection;
+export type OpenCodeModelSelection = OpencodeModelSelection;
 
 export const GeminiCliModelSelection = Schema.Struct({
   provider: Schema.Literal("geminiCli"),

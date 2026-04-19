@@ -2,15 +2,16 @@
  * RoutingTextGeneration – Dispatches text generation requests to the
  * appropriate CLI implementation based on the provider in each request input.
  *
- * Currently supported providers:
+ * Currently supported providers with dedicated layers:
  *  - `"claudeAgent"` → Claude CLI layer
  *  - `"copilot"`     → Copilot text-generation layer (partial – falls back to
  *                       codex for branch names / thread titles)
  *  - `"codex"`       → Codex CLI layer (also the default fallback)
+ *  - `"cursor"`      → Cursor text-generation layer (ACP-based)
+ *  - `"opencode"`    → OpenCode text-generation layer (SDK-based)
  *
- * Providers without a dedicated CLI text-generation layer (cursor, opencode,
- * geminiCli, amp, kilo) fall back to Codex. Cursor/OpenCode text generation
- * runs through fork's own adapter layers, not a dedicated text-gen layer.
+ * Providers without a dedicated CLI text-generation layer (geminiCli, amp,
+ * kilo) fall back to Codex.
  *
  * @module RoutingTextGeneration
  */
@@ -25,13 +26,21 @@ import {
 import { CodexTextGenerationLive } from "./CodexTextGeneration.ts";
 import { ClaudeTextGenerationLive } from "./ClaudeTextGeneration.ts";
 import { makeCopilotTextGenerationLive } from "./CopilotTextGeneration.ts";
+import { CursorTextGenerationLive } from "./CursorTextGeneration.ts";
+import { OpenCodeTextGenerationLive } from "./OpenCodeTextGeneration.ts";
 
 // ---------------------------------------------------------------------------
 // Supported git text-generation providers.  Providers not in this set fall
 // back to codex (the most broadly compatible CLI implementation).
 // ---------------------------------------------------------------------------
 
-const GIT_TEXT_GEN_PROVIDERS = new Set<ProviderKind>(["codex", "claudeAgent", "copilot"]);
+const GIT_TEXT_GEN_PROVIDERS = new Set<ProviderKind>([
+  "codex",
+  "claudeAgent",
+  "copilot",
+  "cursor",
+  "opencode",
+]);
 
 class CodexTextGen extends Context.Service<CodexTextGen, TextGenerationShape>()(
   "t3/git/Layers/RoutingTextGeneration/CodexTextGen",
@@ -45,6 +54,14 @@ class CopilotTextGen extends Context.Service<CopilotTextGen, CopilotTextGenerati
   "t3/git/Layers/RoutingTextGeneration/CopilotTextGen",
 ) {}
 
+class CursorTextGen extends Context.Service<CursorTextGen, TextGenerationShape>()(
+  "t3/git/Layers/RoutingTextGeneration/CursorTextGen",
+) {}
+
+class OpenCodeTextGen extends Context.Service<OpenCodeTextGen, TextGenerationShape>()(
+  "t3/git/Layers/RoutingTextGeneration/OpenCodeTextGen",
+) {}
+
 // ---------------------------------------------------------------------------
 // Routing implementation
 // ---------------------------------------------------------------------------
@@ -53,10 +70,14 @@ const makeRoutingTextGeneration = Effect.gen(function* () {
   const codex = yield* CodexTextGen;
   const claude = yield* ClaudeTextGen;
   const copilot = yield* CopilotTextGen;
+  const cursor = yield* CursorTextGen;
+  const openCode = yield* OpenCodeTextGen;
 
   const route = (provider?: ProviderKind): TextGenerationShape => {
     if (!provider || !GIT_TEXT_GEN_PROVIDERS.has(provider)) return codex;
     if (provider === "claudeAgent") return claude;
+    if (provider === "cursor") return cursor;
+    if (provider === "opencode") return openCode;
     if (provider === "copilot") {
       return {
         generateCommitMessage: copilot.generateCommitMessage,
@@ -102,6 +123,22 @@ const InternalCopilotLayer = Layer.effect(
   }),
 ).pipe(Layer.provide(makeCopilotTextGenerationLive()));
 
+const InternalCursorLayer = Layer.effect(
+  CursorTextGen,
+  Effect.gen(function* () {
+    const svc = yield* TextGeneration;
+    return svc;
+  }),
+).pipe(Layer.provide(CursorTextGenerationLive));
+
+const InternalOpenCodeLayer = Layer.effect(
+  OpenCodeTextGen,
+  Effect.gen(function* () {
+    const svc = yield* TextGeneration;
+    return svc;
+  }),
+).pipe(Layer.provide(OpenCodeTextGenerationLive));
+
 export const RoutingTextGenerationLive = Layer.effect(
   TextGeneration,
   makeRoutingTextGeneration,
@@ -109,4 +146,6 @@ export const RoutingTextGenerationLive = Layer.effect(
   Layer.provide(InternalCodexLayer),
   Layer.provide(InternalClaudeLayer),
   Layer.provide(InternalCopilotLayer),
+  Layer.provide(InternalCursorLayer),
+  Layer.provide(InternalOpenCodeLayer),
 );

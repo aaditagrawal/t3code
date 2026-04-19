@@ -116,6 +116,12 @@ type InstallProviderSettings = {
   homePlaceholder?: string;
   homeDescription?: ReactNode;
   customModelExample: string;
+  apiEndpointPlaceholder?: string;
+  apiEndpointDescription?: ReactNode;
+  serverUrlPlaceholder?: string;
+  serverUrlDescription?: ReactNode;
+  serverPasswordPlaceholder?: string;
+  serverPasswordDescription?: ReactNode;
 };
 
 const PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
@@ -150,6 +156,8 @@ const PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
     binaryPlaceholder: "Cursor binary path",
     binaryDescription: "Path to the Cursor Agent binary",
     customModelExample: "cursor-fast",
+    apiEndpointPlaceholder: "https://cursor.example.com/api",
+    apiEndpointDescription: "Optional custom Cursor API endpoint",
   },
   {
     provider: "opencode",
@@ -157,6 +165,11 @@ const PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
     binaryPlaceholder: "OpenCode binary path",
     binaryDescription: "Path to the OpenCode binary",
     customModelExample: "opencode-pro",
+    serverUrlPlaceholder: "http://127.0.0.1:4096",
+    serverUrlDescription: "Leave blank to let T3 Code spawn the server when needed",
+    serverPasswordPlaceholder: "Server password (optional)",
+    serverPasswordDescription:
+      "If your OpenCode server requires authentication, enter the password here. NOTE: Stored in plain text on disk",
   },
   {
     provider: "geminiCli",
@@ -579,11 +592,17 @@ export function GeneralSettingsPanel() {
     cursor: Boolean(
       settings.providers.cursor.binaryPath !==
         DEFAULT_UNIFIED_SETTINGS.providers.cursor.binaryPath ||
+      settings.providers.cursor.apiEndpoint !==
+        DEFAULT_UNIFIED_SETTINGS.providers.cursor.apiEndpoint ||
       settings.providers.cursor.customModels.length > 0,
     ),
     opencode: Boolean(
       settings.providers.opencode.binaryPath !==
         DEFAULT_UNIFIED_SETTINGS.providers.opencode.binaryPath ||
+      settings.providers.opencode.serverUrl !==
+        DEFAULT_UNIFIED_SETTINGS.providers.opencode.serverUrl ||
+      settings.providers.opencode.serverPassword !==
+        DEFAULT_UNIFIED_SETTINGS.providers.opencode.serverPassword ||
       settings.providers.opencode.customModels.length > 0,
     ),
     geminiCli: false,
@@ -860,6 +879,17 @@ export function GeneralSettingsPanel() {
       homePathKey: providerSettings.homePathKey,
       homePlaceholder: providerSettings.homePlaceholder,
       homeDescription: providerSettings.homeDescription,
+      apiEndpointPlaceholder: providerSettings.apiEndpointPlaceholder,
+      apiEndpointDescription: providerSettings.apiEndpointDescription,
+      serverUrlPlaceholder: providerSettings.serverUrlPlaceholder,
+      serverUrlDescription: providerSettings.serverUrlDescription,
+      serverPasswordPlaceholder: providerSettings.serverPasswordPlaceholder,
+      serverPasswordDescription: providerSettings.serverPasswordDescription,
+      apiEndpointValue:
+        "apiEndpoint" in providerConfig ? (providerConfig.apiEndpoint as string) : "",
+      serverUrlValue: "serverUrl" in providerConfig ? (providerConfig.serverUrl as string) : "",
+      serverPasswordValue:
+        "serverPassword" in providerConfig ? (providerConfig.serverPassword as string) : "",
       customModelExample: providerSettings.customModelExample,
       binaryPathValue: providerConfig.binaryPath,
       isDirty: !Equal.equals(providerConfig, defaultProviderConfig),
@@ -1436,6 +1466,112 @@ export function GeneralSettingsPanel() {
                           <span className="mt-1 block text-xs text-muted-foreground">
                             Additional CLI arguments passed to Claude Code on session start.
                           </span>
+                        </label>
+                      </div>
+                    ) : null}
+
+                    {providerCard.apiEndpointPlaceholder && providerCard.provider === "cursor" ? (
+                      <div className="border-t border-border/60 px-4 py-3 sm:px-5">
+                        <label
+                          htmlFor={`provider-install-${providerCard.provider}-api-endpoint`}
+                          className="block"
+                        >
+                          <span className="text-xs font-medium text-foreground">API endpoint</span>
+                          <Input
+                            id={`provider-install-${providerCard.provider}-api-endpoint`}
+                            className="mt-1.5"
+                            value={providerCard.apiEndpointValue}
+                            onChange={(event) =>
+                              updateSettings({
+                                providers: {
+                                  ...settings.providers,
+                                  cursor: {
+                                    ...settings.providers.cursor,
+                                    apiEndpoint: event.target.value,
+                                  },
+                                },
+                              })
+                            }
+                            placeholder={providerCard.apiEndpointPlaceholder}
+                            spellCheck={false}
+                          />
+                          {providerCard.apiEndpointDescription ? (
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              {providerCard.apiEndpointDescription}
+                            </span>
+                          ) : null}
+                        </label>
+                      </div>
+                    ) : null}
+
+                    {providerCard.serverUrlPlaceholder && providerCard.provider === "opencode" ? (
+                      <div className="border-t border-border/60 px-4 py-3 sm:px-5">
+                        <label
+                          htmlFor={`provider-install-${providerCard.provider}-server-url`}
+                          className="block"
+                        >
+                          <span className="text-xs font-medium text-foreground">Server URL</span>
+                          <Input
+                            id={`provider-install-${providerCard.provider}-server-url`}
+                            className="mt-1.5"
+                            value={providerCard.serverUrlValue}
+                            onChange={(event) =>
+                              updateSettings({
+                                providers: {
+                                  ...settings.providers,
+                                  opencode: {
+                                    ...settings.providers.opencode,
+                                    serverUrl: event.target.value,
+                                  },
+                                },
+                              })
+                            }
+                            placeholder={providerCard.serverUrlPlaceholder}
+                            spellCheck={false}
+                          />
+                          {providerCard.serverUrlDescription ? (
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              {providerCard.serverUrlDescription}
+                            </span>
+                          ) : null}
+                        </label>
+                      </div>
+                    ) : null}
+
+                    {providerCard.serverPasswordPlaceholder &&
+                    providerCard.provider === "opencode" ? (
+                      <div className="border-t border-border/60 px-4 py-3 sm:px-5">
+                        <label
+                          htmlFor={`provider-install-${providerCard.provider}-server-password`}
+                          className="block"
+                        >
+                          <span className="text-xs font-medium text-foreground">
+                            Server password
+                          </span>
+                          <Input
+                            id={`provider-install-${providerCard.provider}-server-password`}
+                            className="mt-1.5"
+                            type="password"
+                            value={providerCard.serverPasswordValue}
+                            onChange={(event) =>
+                              updateSettings({
+                                providers: {
+                                  ...settings.providers,
+                                  opencode: {
+                                    ...settings.providers.opencode,
+                                    serverPassword: event.target.value,
+                                  },
+                                },
+                              })
+                            }
+                            placeholder={providerCard.serverPasswordPlaceholder}
+                            spellCheck={false}
+                          />
+                          {providerCard.serverPasswordDescription ? (
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              {providerCard.serverPasswordDescription}
+                            </span>
+                          ) : null}
                         </label>
                       </div>
                     ) : null}

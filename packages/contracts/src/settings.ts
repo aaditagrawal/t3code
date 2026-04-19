@@ -95,6 +95,23 @@ export const ClaudeSettings = Schema.Struct({
 });
 export type ClaudeSettings = typeof ClaudeSettings.Type;
 
+export const CursorSettings = Schema.Struct({
+  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  binaryPath: makeBinaryPathSetting("agent"),
+  apiEndpoint: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  customModels: Schema.Array(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+});
+export type CursorSettings = typeof CursorSettings.Type;
+
+export const OpenCodeSettings = Schema.Struct({
+  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  binaryPath: makeBinaryPathSetting("opencode"),
+  serverUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  serverPassword: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  customModels: Schema.Array(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+});
+export type OpenCodeSettings = typeof OpenCodeSettings.Type;
+
 export const GenericProviderSettings = Schema.Struct({
   enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   customModels: Schema.Array(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
@@ -129,8 +146,8 @@ export const ServerSettings = Schema.Struct({
     codex: CodexSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     claudeAgent: ClaudeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     copilot: GenericProviderSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
-    cursor: GenericProviderSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
-    opencode: GenericProviderSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    cursor: CursorSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    opencode: OpenCodeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     geminiCli: GenericProviderSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     amp: GenericProviderSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     kilo: GenericProviderSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
@@ -268,6 +285,21 @@ const GenericProviderSettingsPatch = Schema.Struct({
   customModels: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 
+const CursorSettingsPatch = Schema.Struct({
+  enabled: Schema.optionalKey(Schema.Boolean),
+  binaryPath: Schema.optionalKey(Schema.String),
+  apiEndpoint: Schema.optionalKey(Schema.String),
+  customModels: Schema.optionalKey(Schema.Array(Schema.String)),
+});
+
+const OpenCodeSettingsPatch = Schema.Struct({
+  enabled: Schema.optionalKey(Schema.Boolean),
+  binaryPath: Schema.optionalKey(Schema.String),
+  serverUrl: Schema.optionalKey(Schema.String),
+  serverPassword: Schema.optionalKey(Schema.String),
+  customModels: Schema.optionalKey(Schema.Array(Schema.String)),
+});
+
 export const ServerSettingsPatch = Schema.Struct({
   enableAssistantStreaming: Schema.optionalKey(Schema.Boolean),
   defaultThreadEnvMode: Schema.optionalKey(ThreadEnvMode),
@@ -284,8 +316,8 @@ export const ServerSettingsPatch = Schema.Struct({
       codex: Schema.optionalKey(CodexSettingsPatch),
       claudeAgent: Schema.optionalKey(ClaudeSettingsPatch),
       copilot: Schema.optionalKey(GenericProviderSettingsPatch),
-      cursor: Schema.optionalKey(GenericProviderSettingsPatch),
-      opencode: Schema.optionalKey(GenericProviderSettingsPatch),
+      cursor: Schema.optionalKey(CursorSettingsPatch),
+      opencode: Schema.optionalKey(OpenCodeSettingsPatch),
       geminiCli: Schema.optionalKey(GenericProviderSettingsPatch),
       amp: Schema.optionalKey(GenericProviderSettingsPatch),
       kilo: Schema.optionalKey(GenericProviderSettingsPatch),

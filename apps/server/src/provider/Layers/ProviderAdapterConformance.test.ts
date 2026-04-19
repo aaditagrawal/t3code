@@ -78,9 +78,8 @@ const claudeLayer = makeClaudeAdapterLive({
   Layer.provideMerge(NodeServices.layer),
 );
 
-const cursorLayer = makeCursorAdapterLive({
-  createProcess: () => ({}) as never,
-}).pipe(
+const cursorLayer = makeCursorAdapterLive().pipe(
+  Layer.provideMerge(ServerConfig.layerTest(process.cwd(), process.cwd())),
   Layer.provideMerge(ServerSettingsService.layerTest()),
   Layer.provideMerge(NodeServices.layer),
 );

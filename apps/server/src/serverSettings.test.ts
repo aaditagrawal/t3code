@@ -208,7 +208,8 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           },
           opencode: {
             binaryPath: "  /opt/homebrew/bin/opencode  ",
-            configDir: "  /Users/julius/.config/opencode  ",
+            serverUrl: "  http://localhost:1234  ",
+            serverPassword: "  s3cret  ",
           },
         },
       });
@@ -234,7 +235,8 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       assert.deepEqual(next.providers.opencode, {
         enabled: true,
         binaryPath: "/opt/homebrew/bin/opencode",
-        configDir: "/Users/julius/.config/opencode",
+        serverUrl: "http://localhost:1234",
+        serverPassword: "s3cret",
         customModels: [],
       });
     }).pipe(Effect.provide(makeServerSettingsLayer())),
@@ -296,7 +298,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
             binaryPath: "/opt/homebrew/bin/codex",
           },
           opencode: {
-            configDir: "/Users/julius/.config/opencode",
+            serverUrl: "http://localhost:1234",
           },
         },
       });
@@ -315,7 +317,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
             binaryPath: "/opt/homebrew/bin/codex",
           },
           opencode: {
-            configDir: "/Users/julius/.config/opencode",
+            serverUrl: "http://localhost:1234",
           },
         },
       });

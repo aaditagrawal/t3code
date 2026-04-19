@@ -871,7 +871,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
 
           assert.deepStrictEqual(
             providers.map((provider) => provider.provider),
-            ["codex", "claudeAgent"],
+            ["codex", "claudeAgent", "opencode", "cursor"],
           );
         }),
       );
