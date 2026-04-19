@@ -171,8 +171,10 @@ export function CommandPalette({ children }: { children: ReactNode }) {
       event.stopPropagation();
       toggleOpen();
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // Capture phase so the shortcut fires even when a descendant (e.g.
+    // xterm, a contenteditable composer) would otherwise swallow the event.
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [keybindings, terminalOpen, toggleOpen]);
 
   return (
