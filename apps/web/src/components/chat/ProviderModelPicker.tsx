@@ -1,197 +1,78 @@
-import { type ModelSlug, type ProviderKind } from "@t3tools/contracts";
-import { normalizeModelSlug, parseCursorModelSelection } from "@t3tools/shared/model";
-import { memo, useState } from "react";
+import {
+  type ProviderKind,
+  type ResolvedKeybindingsConfig,
+  type ServerProvider,
+} from "@t3tools/contracts";
+import { memo, useEffect, useState } from "react";
 import type { VariantProps } from "class-variance-authority";
-import { PROVIDER_OPTIONS, type ProviderPickerKind } from "../../session-logic";
 import { ChevronDownIcon } from "lucide-react";
 import { Button, buttonVariants } from "../ui/button";
-import {
-  Menu,
-  MenuGroup,
-  MenuItem,
-  MenuPopup,
-  MenuRadioGroup,
-  MenuRadioItem,
-  MenuSeparator as MenuDivider,
-  MenuSub,
-  MenuSubPopup,
-  MenuSubTrigger,
-  MenuTrigger,
-} from "../ui/menu";
-import {
-  AmpIcon,
-  ClaudeAI,
-  CursorIcon,
-  Gemini,
-  GitHubIcon,
-  Icon,
-  KiloIcon,
-  OpenAI,
-  OpenCodeIcon,
-} from "../Icons";
+import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "~/lib/utils";
-import { type ModelOptionEntry } from "../../providerModelOptions";
-export {
-  buildModelOptionsByProvider,
-  mergeDiscoveredModels,
-  resolveModelOptionsByProvider,
-} from "../../providerModelOptions";
-
-function isAvailableProviderOption(option: (typeof PROVIDER_OPTIONS)[number]): option is {
-  value: ProviderKind;
-  label: string;
-  available: true;
-} {
-  return option.available;
-}
-
-type GroupedModelEntry = {
-  readonly subProvider: string;
-  readonly models: ReadonlyArray<ModelOptionEntry>;
-  readonly connected: boolean;
-};
-
-function groupModelsBySubProvider(
-  models: ReadonlyArray<ModelOptionEntry>,
-): ReadonlyArray<GroupedModelEntry> {
-  const groupOrder: string[] = [];
-  const groupMap = new Map<
-    string,
-    { displayName: string; models: ModelOptionEntry[]; connected: boolean }
-  >();
-  const ungrouped: ModelOptionEntry[] = [];
-
-  for (const model of models) {
-    const slashIndex = model.slug.indexOf("/");
-    if (slashIndex > 0) {
-      const subProviderId = model.slug.slice(0, slashIndex);
-      const nameSlashIndex = model.name.indexOf(" / ");
-      const subProviderName =
-        nameSlashIndex > 0 ? model.name.slice(0, nameSlashIndex) : subProviderId;
-      const modelName = nameSlashIndex > 0 ? model.name.slice(nameSlashIndex + 3) : model.name;
-
-      let group = groupMap.get(subProviderId);
-      if (!group) {
-        group = { displayName: subProviderName, models: [], connected: model.connected !== false };
-        groupMap.set(subProviderId, group);
-        groupOrder.push(subProviderId);
-      }
-      group.models.push({
-        slug: model.slug,
-        name: modelName,
-        ...(model.pricingTier != null && { pricingTier: model.pricingTier }),
-        ...(model.isCustom != null && { isCustom: model.isCustom }),
-      });
-    } else {
-      ungrouped.push(model);
-    }
-  }
-
-  const sorted = groupOrder.toSorted((a, b) => {
-    const nameA = groupMap.get(a)!.displayName;
-    const nameB = groupMap.get(b)!.displayName;
-    return nameA.localeCompare(nameB);
-  });
-
-  const result: GroupedModelEntry[] = sorted.map((id) => {
-    const group = groupMap.get(id)!;
-    const sortedModels = group.models.toSorted((a, b) => a.name.localeCompare(b.name));
-    return { subProvider: group.displayName, models: sortedModels, connected: group.connected };
-  });
-  if (ungrouped.length > 0) {
-    const sortedUngrouped = ungrouped.toSorted((a, b) => a.name.localeCompare(b.name));
-    result.push({ subProvider: "Other", models: sortedUngrouped, connected: true });
-  }
-  return result;
-}
-
-function resolveModelForProviderPicker(
-  provider: ProviderKind,
-  value: string,
-  options: ReadonlyArray<{ slug: string; name: string }>,
-): ModelSlug | null {
-  const trimmedValue = value.trim();
-  if (!trimmedValue) {
-    return null;
-  }
-
-  const direct = options.find((option) => option.slug === trimmedValue);
-  if (direct) {
-    return direct.slug;
-  }
-
-  const byName = options.find((option) => option.name.toLowerCase() === trimmedValue.toLowerCase());
-  if (byName) {
-    return byName.slug;
-  }
-
-  const normalized = normalizeModelSlug(trimmedValue, provider);
-  if (!normalized) {
-    return null;
-  }
-
-  const resolved = options.find((option) => option.slug === normalized);
-  if (resolved) {
-    return resolved.slug;
-  }
-
-  if (provider === "cursor") {
-    return parseCursorModelSelection(normalized).family;
-  }
-
-  return null;
-}
-
-export function formatPricingTier(tier: string): string {
-  // Normalize to uppercase X suffix: "1x" -> "1X", "0.3x" -> "0.3X"
-  return tier.replace(/x$/i, "X");
-}
-
-const PROVIDER_ICON_BY_PROVIDER: Record<ProviderKind, Icon> = {
-  codex: OpenAI,
-  copilot: GitHubIcon,
-  claudeAgent: ClaudeAI,
-  cursor: CursorIcon,
-  opencode: OpenCodeIcon,
-  geminiCli: Gemini,
-  amp: AmpIcon,
-  kilo: KiloIcon,
-};
-
-export const AVAILABLE_PROVIDER_OPTIONS = PROVIDER_OPTIONS.filter(isAvailableProviderOption);
-const UNAVAILABLE_PROVIDER_OPTIONS = PROVIDER_OPTIONS.filter((option) => !option.available);
-const COMING_SOON_PROVIDER_OPTIONS: ReadonlyArray<{ id: string; label: string; icon: Icon }> = [];
-
-function providerIconClassName(
-  provider: ProviderKind | ProviderPickerKind,
-  fallbackClassName: string,
-): string {
-  return provider === "claudeAgent" ? "text-[#d97757]" : fallbackClassName;
-}
+import { ModelPickerContent } from "./ModelPickerContent";
+import {
+  ModelEsque,
+  PROVIDER_ICON_BY_PROVIDER,
+  getTriggerDisplayModelLabel,
+  getTriggerDisplayModelName,
+} from "./providerIconUtils";
+import { setModelPickerOpen } from "../../modelPickerOpenState";
 
 export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   provider: ProviderKind;
   model: string;
   lockedProvider: ProviderKind | null;
-  modelOptionsByProvider: Record<ProviderKind, ReadonlyArray<ModelOptionEntry>>;
-  ultrathinkActive?: boolean;
+  providers?: ReadonlyArray<ServerProvider>;
+  keybindings?: ResolvedKeybindingsConfig;
+  modelOptionsByProvider: Record<ProviderKind, ReadonlyArray<ModelEsque>>;
   activeProviderIconClassName?: string;
   compact?: boolean;
   disabled?: boolean;
+  terminalOpen?: boolean;
+  open?: boolean;
   triggerVariant?: VariantProps<typeof buttonVariants>["variant"];
   triggerClassName?: string;
+  onOpenChange?: (open: boolean) => void;
   onProviderModelChange: (provider: ProviderKind, model: string) => void;
 }) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [uncontrolledIsMenuOpen, setUncontrolledIsMenuOpen] = useState(false);
   const activeProvider = props.lockedProvider ?? props.provider;
+  const isMenuOpen = props.open ?? uncontrolledIsMenuOpen;
   const selectedProviderOptions = props.modelOptionsByProvider[activeProvider];
-  const selectedModelOption = selectedProviderOptions.find((option) => option.slug === props.model);
-  const selectedModelLabel = selectedModelOption?.name ?? props.model;
-  const selectedPricingTier = selectedModelOption?.pricingTier;
+  // If the current slug belongs to a different provider (for example after a provider
+  // switch or disable), prefer the active provider's first option so the trigger icon
+  // and label stay in sync instead of showing a stale foreign slug.
+  const selectedModel =
+    selectedProviderOptions.find((option) => option.slug === props.model) ??
+    selectedProviderOptions[0];
   const ProviderIcon = PROVIDER_ICON_BY_PROVIDER[activeProvider];
+  const triggerTitle = selectedModel ? getTriggerDisplayModelName(selectedModel) : props.model;
+  const triggerSubtitle = selectedModel?.subProvider;
+  const triggerLabel = selectedModel ? getTriggerDisplayModelLabel(selectedModel) : props.model;
+
+  const setIsMenuOpen = (open: boolean) => {
+    props.onOpenChange?.(open);
+    if (props.open === undefined) {
+      setUncontrolledIsMenuOpen(open);
+    }
+  };
+
+  useEffect(() => {
+    setModelPickerOpen(isMenuOpen);
+    return () => {
+      setModelPickerOpen(false);
+    };
+  }, [isMenuOpen]);
+
+  const handleProviderModelChange = (provider: ProviderKind, model: string) => {
+    if (props.disabled) return;
+    props.onProviderModelChange(provider, model);
+    setIsMenuOpen(false);
+  };
 
   return (
-    <Menu
+    <Popover
       open={isMenuOpen}
       onOpenChange={(open) => {
         if (props.disabled) {
@@ -201,7 +82,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
         setIsMenuOpen(open);
       }}
     >
-      <MenuTrigger
+      <PopoverTrigger
         render={
           <Button
             size="sm"
@@ -224,199 +105,54 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
         >
           <ProviderIcon
             aria-hidden="true"
-            className={cn(
-              "size-4 shrink-0",
-              providerIconClassName(activeProvider, "text-muted-foreground/70"),
-              props.activeProviderIconClassName,
-            )}
+            className={cn("size-4 shrink-0", props.activeProviderIconClassName)}
           />
-          <span className="min-w-0 flex-1 truncate">{selectedModelLabel}</span>
-          {selectedPricingTier ? (
-            <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-              {formatPricingTier(selectedPricingTier)}
-            </span>
-          ) : null}
-          <ChevronDownIcon aria-hidden="true" className="size-3 shrink-0 opacity-60" />
-        </span>
-      </MenuTrigger>
-      <MenuPopup align="start">
-        {AVAILABLE_PROVIDER_OPTIONS.map((option) => {
-          const OptionIcon = PROVIDER_ICON_BY_PROVIDER[option.value];
-          const isDisabledByProviderLock =
-            props.lockedProvider !== null && props.lockedProvider !== option.value;
-          const providerModels = props.modelOptionsByProvider[option.value];
-          const onModelSelect = (value: string) => {
-            if (props.disabled) return;
-            if (isDisabledByProviderLock) return;
-            if (!value) return;
-            const resolvedModel = resolveModelForProviderPicker(
-              option.value,
-              value,
-              providerModels,
-            );
-            if (!resolvedModel) return;
-            props.onProviderModelChange(option.value, resolvedModel);
-            setIsMenuOpen(false);
-          };
-
-          // OpenCode / Kilo: two-tiered picker grouped by sub-provider.
-          // Connected providers are shown first; disconnected ones are
-          // collapsed under an "All Providers" submenu.
-          if (option.value === "opencode" || option.value === "kilo") {
-            const groups = groupModelsBySubProvider(providerModels);
-            const connectedGroups = groups.filter((g) => g.connected);
-            const disconnectedGroups = groups.filter((g) => !g.connected);
-
-            const renderSubProviderGroup = (group: GroupedModelEntry) => (
-              <MenuSub key={group.subProvider}>
-                <MenuSubTrigger>{group.subProvider}</MenuSubTrigger>
-                <MenuSubPopup className="[--available-height:min(24rem,70vh)]" sideOffset={4}>
-                  <MenuGroup>
-                    <MenuRadioGroup
-                      value={props.provider === option.value ? props.model : ""}
-                      onValueChange={onModelSelect}
-                    >
-                      {group.models.map((modelOption) => (
-                        <MenuRadioItem
-                          key={modelOption.slug}
-                          value={modelOption.slug}
-                          onClick={() => setIsMenuOpen(false)}
-                        >
-                          <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                            <span className="truncate">{modelOption.name}</span>
-                            {modelOption.pricingTier ? (
-                              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                                {formatPricingTier(modelOption.pricingTier)}
-                              </span>
-                            ) : null}
-                          </span>
-                        </MenuRadioItem>
-                      ))}
-                    </MenuRadioGroup>
-                  </MenuGroup>
-                </MenuSubPopup>
-              </MenuSub>
-            );
-
-            return (
-              <MenuSub key={option.value}>
-                <MenuSubTrigger disabled={isDisabledByProviderLock}>
-                  <OptionIcon
-                    aria-hidden="true"
-                    className={cn(
-                      "size-4 shrink-0",
-                      providerIconClassName(option.value, "text-muted-foreground/85"),
-                    )}
-                  />
-                  {option.label}
-                </MenuSubTrigger>
-                <MenuSubPopup className="[--available-height:min(24rem,70vh)]" sideOffset={4}>
-                  {groups.length === 0 ? (
-                    <MenuItem disabled>
-                      <span className="text-muted-foreground/60 text-xs">No models discovered</span>
-                    </MenuItem>
-                  ) : (
-                    <>
-                      {connectedGroups.map(renderSubProviderGroup)}
-                      {disconnectedGroups.length > 0 && connectedGroups.length > 0 && (
-                        <>
-                          <MenuDivider />
-                          <MenuSub>
-                            <MenuSubTrigger>
-                              <span className="text-muted-foreground/70">All Providers</span>
-                            </MenuSubTrigger>
-                            <MenuSubPopup
-                              className="[--available-height:min(24rem,70vh)]"
-                              sideOffset={4}
-                            >
-                              {disconnectedGroups.map(renderSubProviderGroup)}
-                            </MenuSubPopup>
-                          </MenuSub>
-                        </>
-                      )}
-                      {disconnectedGroups.length > 0 &&
-                        connectedGroups.length === 0 &&
-                        disconnectedGroups.map(renderSubProviderGroup)}
-                    </>
-                  )}
-                </MenuSubPopup>
-              </MenuSub>
-            );
-          }
-
-          return (
-            <MenuSub key={option.value}>
-              <MenuSubTrigger disabled={isDisabledByProviderLock}>
-                <OptionIcon
-                  aria-hidden="true"
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span
                   className={cn(
-                    "size-4 shrink-0",
-                    providerIconClassName(option.value, "text-muted-foreground/85"),
+                    "min-w-0 flex-1 overflow-hidden",
+                    triggerSubtitle
+                      ? "grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1"
+                      : "truncate",
                   )}
                 />
-                {option.label}
-              </MenuSubTrigger>
-              <MenuSubPopup className="[--available-height:min(24rem,70vh)]" sideOffset={4}>
-                <MenuGroup>
-                  <MenuRadioGroup
-                    value={props.provider === option.value ? props.model : ""}
-                    onValueChange={onModelSelect}
-                  >
-                    {providerModels.map((modelOption) => (
-                      <MenuRadioItem
-                        key={`${option.value}:${modelOption.slug}`}
-                        value={modelOption.slug}
-                        onClick={() => setIsMenuOpen(false)}
-                      >
-                        <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                          <span className="truncate">{modelOption.name}</span>
-                          {modelOption.pricingTier ? (
-                            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                              {formatPricingTier(modelOption.pricingTier)}
-                            </span>
-                          ) : null}
-                        </span>
-                      </MenuRadioItem>
-                    ))}
-                  </MenuRadioGroup>
-                </MenuGroup>
-              </MenuSubPopup>
-            </MenuSub>
-          );
-        })}
-        {UNAVAILABLE_PROVIDER_OPTIONS.length > 0 && <MenuDivider />}
-        {UNAVAILABLE_PROVIDER_OPTIONS.map((option) => {
-          const OptionIcon = PROVIDER_ICON_BY_PROVIDER[option.value];
-          return (
-            <MenuItem key={option.value} disabled>
-              <OptionIcon
-                aria-hidden="true"
-                className={cn(
-                  "size-4 shrink-0 opacity-80",
-                  providerIconClassName(option.value, "text-muted-foreground/85"),
-                )}
-              />
-              <span>{option.label}</span>
-              <span className="ms-auto text-[11px] text-muted-foreground/80 uppercase tracking-[0.08em]">
-                Coming soon
-              </span>
-            </MenuItem>
-          );
-        })}
-        {UNAVAILABLE_PROVIDER_OPTIONS.length === 0 && <MenuDivider />}
-        {COMING_SOON_PROVIDER_OPTIONS.map((option) => {
-          const OptionIcon = option.icon;
-          return (
-            <MenuItem key={option.id} disabled>
-              <OptionIcon aria-hidden="true" className="size-4 shrink-0 opacity-80" />
-              <span>{option.label}</span>
-              <span className="ms-auto text-[11px] text-muted-foreground/80 uppercase tracking-[0.08em]">
-                Coming soon
-              </span>
-            </MenuItem>
-          );
-        })}
-      </MenuPopup>
-    </Menu>
+              }
+            >
+              {triggerSubtitle ? (
+                <>
+                  <span className="min-w-0 truncate">{triggerSubtitle}</span>
+                  <span aria-hidden="true" className="shrink-0 opacity-60">
+                    ·
+                  </span>
+                  <span className="min-w-0 truncate">{triggerTitle}</span>
+                </>
+              ) : (
+                triggerTitle
+              )}
+            </TooltipTrigger>
+            <TooltipPopup side="top">{triggerLabel}</TooltipPopup>
+          </Tooltip>
+          <ChevronDownIcon aria-hidden="true" className="size-3 shrink-0 opacity-60" />
+        </span>
+      </PopoverTrigger>
+      <PopoverPopup
+        align="start"
+        className="border-0 bg-transparent p-0 shadow-none before:hidden [--viewport-inline-padding:0] *:data-[slot=popover-viewport]:p-0"
+      >
+        <ModelPickerContent
+          provider={props.provider}
+          model={props.model}
+          lockedProvider={props.lockedProvider}
+          {...(props.providers && { providers: props.providers })}
+          {...(props.keybindings ? { keybindings: props.keybindings } : {})}
+          modelOptionsByProvider={props.modelOptionsByProvider}
+          terminalOpen={props.terminalOpen ?? false}
+          onRequestClose={() => setIsMenuOpen(false)}
+          onProviderModelChange={handleProviderModelChange}
+        />
+      </PopoverPopup>
+    </Popover>
   );
 });
