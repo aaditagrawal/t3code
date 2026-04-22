@@ -10,8 +10,9 @@
  * store.
  */
 import { useCallback, useMemo, useSyncExternalStore } from "react";
-import { ServerSettings, ServerSettingsPatch } from "@t3tools/contracts";
+import { ServerSettings, type ServerSettingsPatch } from "@t3tools/contracts";
 import {
+  type ClientSettingsPatch,
   type ClientSettings,
   DEFAULT_CLIENT_SETTINGS,
   DEFAULT_UNIFIED_SETTINGS,
@@ -106,7 +107,7 @@ const SERVER_SETTINGS_KEYS = new Set<string>(Struct.keys(ServerSettings.fields))
 
 function splitPatch(patch: Partial<UnifiedSettings>): {
   serverPatch: ServerSettingsPatch;
-  clientPatch: Partial<ClientSettings>;
+  clientPatch: ClientSettingsPatch;
 } {
   const serverPatch: Record<string, unknown> = {};
   const clientPatch: Record<string, unknown> = {};
@@ -119,7 +120,7 @@ function splitPatch(patch: Partial<UnifiedSettings>): {
   }
   return {
     serverPatch: serverPatch as ServerSettingsPatch,
-    clientPatch: clientPatch as Partial<ClientSettings>,
+    clientPatch: clientPatch as ClientSettingsPatch,
   };
 }
 
@@ -129,6 +130,34 @@ function splitPatch(patch: Partial<UnifiedSettings>): {
  * Read merged settings. Selector narrows the subscription so components
  * only re-render when the slice they care about changes.
  */
+
+/**
+ * Non-hook accessor for the current merged client settings snapshot.
+ * Used by non-React code paths (e.g. runtime services) that need the latest
+ * settings without subscribing.
+ *
+ * Kicks off hydration on first access so subsequent reads observe the
+ * persisted values instead of defaults. The initial call may still return
+ * `DEFAULT_CLIENT_SETTINGS` because hydration is asynchronous — callers that
+ * need hydrated values should await `ensureClientSettingsHydrated()`.
+ */
+export function getClientSettings(): ClientSettings {
+  if (!clientSettingsHydrated) {
+    void hydrateClientSettings();
+  }
+  return getClientSettingsSnapshot();
+}
+
+/**
+ * Awaitable hydration trigger for non-React callers that need the persisted
+ * client settings before proceeding.
+ */
+export function ensureClientSettingsHydrated(): Promise<void> {
+  if (clientSettingsHydrated) {
+    return Promise.resolve();
+  }
+  return hydrateClientSettings();
+}
 
 export function useSettings<T = UnifiedSettings>(selector?: (s: UnifiedSettings) => T): T {
   const serverSettings = useServerSettings();

@@ -32,11 +32,12 @@ import {
   isDesktopUpdateButtonDisabled,
   resolveDesktopUpdateButtonAction,
 } from "../../components/desktopUpdate.logic";
+import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import {
-  ProviderModelPicker,
   buildModelOptionsByProvider,
   mergeDiscoveredModels,
-} from "../chat/ProviderModelPicker";
+  type ModelOptionEntry,
+} from "../../providerModelOptions";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import { resolveAndPersistPreferredEditor } from "../../editorPreferences";
 import { isElectron } from "../../env";
@@ -861,7 +862,7 @@ export function GeneralSettingsPanel() {
     const models: ReadonlyArray<ServerProviderModel> = providerModelOptions[
       providerSettings.provider
     ].map(
-      (modelOption) =>
+      (modelOption: ModelOptionEntry) =>
         liveModelsBySlug.get(modelOption.slug) ?? {
           slug: modelOption.slug,
           name: modelOption.name,

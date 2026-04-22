@@ -2,7 +2,6 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Effect, Layer, Option } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { CodexAppServerManager } from "../../codexAppServerManager.ts";
 import { AmpServerManager } from "../../ampServerManager.ts";
 import { GeminiCliServerManager } from "../../geminiCliServerManager.ts";
 import { ServerConfig } from "../../config.ts";
@@ -34,7 +33,7 @@ const providerSessionDirectoryTestLayer = Layer.succeed(ProviderSessionDirectory
   listBindings: () => Effect.succeed([]),
 });
 
-const codexLayer = makeCodexAdapterLive({ manager: new CodexAppServerManager() }).pipe(
+const codexLayer = makeCodexAdapterLive().pipe(
   Layer.provideMerge(ServerConfig.layerTest(process.cwd(), process.cwd())),
   Layer.provideMerge(providerSessionDirectoryTestLayer),
   Layer.provideMerge(ServerSettingsService.layerTest()),

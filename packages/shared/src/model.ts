@@ -550,7 +550,7 @@ function resolveLabeledOption(
   if (raw && options.some((option) => option.value === raw)) {
     return raw;
   }
-  return options.find((option) => option.isDefault)?.value;
+  return options.find((option) => option.isDefault)?.value ?? options[0]?.value;
 }
 
 export function normalizeOpenCodeModelOptionsWithCapabilities(

@@ -11,7 +11,6 @@ import {
   deriveCompletionDividerBeforeEntryId,
   deriveActiveWorkStartedAt,
   deriveActivePlanState,
-  PROVIDER_OPTIONS,
   derivePendingApprovals,
   derivePendingUserInputs,
   deriveTimelineEntries,
@@ -22,6 +21,7 @@ import {
   hasToolActivityForTurn,
   hasToolActivitySince,
   isLatestTurnSettled,
+  PROVIDER_OPTIONS,
 } from "./session-logic";
 
 function makeActivity(overrides: {
@@ -1627,8 +1627,8 @@ describe("PROVIDER_OPTIONS", () => {
       { value: "codex", label: "Codex", available: true },
       { value: "copilot", label: "GitHub Copilot", available: true },
       { value: "claudeAgent", label: "Claude Code", available: true },
-      { value: "cursor", label: "Cursor Agent", available: true },
-      { value: "opencode", label: "OpenCode", available: true },
+      { value: "cursor", label: "Cursor Agent", available: true, pickerSidebarBadge: "new" },
+      { value: "opencode", label: "OpenCode", available: true, pickerSidebarBadge: "new" },
       { value: "geminiCli", label: "Gemini CLI", available: true },
       { value: "amp", label: "AMPcode", available: true },
       { value: "kilo", label: "Kilo", available: true },
@@ -1647,11 +1647,13 @@ describe("PROVIDER_OPTIONS", () => {
       value: "cursor",
       label: "Cursor Agent",
       available: true,
+      pickerSidebarBadge: "new",
     });
     expect(opencode).toEqual({
       value: "opencode",
       label: "OpenCode",
       available: true,
+      pickerSidebarBadge: "new",
     });
     expect(geminiCli).toEqual({
       value: "geminiCli",

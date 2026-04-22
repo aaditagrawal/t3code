@@ -72,7 +72,7 @@ function makeLineLogger(streamLabel: string): Logger.Logger<unknown, string> {
 function resolveStreamLabel(stream: EventNdjsonStream): string {
   switch (stream) {
     case "native":
-      return "NTIVE";
+      return "NATIVE";
     case "canonical":
     case "orchestration":
     default:
