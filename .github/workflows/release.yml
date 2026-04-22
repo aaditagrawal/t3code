@@ -75,6 +75,15 @@ jobs:
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             raw="${{ github.event.inputs.version }}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            # Nightly: derive a unique prerelease version from the current
+            # package.json base and today's date + run counter so every
+            # scheduled run produces a valid semver like
+            # `0.0.21-nightly.20260420.3`.
+            base_version=$(node -e "console.log(require('./package.json').version)")
+            base_version="${base_version%%-*}"
+            date_stamp=$(date -u +%Y%m%d)
+            raw="${base_version}-nightly.${date_stamp}.${GITHUB_RUN_NUMBER}"
           else
             raw="${GITHUB_REF_NAME}"
           fi

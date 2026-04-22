@@ -28,6 +28,7 @@ import { ServerSettingsError } from "@t3tools/contracts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import { buildServerProvider } from "../providerSnapshot.ts";
 import { CodexProvider } from "../Services/CodexProvider.ts";
+import { ServerConfig } from "../../config.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import packageJson from "../../../package.json" with { type: "json" };
 
@@ -360,12 +361,13 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
 ): Effect.fn.Return<
   ServerProvider,
   ServerSettingsError,
-  ServerSettingsService | ChildProcessSpawner.ChildProcessSpawner
+  ServerSettingsService | ServerConfig | ChildProcessSpawner.ChildProcessSpawner
 > {
   const codexSettings = yield* Effect.service(ServerSettingsService).pipe(
     Effect.flatMap((service) => service.getSettings),
     Effect.map((settings) => settings.providers.codex),
   );
+  const serverConfig = yield* Effect.service(ServerConfig);
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   const emptyModels = emptyCodexModelsFromSettings(codexSettings);
 
@@ -389,7 +391,7 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
   const probeResult = yield* probe({
     binaryPath: codexSettings.binaryPath,
     homePath: codexSettings.homePath,
-    cwd: process.cwd(),
+    cwd: serverConfig.cwd,
     customModels: codexSettings.customModels,
   }).pipe(Effect.timeoutOption(Duration.millis(PROVIDER_PROBE_TIMEOUT_MS)), Effect.result);
 
@@ -455,9 +457,11 @@ export const CodexProviderLive = Layer.effect(
   Effect.gen(function* () {
     const serverSettings = yield* ServerSettingsService;
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+    const serverConfig = yield* Effect.service(ServerConfig);
     const checkProvider = checkCodexProviderStatus().pipe(
       Effect.provideService(ServerSettingsService, serverSettings),
       Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+      Effect.provideService(ServerConfig, serverConfig),
     );
 
     return yield* makeManagedServerProvider<CodexSettings>({

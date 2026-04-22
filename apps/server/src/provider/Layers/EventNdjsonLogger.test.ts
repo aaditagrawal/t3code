@@ -59,11 +59,11 @@ describe("EventNdjsonLogger", () => {
         const second = parseLogLine(fs.readFileSync(threadTwoPath, "utf8").trim());
 
         assert.equal(Number.isNaN(Date.parse(first.observedAt)), false);
-        assert.equal(first.stream, "NTIVE");
+        assert.equal(first.stream, "NATIVE");
         assert.equal(first.payload, '{"threadId":"provider-thread-1","id":"evt-1"}');
 
         assert.equal(Number.isNaN(Date.parse(second.observedAt)), false);
-        assert.equal(second.stream, "NTIVE");
+        assert.equal(second.stream, "NATIVE");
         assert.equal(
           second.payload,
           '{"type":"turn.completed","threadId":"provider-thread-2","id":"evt-2"}',

@@ -331,7 +331,15 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
       if (!targetModelKey) {
         return;
       }
-      const [provider, slug] = targetModelKey.split(":") as [ProviderKind, string];
+      // Split on the first colon only — model slugs may themselves contain
+      // colons (e.g. "github-copilot:claude:opus") and `split(":")` would
+      // drop everything after the second segment.
+      const separatorIndex = targetModelKey.indexOf(":");
+      if (separatorIndex === -1) {
+        return;
+      }
+      const provider = targetModelKey.slice(0, separatorIndex) as ProviderKind;
+      const slug = targetModelKey.slice(separatorIndex + 1);
       event.preventDefault();
       event.stopPropagation();
       handleModelSelect(slug, provider);

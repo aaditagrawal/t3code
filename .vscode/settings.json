@@ -5,5 +5,5 @@
     "source.fixAll.oxc": "always"
   },
   "oxc.unusedDisableDirectives": "warn",
-  "js/ts.tsdk.path": "node_modules/typescript/lib"
+  "typescript.tsdk": "node_modules/typescript/lib"
 }

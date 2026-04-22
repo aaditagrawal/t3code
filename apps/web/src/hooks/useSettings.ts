@@ -135,9 +135,28 @@ function splitPatch(patch: Partial<UnifiedSettings>): {
  * Non-hook accessor for the current merged client settings snapshot.
  * Used by non-React code paths (e.g. runtime services) that need the latest
  * settings without subscribing.
+ *
+ * Kicks off hydration on first access so subsequent reads observe the
+ * persisted values instead of defaults. The initial call may still return
+ * `DEFAULT_CLIENT_SETTINGS` because hydration is asynchronous — callers that
+ * need hydrated values should await `ensureClientSettingsHydrated()`.
  */
 export function getClientSettings(): ClientSettings {
+  if (!clientSettingsHydrated) {
+    void hydrateClientSettings();
+  }
   return getClientSettingsSnapshot();
+}
+
+/**
+ * Awaitable hydration trigger for non-React callers that need the persisted
+ * client settings before proceeding.
+ */
+export function ensureClientSettingsHydrated(): Promise<void> {
+  if (clientSettingsHydrated) {
+    return Promise.resolve();
+  }
+  return hydrateClientSettings();
 }
 
 export function useSettings<T = UnifiedSettings>(selector?: (s: UnifiedSettings) => T): T {

@@ -19,7 +19,7 @@ export const GitHubIcon: Icon = (props) => (
   </svg>
 );
 
-export const CursorIcon: Icon = ({ className, ...props }) => (
+export const CursorIcon: Icon = ({ className, monochrome: _monochrome, ...props }) => (
   <svg
     {...props}
     viewBox="0 0 466.73 532.09"

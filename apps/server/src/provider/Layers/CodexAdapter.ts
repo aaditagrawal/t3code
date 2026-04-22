@@ -317,11 +317,15 @@ function toUserInputQuestions(questions: ReadonlyArray<CodexToolUserInputQuestio
         question.options
           ?.map((option) => {
             const label = trimText(option.label);
+            // Description is optional — keep label-only options rather than
+            // dropping them, otherwise Codex tool prompts that only provide
+            // labels (no per-option description) lose all choices and the
+            // surrounding `options.length === 0` guard rejects the question.
             const description = trimText(option.description);
-            if (!label || !description) {
+            if (!label) {
               return undefined;
             }
-            return { label, description };
+            return description ? { label, description } : { label };
           })
           .filter((option) => option !== undefined) ?? [];
 
@@ -1398,6 +1402,10 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
           ),
         );
 
+        // Keep the Codex event pump in the session scope so it is
+        // interrupted automatically when the session's scope closes,
+        // rather than leaking into the surrounding `Effect.scoped` fiber
+        // which exits as soon as `startSession` returns.
         const eventFiber = yield* Stream.runForEach(runtime.events, (event) =>
           Effect.gen(function* () {
             yield* writeNativeEvent(event);
@@ -1413,7 +1421,7 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
             }
             yield* Queue.offerAll(runtimeEventQueue, runtimeEvents);
           }),
-        ).pipe(Effect.forkChild);
+        ).pipe(Effect.forkIn(sessionScope));
 
         const started = yield* runtime.start().pipe(
           Effect.mapError(
