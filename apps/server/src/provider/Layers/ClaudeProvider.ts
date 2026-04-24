@@ -22,6 +22,7 @@ type ClaudeSlashCommand = {
 
 import {
   buildServerProvider,
+  AUTH_PROBE_TIMEOUT_MS,
   DEFAULT_TIMEOUT_MS,
   detailFromResult,
   extractAuthBoolean,
@@ -46,6 +47,10 @@ const DEFAULT_CLAUDE_MODEL_CAPABILITIES: ModelCapabilities = {
 };
 
 const PROVIDER = "claudeAgent" as const;
+const CLAUDE_PRESENTATION = {
+  displayName: "Claude",
+  showInteractionModeToggle: true,
+} as const;
 const MINIMUM_CLAUDE_OPUS_4_7_VERSION = "2.1.111";
 const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
   {
@@ -600,6 +605,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   if (!claudeSettings.enabled) {
     return buildServerProvider({
       provider: PROVIDER,
+      presentation: CLAUDE_PRESENTATION,
       enabled: false,
       checkedAt,
       models: allModels,
@@ -622,6 +628,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     const error = versionProbe.failure;
     return buildServerProvider({
       provider: PROVIDER,
+      presentation: CLAUDE_PRESENTATION,
       enabled: claudeSettings.enabled,
       checkedAt,
       models: allModels,
@@ -640,6 +647,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   if (Option.isNone(versionProbe.success)) {
     return buildServerProvider({
       provider: PROVIDER,
+      presentation: CLAUDE_PRESENTATION,
       enabled: claudeSettings.enabled,
       checkedAt,
       models: allModels,
@@ -660,6 +668,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     const detail = detailFromResult(version);
     return buildServerProvider({
       provider: PROVIDER,
+      presentation: CLAUDE_PRESENTATION,
       enabled: claudeSettings.enabled,
       checkedAt,
       models: allModels,
@@ -696,7 +705,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   // ── Auth check + subscription detection ────────────────────────────
 
   const authProbe = yield* runClaudeCommand(["auth", "status"]).pipe(
-    Effect.timeoutOption(DEFAULT_TIMEOUT_MS),
+    Effect.timeoutOption(AUTH_PROBE_TIMEOUT_MS),
     Effect.result,
   );
 
@@ -724,6 +733,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     const error = authProbe.failure;
     return buildServerProvider({
       provider: PROVIDER,
+      presentation: CLAUDE_PRESENTATION,
       enabled: claudeSettings.enabled,
       checkedAt,
       models,
@@ -744,6 +754,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   if (Option.isNone(authProbe.success)) {
     return buildServerProvider({
       provider: PROVIDER,
+      presentation: CLAUDE_PRESENTATION,
       enabled: claudeSettings.enabled,
       checkedAt,
       models,
@@ -762,6 +773,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   const authMetadata = claudeAuthMetadata({ subscriptionType, authMethod });
   return buildServerProvider({
     provider: PROVIDER,
+    presentation: CLAUDE_PRESENTATION,
     enabled: claudeSettings.enabled,
     checkedAt,
     models,
@@ -795,6 +807,7 @@ const makePendingClaudeProvider = (claudeSettings: ClaudeSettings): ServerProvid
   if (!claudeSettings.enabled) {
     return buildServerProvider({
       provider: PROVIDER,
+      presentation: CLAUDE_PRESENTATION,
       enabled: false,
       checkedAt,
       models,
@@ -810,6 +823,7 @@ const makePendingClaudeProvider = (claudeSettings: ClaudeSettings): ServerProvid
 
   return buildServerProvider({
     provider: PROVIDER,
+    presentation: CLAUDE_PRESENTATION,
     enabled: true,
     checkedAt,
     models,
