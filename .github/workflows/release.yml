@@ -80,7 +80,7 @@ jobs:
             # package.json base and today's date + run counter so every
             # scheduled run produces a valid semver like
             # `0.0.21-nightly.20260420.3`.
-            base_version=$(node -e "console.log(require('./package.json').version)")
+            base_version=$(node -e "console.log(require('./apps/desktop/package.json').version)")
             base_version="${base_version%%-*}"
             date_stamp=$(date -u +%Y%m%d)
             raw="${base_version}-nightly.${date_stamp}.${GITHUB_RUN_NUMBER}"
