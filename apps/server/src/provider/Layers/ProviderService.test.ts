@@ -937,6 +937,7 @@ routing.layer("ProviderServiceLive routing", (it) => {
       const session = yield* provider.startSession(asThreadId("thread-1"), {
         provider: "codex",
         threadId: asThreadId("thread-1"),
+        cwd: "/tmp/project-send-turn",
         runtimeMode: "full-access",
       });
       yield* provider.sendTurn({

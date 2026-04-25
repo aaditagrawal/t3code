@@ -76,11 +76,14 @@ export function buildVisibleToastLayout<TToast extends object>(
   );
 
   // Frontmost height should reflect the first non-ending (live) toast so the
-  // stack sizes to what's actually staying on screen.
-  const frontmostLiveToast = visibleToasts.find((toast) => toast.transitionStatus !== "ending");
+  // stack sizes to what's actually staying on screen. While the last visible
+  // toast is exiting, fall back to it so the stack doesn't collapse to 0
+  // before the exit animation finishes.
+  const frontmostToast =
+    visibleToasts.find((toast) => toast.transitionStatus !== "ending") ?? visibleToasts[0];
 
   return {
-    frontmostHeight: normalizeToastHeight(frontmostLiveToast?.height),
+    frontmostHeight: normalizeToastHeight(frontmostToast?.height),
     items,
   };
 }

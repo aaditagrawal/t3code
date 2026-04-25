@@ -575,7 +575,13 @@ function Toasts({ position = "top-right" }: { position: ToastPosition }) {
                 dismissAfterVisibleMs={toast.data?.dismissAfterVisibleMs}
                 toastId={toast.id}
               />
-              <div className={toastCornerDismissClass}>
+              <div
+                className={cn(
+                  toastCornerDismissClass,
+                  hideCollapsedContent &&
+                    "not-data-expanded:pointer-events-none not-data-expanded:opacity-0",
+                )}
+              >
                 <button
                   aria-label="Dismiss notification"
                   className={toastCornerOrbClass}
