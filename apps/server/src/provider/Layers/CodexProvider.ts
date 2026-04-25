@@ -29,6 +29,7 @@ import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import { buildServerProvider } from "../providerSnapshot.ts";
 import { CodexProvider } from "../Services/CodexProvider.ts";
 import { ServerConfig } from "../../config.ts";
+import { expandHomePath } from "../../pathExpansion.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import packageJson from "../../../package.json" with { type: "json" };
 
@@ -63,7 +64,9 @@ function codexAccountAuthLabel(account: CodexSchema.V2GetAccountResponse["accoun
     case "plus":
       return "ChatGPT Plus Subscription";
     case "pro":
-      return "ChatGPT Pro Subscription";
+      return "ChatGPT Pro 20x Subscription";
+    case "prolite":
+      return "ChatGPT Pro 5x Subscription";
     case "team":
       return "ChatGPT Team Subscription";
     case "self_serve_business_usage_based":
@@ -221,7 +224,7 @@ const probeCodexAppServerProvider = Effect.fn("probeCodexAppServerProvider")(fun
       command: input.binaryPath,
       args: ["app-server"],
       cwd: input.cwd,
-      ...(input.homePath ? { env: { CODEX_HOME: input.homePath } } : {}),
+      ...(input.homePath ? { env: { CODEX_HOME: expandHomePath(input.homePath) } } : {}),
     }),
   );
   const client = yield* Effect.service(CodexClient.CodexAppServerClient).pipe(
