@@ -36,9 +36,11 @@ function getSlowRpcAckRequestsValue(): ReadonlyArray<SlowRpcAckRequest> {
 }
 
 function shouldTrackRpcAck(tag: string): boolean {
-  // Match `subscribe` only as a leading segment so RPCs like `thread/unsubscribe`
-  // remain tracked for ack latency.
-  return !/(?:^|[./:])subscribe(?:$|[./:])/i.test(tag);
+  // Skip subscribe RPCs (they are long-lived streams and the ack arrives much
+  // later than the user-visible payload). Match `subscribe` at the start of
+  // the tag or after a path-segment delimiter so `thread/unsubscribe` and
+  // similar still get tracked.
+  return !/(?:^|[./:])subscribe/i.test(tag);
 }
 
 export function getSlowRpcAckRequests(): ReadonlyArray<SlowRpcAckRequest> {
