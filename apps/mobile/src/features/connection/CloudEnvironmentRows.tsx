@@ -150,7 +150,7 @@ export function CloudEnvironmentRows(props: {
             }}
             className="self-start rounded-full bg-subtle px-3.5 py-2 active:opacity-70"
           >
-            <Text className="text-xs leading-[16px] font-t3-bold text-foreground">Try again</Text>
+            <Text className="text-xs font-t3-bold text-foreground">Try again</Text>
           </Pressable>
         </View>
       ) : null}
@@ -288,7 +288,7 @@ function CloudEnvironmentRowShell(props: {
         <View className="min-w-0 flex-row items-center gap-2">
           <ConnectionStatusDot state={props.connectionState} pulse={shouldPulse} size={7} />
           <Text
-            className="min-w-0 flex-shrink text-base font-t3-bold leading-[21px] text-foreground"
+            className="min-w-0 flex-shrink text-base font-t3-bold leading-snug text-foreground"
             numberOfLines={1}
           >
             {props.label}
@@ -298,10 +298,7 @@ function CloudEnvironmentRowShell(props: {
           <Text
             aria-hidden
             onTextLayout={onMeasuredErrorTextLayout}
-            className={cn(
-              "absolute inset-x-0 -z-[1] text-xs leading-[16px] opacity-0",
-              statusClassName,
-            )}
+            className={cn("absolute inset-x-0 -z-[1] text-xs opacity-0", statusClassName)}
           >
             {measuredErrorText}
           </Text>
@@ -313,7 +310,7 @@ function CloudEnvironmentRowShell(props: {
           className="min-w-0 flex-row items-start gap-1"
         >
           <Text
-            className={cn("min-w-0 flex-1 text-xs leading-[16px]", statusClassName)}
+            className={cn("min-w-0 flex-1 text-xs", statusClassName)}
             numberOfLines={isErrorExpanded ? undefined : 1}
           >
             {statusText}
@@ -323,10 +320,7 @@ function CloudEnvironmentRowShell(props: {
                 <Text
                   accessibilityHint="Copies the trace ID"
                   accessibilityRole="button"
-                  className={cn(
-                    "text-xs leading-[16px] underline decoration-dotted",
-                    statusClassName,
-                  )}
+                  className={cn("text-xs underline decoration-dotted", statusClassName)}
                   onLongPress={(event) => {
                     event.stopPropagation();
                     copyTextWithHaptic(errorTraceId, { target: "connection-trace-id" });
@@ -377,7 +371,7 @@ function CopyTraceIdButton(props: { readonly traceId: string }) {
       className="self-start flex-row items-center gap-1.5 rounded-full bg-subtle px-3 py-2 active:opacity-70"
     >
       <SymbolView name="doc.on.doc" size={12} tintColor={iconColor} type="monochrome" />
-      <Text className="text-xs leading-[16px] font-t3-bold text-foreground">Copy trace ID</Text>
+      <Text className="text-xs font-t3-bold text-foreground">Copy trace ID</Text>
     </Pressable>
   );
 }
