@@ -649,6 +649,18 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
                 Refresh
               </NativeHeaderToolbar.MenuAction>
             ) : null}
+            {/* Android review-diff has no native pull-to-refresh after the canvas
+                refactor; expose source refresh as a menu action (matches ReviewSheet). */}
+            {Platform.OS === "android" && resolvedActiveMode === "source" ? (
+              <NativeHeaderToolbar.MenuAction
+                icon="arrow.clockwise"
+                onPress={() => {
+                  void fileQuery.refresh();
+                }}
+              >
+                Refresh
+              </NativeHeaderToolbar.MenuAction>
+            ) : null}
           </NativeHeaderToolbar.Menu>
         </NativeHeaderToolbar>
         <FileContent
