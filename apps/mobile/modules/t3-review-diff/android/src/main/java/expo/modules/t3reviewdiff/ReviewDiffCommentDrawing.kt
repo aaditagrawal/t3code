@@ -28,6 +28,7 @@ internal class ReviewDiffCommentDrawing(
     layouts = emptyMap()
   }
 
+  @Suppress("LongParameterList")
   fun layout(
     row: DiffRow,
     viewWidth: Int,
@@ -102,6 +103,7 @@ internal class ReviewDiffCommentDrawing(
     return layout
   }
 
+  @Suppress("LongParameterList")
   fun draw(
     canvas: Canvas,
     row: DiffRow,
