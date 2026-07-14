@@ -14,12 +14,12 @@ internal data class ReviewDiffCommentLayout(
   val body: StaticLayout?,
   val bodyTop: Int,
   val width: Int,
-  val height: Int,
+  val height: Int
 )
 
 internal class ReviewDiffCommentDrawing(
   private val density: Float,
-  private val drawing: ReviewDiffCanvasDrawing,
+  private val drawing: ReviewDiffCanvasDrawing
 ) {
   private val commentTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
   private var layouts: Map<String, ReviewDiffCommentLayout> = emptyMap()
@@ -34,7 +34,7 @@ internal class ReviewDiffCommentDrawing(
     collapsed: Boolean,
     theme: DiffTheme,
     style: DiffStyle,
-    titlePaint: Paint,
+    titlePaint: Paint
   ): ReviewDiffCommentLayout {
     val bodyWidth = max(
       1,
@@ -116,9 +116,16 @@ internal class ReviewDiffCommentDrawing(
     textPaint: Paint,
     fillBackground: (Canvas, Int, Float, Float, Float, Float) -> Unit,
     withAlpha: (Int, Int) -> Int,
-    ellipsize: (String, Paint, Float) -> String,
+    ellipsize: (String, Paint, Float) -> String
   ) {
-    fillBackground(canvas, theme.background, 0f, top.toFloat(), viewWidth.toFloat(), bottom.toFloat())
+    fillBackground(
+      canvas,
+      theme.background,
+      0f,
+      top.toFloat(),
+      viewWidth.toFloat(),
+      bottom.toFloat()
+    )
     val cardRect = RectF(
       COMMENT_CARD_HORIZONTAL_MARGIN_DP * density,
       top + COMMENT_CARD_VERTICAL_MARGIN_DP * density,

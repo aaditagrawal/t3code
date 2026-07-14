@@ -1286,7 +1286,6 @@ private class DiffCanvasView(context: Context) : View(context) {
     return value.substring(0, end) + suffix
   }
 
-
   private data class StickyFileHeader(
     val index: Int,
     val top: Int,
@@ -1303,7 +1302,6 @@ private class DiffCanvasView(context: Context) : View(context) {
     val displayPath: String,
     val rect: RectF
   )
-
 }
 
 private fun withAlpha(color: Int, alpha: Int): Int =
