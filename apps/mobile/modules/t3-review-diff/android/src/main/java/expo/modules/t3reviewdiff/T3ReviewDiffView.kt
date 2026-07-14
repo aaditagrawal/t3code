@@ -5,10 +5,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
-import android.graphics.Typeface
-import android.text.Layout
-import android.text.StaticLayout
-import android.text.TextPaint
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.VelocityTracker
@@ -652,11 +648,11 @@ internal data class DiffStyle(
 private class DiffCanvasView(context: Context) : View(context) {
   private val density = resources.displayMetrics.density
   private val drawing = ReviewDiffCanvasDrawing(context)
+  private val commentDrawing = ReviewDiffCommentDrawing(density, drawing)
   private val backgroundPaint = drawing.backgroundPaint
   private val borderPaint = drawing.borderPaint
   private val textPaint = drawing.textPaint
   private val boldTextPaint = drawing.uiPaint
-  private val commentTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
   private val gestureDetector = GestureDetector(
     context,
     object : GestureDetector.SimpleOnGestureListener() {
@@ -694,11 +690,10 @@ private class DiffCanvasView(context: Context) : View(context) {
   private var horizontalOffset = 0
   private val headerPathOffsetsByFileId = mutableMapOf<String, Int>()
   private var lastVisibleRange: Pair<Int, Int>? = null
-  private var commentLayouts: Map<String, CommentLayout> = emptyMap()
   var rows: List<DiffRow> = emptyList()
     set(value) {
       field = value
-      commentLayouts = emptyMap()
+      commentDrawing.clearCache()
       headerPathOffsetsByFileId.keys.retainAll(
         value.asSequence().filter { it.kind == "file" }.map { it.resolvedFileId }.toSet(),
       )
@@ -722,7 +717,7 @@ private class DiffCanvasView(context: Context) : View(context) {
   var collapsedCommentIds: Set<String> = emptySet()
     set(value) {
       field = value
-      commentLayouts = emptyMap()
+      commentDrawing.clearCache()
       rebuildOffsets()
     }
   var selectedRowIds: Set<String> = emptySet()
@@ -734,13 +729,13 @@ private class DiffCanvasView(context: Context) : View(context) {
     set(value) {
       field = value
       drawing.theme = value
-      commentLayouts = emptyMap()
+      commentDrawing.clearCache()
       invalidate()
     }
   var style: DiffStyle = DiffStyle.defaults(density)
     set(value) {
       field = value
-      commentLayouts = emptyMap()
+      commentDrawing.clearCache()
       rebuildOffsets()
     }
   var contentWidthPx: Int = (1200 * density).toInt()
@@ -763,7 +758,7 @@ private class DiffCanvasView(context: Context) : View(context) {
   override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
     super.onSizeChanged(width, height, oldWidth, oldHeight)
     if (width != oldWidth) {
-      commentLayouts = emptyMap()
+      commentDrawing.clearCache()
       rebuildOffsets()
     }
     setVerticalOffset(verticalOffset)
@@ -872,7 +867,14 @@ private class DiffCanvasView(context: Context) : View(context) {
   private fun rowHeight(row: DiffRow): Int = when (row.kind) {
     "file" -> style.fileHeaderHeightPx.toInt()
     "notice" -> max((style.rowHeightPx * 2f).toInt(), (44 * density).toInt())
-    "comment" -> commentLayout(row).height
+    "comment" -> commentDrawing.layout(
+      row = row,
+      viewWidth = width,
+      collapsed = collapsedCommentIds.contains(row.id),
+      theme = theme,
+      style = style,
+      titlePaint = textPaint,
+    ).height
     else -> style.rowHeightPx.toInt()
   }.coerceAtLeast(1)
 
@@ -925,7 +927,22 @@ private class DiffCanvasView(context: Context) : View(context) {
       "file" -> drawFileRow(canvas, row, top, bottom)
       "hunk" -> drawHunkRow(canvas, row, top, bottom)
       "notice" -> drawNoticeRow(canvas, row, top, bottom)
-      "comment" -> drawCommentRow(canvas, row, top, bottom)
+      "comment" -> commentDrawing.draw(
+        canvas = canvas,
+        row = row,
+        top = top,
+        bottom = bottom,
+        viewWidth = width,
+        collapsed = collapsedCommentIds.contains(row.id),
+        theme = theme,
+        style = style,
+        backgroundPaint = backgroundPaint,
+        borderPaint = borderPaint,
+        textPaint = textPaint,
+        fillBackground = ::fill,
+        withAlpha = ::withAlpha,
+        ellipsize = ::ellipsize,
+      )
       else -> drawLineRow(canvas, row, top, bottom)
     }
   }
@@ -1102,126 +1119,6 @@ private class DiffCanvasView(context: Context) : View(context) {
     drawBottomBorder(canvas, bottom)
   }
 
-  private fun drawCommentRow(canvas: Canvas, row: DiffRow, top: Int, bottom: Int) {
-    fill(canvas, theme.background, 0f, top.toFloat(), width.toFloat(), bottom.toFloat())
-    val cardRect = RectF(
-      COMMENT_CARD_HORIZONTAL_MARGIN_DP * density,
-      top + COMMENT_CARD_VERTICAL_MARGIN_DP * density,
-      width - COMMENT_CARD_HORIZONTAL_MARGIN_DP * density,
-      bottom - COMMENT_CARD_VERTICAL_MARGIN_DP * density,
-    )
-    backgroundPaint.color = theme.headerBackground
-    canvas.drawRoundRect(cardRect, 10f * density, 10f * density, backgroundPaint)
-    borderPaint.style = Paint.Style.STROKE
-    borderPaint.color = withAlpha(theme.border, 217)
-    borderPaint.strokeWidth = density
-    canvas.drawRoundRect(cardRect, 10f * density, 10f * density, borderPaint)
-    borderPaint.style = Paint.Style.FILL
-
-    val commentLayout = commentLayout(row)
-    val collapsed = collapsedCommentIds.contains(row.id)
-    val chevronRect = RectF(
-      cardRect.left + 10f * density,
-      cardRect.top + 11f * density,
-      cardRect.left + 26f * density,
-      cardRect.top + 27f * density,
-    )
-    drawing.drawDisclosureChevron(canvas, chevronRect, theme.mutedText, collapsed)
-    drawing.configureUiPaint(
-      paint = textPaint,
-      color = theme.mutedText,
-      size = style.fileHeaderSubtextFontSizePx,
-      weight = style.fileHeaderSubtextFontWeight,
-    )
-    canvas.drawText(
-      ellipsize(
-        commentLayout.title,
-        textPaint,
-        cardRect.right - chevronRect.right - 20f * density,
-      ),
-      chevronRect.right + 10f * density,
-      cardRect.top + COMMENT_TITLE_BASELINE_DP * density,
-      textPaint,
-    )
-    val body = commentLayout.body
-    if (!collapsed && body != null) {
-      val bodyX = cardRect.left + COMMENT_BODY_HORIZONTAL_PADDING_DP * density
-      canvas.save()
-      canvas.clipRect(cardRect)
-      canvas.translate(bodyX, (top + commentLayout.bodyTop).toFloat())
-      body.draw(canvas)
-      canvas.restore()
-    }
-  }
-
-  private fun commentLayout(row: DiffRow): CommentLayout {
-    val collapsed = collapsedCommentIds.contains(row.id)
-    val bodyWidth = max(
-      1,
-      (
-        this.width -
-          2f * COMMENT_CARD_HORIZONTAL_MARGIN_DP * density -
-          2f * COMMENT_BODY_HORIZONTAL_PADDING_DP * density
-        ).toInt(),
-    )
-    val title = "Comment on ${row.commentRangeLabel.ifEmpty { "line" }}"
-    val bodyText = row.commentText.ifEmpty { "Comment" }
-    val cacheKey =
-      "${row.id}\u0000$bodyText\u0000$title\u0000$bodyWidth\u0000$collapsed\u0000" +
-        "${theme.text}\u0000${style.fileHeaderSubtextFontSizePx}"
-    commentLayouts[cacheKey]?.let { return it }
-
-    val layout = if (collapsed) {
-      CommentLayout(
-        title = title,
-        body = null,
-        bodyTop = 0,
-        width = bodyWidth,
-        height = (COMMENT_COLLAPSED_HEIGHT_DP * density).toInt(),
-      )
-    } else {
-      commentTextPaint.color = theme.text
-      commentTextPaint.textSize = style.fileHeaderSubtextFontSizePx
-      commentTextPaint.typeface = Typeface.DEFAULT
-      val body = StaticLayout.Builder
-        .obtain(bodyText, 0, bodyText.length, commentTextPaint, bodyWidth)
-        .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-        .setIncludePad(false)
-        .setLineSpacing(0f, 1f)
-        .build()
-
-      drawing.configureUiPaint(
-        paint = textPaint,
-        color = theme.mutedText,
-        size = style.fileHeaderSubtextFontSizePx,
-        weight = style.fileHeaderSubtextFontWeight,
-      )
-      val titleBottomFromCard =
-        COMMENT_TITLE_BASELINE_DP * density + textPaint.fontMetrics.descent
-      val bodyTop = (
-        COMMENT_CARD_VERTICAL_MARGIN_DP * density +
-          titleBottomFromCard +
-          COMMENT_TITLE_GAP_DP * density
-        ).toInt()
-      CommentLayout(
-        title = title,
-        body = body,
-        bodyTop = bodyTop,
-        width = bodyWidth,
-        height = max(
-          (COMMENT_EXPANDED_MIN_HEIGHT_DP * density).toInt(),
-          (
-            bodyTop + body.height +
-              COMMENT_BODY_BOTTOM_PADDING_DP * density +
-              COMMENT_CARD_VERTICAL_MARGIN_DP * density
-            ).toInt(),
-        ),
-      )
-    }
-    commentLayouts = commentLayouts + (cacheKey to layout)
-    return layout
-  }
-
   @Suppress("CyclomaticComplexMethod")
   private fun drawLineRow(canvas: Canvas, row: DiffRow, top: Int, bottom: Int) {
     val background = when (row.change) {
@@ -1389,13 +1286,6 @@ private class DiffCanvasView(context: Context) : View(context) {
     return value.substring(0, end) + suffix
   }
 
-  private data class CommentLayout(
-    val title: String,
-    val body: StaticLayout?,
-    val bodyTop: Int,
-    val width: Int,
-    val height: Int
-  )
 
   private data class StickyFileHeader(
     val index: Int,
@@ -1414,16 +1304,6 @@ private class DiffCanvasView(context: Context) : View(context) {
     val rect: RectF
   )
 
-  companion object {
-    private const val COMMENT_CARD_HORIZONTAL_MARGIN_DP = 8f
-    private const val COMMENT_CARD_VERTICAL_MARGIN_DP = 5f
-    private const val COMMENT_BODY_HORIZONTAL_PADDING_DP = 18f
-    private const val COMMENT_TITLE_BASELINE_DP = 22f
-    private const val COMMENT_TITLE_GAP_DP = 10f
-    private const val COMMENT_BODY_BOTTOM_PADDING_DP = 14f
-    private const val COMMENT_COLLAPSED_HEIGHT_DP = 44f
-    private const val COMMENT_EXPANDED_MIN_HEIGHT_DP = 124f
-  }
 }
 
 private fun withAlpha(color: Int, alpha: Int): Int =
