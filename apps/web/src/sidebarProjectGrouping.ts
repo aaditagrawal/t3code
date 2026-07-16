@@ -170,6 +170,13 @@ export function buildSidebarProjectSnapshots(input: {
       remoteMembers.length > 0 &&
       remoteMembers.every((member) => isDesktopLocal(member.environmentId));
 
+    // Keep duplicate (non-winning) project ids in thread lookup refs so threads
+    // still attached to stale rows remain visible under the winning sidebar row.
+    const physicalKeysInGroup = new Set(members.map((member) => member.physicalProjectKey));
+    const memberProjectRefs = input.projects
+      .filter((project) => physicalKeysInGroup.has(derivePhysicalProjectKey(project)))
+      .map((project) => scopeProjectRef(project.environmentId, project.id));
+
     result.push({
       ...representative,
       projectKey: logicalKey,
@@ -185,7 +192,7 @@ export function buildSidebarProjectSnapshots(input: {
         hasLocal && hasRemote ? "mixed" : hasRemote ? "remote-only" : "local-only",
       allRemoteMembersAreDesktopLocal,
       memberProjects: members,
-      memberProjectRefs: members.map((member) => scopeProjectRef(member.environmentId, member.id)),
+      memberProjectRefs,
       remoteEnvironmentLabels,
     });
   }

@@ -157,6 +157,11 @@ describe("environment grouping", () => {
       primary.id,
       remote.id,
     ]);
+    expect(snapshots[0]?.memberProjectRefs.map((ref) => ref.projectId)).toEqual([
+      primary.id,
+      duplicate.id,
+      remote.id,
+    ]);
   });
 
   it("prefers the fresher project row when duplicate stale rows are ordered first", () => {
@@ -182,6 +187,10 @@ describe("environment grouping", () => {
 
     expect(snapshots).toHaveLength(1);
     expect(snapshots[0]?.memberProjects.map((project) => project.id)).toEqual([canonical.id]);
+    expect(snapshots[0]?.memberProjectRefs.map((ref) => ref.projectId)).toEqual([
+      staleDuplicate.id,
+      canonical.id,
+    ]);
     expect(snapshots[0]?.id).toBe(canonical.id);
   });
 
@@ -213,6 +222,11 @@ describe("environment grouping", () => {
     expect(snapshots).toHaveLength(1);
     expect(snapshots[0]?.projectKey).toBe(repositoryIdentity.canonicalKey);
     expect(snapshots[0]?.memberProjects.map((project) => project.id)).toEqual([
+      canonical.id,
+      remote.id,
+    ]);
+    expect(snapshots[0]?.memberProjectRefs.map((ref) => ref.projectId)).toEqual([
+      staleWithoutRepositoryIdentity.id,
       canonical.id,
       remote.id,
     ]);
