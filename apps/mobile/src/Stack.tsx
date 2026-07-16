@@ -114,7 +114,7 @@ const SHEET_SOLID_HEADER_OPTIONS: AppScreenOptions = {
 const LEGAL_DOCUMENT_HEADER_OPTIONS: AppScreenOptions = {
   ...SHEET_SOLID_HEADER_OPTIONS,
   headerBackVisible: false,
-  headerLeft: SettingsLegalDocumentCloseHeaderButton,
+  headerLeft: () => <SettingsLegalDocumentCloseHeaderButton />,
   headerRight: () => <SettingsLegalDocumentExternalHeaderButton />,
   presentation: "fullScreenModal",
 };
