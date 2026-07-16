@@ -192,7 +192,3 @@ Effect.fn("name")(
 - [ ] [apps/server/src/git/Layers/ClaudeTextGeneration.ts](../../apps/server/src/git/Layers/ClaudeTextGeneration.ts) (`2`)
 - [ ] [apps/server/src/checkpointing/CheckpointDiffQuery.ts](../../apps/server/src/checkpointing/CheckpointDiffQuery.ts) (`2`)
 - [ ] [apps/server/src/provider/makeManagedServerProvider.ts](../../apps/server/src/provider/makeManagedServerProvider.ts) (`1`)
-
-```
-
-```

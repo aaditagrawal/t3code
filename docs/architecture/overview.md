@@ -91,7 +91,7 @@ sequenceDiagram
     Push-->>Browser: Typed push
 ```
 
-1. A user action in the browser becomes a typed request through `WsTransport` and the browser API layer in `nativeApi`.
+1. A user action in the browser becomes a typed request through `WsTransport` and the browser API layer in `wsNativeApi`.
 2. `wsServer` decodes that request using the shared WebSocket contracts in `ws.ts` and routes it to the right service.
 3. [`ProviderService`][8] starts or resumes a session and talks to the selected provider runtime/adapter using its transport boundary (e.g. JSON-RPC over stdio for Codex).
 4. Provider-native events are pulled back into the server by [`ProviderRuntimeIngestion`][9], which converts them into orchestration events.
