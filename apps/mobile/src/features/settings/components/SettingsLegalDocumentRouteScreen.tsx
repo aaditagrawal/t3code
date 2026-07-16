@@ -1,4 +1,9 @@
-import { type NavigationProp, type ParamListBase, StackActions, useNavigation } from "@react-navigation/native";
+import {
+  type NavigationProp,
+  type ParamListBase,
+  StackActions,
+  useNavigation,
+} from "@react-navigation/native";
 import { useCallback, useLayoutEffect, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, View } from "react-native";
 import { WebView } from "react-native-webview";
