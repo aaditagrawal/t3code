@@ -240,7 +240,8 @@ export function CloudEnvironmentConnectRows({
               {statusText}
             </p>
           </div>
-          {savedConnection ? (
+          {savedConnection &&
+          (savedConnection.tone === "connected" || savedConnection.tone === "connecting") ? (
             <Button size="sm" variant="outline" disabled>
               {savedConnection.buttonLabel}
             </Button>
@@ -250,7 +251,11 @@ export function CloudEnvironmentConnectRows({
               disabled={connectingEnvironmentId !== null}
               onClick={() => void connectEnvironment(environment)}
             >
-              {connectingEnvironmentId === environment.environmentId ? "Connecting…" : "Connect"}
+              {connectingEnvironmentId === environment.environmentId
+                ? "Connecting…"
+                : savedConnection?.tone === "error"
+                  ? "Retry"
+                  : "Connect"}
             </Button>
           )}
         </div>
