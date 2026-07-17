@@ -437,7 +437,7 @@ describe("ClaudeAdapterLive", () => {
       const createInput = harness.getLastCreateQueryInput();
       assert.equal(
         createInput?.options.env?.CLAUDE_CONFIG_DIR,
-        NodePath.join(NodeOS.homedir(), ".claude-work"),
+        NodePath.join(NodeOS.homedir(), ".claude-work", ".claude"),
       );
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),

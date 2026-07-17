@@ -6,6 +6,30 @@ import * as Path from "effect/Path";
 
 import { expandHomePath } from "../../pathExpansion.ts";
 
+/**
+ * Effective Claude config directory for `CLAUDE_CONFIG_DIR` and
+ * continuation/cache keys.
+ *
+ * Persisted `homePath` values historically meant a HOME override (Claude used
+ * `$HOME/.claude`). Paths whose basename is already `.claude` are treated as
+ * the config dir itself. An empty `homePath` maps to the default `~/.claude`.
+ */
+export const resolveClaudeConfigDir = Effect.fn("resolveClaudeConfigDir")(function* (
+  config: Pick<ClaudeSettings, "homePath">,
+): Effect.fn.Return<string, never, Path.Path> {
+  const path = yield* Path.Path;
+  const homePath = config.homePath.trim();
+  if (homePath.length === 0) {
+    return path.resolve(path.join(NodeOS.homedir(), ".claude"));
+  }
+  const resolvedHomePath = path.resolve(expandHomePath(homePath));
+  if (path.basename(resolvedHomePath) === ".claude") {
+    return resolvedHomePath;
+  }
+  // Legacy HOME override layout: config lived under `$HOME/.claude`.
+  return path.join(resolvedHomePath, ".claude");
+});
+
 export const resolveClaudeHomePath = Effect.fn("resolveClaudeHomePath")(function* (
   config: Pick<ClaudeSettings, "homePath">,
 ): Effect.fn.Return<string, never, Path.Path> {
@@ -21,7 +45,7 @@ export const makeClaudeEnvironment = Effect.fn("makeClaudeEnvironment")(function
   const resolvedBaseEnv = baseEnv ?? process.env;
   const homePath = config.homePath.trim();
   if (homePath.length === 0) return resolvedBaseEnv;
-  const resolvedHomePath = yield* resolveClaudeHomePath(config);
+  const configDir = yield* resolveClaudeConfigDir(config);
   return {
     ...resolvedBaseEnv,
     // Isolate this instance's config via CLAUDE_CONFIG_DIR rather than HOME.
@@ -30,14 +54,18 @@ export const makeClaudeEnvironment = Effect.fn("makeClaudeEnvironment")(function
     // OAuth credentials and reports "Not logged in". CLAUDE_CONFIG_DIR points
     // Claude Code at its config dir directly while leaving HOME (and the
     // keychain) intact.
-    CLAUDE_CONFIG_DIR: resolvedHomePath,
+    //
+    // Persisted homePath values historically meant a HOME override, so Claude
+    // used `$HOME/.claude`. When the configured path is not already a `.claude`
+    // config dir, append `.claude` to preserve that layout.
+    CLAUDE_CONFIG_DIR: configDir,
   };
 });
 
 export const makeClaudeContinuationGroupKey = Effect.fn("makeClaudeContinuationGroupKey")(
   function* (config: Pick<ClaudeSettings, "homePath">): Effect.fn.Return<string, never, Path.Path> {
-    const resolvedHomePath = yield* resolveClaudeHomePath(config);
-    return `claude:home:${resolvedHomePath}`;
+    const configDir = yield* resolveClaudeConfigDir(config);
+    return `claude:home:${configDir}`;
   },
 );
 
@@ -45,7 +73,7 @@ export const makeClaudeCapabilitiesCacheKey = Effect.fn("makeClaudeCapabilitiesC
   function* (
     config: Pick<ClaudeSettings, "binaryPath" | "homePath">,
   ): Effect.fn.Return<string, never, Path.Path> {
-    const resolvedHomePath = yield* resolveClaudeHomePath(config);
-    return `${config.binaryPath}\0${resolvedHomePath}`;
+    const configDir = yield* resolveClaudeConfigDir(config);
+    return `${config.binaryPath}\0${configDir}`;
   },
 );

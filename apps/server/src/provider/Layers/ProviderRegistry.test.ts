@@ -1869,7 +1869,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
           assert.strictEqual(status.status, "ready");
           assert.deepStrictEqual(
             recorded.commands.map((command) => command.env?.CLAUDE_CONFIG_DIR),
-            [claudeConfigDir],
+            [`${claudeConfigDir}/.claude`],
           );
         }).pipe(Effect.provide(recorded.layer));
       });
