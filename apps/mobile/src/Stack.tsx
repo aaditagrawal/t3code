@@ -48,6 +48,7 @@ import { SettingsEnvironmentsRouteScreen } from "./features/settings/SettingsEnv
 import { SettingsLegalRouteScreen } from "./features/settings/SettingsLegalRouteScreen";
 import { SettingsRouteScreen } from "./features/settings/SettingsRouteScreen";
 import { SettingsWaitlistRouteScreen } from "./features/settings/SettingsWaitlistRouteScreen";
+import { ShowcaseCaptureCoordinator } from "./features/showcase/ShowcaseCaptureCoordinator";
 import {
   SettingsLegalDocumentCloseHeaderButton,
   SettingsLegalDocumentExternalHeaderButton,
@@ -60,6 +61,8 @@ import {
 } from "./features/sharing/incoming-share-presentation";
 import { nativeHeaderScrollEdgeEffects } from "./native/StackHeader";
 import { useThreadOutboxDrain } from "./state/use-thread-outbox-drain";
+
+const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
 
 const HEADER_SCROLL_EDGE_EFFECTS = nativeHeaderScrollEdgeEffects(Platform.OS, Platform.Version);
 
@@ -317,6 +320,7 @@ function RootStackLayout(props: {
 
   return (
     <HardwareKeyboardCommandProvider pathname={pathname}>
+      {SHOWCASE_ENABLED ? <ShowcaseCaptureCoordinator pathname={pathname} /> : null}
       <ClerkSettingsSheetDetentProvider initiallyExpanded={false}>
         <AdaptiveWorkspaceLayout pathname={workspacePathname}>
           {props.children}
