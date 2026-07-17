@@ -290,6 +290,7 @@ function SourceControlRow(props: {
   readonly ready: boolean;
   readonly hint: string;
   readonly isFirst: boolean;
+  readonly incomingShareId?: string;
 }) {
   const navigation = useNavigation();
   const iconColor = useThemeColor("--color-icon");
@@ -324,6 +325,7 @@ function SourceControlRow(props: {
           params: {
             environmentId: props.selectedEnvironmentId,
             source: props.source,
+            incomingShareId: props.incomingShareId,
           },
         })
       }
@@ -331,10 +333,11 @@ function SourceControlRow(props: {
   );
 }
 
-export function AddProjectSourceScreen() {
+export function AddProjectSourceScreen(props: { readonly incomingShareId?: string | string[] }) {
   const navigation = useNavigation();
   const accentColor = useThemeColor("--color-icon-muted");
   const iconColor = useThemeColor("--color-icon");
+  const incomingShareId = stringParam(props.incomingShareId) ?? undefined;
   const { environmentOptions, selectedEnvironment, setSelectedEnvironmentId } =
     useSelectedEnvironment();
   const discoveryState = useEnvironmentQuery(
@@ -410,6 +413,7 @@ export function AddProjectSourceScreen() {
                   screen: "AddProjectLocal",
                   params: {
                     environmentId: selectedEnvironment.environmentId,
+                    incomingShareId,
                   },
                 })
               }
@@ -427,6 +431,7 @@ export function AddProjectSourceScreen() {
                       : (readiness[candidate].hint ?? "")
                   }
                   isFirst={false}
+                  incomingShareId={incomingShareId}
                 />
               ),
             )}
@@ -438,7 +443,7 @@ export function AddProjectSourceScreen() {
   );
 }
 
-function useCreateProject(environment: EnvironmentOption | null) {
+function useCreateProject(environment: EnvironmentOption | null, incomingShareId?: string | null) {
   const navigation = useNavigation();
   const createProject = useAtomCommand(projectEnvironment.create, { reportFailure: false });
   const projects = useProjects();
@@ -459,6 +464,7 @@ function useCreateProject(environment: EnvironmentOption | null) {
             environmentId: existing.environmentId,
             projectId: existing.id,
             title: existing.title,
+            incomingShareId: incomingShareId ?? undefined,
           }),
         );
         return;
@@ -483,11 +489,12 @@ function useCreateProject(environment: EnvironmentOption | null) {
           environmentId: environment.environmentId,
           projectId,
           title: inferProjectTitleFromPath(workspaceRoot),
+          incomingShareId: incomingShareId ?? undefined,
         }),
       );
       return result;
     },
-    [createProject, environment, projects, navigation],
+    [createProject, environment, incomingShareId, projects, navigation],
   );
 }
 
@@ -506,6 +513,7 @@ function useEnvironmentFromParam(
 export function AddProjectRepositoryScreen(props: {
   readonly environmentId?: string | string[];
   readonly source?: string | string[];
+  readonly incomingShareId?: string | string[];
 }) {
   const lookupRepositoryQuery = useAtomQueryRunner(sourceControlEnvironment.repository, {
     reportFailure: false,
@@ -513,6 +521,7 @@ export function AddProjectRepositoryScreen(props: {
   const navigation = useNavigation();
   const environment = useEnvironmentFromParam(props.environmentId);
   const source = sourceFromParam(props.source);
+  const incomingShareId = stringParam(props.incomingShareId) ?? undefined;
   const [repositoryInput, setRepositoryInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -531,6 +540,7 @@ export function AddProjectRepositoryScreen(props: {
           source,
           remoteUrl,
           repositoryTitle: remoteUrl,
+          incomingShareId,
         },
       });
       setIsSubmitting(false);
@@ -555,11 +565,20 @@ export function AddProjectRepositoryScreen(props: {
           source,
           remoteUrl: repository.sshUrl,
           repositoryTitle: repository.nameWithOwner,
+          incomingShareId,
         },
       });
     }
     setIsSubmitting(false);
-  }, [environment, isSubmitting, lookupRepositoryQuery, repositoryInput, navigation, source]);
+  }, [
+    environment,
+    incomingShareId,
+    isSubmitting,
+    lookupRepositoryQuery,
+    repositoryInput,
+    navigation,
+    source,
+  ]);
 
   return (
     <AddProjectShell>
@@ -681,9 +700,12 @@ function FolderBrowser(props: {
   );
 }
 
-export function AddProjectLocalFolderScreen(props: { readonly environmentId?: string | string[] }) {
+export function AddProjectLocalFolderScreen(props: {
+  readonly environmentId?: string | string[];
+  readonly incomingShareId?: string | string[];
+}) {
   const environment = useEnvironmentFromParam(props.environmentId);
-  const createProject = useCreateProject(environment);
+  const createProject = useCreateProject(environment, stringParam(props.incomingShareId));
   const [pathInput, setPathInput] = useState(() =>
     getAddProjectInitialQuery(environment?.baseDirectory),
   );
@@ -749,12 +771,13 @@ export function AddProjectDestinationScreen(props: {
   readonly environmentId?: string | string[];
   readonly remoteUrl?: string | string[];
   readonly repositoryTitle?: string | string[];
+  readonly incomingShareId?: string | string[];
 }) {
   const cloneRepository = useAtomCommand(sourceControlEnvironment.cloneRepository, {
     reportFailure: false,
   });
   const environment = useEnvironmentFromParam(props.environmentId);
-  const createProject = useCreateProject(environment);
+  const createProject = useCreateProject(environment, stringParam(props.incomingShareId));
   const remoteUrl = stringParam(props.remoteUrl);
   const repositoryTitle = stringParam(props.repositoryTitle);
   const [pathInput, setPathInput] = useState(() =>

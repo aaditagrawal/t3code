@@ -3,6 +3,7 @@ import { AddProjectLocalFolderScreen } from "./AddProjectScreen";
 
 type AddProjectLocalRouteParams = {
   readonly environmentId?: string | string[];
+  readonly incomingShareId?: string | string[];
 };
 
 export function AddProjectLocalRoute({

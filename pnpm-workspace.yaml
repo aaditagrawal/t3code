@@ -114,6 +114,8 @@ overrides:
   # Pin to the version our patch targets; expo-modules-core's ~56.0.10 range
   # otherwise floats to newer releases on fresh resolves (ERR_PNPM_UNUSED_PATCH).
   expo-modules-jsi: 56.0.10
+  "expo-sharing>@expo/config-plugins": 56.0.9
+  "expo-sharing>@expo/config-types": 56.0.6
   vite: "catalog:"
   yaml: "catalog:"
 peerDependencyRules:
