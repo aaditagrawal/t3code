@@ -1065,13 +1065,6 @@ const makeWsRpcLayer = (
           observeRpcStreamEffect(
             ORCHESTRATION_WS_METHODS.subscribeShell,
             Effect.gen(function* () {
-              const liveStream = orchestrationEngine.streamDomainEvents.pipe(
-                Stream.mapEffect(toShellStreamEvent),
-                Stream.flatMap((event) =>
-                  Option.isSome(event) ? Stream.succeed(event.value) : Stream.empty,
-                ),
-              );
-
               // When the client already holds a shell snapshot (cached, or loaded
               // over HTTP) it passes that snapshot's sequence, and we resume by
               // replaying shell events after it instead of re-sending the whole
@@ -1086,8 +1079,20 @@ const makeWsRpcLayer = (
                 return Stream.unwrap(
                   Effect.gen(function* () {
                     const liveBuffer = yield* Queue.unbounded<OrchestrationShellStreamItem>();
+                    // Acquire the PubSub subscription synchronously before
+                    // forking. `Stream.fromPubSub` defers subscribe until
+                    // stream start, and `forkScoped` only schedules the fibre —
+                    // so an event published between schedule and start would
+                    // still drop without this.
+                    const liveSubscription = yield* orchestrationEngine.subscribeDomainEvents;
                     yield* Effect.forkScoped(
-                      liveStream.pipe(Stream.runForEach((item) => Queue.offer(liveBuffer, item))),
+                      Stream.fromSubscription(liveSubscription).pipe(
+                        Stream.mapEffect(toShellStreamEvent),
+                        Stream.flatMap((event) =>
+                          Option.isSome(event) ? Stream.succeed(event.value) : Stream.empty,
+                        ),
+                        Stream.runForEach((item) => Queue.offer(liveBuffer, item)),
+                      ),
                     );
                     const catchUpStream = orchestrationEngine
                       .readEvents(afterSequence, Number.MAX_SAFE_INTEGER)
@@ -1108,6 +1113,13 @@ const makeWsRpcLayer = (
                   }),
                 );
               }
+
+              const liveStream = orchestrationEngine.streamDomainEvents.pipe(
+                Stream.mapEffect(toShellStreamEvent),
+                Stream.flatMap((event) =>
+                  Option.isSome(event) ? Stream.succeed(event.value) : Stream.empty,
+                ),
+              );
 
               const snapshot = yield* projectionSnapshotQuery.getShellSnapshot().pipe(
                 Effect.tapError((cause) =>
@@ -1160,19 +1172,26 @@ const makeWsRpcLayer = (
                   event.type === "thread.deleted" ||
                   event.type === "thread.archived");
 
-              const liveStream = orchestrationEngine.streamDomainEvents.pipe(
-                Stream.filter(isThisThreadDetailEvent),
-                Stream.map((event) => ({
-                  kind: "event" as const,
-                  event,
-                })),
-              );
-
               // Attach live delivery before reading either replay or snapshot state.
               // Otherwise an event published while the snapshot is loading is lost.
+              //
+              // Acquire the PubSub subscription synchronously before forking the
+              // buffer consumer. `streamDomainEvents` is `Stream.fromPubSub`, which
+              // defers subscribe until stream start, and `forkScoped` only
+              // schedules the fibre — so an event published between schedule and
+              // start would still drop. Same race the provider-registry
+              // `subscribeChanges` path closes.
               const liveBuffer = yield* Queue.unbounded<OrchestrationThreadStreamItem>();
+              const liveSubscription = yield* orchestrationEngine.subscribeDomainEvents;
               yield* Effect.forkScoped(
-                liveStream.pipe(Stream.runForEach((item) => Queue.offer(liveBuffer, item))),
+                Stream.fromSubscription(liveSubscription).pipe(
+                  Stream.filter(isThisThreadDetailEvent),
+                  Stream.map((event) => ({
+                    kind: "event" as const,
+                    event,
+                  })),
+                  Stream.runForEach((item) => Queue.offer(liveBuffer, item)),
+                ),
               );
               const bufferedLiveStream = Stream.fromQueue(liveBuffer);
 

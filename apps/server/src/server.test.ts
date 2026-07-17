@@ -677,6 +677,9 @@ const buildAppUnderTest = (options?: {
           readEvents: () => Stream.empty,
           dispatch: () => Effect.succeed({ sequence: 0 }),
           streamDomainEvents: Stream.empty,
+          subscribeDomainEvents: Effect.flatMap(PubSub.unbounded<OrchestrationEvent>(), (pubsub) =>
+            PubSub.subscribe(pubsub),
+          ),
           ...options?.layers?.orchestrationEngine,
         }),
       ),
@@ -5638,11 +5641,15 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         layers: {
           orchestrationEngine: {
             streamDomainEvents: Stream.fromPubSub(liveEvents),
+            subscribeDomainEvents: PubSub.subscribe(liveEvents),
           },
           projectionSnapshotQuery: {
             getThreadDetailSnapshot: () =>
               Effect.gen(function* () {
-                yield* Effect.sleep("25 millis");
+                // Publish immediately during snapshot load. The subscribeThread
+                // path acquires the PubSub subscription synchronously before
+                // forking the live buffer, so this must still be delivered —
+                // no sleep to paper over the fork/subscribe race.
                 yield* PubSub.publish(liveEvents, messageEvent);
                 return Option.some({ snapshotSequence: 1, thread });
               }),
@@ -5662,7 +5669,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       assert.equal(items[0]?.kind, "snapshot");
       assert.equal(items[1]?.kind, "event");
       assert.equal(items[1]?.kind === "event" ? items[1].event.sequence : null, 2);
-    }).pipe(Effect.provide(NodeHttpServer.layerTest), TestClock.withLive),
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
   it.effect("enriches replayed project events with repository identity metadata", () =>

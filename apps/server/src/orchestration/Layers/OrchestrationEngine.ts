@@ -329,6 +329,14 @@ const makeOrchestrationEngine = Effect.gen(function* () {
     get streamDomainEvents(): OrchestrationEngineShape["streamDomainEvents"] {
       return Stream.fromPubSub(eventPubSub);
     },
+    // Synchronous subscribe — callers that need to consume events from a
+    // forked fibre must acquire the subscription in their own fibre first
+    // (via `yield* engine.subscribeDomainEvents`) and only then fork a
+    // consumer loop on `Stream.fromSubscription(...)`. See the shape docs
+    // for the race this avoids.
+    get subscribeDomainEvents(): OrchestrationEngineShape["subscribeDomainEvents"] {
+      return PubSub.subscribe(eventPubSub);
+    },
   } satisfies OrchestrationEngineShape;
 });
 
