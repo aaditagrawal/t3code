@@ -62,6 +62,8 @@ import {
 import { nativeHeaderScrollEdgeEffects } from "./native/StackHeader";
 import { useThreadOutboxDrain } from "./state/use-thread-outbox-drain";
 
+const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
+
 const HEADER_SCROLL_EDGE_EFFECTS = nativeHeaderScrollEdgeEffects(Platform.OS, Platform.Version);
 
 // Matches --color-sheet in global.css (light/dark). DynamicColorIOS lets the header
@@ -318,7 +320,7 @@ function RootStackLayout(props: {
 
   return (
     <HardwareKeyboardCommandProvider pathname={pathname}>
-      <ShowcaseCaptureCoordinator pathname={pathname} />
+      {SHOWCASE_ENABLED ? <ShowcaseCaptureCoordinator pathname={pathname} /> : null}
       <ClerkSettingsSheetDetentProvider initiallyExpanded={false}>
         <AdaptiveWorkspaceLayout pathname={workspacePathname}>
           {props.children}

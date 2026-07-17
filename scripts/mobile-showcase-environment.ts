@@ -5,11 +5,26 @@ import * as NodePath from "node:path";
 import * as NodeSqlite from "node:sqlite";
 import * as NodeUtil from "node:util";
 
+import { DEFAULT_TERMINAL_ID } from "@t3tools/contracts";
+
 const execFile = NodeUtil.promisify(NodeChildProcess.execFile);
 
 export const SHOWCASE_PROJECT_ID = "t3code";
 export const SHOWCASE_THREAD_ID = "remote-command-center";
-export const SHOWCASE_TERMINAL_ID = "term-1";
+export const SHOWCASE_TERMINAL_ID = DEFAULT_TERMINAL_ID;
+
+/** Matches TerminalManager.historyPath() for the given thread/terminal IDs. */
+export function showcaseTerminalHistoryFilename(
+  threadId: string = SHOWCASE_THREAD_ID,
+  terminalId: string = SHOWCASE_TERMINAL_ID,
+): string {
+  const safeThreadId = Buffer.from(threadId).toString("base64url");
+  if (terminalId === DEFAULT_TERMINAL_ID) {
+    return `terminal_${safeThreadId}.log`;
+  }
+  const safeTerminalId = Buffer.from(terminalId).toString("base64url");
+  return `terminal_${safeThreadId}_${safeTerminalId}.log`;
+}
 
 export const SHOWCASE_SCENES = ["threads", "thread", "terminal", "review", "environments"] as const;
 export type ShowcaseScene = (typeof SHOWCASE_SCENES)[number];
@@ -558,10 +573,9 @@ export async function seedShowcaseEnvironment(input: {
 
   const terminalDirectory = NodePath.join(input.baseDir, "userdata", "logs", "terminals");
   if (selectedProjectIds.has(SHOWCASE_PROJECT_ID)) {
-    const safeThreadId = Buffer.from(SHOWCASE_THREAD_ID).toString("base64url");
     await NodeFSP.mkdir(terminalDirectory, { recursive: true });
     await NodeFSP.writeFile(
-      NodePath.join(terminalDirectory, `terminal_${safeThreadId}.log`),
+      NodePath.join(terminalDirectory, showcaseTerminalHistoryFilename()),
       SHOWCASE_TERMINAL_BUFFER,
     );
   }

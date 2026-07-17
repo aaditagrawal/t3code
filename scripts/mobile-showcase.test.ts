@@ -9,7 +9,10 @@ import showcaseConfig, {
 import {
   SHOWCASE_ENVIRONMENTS,
   SHOWCASE_PROJECTS,
+  SHOWCASE_TERMINAL_ID,
+  SHOWCASE_THREAD_ID,
   SHOWCASE_THREADS,
+  showcaseTerminalHistoryFilename,
 } from "./mobile-showcase-environment.ts";
 import {
   encodeAndroidPairingUrls,
@@ -200,6 +203,12 @@ it("validates exact Apple and Google Play upload assets", () => {
   assert.equal(validateStoreAsset(googleSpec, google).height, 1920);
 });
 
+it("rejects truncated PNGs that still have a plausible IHDR", () => {
+  const valid = normalizeStorePng(rgbaPng(appleSpec.width, appleSpec.height));
+  const truncated = valid.subarray(0, 26);
+  assert.throws(() => validateStoreAsset(appleSpec, truncated));
+});
+
 it("rejects wrong dimensions and alpha-bearing PNGs", () => {
   const wrongSize = normalizeStorePng(rgbaPng(1242, 2688));
   assert.throws(() => validateStoreAsset(appleSpec, wrongSize), /requires 1284×2778/u);
@@ -260,6 +269,18 @@ it("maps capture scenes to the real application routes", () => {
   assert.equal(
     showcaseSceneUrl("review", "environment-1"),
     "t3code-dev://threads/environment-1/remote-command-center/review",
+  );
+});
+
+it("seeds terminal history using TerminalManager historyPath naming", () => {
+  const safeThreadId = Buffer.from(SHOWCASE_THREAD_ID).toString("base64url");
+  // SHOWCASE_TERMINAL_ID is DEFAULT_TERMINAL_ID ("term-1"), which uses the
+  // unsuffixed history file — not terminal_<thread>_<terminal>.log.
+  assert.equal(SHOWCASE_TERMINAL_ID, "term-1");
+  assert.equal(showcaseTerminalHistoryFilename(), `terminal_${safeThreadId}.log`);
+  assert.equal(
+    showcaseTerminalHistoryFilename(SHOWCASE_THREAD_ID, "term-2"),
+    `terminal_${safeThreadId}_${Buffer.from("term-2").toString("base64url")}.log`,
   );
 });
 

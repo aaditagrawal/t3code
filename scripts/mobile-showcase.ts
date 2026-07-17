@@ -170,6 +170,9 @@ export function validateStoreAsset(
   bytes: Uint8Array,
   label = "Screenshot",
 ): PngMetadata {
+  // Fully decode before IHDR checks so truncated/corrupt files fail even when
+  // the first 26 bytes look like a valid PNG header.
+  PNG.sync.read(Buffer.from(bytes));
   const metadata = readPngMetadata(bytes);
   if (metadata.width !== spec.width || metadata.height !== spec.height) {
     throw new Error(
@@ -806,7 +809,7 @@ async function captureIos(
   outputDirectory: string,
   config: ShowcaseConfig,
   metroHost: string,
-  pairingUrls: ReadonlyArray<string>,
+  getPairingUrls: () => Promise<ReadonlyArray<string>>,
   registerCleanup: (cleanup: IosCaptureCleanup) => void,
 ): Promise<void> {
   const { simulator, createdByRunner } = await ensureIosSimulator(capture.device);
@@ -857,6 +860,9 @@ async function captureIos(
   );
   const firstScene = capture.scenes[0] ?? "threads";
   const launchShowcaseApp = async (terminateRunningProcess: boolean) => {
+    // Pairing grants are one-time; each launch (including retries) needs fresh
+    // links because prepareShowcaseCapture clears Keychain credentials.
+    const pairingUrls = await getPairingUrls();
     await runCommand("xcrun", [
       "simctl",
       "launch",
@@ -1259,12 +1265,13 @@ async function main(): Promise<void> {
 
     for (const capture of captures) {
       const pairingHost = capture.device.platform === "ios" ? "127.0.0.1" : "10.0.2.2";
-      const pairingUrls = await Promise.all(
-        showcaseEnvironments.map(async (environment) => {
-          const credential = await issuePairingCredential(environment.baseDir);
-          return buildShowcasePairingUrl(pairingHost, environment.port, credential);
-        }),
-      );
+      const getPairingUrls = async () =>
+        Promise.all(
+          showcaseEnvironments.map(async (environment) => {
+            const credential = await issuePairingCredential(environment.baseDir);
+            return buildShowcasePairingUrl(pairingHost, environment.port, credential);
+          }),
+        );
       if (capture.device.platform === "ios") {
         await captureIos(
           capture as ShowcaseCapture & { readonly device: ShowcaseIosDevice },
@@ -1272,7 +1279,7 @@ async function main(): Promise<void> {
           outputDirectory,
           showcaseConfig,
           metroHost,
-          pairingUrls,
+          getPairingUrls,
           (cleanup) => iosCleanups.push(cleanup),
         );
       } else {
@@ -1281,7 +1288,7 @@ async function main(): Promise<void> {
           androidApkPath,
           outputDirectory,
           showcaseConfig,
-          pairingUrls,
+          await getPairingUrls(),
           (cleanup) => androidCleanups.push(cleanup),
         );
       }
