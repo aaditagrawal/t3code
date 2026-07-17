@@ -296,5 +296,4 @@ describe("IncomingShareInbox", () => {
     });
     expect([...persisted.keys()]).toEqual(["share-stable:handoff-2"]);
   });
-
 });

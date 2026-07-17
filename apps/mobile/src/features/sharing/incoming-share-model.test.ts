@@ -271,5 +271,4 @@ describe("incoming native shares", () => {
     ]);
     expect(result.warnings).toEqual([]);
   });
-
 });

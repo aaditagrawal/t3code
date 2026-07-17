@@ -333,9 +333,7 @@ function SourceControlRow(props: {
   );
 }
 
-export function AddProjectSourceScreen(props: {
-  readonly incomingShareId?: string | string[];
-}) {
+export function AddProjectSourceScreen(props: { readonly incomingShareId?: string | string[] }) {
   const navigation = useNavigation();
   const accentColor = useThemeColor("--color-icon-muted");
   const iconColor = useThemeColor("--color-icon");
@@ -445,10 +443,7 @@ export function AddProjectSourceScreen(props: {
   );
 }
 
-function useCreateProject(
-  environment: EnvironmentOption | null,
-  incomingShareId?: string | null,
-) {
+function useCreateProject(environment: EnvironmentOption | null, incomingShareId?: string | null) {
   const navigation = useNavigation();
   const createProject = useAtomCommand(projectEnvironment.create, { reportFailure: false });
   const projects = useProjects();

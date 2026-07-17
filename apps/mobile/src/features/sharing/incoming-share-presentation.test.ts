@@ -103,5 +103,4 @@ describe("incoming share presentation", () => {
     expect(revived.shareIdToPresent).toBe("share-1");
     expect(revived.state).toEqual({ presentedShareId: "share-1", dismissedShareId: null });
   });
-
 });
