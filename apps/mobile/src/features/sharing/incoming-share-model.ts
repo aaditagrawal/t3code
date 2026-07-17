@@ -176,7 +176,10 @@ export async function buildIncomingShareDraft(input: {
 
     try {
       const base64 = await input.fileReader.readBase64(uri);
-      const sizeBytes = resolved?.contentSize ?? estimateBase64ByteSize(base64);
+      // Native contentSize is only an early-rejection hint above. Always measure
+      // the bytes we actually decoded so underreported metadata cannot admit an
+      // oversized attachment (and a reported zero cannot reject a valid image).
+      const sizeBytes = estimateBase64ByteSize(base64);
       if (sizeBytes <= 0 || sizeBytes > PROVIDER_SEND_TURN_MAX_IMAGE_BYTES) {
         warnings.push(
           `'${resolved?.originalName ?? fallbackName(uri, index, mimeType)}' exceeds the 10 MB attachment limit.`,

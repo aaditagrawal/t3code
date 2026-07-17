@@ -193,4 +193,83 @@ describe("incoming native shares", () => {
     expect(result.attachments).toHaveLength(1);
     expect(result.warnings).toEqual([]);
   });
+
+  it("rejects images whose decoded size exceeds the limit even when metadata underreports", async () => {
+    const image: SharePayload = {
+      shareType: "image",
+      value: "file:///shared/underreported.png",
+      mimeType: "image/png",
+    };
+    // 12 base64 chars => 9 bytes; synthesize a payload larger than the limit.
+    const oversizedBase64 = "A".repeat(
+      Math.ceil(((PROVIDER_SEND_TURN_MAX_IMAGE_BYTES + 1) * 4) / 3),
+    );
+    const removeOwnedFile = vi.fn(() => Promise.resolve());
+    const readBase64 = vi.fn(async () => oversizedBase64);
+
+    const result = await buildIncomingShareDraft({
+      id: "share-underreported",
+      createdAt: "2026-07-15T10:00:00.000Z",
+      payloads: [image],
+      resolvedPayloads: [
+        {
+          ...image,
+          contentUri: image.value,
+          contentType: "image",
+          contentMimeType: "image/png",
+          contentSize: 3,
+          originalName: "underreported.png",
+        },
+      ],
+      fileReader: { readBase64, removeOwnedFile },
+    });
+
+    expect(result.attachments).toEqual([]);
+    expect(result.warnings).toEqual(["'underreported.png' exceeds the 10 MB attachment limit."]);
+    expect(readBase64).toHaveBeenCalledWith(image.value);
+    expect(removeOwnedFile).toHaveBeenCalledWith(image.value);
+  });
+
+  it("uses decoded size when metadata reports zero for a nonempty image", async () => {
+    const image: SharePayload = {
+      shareType: "image",
+      value: "file:///shared/zero-meta.png",
+      mimeType: "image/png",
+    };
+    const removeOwnedFile = vi.fn(() => Promise.resolve());
+
+    const result = await buildIncomingShareDraft({
+      id: "share-zero-meta",
+      createdAt: "2026-07-15T10:00:00.000Z",
+      payloads: [image],
+      resolvedPayloads: [
+        {
+          ...image,
+          contentUri: image.value,
+          contentType: "image",
+          contentMimeType: "image/png",
+          contentSize: 0,
+          originalName: "zero-meta.png",
+        },
+      ],
+      fileReader: {
+        readBase64: async () => "YWJj",
+        removeOwnedFile,
+      },
+    });
+
+    expect(result.attachments).toEqual([
+      {
+        id: "share-zero-meta:image:0",
+        type: "image",
+        name: "zero-meta.png",
+        mimeType: "image/png",
+        sizeBytes: 3,
+        dataUrl: "data:image/png;base64,YWJj",
+        previewUri: "data:image/png;base64,YWJj",
+      },
+    ]);
+    expect(result.warnings).toEqual([]);
+  });
+
 });

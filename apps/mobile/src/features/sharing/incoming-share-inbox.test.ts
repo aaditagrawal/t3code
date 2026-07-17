@@ -49,6 +49,7 @@ function createHarness(overrides: Partial<IncomingShareInboxDependencies> = {}) 
       cleanup: async () => undefined,
     }),
     idForPayloads: async () => "share-stable",
+    createHandoffId: async (contentKey) => contentKey,
     now: () => "2026-07-16T08:00:00.000Z",
     ...overrides,
   };
@@ -65,7 +66,10 @@ describe("IncomingShareInbox", () => {
     const { inbox, persisted } = createHarness({ buildDraft, cleanupReplayedPayloads });
     persisted.set("share-stable", draft("share-stable"));
 
-    await expect(inbox.refresh({ ingestNative: true })).resolves.toEqual([draft("share-stable")]);
+    await expect(inbox.refresh({ ingestNative: true })).resolves.toEqual({
+      drafts: [draft("share-stable")],
+      revivedShareId: "share-stable",
+    });
     expect(buildDraft).not.toHaveBeenCalled();
     expect(cleanupReplayedPayloads).toHaveBeenCalledWith([PAYLOAD]);
   });
@@ -83,8 +87,10 @@ describe("IncomingShareInbox", () => {
     building.resolve();
 
     await expect(Promise.all([first, second])).resolves.toEqual([
-      [draft("share-stable")],
-      [draft("share-stable")],
+      { drafts: [draft("share-stable")], revivedShareId: null },
+      // The first refresh already acknowledged/cleared the native payload, so
+      // the queued follow-up only reloads the durable inbox.
+      { drafts: [draft("share-stable")], revivedShareId: null },
     ]);
     expect(buildDraft).toHaveBeenCalledTimes(1);
   });
@@ -102,7 +108,10 @@ describe("IncomingShareInbox", () => {
     const consume = inbox.consume("share-stable");
     building.resolve();
 
-    await expect(refresh).resolves.toEqual([draft("share-stable")]);
+    await expect(refresh).resolves.toEqual({
+      drafts: [draft("share-stable")],
+      revivedShareId: null,
+    });
     await expect(consume).resolves.toEqual([]);
     expect([...persisted.values()]).toEqual([]);
   });
@@ -112,10 +121,10 @@ describe("IncomingShareInbox", () => {
     persisted.set("share-first", draft("share-first", "2026-07-16T07:59:00.000Z"));
     persisted.set("share-second", draft("share-second"));
 
-    await expect(inbox.refresh({ ingestNative: false })).resolves.toEqual([
-      draft("share-second"),
-      draft("share-first", "2026-07-16T07:59:00.000Z"),
-    ]);
+    await expect(inbox.refresh({ ingestNative: false })).resolves.toEqual({
+      drafts: [draft("share-second"), draft("share-first", "2026-07-16T07:59:00.000Z")],
+      revivedShareId: null,
+    });
     await expect(inbox.consume("share-second")).resolves.toEqual([
       draft("share-first", "2026-07-16T07:59:00.000Z"),
     ]);
@@ -127,10 +136,10 @@ describe("IncomingShareInbox", () => {
     persisted.set("share-open-flow", draft("share-open-flow", "2026-07-16T07:59:00.000Z"));
     persisted.set("share-newer", draft("share-newer"));
 
-    await expect(inbox.refresh({ ingestNative: false })).resolves.toEqual([
-      draft("share-newer"),
-      draft("share-open-flow", "2026-07-16T07:59:00.000Z"),
-    ]);
+    await expect(inbox.refresh({ ingestNative: false })).resolves.toEqual({
+      drafts: [draft("share-newer"), draft("share-open-flow", "2026-07-16T07:59:00.000Z")],
+      revivedShareId: null,
+    });
   });
 
   it("does not acknowledge a supported payload when its durable write fails", async () => {
@@ -233,4 +242,59 @@ describe("IncomingShareInbox", () => {
     ).resolves.toEqual([draft("share-other")]);
     expect([...persisted.values()]).toEqual([draft("share-other")]);
   });
+
+  it("revives an already-persisted share when a fresh native handoff matches its content", async () => {
+    const cleanupReplayedPayloads = vi.fn(async () => undefined);
+    const { inbox, persisted } = createHarness({ cleanupReplayedPayloads });
+    persisted.set("share-stable:handoff-1", draft("share-stable:handoff-1"));
+
+    await expect(inbox.refresh({ ingestNative: true })).resolves.toEqual({
+      drafts: [draft("share-stable:handoff-1")],
+      revivedShareId: "share-stable:handoff-1",
+    });
+    expect(cleanupReplayedPayloads).toHaveBeenCalledWith([PAYLOAD]);
+  });
+
+  it("creates a distinct handoff id after a prior identical share was consumed", async () => {
+    let payloads: ReadonlyArray<SharePayload> = [PAYLOAD];
+    let handoff = 0;
+    const persisted = new Map<string, IncomingShareDraft>();
+    const inbox = new IncomingShareInbox({
+      loadDrafts: async () => [...persisted.values()],
+      writeDraft: async (value) => {
+        persisted.set(value.id, value);
+      },
+      removeDraft: async (shareId) => {
+        persisted.delete(shareId);
+      },
+      getPayloads: () => payloads,
+      clearPayloads: () => {
+        payloads = [];
+      },
+      buildDraft: async ({ id, createdAt }) => ({
+        draft: draft(id, createdAt),
+        cleanup: async () => undefined,
+      }),
+      idForPayloads: async () => "share-stable",
+      createHandoffId: async (contentKey) => {
+        handoff += 1;
+        return `${contentKey}:handoff-${handoff}`;
+      },
+      now: () => "2026-07-16T08:00:00.000Z",
+    });
+
+    await expect(inbox.refresh({ ingestNative: true })).resolves.toEqual({
+      drafts: [draft("share-stable:handoff-1")],
+      revivedShareId: null,
+    });
+    await expect(inbox.consume("share-stable:handoff-1")).resolves.toEqual([]);
+
+    payloads = [PAYLOAD];
+    await expect(inbox.refresh({ ingestNative: true })).resolves.toEqual({
+      drafts: [draft("share-stable:handoff-2")],
+      revivedShareId: null,
+    });
+    expect([...persisted.keys()]).toEqual(["share-stable:handoff-2"]);
+  });
+
 });

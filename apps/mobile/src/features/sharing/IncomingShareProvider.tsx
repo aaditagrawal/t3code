@@ -10,6 +10,7 @@ import {
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Alert, AppState, Platform } from "react-native";
 
+import { uuidv4 } from "../../lib/uuid";
 import {
   buildIncomingShareDraft,
   type IncomingShareDestination,
@@ -24,6 +25,7 @@ import {
 
 type IncomingShareContextValue = {
   readonly pendingShare: IncomingShareDraft | null;
+  readonly revivedShareId: string | null;
   readonly isLoading: boolean;
   readonly error: Error | null;
   readonly getShare: (shareId: string) => IncomingShareDraft | null;
@@ -33,6 +35,7 @@ type IncomingShareContextValue = {
     expectedDestination: IncomingShareDestination,
   ) => Promise<void>;
   readonly consumeShare: (shareId: string) => Promise<void>;
+  readonly clearRevivedShareId: (shareId: string) => void;
   readonly refresh: () => Promise<void>;
 };
 
@@ -149,6 +152,7 @@ const incomingShareInbox = new IncomingShareInbox({
   },
   cleanupReplayedPayloads: removeReplayedImagePayloadFiles,
   idForPayloads: incomingShareIdForPayloads,
+  createHandoffId: async (contentKey) => `${contentKey}:${uuidv4()}`,
   now: () => new Date().toISOString(),
   onClearError: (error) => {
     console.warn("[incoming-share] could not acknowledge native payload", error);
@@ -161,6 +165,7 @@ const incomingShareInbox = new IncomingShareInbox({
 export function IncomingShareProvider(props: React.PropsWithChildren) {
   const enabled = receiveSharingEnabled();
   const [drafts, setDrafts] = useState<ReadonlyArray<IncomingShareDraft>>([]);
+  const [revivedShareId, setRevivedShareId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const refreshPromiseRef = useRef<Promise<void> | null>(null);
@@ -182,7 +187,10 @@ export function IncomingShareProvider(props: React.PropsWithChildren) {
       try {
         const snapshot = await incomingShareInbox.refresh({ ingestNative: enabled });
         if (mountedRef.current) {
-          setDrafts(snapshot);
+          setDrafts(snapshot.drafts);
+          if (snapshot.revivedShareId) {
+            setRevivedShareId(snapshot.revivedShareId);
+          }
           setError(null);
         }
       } catch (cause) {
@@ -191,7 +199,7 @@ export function IncomingShareProvider(props: React.PropsWithChildren) {
           .catch(() => null);
         if (mountedRef.current) {
           if (persisted) {
-            setDrafts(persisted);
+            setDrafts(persisted.drafts);
           }
           setError(cause instanceof Error ? cause : new Error("Could not import shared content."));
         }
@@ -272,19 +280,25 @@ export function IncomingShareProvider(props: React.PropsWithChildren) {
     (shareId: string) => drafts.find((draft) => draft.id === shareId) ?? null,
     [drafts],
   );
+  const clearRevivedShareId = useCallback((shareId: string) => {
+    setRevivedShareId((current) => (current === shareId ? null : current));
+  }, []);
 
   const value = useMemo<IncomingShareContextValue>(
     () => ({
       pendingShare: drafts[0] ?? null,
+      revivedShareId,
       isLoading,
       error,
       getShare,
       releaseShareReservation,
       reserveShare,
       consumeShare,
+      clearRevivedShareId,
       refresh,
     }),
     [
+      clearRevivedShareId,
       consumeShare,
       drafts,
       error,
@@ -293,6 +307,7 @@ export function IncomingShareProvider(props: React.PropsWithChildren) {
       refresh,
       releaseShareReservation,
       reserveShare,
+      revivedShareId,
     ],
   );
 

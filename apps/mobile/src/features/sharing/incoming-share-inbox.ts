@@ -22,10 +22,25 @@ export interface IncomingShareInboxDependencies {
     readonly cleanup: () => Promise<void>;
   }>;
   readonly cleanupReplayedPayloads?: (payloads: ReadonlyArray<SharePayload>) => Promise<void>;
+  /** Content fingerprint used to coalesce crash-recovery replays of one handoff. */
   readonly idForPayloads: (payloads: ReadonlyArray<SharePayload>) => Promise<string>;
+  /**
+   * Stable-per-handoff id derived from the content fingerprint. Distinct native
+   * handoffs with identical payloads must not reuse a prior id.
+   */
+  readonly createHandoffId: (contentKey: string) => Promise<string>;
   readonly now: () => string;
   readonly onClearError?: (error: unknown) => void;
   readonly onCleanupError?: (error: unknown) => void;
+}
+
+export interface IncomingShareRefreshResult {
+  readonly drafts: ReadonlyArray<IncomingShareDraft>;
+  /**
+   * Set when a fresh native payload matched an already-persisted inbox item.
+   * Presentation uses this to clear a session dismissal and re-show the share.
+   */
+  readonly revivedShareId: string | null;
 }
 
 export function sortAndDedupeIncomingShares(
@@ -41,6 +56,10 @@ export function sortAndDedupeIncomingShares(
       ids.add(draft.id);
       return true;
     });
+}
+
+export function draftMatchesContentKey(draftId: string, contentKey: string): boolean {
+  return draftId === contentKey || draftId.startsWith(`${contentKey}:`);
 }
 
 /**
@@ -72,31 +91,35 @@ export class IncomingShareInbox {
     }
   }
 
-  refresh(options: { readonly ingestNative: boolean }): Promise<ReadonlyArray<IncomingShareDraft>> {
+  refresh(options: { readonly ingestNative: boolean }): Promise<IncomingShareRefreshResult> {
     return this.runExclusive(async () => {
       const loaded = await this.dependencies.loadDrafts();
       const persisted = sortAndDedupeIncomingShares(loaded);
       if (!options.ingestNative) {
-        return persisted;
+        return { drafts: persisted, revivedShareId: null };
       }
 
       const payloads = this.dependencies.getPayloads();
       if (payloads.length === 0) {
-        return persisted;
+        return { drafts: persisted, revivedShareId: null };
       }
 
       // A share extension payload remains available until the containing app
-      // acknowledges it. Use a content-derived id so a crash after the durable
-      // write but before acknowledgement reuses the same inbox item.
-      const shareId = await this.dependencies.idForPayloads(payloads);
-      if (loaded.some((draft) => draft.id === shareId)) {
+      // acknowledges it. Match by content fingerprint so a crash after the
+      // durable write but before acknowledgement reuses the same inbox item.
+      // Handoff ids are fingerprint-scoped but unique per acceptance so a
+      // later identical share is not collapsed into a prior consumed receipt.
+      const contentKey = await this.dependencies.idForPayloads(payloads);
+      const existing = loaded.find((draft) => draftMatchesContentKey(draft.id, contentKey));
+      if (existing) {
         if (this.dependencies.cleanupReplayedPayloads) {
           await this.cleanup(() => this.dependencies.cleanupReplayedPayloads!(payloads));
         }
         this.clearNativePayloads();
-        return persisted;
+        return { drafts: persisted, revivedShareId: existing.id };
       }
 
+      const shareId = await this.dependencies.createHandoffId(contentKey);
       const built = await this.dependencies.buildDraft({
         payloads,
         id: shareId,
@@ -119,15 +142,17 @@ export class IncomingShareInbox {
       await this.dependencies.writeDraft(draft);
       await this.cleanup(built.cleanup);
       this.clearNativePayloads();
-      return sortAndDedupeIncomingShares([draft, ...persisted]);
+      return {
+        drafts: sortAndDedupeIncomingShares([draft, ...persisted]),
+        revivedShareId: null,
+      };
     });
   }
 
   consume(shareId: string): Promise<ReadonlyArray<IncomingShareDraft>> {
     return this.runExclusive(async () => {
-      // The stable payload-derived id already coalesces retries of the same
-      // native handoff. Payload equality cannot identify duplicate handoffs:
-      // users may intentionally share identical content more than once.
+      // Handoff ids are unique per native acceptance. Payload equality alone
+      // cannot identify duplicate intentional shares of identical content.
       await this.dependencies.removeDraft(shareId);
       return sortAndDedupeIncomingShares(await this.dependencies.loadDrafts());
     });

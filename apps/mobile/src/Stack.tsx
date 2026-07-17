@@ -282,7 +282,7 @@ function RootStackLayout(props: {
   readonly state: NavigationState;
 }) {
   const navigation = useNavigation();
-  const { pendingShare } = useIncomingShare();
+  const { pendingShare, revivedShareId, clearRevivedShareId } = useIncomingShare();
   const sharePresentationRef = useRef(EMPTY_INCOMING_SHARE_PRESENTATION_STATE);
   useAgentNotificationNavigation();
   useThreadOutboxDrain();
@@ -295,8 +295,12 @@ function RootStackLayout(props: {
     const transition = transitionIncomingSharePresentation(sharePresentationRef.current, {
       isShareSheetPresented: topRouteName === "NewTaskSheet",
       pendingShareId: pendingShare?.id ?? null,
+      revivedShareId,
     });
     sharePresentationRef.current = transition.state;
+    if (revivedShareId) {
+      clearRevivedShareId(revivedShareId);
+    }
     if (!transition.shareIdToPresent) {
       return;
     }
@@ -304,7 +308,7 @@ function RootStackLayout(props: {
       screen: "NewTask",
       params: { incomingShareId: transition.shareIdToPresent },
     });
-  }, [navigation, pendingShare, props.state]);
+  }, [clearRevivedShareId, navigation, pendingShare, props.state, revivedShareId]);
   // Full pathname (sheets included) for keyboard-command scoping; the
   // workspace layout only reacts to the underlying non-overlay route.
   const path = getPathFromState(props.state, navigationPathConfig);

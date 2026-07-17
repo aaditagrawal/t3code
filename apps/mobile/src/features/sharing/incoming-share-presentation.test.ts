@@ -89,4 +89,19 @@ describe("incoming share presentation", () => {
       }).shareIdToPresent,
     ).toBe("share-1");
   });
+
+  it("re-presents a dismissed share when a fresh native handoff revives it", () => {
+    const dismissed = {
+      presentedShareId: null,
+      dismissedShareId: "share-1",
+    };
+    const revived = transitionIncomingSharePresentation(dismissed, {
+      isShareSheetPresented: false,
+      pendingShareId: "share-1",
+      revivedShareId: "share-1",
+    });
+    expect(revived.shareIdToPresent).toBe("share-1");
+    expect(revived.state).toEqual({ presentedShareId: "share-1", dismissedShareId: null });
+  });
+
 });

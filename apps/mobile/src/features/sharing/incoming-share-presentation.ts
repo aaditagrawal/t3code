@@ -15,13 +15,16 @@ export const EMPTY_INCOMING_SHARE_PRESENTATION_STATE: IncomingSharePresentationS
 
 /**
  * Tracks presentation by durable share id rather than object identity. A user
- * dismissal suppresses only that inbox item until it is consumed or replaced.
+ * dismissal suppresses only that inbox item until it is consumed, replaced, or
+ * revived by a fresh native handoff with the same id.
  */
 export function transitionIncomingSharePresentation(
   state: IncomingSharePresentationState,
   input: {
     readonly isShareSheetPresented: boolean;
     readonly pendingShareId: string | null;
+    /** Cleared dismissal when ingest acknowledges a fresh native handoff. */
+    readonly revivedShareId?: string | null;
   },
 ): IncomingSharePresentationTransition {
   if (input.isShareSheetPresented) {
@@ -55,6 +58,15 @@ export function transitionIncomingSharePresentation(
       state: EMPTY_INCOMING_SHARE_PRESENTATION_STATE,
       shareIdToPresent: null,
     };
+  }
+
+  if (
+    input.revivedShareId !== null &&
+    input.revivedShareId !== undefined &&
+    input.revivedShareId === input.pendingShareId &&
+    nextState.dismissedShareId === input.pendingShareId
+  ) {
+    nextState = { ...nextState, dismissedShareId: null };
   }
 
   if (nextState.dismissedShareId === input.pendingShareId) {
