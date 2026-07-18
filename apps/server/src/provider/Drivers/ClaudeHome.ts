@@ -72,8 +72,9 @@ export const makeClaudeContinuationGroupKey = Effect.fn("makeClaudeContinuationG
 export const makeClaudeCapabilitiesCacheKey = Effect.fn("makeClaudeCapabilitiesCacheKey")(
   function* (
     config: Pick<ClaudeSettings, "binaryPath" | "homePath">,
+    cwd?: string,
   ): Effect.fn.Return<string, never, Path.Path> {
     const configDir = yield* resolveClaudeConfigDir(config);
-    return `${config.binaryPath}\0${configDir}`;
+    return `${config.binaryPath}\0${configDir}\0${cwd ?? ""}`;
   },
 );
