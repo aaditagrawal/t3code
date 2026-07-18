@@ -1122,12 +1122,16 @@ function createTerminalSpawnEnv(
     if (shouldExcludeTerminalEnvKey(key)) continue;
     spawnEnv[key] = value;
   }
+  // Scrub AppImage markers from the server process env before applying
+  // explicit per-terminal overrides, so a caller-supplied APPDIR is preserved
+  // when the server itself is not running as an AppImage.
+  const scrubbed = stripAppImageRuntimeEnv(spawnEnv);
   if (runtimeEnv) {
     for (const [key, value] of Object.entries(runtimeEnv)) {
-      spawnEnv[key] = value;
+      scrubbed[key] = value;
     }
   }
-  return stripAppImageRuntimeEnv(spawnEnv);
+  return scrubbed;
 }
 
 function normalizedRuntimeEnv(

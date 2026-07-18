@@ -1391,6 +1391,31 @@ it.layer(
     }),
   );
 
+  it.effect("preserves explicit APPDIR overrides when not launched from an AppImage", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager(5, {
+        env: {
+          PATH: "/usr/bin:/bin",
+          HOME: "/home/user",
+        },
+      });
+      yield* manager.open(
+        openInput({
+          env: {
+            APPDIR: "/custom/appdir",
+            MY_TOOL: "1",
+          },
+        }),
+      );
+      const spawnInput = ptyAdapter.spawnInputs[0];
+      expect(spawnInput).toBeDefined();
+      if (!spawnInput) return;
+
+      expect(spawnInput.env.APPDIR).toBe("/custom/appdir");
+      expect(spawnInput.env.MY_TOOL).toBe("1");
+    }),
+  );
+
   it.effect("injects runtime env overrides into spawned terminals", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager();
