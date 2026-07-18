@@ -1,3 +1,4 @@
+import * as Arr from "effect/Array";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -280,18 +281,26 @@ export const make = Effect.gen(function* () {
         ),
       ),
       Effect.flatMap((rows) =>
+        // Skip rows that no longer decode (e.g. written by an older build)
+        // instead of failing the whole list — one stale row must not disable
+        // every consumer that enumerates sessions, such as the reaper.
         Effect.forEach(rows, (row) =>
           decodeRuntimeRow(row).pipe(
-            Effect.mapError((cause) =>
-              PersistenceDecodeError.fromSchemaError(
-                "ProviderSessionRuntimeRepository.list:decodeRows",
-                cause,
-                { threadId: row.threadId },
-              ),
+            Effect.map(Option.some),
+            Effect.catch((cause) =>
+              Effect.logWarning("provider.session.runtime.row-skipped", {
+                threadId: row.threadId,
+                error: PersistenceDecodeError.fromSchemaError(
+                  "ProviderSessionRuntimeRepository.list:decodeRows",
+                  cause,
+                  { threadId: row.threadId },
+                ).message,
+              }).pipe(Effect.as(Option.none<ProviderSessionRuntime>())),
             ),
           ),
         ),
       ),
+      Effect.map((decoded) => Arr.getSomes(decoded)),
     );
 
   const deleteByThreadId: ProviderSessionRuntimeRepository["Service"]["deleteByThreadId"] = (
