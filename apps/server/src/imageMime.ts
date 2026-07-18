@@ -43,7 +43,7 @@ function isBase64Char(code: number): boolean {
 }
 
 function isBase64Whitespace(code: number): boolean {
-  return code === 0x0d || code === 0x0a || code === 0x20; // \r \n space
+  return code === 0x09 || code === 0x0d || code === 0x0a || code === 0x20; // \t \r \n space
 }
 
 // Data URLs carry the full image payload, so this parser must never run a

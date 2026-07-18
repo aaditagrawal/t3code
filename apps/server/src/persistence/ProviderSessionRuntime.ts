@@ -3,7 +3,6 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as Struct from "effect/Struct";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
@@ -301,11 +300,7 @@ export const make = Effect.gen(function* () {
           ),
         ),
       ),
-      Effect.map((decoded) =>
-        Arr.filterMap(decoded, (row) =>
-          Option.isSome(row) ? Result.succeed(row.value) : Result.failVoid,
-        ),
-      ),
+      Effect.map((decoded) => Arr.getSomes(decoded)),
     );
 
   const deleteByThreadId: ProviderSessionRuntimeRepository["Service"]["deleteByThreadId"] = (
