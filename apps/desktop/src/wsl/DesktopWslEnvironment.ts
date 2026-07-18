@@ -242,6 +242,7 @@ const NODE_PTY_PROBE_SCRIPT = (
   linuxServerDir: string,
 ) => `node_path="$(command -v node 2>/dev/null)"
 printf 'nodePath:%s\\n' "$node_path"
+printf 'nodeVersion:%s\\n' "$(node -p 'process.versions.node' 2>/dev/null)"
 printf 'resolvedPath:%s\\n' "$PATH"
 if [ -n "$node_path" ]; then
   "$node_path" <<'NODE'
@@ -347,6 +348,16 @@ export const parseNodePath = (stdout: string): string | null => {
     .map((line) => line.slice("nodePath:".length).trim())
     .find((value) => value.length > 0);
   return path ?? null;
+};
+
+export const parseNodeVersion = (stdout: string): string | null => {
+  const version = stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("nodeVersion:"))
+    .map((line) => line.slice("nodeVersion:".length).trim())
+    .find((value) => value.length > 0);
+  return version ?? null;
 };
 
 // Captures the login-shell PATH after the shared resolver has loaded version
@@ -513,7 +524,22 @@ const ensureNodePtyImpl = (
       } as const;
     }
 
-    if (probe.exitCode === 0) return { ok: true, nodePath, resolvedPath, resolvedEnv } as const;
+    if (probe.exitCode === 0) {
+      const rawVersion = parseNodeVersion(probe.stdout);
+      if (
+        rawVersion !== null &&
+        options.nodeEngineRange &&
+        !satisfiesSemverRange(rawVersion, options.nodeEngineRange.trim())
+      ) {
+        const range = options.nodeEngineRange.trim();
+        return {
+          ok: false,
+          reason: `WSL Node.js ${rawVersion} does not satisfy the server's required engine range (${range}). Install a compatible version, and restart the desktop app.`,
+          fatal: true,
+        } as const;
+      }
+      return { ok: true, nodePath, resolvedPath, resolvedEnv } as const;
+    }
 
     if (options.allowBuild !== true) {
       const packagedProbeFailure = formatNodePtyProbeFailureReason(probe.exitCode);
