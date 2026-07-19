@@ -29,6 +29,11 @@ When syncing upstream, preserve these fork features unless the user explicitly a
 - `vp check` and `vp run typecheck` must pass before considering tasks completed.
   - If changing native mobile code, `vp run lint:mobile` must also pass.
 - Use `vp test` for the built-in Vite+ test command and `vp run test` when you specifically need the `test` package script.
+- Keep local verification focused on the files and packages changed when iterating. Prefer `vp test run <test-files>` for focused Vite+ tests; use `vp run test` when the affected package specifically requires its `test` script.
+- Backend changes must include and run focused tests for the changed behavior.
+- After frontend feature development or any user-visible frontend behavior change, the primary agent must use the `test-t3-app` skill once after integrating the work. Launch one isolated environment, authenticate through the printed pairing URL, and verify the affected flow in the controlled browser.
+  - Subagents must not independently launch dev servers or repeat integrated browser verification unless their delegated task explicitly requires it.
+  - Stop dev servers, watchers, and other long-running verification processes when the focused verification is complete.
 
 ## Project Snapshot
 
@@ -120,8 +125,7 @@ agents.
 - Prefer examples and patterns from the vendored source code over generated guesses or web search results.
 - Do not edit files under `.repos/` unless explicitly asked.
 - Do not import from `.repos/`; application code must continue importing from normal package dependencies.
-- Manage vendored subtrees with `bun run sync:repos`; use `bun run sync:repos --repo <id>` to sync one
-  configured repository.
+- Manage vendored subtrees with `vpr sync:repos`; use `vpr sync:repos --repo <id>` to sync one configured repository.
 - When updating a dependency with a configured vendored subtree, sync that subtree in the same change so
   `.repos/` matches the installed dependency version.
 - When writing Effect code, read `.repos/effect-smol/LLMS.md` first and inspect `.repos/effect-smol/` for
