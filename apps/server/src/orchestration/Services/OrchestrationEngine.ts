@@ -13,8 +13,6 @@
 import type { OrchestrationCommand, OrchestrationEvent } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
-import type * as PubSub from "effect/PubSub";
-import type * as Scope from "effect/Scope";
 import type * as Stream from "effect/Stream";
 
 import type { OrchestrationDispatchError } from "../Errors.ts";
@@ -56,32 +54,15 @@ export interface OrchestrationEngineShape {
    * Stream persisted domain events in dispatch order.
    *
    * This is a hot runtime stream (new events only), not a historical replay.
-   *
-   * NOTE: because `Stream.fromPubSub` defers `PubSub.subscribe` until the
-   * stream starts running, forking a consumer via
-   * `Stream.runForEach(...).pipe(Effect.forkScoped)` races the next
-   * publish — the forked fiber may not have subscribed yet when the
-   * publish lands. Consumers that must not miss a publish (e.g. the
-   * websocket early-live buffer) should use `subscribeDomainEvents`
-   * below instead, which acquires the subscription synchronously in the
-   * caller's fiber before the consumer loop is forked.
    */
   readonly streamDomainEvents: Stream.Stream<OrchestrationEvent>;
 
   /**
-   * Acquire a subscription to the domain-event channel synchronously in
-   * the caller's fiber. Returns a `PubSub.Subscription` whose lifetime is
-   * scoped to the provided `Scope`. Consumers typically `yield*` this in
-   * the same fiber that forks their consumer loop, then drain with
-   * `Stream.fromSubscription(subscription)`. Because the subscription is
-   * registered with the PubSub before this `yield*` returns, no subsequent
-   * publish can land in a gap.
+   * The latest sequence reflected in the engine's authoritative command read
+   * model (0 if none). Used to gauge how far behind a resuming client is before
+   * choosing between an incremental replay and a fresh projected snapshot.
    */
-  readonly subscribeDomainEvents: Effect.Effect<
-    PubSub.Subscription<OrchestrationEvent>,
-    never,
-    Scope.Scope
-  >;
+  readonly latestSequence: Effect.Effect<number, never, never>;
 }
 
 /**

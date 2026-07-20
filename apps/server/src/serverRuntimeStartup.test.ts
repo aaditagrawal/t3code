@@ -1,11 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import {
-  DEFAULT_MODEL,
-  type OrchestrationEvent,
-  ProjectId,
-  ProviderInstanceId,
-  ThreadId,
-} from "@t3tools/contracts";
+import { DEFAULT_MODEL, ProjectId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 import { assert, it } from "@effect/vitest";
 import * as Crypto from "effect/Crypto";
 import * as Deferred from "effect/Deferred";
@@ -13,7 +7,6 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
 import * as PlatformError from "effect/PlatformError";
-import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 
@@ -175,10 +168,7 @@ it.effect("resolveAutoBootstrapWelcomeTargets returns existing project and threa
             Effect.as({ sequence: 1 }),
           ),
         streamDomainEvents: Stream.empty,
-        subscribeDomainEvents: Effect.flatMap(
-          PubSub.unbounded<OrchestrationEvent>(),
-          PubSub.subscribe,
-        ),
+        latestSequence: Effect.succeed(0),
       } satisfies OrchestrationEngine.OrchestrationEngineService["Service"]),
       Effect.provide(NodeServices.layer),
     );
@@ -222,10 +212,7 @@ it.effect("resolveAutoBootstrapWelcomeTargets creates a project and thread when 
             Effect.as({ sequence: 1 }),
           ),
         streamDomainEvents: Stream.empty,
-        subscribeDomainEvents: Effect.flatMap(
-          PubSub.unbounded<OrchestrationEvent>(),
-          PubSub.subscribe,
-        ),
+        latestSequence: Effect.succeed(0),
       } satisfies OrchestrationEngine.OrchestrationEngineService["Service"]),
       Effect.provide(NodeServices.layer),
     );
@@ -275,10 +262,7 @@ it.effect("resolveAutoBootstrapWelcomeTargets preserves typed UUID generation fa
             Effect.as({ sequence: 1 }),
           ),
         streamDomainEvents: Stream.empty,
-        subscribeDomainEvents: Effect.flatMap(
-          PubSub.unbounded<OrchestrationEvent>(),
-          PubSub.subscribe,
-        ),
+        latestSequence: Effect.succeed(0),
       } satisfies OrchestrationEngine.OrchestrationEngineService["Service"]),
       Effect.provideService(Crypto.Crypto, {
         ...crypto,
