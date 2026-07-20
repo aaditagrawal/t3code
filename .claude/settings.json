@@ -7,8 +7,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cmd=$(jq -r '.tool_input.command'); if echo \"$cmd\" | grep -qE 'git push|gh pr create'; then echo 'Running pre-push checks (bun typecheck && bun run test)...' >&2; cd /Users/mav/Documents/Projects/Experiments/vibes/t3code && bun typecheck && bun run test || { echo 'Pre-push checks failed. Fix errors before pushing.' >&2; exit 2; }; fi",
-            "timeout": 300,
+            "command": "cmd=$(jq -r '.tool_input.command'); if echo \"$cmd\" | grep -qE 'git push|gh pr create'; then echo 'Running pre-push checks (vp run typecheck)...' >&2; root=$(git rev-parse --show-toplevel 2>/dev/null || pwd); cd \"$root\" && export PATH=\"$HOME/.local/bin:$HOME/.nvm/versions/node/v24.13.1/bin:$PATH\" && (command -v vp >/dev/null || npm install -g vite-plus --prefix \"$HOME/.local\") && vp run typecheck || { echo 'Pre-push checks failed. Fix errors before pushing.' >&2; exit 2; }; fi",
+            "timeout": 600,
             "statusMessage": "Running pre-push CI checks"
           }
         ]
