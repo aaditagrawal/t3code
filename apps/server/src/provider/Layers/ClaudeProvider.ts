@@ -2,7 +2,6 @@ import {
   type ClaudeSettings,
   type ModelCapabilities,
   type ModelSelection,
-  ProviderDriverKind,
   type ServerProviderModel,
   type ServerProviderSlashCommand,
 } from "@t3tools/contracts";
@@ -44,86 +43,13 @@ const DEFAULT_CLAUDE_MODEL_CAPABILITIES: ModelCapabilities = createModelCapabili
   optionDescriptors: [],
 });
 
-const PROVIDER = ProviderDriverKind.make("claudeAgent");
 const CLAUDE_PRESENTATION = {
   displayName: "Claude",
   showInteractionModeToggle: true,
 } as const;
 const MINIMUM_CLAUDE_FABLE_5_VERSION = "2.1.169";
-const MINIMUM_CLAUDE_SONNET_5_VERSION = "2.1.197";
 const MINIMUM_CLAUDE_OPUS_4_8_VERSION = "2.1.154";
 const MINIMUM_CLAUDE_OPUS_4_7_VERSION = "2.1.111";
-
-const CLAUDE_EFFORT_OPTIONS = {
-  fable5: [
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High", isDefault: true },
-    { value: "xhigh", label: "Extra High" },
-    { value: "max", label: "Max" },
-    { value: "ultracode", label: "Ultracode" },
-    { value: "ultrathink", label: "Ultrathink" },
-  ],
-  opus48: [
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High", isDefault: true },
-    { value: "xhigh", label: "Extra High" },
-    { value: "max", label: "Max" },
-    { value: "ultracode", label: "Ultracode" },
-    { value: "ultrathink", label: "Ultrathink" },
-  ],
-  opus47: [
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High" },
-    { value: "xhigh", label: "Extra High", isDefault: true },
-    { value: "max", label: "Max" },
-    { value: "ultrathink", label: "Ultrathink" },
-  ],
-  opus46: [
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High", isDefault: true },
-    { value: "max", label: "Max" },
-    { value: "ultrathink", label: "Ultrathink" },
-  ],
-  sonnet5: [
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High", isDefault: true },
-    { value: "xhigh", label: "Extra High" },
-    { value: "max", label: "Max" },
-    { value: "ultracode", label: "Ultracode" },
-    { value: "ultrathink", label: "Ultrathink" },
-  ],
-  sonnet46: [
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High", isDefault: true },
-    { value: "max", label: "Max" },
-    { value: "ultrathink", label: "Ultrathink" },
-  ],
-  opus45: [
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High", isDefault: true },
-    { value: "max", label: "Max" },
-  ],
-} as const;
-
-const CLAUDE_CONTEXT_WINDOW_OPTIONS = [
-  { value: "200k", label: "200k", isDefault: true },
-  { value: "1m", label: "1M" },
-] as const;
-
-function buildClaudeContextWindowDescriptor() {
-  return buildSelectOptionDescriptor({
-    id: "contextWindow",
-    label: "Context Window",
-    options: CLAUDE_CONTEXT_WINDOW_OPTIONS,
-  });
-}
 
 const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
   {
@@ -135,13 +61,24 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
         buildSelectOptionDescriptor({
           id: "effort",
           label: "Reasoning",
-          options: CLAUDE_EFFORT_OPTIONS.fable5,
+          options: [
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High", isDefault: true },
+            { value: "xhigh", label: "Extra High" },
+            { value: "max", label: "Max" },
+            { value: "ultracode", label: "Ultracode" },
+            { value: "ultrathink", label: "Ultrathink" },
+          ],
           promptInjectedValues: ["ultrathink"],
         }),
         buildSelectOptionDescriptor({
           id: "contextWindow",
           label: "Context Window",
-          options: CLAUDE_CONTEXT_WINDOW_OPTIONS,
+          options: [
+            { value: "200k", label: "200k", isDefault: true },
+            { value: "1m", label: "1M" },
+          ],
         }),
       ],
     }),
@@ -155,7 +92,15 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
         buildSelectOptionDescriptor({
           id: "effort",
           label: "Reasoning",
-          options: CLAUDE_EFFORT_OPTIONS.opus48,
+          options: [
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High", isDefault: true },
+            { value: "xhigh", label: "Extra High" },
+            { value: "max", label: "Max" },
+            { value: "ultracode", label: "Ultracode" },
+            { value: "ultrathink", label: "Ultrathink" },
+          ],
           promptInjectedValues: ["ultrathink"],
         }),
         buildBooleanOptionDescriptor({
@@ -174,7 +119,14 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
         buildSelectOptionDescriptor({
           id: "effort",
           label: "Reasoning",
-          options: CLAUDE_EFFORT_OPTIONS.opus47,
+          options: [
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High" },
+            { value: "xhigh", label: "Extra High", isDefault: true },
+            { value: "max", label: "Max" },
+            { value: "ultrathink", label: "Ultrathink" },
+          ],
           promptInjectedValues: ["ultrathink"],
         }),
         buildBooleanOptionDescriptor({
@@ -193,7 +145,13 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
         buildSelectOptionDescriptor({
           id: "effort",
           label: "Reasoning",
-          options: CLAUDE_EFFORT_OPTIONS.opus46,
+          options: [
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High", isDefault: true },
+            { value: "max", label: "Max" },
+            { value: "ultrathink", label: "Ultrathink" },
+          ],
           promptInjectedValues: ["ultrathink"],
         }),
         buildBooleanOptionDescriptor({
@@ -203,7 +161,10 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
         buildSelectOptionDescriptor({
           id: "contextWindow",
           label: "Context Window",
-          options: CLAUDE_CONTEXT_WINDOW_OPTIONS,
+          options: [
+            { value: "200k", label: "200k", isDefault: true },
+            { value: "1m", label: "1M" },
+          ],
         }),
       ],
     }),
@@ -217,7 +178,12 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
         buildSelectOptionDescriptor({
           id: "effort",
           label: "Reasoning",
-          options: CLAUDE_EFFORT_OPTIONS.opus45,
+          options: [
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High", isDefault: true },
+            { value: "max", label: "Max" },
+          ],
         }),
         buildBooleanOptionDescriptor({
           id: "fastMode",
@@ -235,8 +201,23 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
         buildSelectOptionDescriptor({
           id: "effort",
           label: "Reasoning",
-          options: CLAUDE_EFFORT_OPTIONS.sonnet5,
+          options: [
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High", isDefault: true },
+            { value: "xhigh", label: "Extra High" },
+            { value: "max", label: "Max" },
+            { value: "ultrathink", label: "Ultrathink" },
+          ],
           promptInjectedValues: ["ultrathink"],
+        }),
+        buildSelectOptionDescriptor({
+          id: "contextWindow",
+          label: "Context Window",
+          options: [
+            { value: "200k", label: "200k", isDefault: true },
+            { value: "1m", label: "1M" },
+          ],
         }),
       ],
     }),
@@ -250,13 +231,22 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
         buildSelectOptionDescriptor({
           id: "effort",
           label: "Reasoning",
-          options: CLAUDE_EFFORT_OPTIONS.sonnet46,
+          options: [
+            { value: "low", label: "Low" },
+            { value: "medium", label: "Medium" },
+            { value: "high", label: "High", isDefault: true },
+            { value: "max", label: "Max" },
+            { value: "ultrathink", label: "Ultrathink" },
+          ],
           promptInjectedValues: ["ultrathink"],
         }),
         buildSelectOptionDescriptor({
           id: "contextWindow",
           label: "Context Window",
-          options: CLAUDE_CONTEXT_WINDOW_OPTIONS,
+          options: [
+            { value: "200k", label: "200k", isDefault: true },
+            { value: "1m", label: "1M" },
+          ],
         }),
       ],
     }),
@@ -276,48 +266,8 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
   },
 ];
 
-export function isClaudeSonnet5ConstrainedContextEnvironment(
-  environment: NodeJS.ProcessEnv,
-): boolean {
-  return (
-    environment.CLAUDE_CODE_DISABLE_1M_CONTEXT === "1" ||
-    (environment.ANTHROPIC_BASE_URL?.trim().length ?? 0) > 0
-  );
-}
-
-function withClaudeSonnet5ContextWindowSelector(
-  models: ReadonlyArray<ServerProviderModel>,
-  environment: NodeJS.ProcessEnv,
-): ReadonlyArray<ServerProviderModel> {
-  if (!isClaudeSonnet5ConstrainedContextEnvironment(environment)) {
-    return models;
-  }
-
-  return models.map((model) => {
-    if (model.slug !== "claude-sonnet-5") {
-      return model;
-    }
-
-    const optionDescriptors = model.capabilities?.optionDescriptors ?? [];
-    if (optionDescriptors.some((descriptor) => descriptor.id === "contextWindow")) {
-      return model;
-    }
-
-    return {
-      ...model,
-      capabilities: createModelCapabilities({
-        optionDescriptors: [...optionDescriptors, buildClaudeContextWindowDescriptor()],
-      }),
-    };
-  });
-}
-
 function supportsClaudeFable5(version: string | null | undefined): boolean {
   return version ? compareSemverVersions(version, MINIMUM_CLAUDE_FABLE_5_VERSION) >= 0 : false;
-}
-
-function supportsClaudeSonnet5(version: string | null | undefined): boolean {
-  return version ? compareSemverVersions(version, MINIMUM_CLAUDE_SONNET_5_VERSION) >= 0 : false;
 }
 
 function supportsClaudeOpus48(version: string | null | undefined): boolean {
@@ -328,7 +278,7 @@ function supportsClaudeOpus47(version: string | null | undefined): boolean {
   return version ? compareSemverVersions(version, MINIMUM_CLAUDE_OPUS_4_7_VERSION) >= 0 : false;
 }
 
-export function getBuiltInClaudeModelsForVersion(
+function getBuiltInClaudeModelsForVersion(
   version: string | null | undefined,
 ): ReadonlyArray<ServerProviderModel> {
   return BUILT_IN_MODELS.filter((model) => {
@@ -341,9 +291,6 @@ export function getBuiltInClaudeModelsForVersion(
     if (model.slug === "claude-opus-4-7") {
       return supportsClaudeOpus47(version);
     }
-    if (model.slug === "claude-sonnet-5") {
-      return supportsClaudeSonnet5(version);
-    }
     return true;
   });
 }
@@ -351,11 +298,6 @@ export function getBuiltInClaudeModelsForVersion(
 function formatClaudeFable5UpgradeMessage(version: string | null): string {
   const versionLabel = version ? `v${version}` : "the installed version";
   return `Claude Code ${versionLabel} is too old for Claude Fable 5. Upgrade to v${MINIMUM_CLAUDE_FABLE_5_VERSION} or newer to access it.`;
-}
-
-function formatClaudeSonnet5UpgradeMessage(version: string | null): string {
-  const versionLabel = version ? `v${version}` : "the installed version";
-  return `Claude Code ${versionLabel} is too old for Claude Sonnet 5. Upgrade to v${MINIMUM_CLAUDE_SONNET_5_VERSION} or newer to access it.`;
 }
 
 function formatClaudeOpus48UpgradeMessage(version: string | null): string {
@@ -428,12 +370,7 @@ export function isClaudeUltracodeEffort(effort: string | null | undefined): bool
 }
 
 export function resolveClaudeApiModelId(modelSelection: ModelSelection): string {
-  const contextWindow = getModelSelectionStringOptionValue(modelSelection, "contextWindow");
-  if (modelSelection.model === "claude-sonnet-5") {
-    return contextWindow === "1m" ? "sonnet[1m]" : modelSelection.model;
-  }
-
-  switch (contextWindow) {
+  switch (getModelSelectionStringOptionValue(modelSelection, "contextWindow")) {
     case "1m":
       return `${modelSelection.model}[1m]`;
     default:
@@ -751,8 +688,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   const resolvedEnvironment = environment ?? process.env;
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   const allModels = providerModelsFromSettings(
-    withClaudeSonnet5ContextWindowSelector(BUILT_IN_MODELS, resolvedEnvironment),
-    PROVIDER,
+    BUILT_IN_MODELS,
     claudeSettings.customModels,
     DEFAULT_CLAUDE_MODEL_CAPABILITIES,
   );
@@ -842,23 +778,17 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   }
 
   const models = providerModelsFromSettings(
-    withClaudeSonnet5ContextWindowSelector(
-      getBuiltInClaudeModelsForVersion(parsedVersion),
-      resolvedEnvironment,
-    ),
-    PROVIDER,
+    getBuiltInClaudeModelsForVersion(parsedVersion),
     claudeSettings.customModels,
     DEFAULT_CLAUDE_MODEL_CAPABILITIES,
   );
-  const versionUpgradeMessage = supportsClaudeSonnet5(parsedVersion)
+  const versionUpgradeMessage = supportsClaudeFable5(parsedVersion)
     ? undefined
-    : supportsClaudeFable5(parsedVersion)
-      ? formatClaudeSonnet5UpgradeMessage(parsedVersion)
-      : supportsClaudeOpus48(parsedVersion)
-        ? formatClaudeFable5UpgradeMessage(parsedVersion)
-        : supportsClaudeOpus47(parsedVersion)
-          ? formatClaudeOpus48UpgradeMessage(parsedVersion)
-          : formatClaudeOpus47UpgradeMessage(parsedVersion);
+    : supportsClaudeOpus48(parsedVersion)
+      ? formatClaudeFable5UpgradeMessage(parsedVersion)
+      : supportsClaudeOpus47(parsedVersion)
+        ? formatClaudeOpus48UpgradeMessage(parsedVersion)
+        : formatClaudeOpus47UpgradeMessage(parsedVersion);
 
   const capabilities = resolveCapabilities
     ? yield* resolveCapabilities(claudeSettings).pipe(Effect.orElseSucceed(() => undefined))
@@ -912,13 +842,11 @@ const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 
 export const makePendingClaudeProvider = (
   claudeSettings: ClaudeSettings,
-  environment: NodeJS.ProcessEnv = process.env,
 ): Effect.Effect<ServerProviderDraft> =>
   Effect.gen(function* () {
     const checkedAt = yield* nowIso;
     const models = providerModelsFromSettings(
-      withClaudeSonnet5ContextWindowSelector(BUILT_IN_MODELS, environment),
-      PROVIDER,
+      BUILT_IN_MODELS,
       claudeSettings.customModels,
       DEFAULT_CLAUDE_MODEL_CAPABILITIES,
     );
