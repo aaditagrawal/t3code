@@ -241,7 +241,10 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
           status: "synchronizing",
           error: Option.none(),
         });
-        yield* Queue.offer(persistence, base.value);
+        // Match setThread/finalizer: skip cache rewrites while a turn is active.
+        if (shouldPersistThread(base.value.thread)) {
+          yield* Queue.offer(persistence, base.value);
+        }
       }
 
       const subscribeInput = Option.match(base, {

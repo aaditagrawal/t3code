@@ -334,6 +334,9 @@ describe("EnvironmentThreads", () => {
       const savedThreads = yield* Effect.scoped(
         Effect.gen(function* () {
           const harness = yield* makeHarness({ cached: ACTIVE_THREAD });
+          // Fork warm-cache seeding stays on "synchronizing" until a live stream
+          // item promotes via setThread; push the active snapshot over the socket.
+          yield* Queue.offer(harness.inputs, snapshot(ACTIVE_THREAD));
           yield* awaitThreadState(
             harness.observed,
             (value) =>
