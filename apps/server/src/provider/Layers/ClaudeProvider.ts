@@ -139,7 +139,10 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
         buildSelectOptionDescriptor({
           id: "contextWindow",
           label: "Context Window",
-          options: CLAUDE_CONTEXT_WINDOW_OPTIONS,
+          options: [
+            { value: "200k", label: "200k" },
+            { value: "1m", label: "1M", isDefault: true },
+          ],
         }),
       ],
     }),
@@ -201,7 +204,10 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
         buildSelectOptionDescriptor({
           id: "contextWindow",
           label: "Context Window",
-          options: CLAUDE_CONTEXT_WINDOW_OPTIONS,
+          options: [
+            { value: "200k", label: "200k" },
+            { value: "1m", label: "1M", isDefault: true },
+          ],
         }),
       ],
     }),
@@ -236,6 +242,15 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
           options: CLAUDE_EFFORT_OPTIONS.sonnet5,
           promptInjectedValues: ["ultrathink"],
         }),
+        buildSelectOptionDescriptor({
+          id: "contextWindow",
+          label: "Context Window",
+          // Sonnet is 200k-default in Claude Code (1M is opt-in there too).
+          options: [
+            { value: "200k", label: "200k", isDefault: true },
+            { value: "1m", label: "1M" },
+          ],
+        }),
       ],
     }),
   },
@@ -254,7 +269,11 @@ const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
         buildSelectOptionDescriptor({
           id: "contextWindow",
           label: "Context Window",
-          options: CLAUDE_CONTEXT_WINDOW_OPTIONS,
+          // Sonnet is 200k-default in Claude Code (1M is opt-in there too).
+          options: [
+            { value: "200k", label: "200k", isDefault: true },
+            { value: "1m", label: "1M" },
+          ],
         }),
       ],
     }),
@@ -425,8 +444,23 @@ export function isClaudeUltracodeEffort(effort: string | null | undefined): bool
   return effort === "ultracode";
 }
 
+export function resolveClaudeContextWindow(
+  modelSelection: ModelSelection | undefined,
+): string | undefined {
+  const caps = getClaudeModelCapabilities(modelSelection?.model);
+  const raw = getModelSelectionStringOptionValue(modelSelection, "contextWindow");
+  const descriptors = getProviderOptionDescriptors({
+    caps,
+    ...(raw ? { selections: [{ id: "contextWindow", value: raw }] } : {}),
+  });
+  const descriptor = descriptors.find((candidate) => candidate.id === "contextWindow");
+  const value = getProviderOptionCurrentValue(descriptor);
+  return typeof value === "string" ? value : undefined;
+}
+
 export function resolveClaudeApiModelId(modelSelection: ModelSelection): string {
-  const contextWindow = getModelSelectionStringOptionValue(modelSelection, "contextWindow");
+  const contextWindow = resolveClaudeContextWindow(modelSelection);
+  // Claude Code gateway expects the short Sonnet alias for 1M context.
   if (modelSelection.model === "claude-sonnet-5") {
     return contextWindow === "1m" ? "sonnet[1m]" : modelSelection.model;
   }

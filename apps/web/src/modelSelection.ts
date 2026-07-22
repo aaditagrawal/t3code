@@ -1,7 +1,6 @@
 import {
   DEFAULT_GIT_TEXT_GENERATION_MODEL,
   DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER,
-  DEFAULT_MODEL_BY_PROVIDER,
   defaultInstanceIdForDriver,
   type ModelSelection,
   ProviderDriverKind,
@@ -76,6 +75,7 @@ export interface AppModelOption {
   shortName?: string;
   subProvider?: string;
   isCustom: boolean;
+  isDefault?: boolean;
 }
 
 function toAppModelOption(model: ServerProvider["models"][number]): AppModelOption {
@@ -86,6 +86,7 @@ function toAppModelOption(model: ServerProvider["models"][number]): AppModelOpti
   };
   if (model.shortName) option.shortName = model.shortName;
   if (model.subProvider) option.subProvider = model.subProvider;
+  if (model.isDefault) option.isDefault = true;
   return option;
 }
 
@@ -241,32 +242,16 @@ export function resolveAppModelSelectionForInstance(
   providers: ReadonlyArray<ServerProvider>,
   selectedModel: string | null | undefined,
 ): string | null {
-  return resolveAppModelSelectionForInstanceWithDefault(
-    instanceId,
-    settings,
-    providers,
-    selectedModel,
-    undefined,
-  );
-}
-
-function resolveAppModelSelectionForInstanceWithDefault(
-  instanceId: ProviderInstanceId,
-  settings: UnifiedSettings,
-  providers: ReadonlyArray<ServerProvider>,
-  selectedModel: string | null | undefined,
-  preferredDefaultModel: string | null | undefined,
-): string | null {
   const entry = deriveProviderInstanceEntries(providers).find(
     (candidate) => candidate.instanceId === instanceId,
   );
   if (!entry) return null;
   const options = getAppModelOptionsForInstance(settings, entry);
-  const defaultModel = preferredDefaultModel ?? DEFAULT_MODEL_BY_PROVIDER[entry.driverKind];
   return (
     resolveSelectableModel(entry.driverKind, selectedModel, options) ??
-    resolveSelectableModel(entry.driverKind, defaultModel, options) ??
+    options.find((option) => option.isDefault)?.slug ??
     options[0]?.slug ??
+    entry.models.find((model) => model.isDefault)?.slug ??
     entry.models[0]?.slug ??
     null
   );
@@ -309,13 +294,7 @@ export function resolveAppModelSelectionState(
     // don't carry over the old instance's model — use the fallback instance's default.
     const selectedModel = selectedEntry ? selection.model : null;
     const model =
-      resolveAppModelSelectionForInstanceWithDefault(
-        entry.instanceId,
-        settings,
-        providers,
-        selectedModel,
-        DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER[entry.driverKind],
-      ) ??
+      resolveAppModelSelectionForInstance(entry.instanceId, settings, providers, selectedModel) ??
       entry.models[0]?.slug ??
       DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER[entry.driverKind];
     if (!model) {
