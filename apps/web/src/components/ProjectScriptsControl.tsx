@@ -280,7 +280,7 @@ export default function ProjectScriptsControl({
             >
               <ChevronDownIcon className="size-4" />
             </MenuTrigger>
-            <MenuPopup align="end" className="command-menu-surface">
+            <MenuPopup align="end">
               {scripts.map((script) => {
                 const shortcutLabel = shortcutLabelForCommand(
                   keybindings,
@@ -368,10 +368,7 @@ export default function ProjectScriptsControl({
         }}
         open={dialogOpen}
       >
-        <DialogPopup
-          backdropClassName="bg-black/40 backdrop-blur-none"
-          className="command-palette-dialog-surface workflow-dialog-surface before:hidden"
-        >
+        <DialogPopup className="before:hidden">
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit Action" : "Add Action"}</DialogTitle>
             <DialogDescription>
@@ -396,7 +393,7 @@ export default function ProjectScriptsControl({
                     >
                       <ScriptIcon icon={icon} className="size-4.5" />
                     </PopoverTrigger>
-                    <PopoverPopup align="start" className="command-menu-surface">
+                    <PopoverPopup align="start">
                       <div className="grid grid-cols-3 gap-2">
                         {SCRIPT_ICONS.map((entry) => {
                           const isSelected = entry.id === icon;
