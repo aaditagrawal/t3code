@@ -1894,7 +1894,7 @@ describe("ClaudeAdapterLive", () => {
     );
   });
 
-  it.effect("seeds Claude Sonnet 5 sessions with the native 1M context window", () => {
+  it.effect("seeds Claude Sonnet 5 sessions with the default 200K context window", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
       const adapter = yield* ClaudeAdapter;
@@ -1925,6 +1925,62 @@ describe("ClaudeAdapterLive", () => {
         event: {
           type: "message_delta",
           delta: {},
+          usage: { total_tokens: 250_000 },
+        },
+      } as unknown as SDKMessage);
+
+      const usageEvent = yield* Stream.filter(
+        adapter.streamEvents,
+        (event) => event.type === "thread.token-usage.updated",
+      ).pipe(Stream.runHead);
+      assert.equal(usageEvent._tag, "Some");
+      if (usageEvent._tag === "Some") {
+        assert.deepEqual(usageEvent.value.payload, {
+          usage: {
+            usedTokens: 200_000,
+            lastUsedTokens: 200_000,
+            maxTokens: 200_000,
+          },
+        });
+      }
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
+  it.effect("seeds Claude Sonnet 5 sessions with 1M when that context window is selected", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+
+      const session = yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: ProviderDriverKind.make("claudeAgent"),
+        modelSelection: createModelSelection(
+          ProviderInstanceId.make("claudeAgent"),
+          "claude-sonnet-5",
+          [{ id: "contextWindow", value: "1m" }],
+        ),
+        runtimeMode: "full-access",
+      });
+      yield* Stream.take(adapter.streamEvents, 3).pipe(Stream.runDrain);
+
+      yield* adapter.sendTurn({
+        threadId: session.threadId,
+        input: "hello",
+        attachments: [],
+      });
+      yield* Stream.take(adapter.streamEvents, 1).pipe(Stream.runDrain);
+
+      harness.query.emit({
+        type: "stream_event",
+        session_id: "sdk-session-sonnet-5-1m-usage",
+        uuid: "stream-sonnet-5-1m-usage",
+        parent_tool_use_id: null,
+        event: {
+          type: "message_delta",
+          delta: {},
           usage: { total_tokens: 1_250_000 },
         },
       } as unknown as SDKMessage);
@@ -1949,7 +2005,7 @@ describe("ClaudeAdapterLive", () => {
     );
   });
 
-  it.effect("treats stale direct Claude Sonnet 5 200K selections as native 1M", () => {
+  it.effect("honors an explicit Claude Sonnet 5 200K context window selection", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
       const adapter = yield* ClaudeAdapter;
@@ -1981,7 +2037,7 @@ describe("ClaudeAdapterLive", () => {
         event: {
           type: "message_delta",
           delta: {},
-          usage: { total_tokens: 1_250_000 },
+          usage: { total_tokens: 250_000 },
         },
       } as unknown as SDKMessage);
 
@@ -1993,9 +2049,9 @@ describe("ClaudeAdapterLive", () => {
       if (usageEvent._tag === "Some") {
         assert.deepEqual(usageEvent.value.payload, {
           usage: {
-            usedTokens: 1_000_000,
-            lastUsedTokens: 1_000_000,
-            maxTokens: 1_000_000,
+            usedTokens: 200_000,
+            lastUsedTokens: 200_000,
+            maxTokens: 200_000,
           },
         });
       }

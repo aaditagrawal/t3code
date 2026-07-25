@@ -18,12 +18,12 @@ describe("ClaudeProvider", () => {
     ).toContain("claude-sonnet-5");
   });
 
-  it("exposes reasoning without a direct Anthropic context selector for Claude Sonnet 5", () => {
+  it("exposes reasoning and a context window selector for Claude Sonnet 5", () => {
     const descriptors = getProviderOptionDescriptors({
       caps: getClaudeModelCapabilities("claude-sonnet-5"),
     });
 
-    expect(descriptors.map((descriptor) => descriptor.id)).toEqual(["effort"]);
+    expect(descriptors.map((descriptor) => descriptor.id)).toEqual(["effort", "contextWindow"]);
     expect(
       descriptors.some(
         (descriptor) =>
@@ -31,5 +31,14 @@ describe("ClaudeProvider", () => {
           descriptor.options.some((option) => option.id === "ultracode"),
       ),
     ).toBe(true);
+    expect(
+      descriptors.find(
+        (descriptor) => descriptor.type === "select" && descriptor.id === "contextWindow",
+      ),
+    ).toMatchObject({
+      type: "select",
+      id: "contextWindow",
+      currentValue: "200k",
+    });
   });
 });
