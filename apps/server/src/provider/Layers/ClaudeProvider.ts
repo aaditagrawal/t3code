@@ -2,7 +2,6 @@ import {
   type ClaudeSettings,
   type ModelCapabilities,
   type ModelSelection,
-  ProviderDriverKind,
   type ServerProviderModel,
   type ServerProviderSlashCommand,
 } from "@t3tools/contracts";
@@ -44,7 +43,6 @@ const DEFAULT_CLAUDE_MODEL_CAPABILITIES: ModelCapabilities = createModelCapabili
   optionDescriptors: [],
 });
 
-const PROVIDER = ProviderDriverKind.make("claudeAgent");
 const CLAUDE_PRESENTATION = {
   displayName: "Claude",
   showInteractionModeToggle: true,
@@ -845,7 +843,6 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
       getBuiltInClaudeModelsForVersion(parsedVersion),
       resolvedEnvironment,
     ),
-    PROVIDER,
     claudeSettings.customModels,
     DEFAULT_CLAUDE_MODEL_CAPABILITIES,
   );
