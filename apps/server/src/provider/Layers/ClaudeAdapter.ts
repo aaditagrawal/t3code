@@ -70,6 +70,7 @@ import * as Stream from "effect/Stream";
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
+import { resolveClaudeSdkExecutablePath } from "../Drivers/ClaudeExecutable.ts";
 import { makeClaudeEnvironment } from "../Drivers/ClaudeHome.ts";
 import {
   getClaudeModelCapabilities,
@@ -1356,6 +1357,10 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
   const crypto = yield* Crypto.Crypto;
   const claudeEnvironment = yield* makeClaudeEnvironment(claudeSettings, options?.environment).pipe(
     Effect.provideService(Path.Path, path),
+  );
+  const claudeSdkExecutablePath = yield* resolveClaudeSdkExecutablePath(
+    claudeSettings.binaryPath,
+    claudeEnvironment,
   );
   const nativeEventLogger =
     options?.nativeEventLogger ??
@@ -3415,7 +3420,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
       const canUseTool: CanUseTool = (toolName, toolInput, callbackOptions) =>
         runPromise(canUseToolEffect(toolName, toolInput, callbackOptions));
 
-      const claudeBinaryPath = claudeSettings.binaryPath;
+      const claudeBinaryPath = claudeSdkExecutablePath;
       const extraArgs = parseCliArgs(claudeSettings.launchArgs).flags;
       const modelSelection =
         input.modelSelection?.instanceId === boundInstanceId ? input.modelSelection : undefined;

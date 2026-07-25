@@ -936,6 +936,8 @@ const makeWsRpcLayer = (
             otlpMetricsEnabled: config.otlpMetricsUrl !== undefined,
           },
           settings,
+          shellResumeCompletionMarker: true,
+          threadResumeCompletionMarker: true,
         };
       });
 
@@ -1066,6 +1068,23 @@ const makeWsRpcLayer = (
           observeRpcStreamEffect(
             ORCHESTRATION_WS_METHODS.subscribeShell,
             Effect.gen(function* () {
+              // Acquire the PubSub subscription synchronously before forking.
+              // `Stream.fromPubSub` defers subscribe until stream start, and
+              // `forkScoped` only schedules the fibre — so an event published
+              // between schedule and start would still drop without this.
+              const liveBuffer = yield* Queue.unbounded<OrchestrationShellStreamItem>();
+              const liveSubscription = yield* orchestrationEngine.subscribeDomainEvents;
+              yield* Effect.forkScoped(
+                Stream.fromSubscription(liveSubscription).pipe(
+                  Stream.mapEffect(toShellStreamEvent),
+                  Stream.flatMap((event) =>
+                    Option.isSome(event) ? Stream.succeed(event.value) : Stream.empty,
+                  ),
+                  Stream.runForEach((item) => Queue.offer(liveBuffer, item)),
+                ),
+              );
+              const bufferedLiveStream = Stream.fromQueue(liveBuffer);
+
               // When the client already holds a shell snapshot (cached, or loaded
               // over HTTP) it passes that snapshot's sequence, and we resume by
               // replaying shell events after it instead of re-sending the whole
@@ -1077,50 +1096,32 @@ const makeWsRpcLayer = (
               // page limit) since the shell filter runs after reading.
               if (input.afterSequence !== undefined) {
                 const afterSequence = input.afterSequence;
-                return Stream.unwrap(
-                  Effect.gen(function* () {
-                    const liveBuffer = yield* Queue.unbounded<OrchestrationShellStreamItem>();
-                    // Acquire the PubSub subscription synchronously before
-                    // forking. `Stream.fromPubSub` defers subscribe until
-                    // stream start, and `forkScoped` only schedules the fibre —
-                    // so an event published between schedule and start would
-                    // still drop without this.
-                    const liveSubscription = yield* orchestrationEngine.subscribeDomainEvents;
-                    yield* Effect.forkScoped(
-                      Stream.fromSubscription(liveSubscription).pipe(
-                        Stream.mapEffect(toShellStreamEvent),
-                        Stream.flatMap((event) =>
-                          Option.isSome(event) ? Stream.succeed(event.value) : Stream.empty,
-                        ),
-                        Stream.runForEach((item) => Queue.offer(liveBuffer, item)),
-                      ),
-                    );
-                    const catchUpStream = orchestrationEngine
-                      .readEvents(afterSequence, Number.MAX_SAFE_INTEGER)
-                      .pipe(
-                        Stream.mapEffect(toShellStreamEvent),
-                        Stream.flatMap((event) =>
-                          Option.isSome(event) ? Stream.succeed(event.value) : Stream.empty,
-                        ),
-                        Stream.mapError(
-                          (cause) =>
-                            new OrchestrationGetSnapshotError({
-                              message: "Failed to replay orchestration shell events",
-                              cause,
-                            }),
-                        ),
-                      );
-                    return Stream.concat(catchUpStream, Stream.fromQueue(liveBuffer));
-                  }),
-                );
+                const catchUpStream = orchestrationEngine
+                  .readEvents(afterSequence, Number.MAX_SAFE_INTEGER)
+                  .pipe(
+                    Stream.mapEffect(toShellStreamEvent),
+                    Stream.flatMap((event) =>
+                      Option.isSome(event) ? Stream.succeed(event.value) : Stream.empty,
+                    ),
+                    Stream.mapError(
+                      (cause) =>
+                        new OrchestrationGetSnapshotError({
+                          message: "Failed to replay orchestration shell events",
+                          cause,
+                        }),
+                    ),
+                  );
+                const afterCatchUp =
+                  input.requestCompletionMarker === true
+                    ? Stream.concat(
+                        Stream.fromEffect(
+                          Queue.offer(liveBuffer, { kind: "synchronized" as const }),
+                        ).pipe(Stream.drain),
+                        bufferedLiveStream,
+                      )
+                    : bufferedLiveStream;
+                return Stream.concat(catchUpStream, afterCatchUp);
               }
-
-              const liveStream = orchestrationEngine.streamDomainEvents.pipe(
-                Stream.mapEffect(toShellStreamEvent),
-                Stream.flatMap((event) =>
-                  Option.isSome(event) ? Stream.succeed(event.value) : Stream.empty,
-                ),
-              );
 
               const snapshot = yield* projectionSnapshotQuery.getShellSnapshot().pipe(
                 Effect.tapError((cause) =>
@@ -1135,12 +1136,21 @@ const makeWsRpcLayer = (
                 ),
               );
 
+              const afterSnapshot =
+                input.requestCompletionMarker === true
+                  ? Stream.concat(
+                      Stream.fromEffect(
+                        Queue.offer(liveBuffer, { kind: "synchronized" as const }),
+                      ).pipe(Stream.drain),
+                      bufferedLiveStream,
+                    )
+                  : bufferedLiveStream;
               return Stream.concat(
                 Stream.make({
                   kind: "snapshot" as const,
                   snapshot,
                 }),
-                liveStream,
+                afterSnapshot,
               );
             }),
             { "rpc.aggregate": "orchestration" },
@@ -1227,7 +1237,16 @@ const makeWsRpcLayer = (
                         }),
                     ),
                   );
-                return Stream.concat(catchUpStream, bufferedLiveStream);
+                const afterCatchUp =
+                  input.requestCompletionMarker === true
+                    ? Stream.concat(
+                        Stream.fromEffect(
+                          Queue.offer(liveBuffer, { kind: "synchronized" as const }),
+                        ).pipe(Stream.drain),
+                        bufferedLiveStream,
+                      )
+                    : bufferedLiveStream;
+                return Stream.concat(catchUpStream, afterCatchUp);
               }
 
               const snapshot = yield* projectionSnapshotQuery
@@ -1249,12 +1268,21 @@ const makeWsRpcLayer = (
                 });
               }
 
+              const afterSnapshot =
+                input.requestCompletionMarker === true
+                  ? Stream.concat(
+                      Stream.fromEffect(
+                        Queue.offer(liveBuffer, { kind: "synchronized" as const }),
+                      ).pipe(Stream.drain),
+                      bufferedLiveStream,
+                    )
+                  : bufferedLiveStream;
               return Stream.concat(
                 Stream.make({
                   kind: "snapshot" as const,
                   snapshot: snapshot.value,
                 }),
-                bufferedLiveStream,
+                afterSnapshot,
               );
             }),
             { "rpc.aggregate": "orchestration" },

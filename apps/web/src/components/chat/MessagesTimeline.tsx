@@ -31,7 +31,6 @@ import {
   workEntryIndicatesToolSuccess,
   workLogEntryIsToolLike,
 } from "../../session-logic";
-import { useAppSettings } from "../../appSettings";
 import { type TurnDiffSummary } from "../../types";
 import { summarizeTurnDiffStats } from "../../lib/turnDiffTree";
 import {
@@ -74,7 +73,9 @@ import {
   resolveTimelineIsAtEnd,
   resolveTimelineMinimapHasPersistentGutter,
   resolveTimelineMinimapHeightStyle,
+  resolveTimelineMinimapHitStripWidth,
   resolveTimelineMinimapIndexFromPointer,
+  resolveTimelineMinimapInteractiveWidth,
   resolveTimelineMinimapTopPercent,
   type StableMessagesTimelineRowsState,
   type MessagesTimelineRow,
@@ -130,7 +131,6 @@ interface TimelineRowSharedState {
   workspaceRoot: string | undefined;
   skills: ReadonlyArray<Pick<ServerProviderSkill, "name" | "displayName">>;
   activeThreadEnvironmentId: EnvironmentId;
-  showCommandOutput: boolean;
   onRevertUserMessage: (messageId: MessageId) => void;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
@@ -149,8 +149,6 @@ const TimelineRowActivityCtx = createContext<TimelineRowActivityState>(null!);
 const TIMELINE_LIST_HEADER = <div className="h-3 sm:h-4" />;
 const TIMELINE_LIST_FOOTER = <div className="h-3 sm:h-4" />;
 const EMPTY_TIMELINE_SKILLS: ReadonlyArray<Pick<ServerProviderSkill, "name" | "displayName">> = [];
-const TIMELINE_DISCLOSURE_SETTLE_MS = 220;
-const TIMELINE_MINIMAP_PREVIEW_MAX_CHARS = 240;
 
 // ---------------------------------------------------------------------------
 // Props (public API)
@@ -219,61 +217,24 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   onManualNavigation,
   hideEmptyPlaceholder = false,
 }: MessagesTimelineProps) {
-  const { settings } = useAppSettings();
-  const showCommandOutput = settings.showCommandOutput;
   const [expandedTurnIds, setExpandedTurnIds] = useState<ReadonlySet<TurnId>>(new Set());
   const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(new Set());
   const [minimapStripMap] = useState(() => new Map<string, HTMLSpanElement>());
-  const [foldToggleSettling, setFoldToggleSettling] = useState(false);
-  const foldToggleSettlingFrameRef = useRef<number | null>(null);
-  const foldToggleSettlingTimeoutRef = useRef<number | null>(null);
 
-  const suspendEndFollowingForDisclosure = useCallback(() => {
-    setFoldToggleSettling(true);
-    if (foldToggleSettlingFrameRef.current !== null) {
-      window.cancelAnimationFrame(foldToggleSettlingFrameRef.current);
-    }
-    if (foldToggleSettlingTimeoutRef.current !== null) {
-      window.clearTimeout(foldToggleSettlingTimeoutRef.current);
-    }
-    foldToggleSettlingFrameRef.current = window.requestAnimationFrame(() => {
-      foldToggleSettlingFrameRef.current = null;
-      foldToggleSettlingTimeoutRef.current = window.setTimeout(() => {
-        foldToggleSettlingTimeoutRef.current = null;
-        setFoldToggleSettling(false);
-      }, TIMELINE_DISCLOSURE_SETTLE_MS);
+  const onToggleTurnFold = useCallback((turnId: TurnId) => {
+    setExpandedTurnIds((existing) => {
+      const next = new Set(existing);
+      if (next.has(turnId)) {
+        next.delete(turnId);
+      } else {
+        next.add(turnId);
+      }
+      return next;
     });
-  }, []);
-
-  const onToggleTurnFold = useCallback(
-    (turnId: TurnId) => {
-      suspendEndFollowingForDisclosure();
-      setExpandedTurnIds((existing) => {
-        const next = new Set(existing);
-        if (next.has(turnId)) {
-          next.delete(turnId);
-        } else {
-          next.add(turnId);
-        }
-        return next;
-      });
-    },
-    [suspendEndFollowingForDisclosure],
-  );
-  useEffect(() => {
-    return () => {
-      if (foldToggleSettlingFrameRef.current !== null) {
-        window.cancelAnimationFrame(foldToggleSettlingFrameRef.current);
-      }
-      if (foldToggleSettlingTimeoutRef.current !== null) {
-        window.clearTimeout(foldToggleSettlingTimeoutRef.current);
-      }
-    };
   }, []);
   const onToggleWorkGroup = useCallback(
     (groupId: string, anchorElement?: HTMLElement) => {
       const anchorBottomBeforeToggle = anchorElement?.getBoundingClientRect().bottom ?? null;
-      suspendEndFollowingForDisclosure();
 
       flushSync(() => {
         setExpandedWorkGroupIds((existing) => {
@@ -302,7 +263,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         list.scrollToOffset({ offset: currentScroll + delta, animated: false });
       }
     },
-    [listRef, suspendEndFollowingForDisclosure],
+    [listRef],
   );
 
   // An in-session interrupt leaves its turn expanded so the user keeps their
@@ -360,29 +321,12 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     ],
   );
   const rows = useStableRows(rawRows);
+  const minimapItems = useMemo(() => deriveTimelineMinimapItems(rows), [rows]);
   const [timelineViewportElement, setTimelineViewportElement] = useState<HTMLDivElement | null>(
     null,
   );
   const [minimapHasPersistentGutter, setMinimapHasPersistentGutter] = useState(false);
-  const minimapEligible = useMemo(() => {
-    if (!minimapHasPersistentGutter) {
-      return false;
-    }
-    let userRows = 0;
-    for (const row of rows) {
-      if (row.kind === "message" && row.message.role === "user") {
-        userRows += 1;
-        if (userRows >= TIMELINE_MINIMAP_MIN_ITEMS) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }, [minimapHasPersistentGutter, rows]);
-  const minimapItems = useMemo(
-    () => (minimapEligible ? deriveTimelineMinimapItems(rows) : []),
-    [minimapEligible, rows],
-  );
+  const [minimapHitStripWidth, setMinimapHitStripWidth] = useState(0);
   const handleAnchorReady = useCallback(
     (info: { anchorIndex: number | undefined }) => {
       if (anchorMessageId !== null && info.anchorIndex !== undefined) {
@@ -454,6 +398,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       setMinimapHasPersistentGutter((current) =>
         current === nextHasPersistentGutter ? current : nextHasPersistentGutter,
       );
+      setMinimapHitStripWidth(resolveTimelineMinimapHitStripWidth(viewportWidth));
     };
 
     const frame = requestAnimationFrame(measure);
@@ -477,7 +422,6 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       workspaceRoot,
       skills,
       activeThreadEnvironmentId,
-      showCommandOutput,
       onRevertUserMessage,
       onImageExpand,
       onOpenTurnDiff,
@@ -492,7 +436,6 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       workspaceRoot,
       skills,
       activeThreadEnvironmentId,
-      showCommandOutput,
       onRevertUserMessage,
       onImageExpand,
       onOpenTurnDiff,
@@ -548,7 +491,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
             {...(anchoredEndSpace ? { anchoredEndSpace } : {})}
             contentInsetEndAdjustment={contentInsetEndAdjustment}
             maintainScrollAtEnd={
-              anchoredEndSpace || foldToggleSettling
+              anchoredEndSpace
                 ? false
                 : {
                     animated: false,
@@ -561,7 +504,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
             }
             maintainVisibleContentPosition={{
               data: true,
-              size: true,
+              size: false,
             }}
             onScroll={handleScroll}
             className="scrollbar-gutter-both h-full min-h-0 overflow-x-hidden overscroll-y-contain px-3 [overflow-anchor:none] sm:px-5"
@@ -572,6 +515,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
             items={minimapItems}
             bottomInset={contentInsetEndAdjustment}
             hasPersistentGutter={minimapHasPersistentGutter}
+            hitStripWidth={minimapHitStripWidth}
             stripMap={minimapStripMap}
             onSelect={(item) => {
               onManualNavigation();
@@ -652,8 +596,7 @@ function resolveFinalAssistantTextForTurn(
 }
 
 function compactMinimapPreview(text: string | null | undefined) {
-  const compact =
-    text?.slice(0, TIMELINE_MINIMAP_PREVIEW_MAX_CHARS).replace(/\s+/g, " ").trim() ?? "";
+  const compact = text?.replace(/\s+/g, " ").trim() ?? "";
   return compact.length > 0 ? compact : null;
 }
 
@@ -667,15 +610,21 @@ function resolveTimelineRowHeight(state: TimelinePositionState, rowIndex: number
   return typeof height === "number" && Number.isFinite(height) ? height : null;
 }
 
+function timelineMinimapEventTargetsPreview(target: EventTarget): boolean {
+  return target instanceof Element && target.closest("[data-minimap-preview]") !== null;
+}
+
 function TimelineMinimap({
   bottomInset,
   hasPersistentGutter,
+  hitStripWidth,
   items,
   stripMap,
   onSelect,
 }: {
   bottomInset: number;
   hasPersistentGutter: boolean;
+  hitStripWidth: number;
   items: ReadonlyArray<TimelineMinimapItem>;
   stripMap: Map<string, HTMLSpanElement>;
   onSelect: (item: TimelineMinimapItem) => void;
@@ -729,7 +678,7 @@ function TimelineMinimap({
     [items.length],
   );
 
-  if (!hasPersistentGutter || items.length < TIMELINE_MINIMAP_MIN_ITEMS) {
+  if (items.length < TIMELINE_MINIMAP_MIN_ITEMS) {
     return null;
   }
 
@@ -738,8 +687,10 @@ function TimelineMinimap({
   return (
     <div
       className={cn(
-        "group/minimap pointer-events-auto absolute top-0 left-0 z-40 hidden w-18 [@media(pointer:fine)]:block",
-        hasPersistentGutter ? "opacity-100" : "pointer-events-none opacity-0",
+        "group/minimap pointer-events-none absolute top-0 left-0 z-40 hidden w-18 [@media(pointer:fine)]:block",
+        hasPersistentGutter
+          ? "opacity-100"
+          : "opacity-0 transition-opacity duration-150 hover:opacity-100 focus-within:opacity-100",
       )}
       data-testid="timeline-minimap"
       data-persistent-gutter={hasPersistentGutter ? "true" : "false"}
@@ -748,9 +699,17 @@ function TimelineMinimap({
       <div className="relative h-full w-full select-none">
         <button
           aria-label={`Jump to message: ${activeItem?.userText ?? "User message"}`}
-          className="pointer-events-auto absolute top-1/2 left-3 w-10 -translate-y-1/2 cursor-pointer bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+          className={cn(
+            "absolute top-1/2 left-3 -translate-y-1/2 cursor-pointer bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+            // The strip is width-capped to the side gutter so it never overlays
+            // the centered content column; with no usable gutter it goes inert.
+            hitStripWidth > 0 ? "pointer-events-auto" : "pointer-events-none",
+          )}
           onBlur={() => setActiveIndex(null)}
           onClick={(event) => {
+            if (timelineMinimapEventTargetsPreview(event.target)) {
+              return;
+            }
             const nextIndex = resolveActiveIndexFromPointer(event);
             const nextItem = nextIndex === null ? null : (items[nextIndex] ?? null);
             if (nextItem) {
@@ -782,9 +741,15 @@ function TimelineMinimap({
           onMouseLeave={() => setActiveIndex(null)}
           onMouseMove={updateActiveIndexFromPointer}
           onMouseDown={(event) => {
+            if (timelineMinimapEventTargetsPreview(event.target)) {
+              return;
+            }
             event.preventDefault();
           }}
-          style={{ height: resolveTimelineMinimapHeightStyle(items.length) }}
+          style={{
+            height: resolveTimelineMinimapHeightStyle(items.length),
+            width: resolveTimelineMinimapInteractiveWidth(hitStripWidth, activeItem !== null),
+          }}
           type="button"
         >
           <div className="absolute top-0 left-3 h-full w-px bg-border/15" />
@@ -821,27 +786,31 @@ function TimelineMinimap({
           })}
           {activeItem ? (
             <span
-              className="pointer-events-none absolute left-8 w-80 rounded-xl border border-border/70 bg-popover/95 p-3 text-left text-popover-foreground shadow-xl shadow-black/25 backdrop-blur"
+              className="pointer-events-auto absolute left-8 w-80 cursor-text select-text"
+              data-minimap-preview
+              onMouseMove={(event) => event.stopPropagation()}
               style={{
                 top: `${activeTopPercent}%`,
                 transform: `translateY(${activeTooltipTranslate})`,
               }}
             >
-              <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium leading-5">
-                {activeItem.userText ?? "User message"}
-              </span>
-              {activeItem.assistantText ? (
-                <span
-                  className="mt-1 max-h-[3.75rem] overflow-hidden text-muted-foreground text-sm leading-5"
-                  style={{
-                    display: "-webkit-box",
-                    WebkitBoxOrient: "vertical",
-                    WebkitLineClamp: 3,
-                  }}
-                >
-                  {activeItem.assistantText}
+              <span className="block rounded-xl border border-border/70 bg-popover/95 p-3 text-left text-popover-foreground shadow-xl shadow-black/25 backdrop-blur">
+                <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium leading-5">
+                  {activeItem.userText ?? "User message"}
                 </span>
-              ) : null}
+                {activeItem.assistantText ? (
+                  <span
+                    className="mt-1 max-h-[3.75rem] overflow-hidden text-muted-foreground text-sm leading-5"
+                    style={{
+                      display: "-webkit-box",
+                      WebkitBoxOrient: "vertical",
+                      WebkitLineClamp: 3,
+                    }}
+                  >
+                    {activeItem.assistantText}
+                  </span>
+                ) : null}
+              </span>
             </span>
           ) : null}
         </button>
@@ -1177,7 +1146,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
 }: {
   groupedEntries: Extract<MessagesTimelineRow, { kind: "work" }>["groupedEntries"];
 }) {
-  const { workspaceRoot, showCommandOutput } = use(TimelineRowCtx);
+  const { workspaceRoot } = use(TimelineRowCtx);
   const nonEmptyEntries = useMemo(
     () => groupedEntries.filter((entry) => !workEntryIndicatesToolNeutralStatus(entry)),
     [groupedEntries],
@@ -1204,7 +1173,6 @@ const WorkGroupSection = memo(function WorkGroupSection({
             key={workEntry.id}
             workEntry={workEntry}
             workspaceRoot={workspaceRoot}
-            showCommandOutput={showCommandOutput}
           />
         ))}
       </div>
@@ -1218,7 +1186,13 @@ function WorkGroupToggleTimelineRow({
   row: Extract<TimelineRow, { kind: "work-toggle" }>;
 }) {
   const ctx = use(TimelineRowCtx);
-  const labelNoun = row.onlyToolEntries ? "tool call" : "log entry";
+  const labelNoun = row.onlyToolEntries
+    ? row.hiddenCount === 1
+      ? "tool call"
+      : "tool calls"
+    : row.hiddenCount === 1
+      ? "log entry"
+      : "log entries";
 
   return (
     <button
@@ -1246,7 +1220,6 @@ function WorkGroupToggleTimelineRow({
       ) : (
         <span className="font-medium text-foreground/82">
           +{row.hiddenCount} previous {labelNoun}
-          {row.hiddenCount === 1 ? "" : "s"}
         </span>
       )}
     </button>
@@ -1966,9 +1939,8 @@ const stopRowToggle = (e: { stopPropagation: () => void }) => e.stopPropagation(
 const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
   workEntry: TimelineWorkEntry;
   workspaceRoot: string | undefined;
-  showCommandOutput: boolean;
 }) {
-  const { workEntry, workspaceRoot, showCommandOutput } = props;
+  const { workEntry, workspaceRoot } = props;
   const activity = use(TimelineRowActivityCtx);
   const [expanded, setExpanded] = useState(false);
   const iconConfig = workToneIcon(workEntry.tone);
@@ -1976,19 +1948,12 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
   const entryIconName = showWarningIndicator ? "x" : workEntryIconName(workEntry);
   const heading = toolWorkEntryHeading(workEntry);
   const rawPreview = workEntryPreview(workEntry, workspaceRoot);
-  // When showCommandOutput is off, suppress command/detail previews but still show changed-file previews.
-  const gatedPreview = showCommandOutput
-    ? rawPreview
-    : !workEntry.command && !workEntry.detail
-      ? rawPreview
-      : null;
-  // Suppress previews that are effectively the same label as the heading.
   const preview =
-    gatedPreview &&
-    normalizeCompactToolLabel(gatedPreview).toLowerCase() ===
+    rawPreview &&
+    normalizeCompactToolLabel(rawPreview).toLowerCase() ===
       normalizeCompactToolLabel(heading).toLowerCase()
       ? null
-      : gatedPreview;
+      : rawPreview;
   const displayText = preview ? `${heading} - ${preview}` : heading;
   const expandedBody = buildToolCallExpandedBody(workEntry, workspaceRoot);
   const canExpand = expandedBody !== null;

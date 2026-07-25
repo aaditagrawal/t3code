@@ -80,7 +80,6 @@ export function getCursorFallbackModels(
 ): ReadonlyArray<ServerProviderModel> {
   return providerModelsFromSettings(
     CURSOR_FALLBACK_MODELS,
-    PROVIDER,
     cursorSettings.customModels,
     EMPTY_CURSOR_CAPABILITIES,
   );

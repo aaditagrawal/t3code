@@ -131,7 +131,6 @@ export const checkKiloProviderStatus = Effect.fn("checkKiloProviderStatus")(func
   const checkedAt = new Date().toISOString();
   const allModels = providerModelsFromSettings(
     [],
-    PROVIDER,
     kiloSettings.customModels,
     DEFAULT_KILO_MODEL_CAPABILITIES,
   );
@@ -218,7 +217,6 @@ export const checkKiloProviderStatus = Effect.fn("checkKiloProviderStatus")(func
   const discovered = yield* discoverKiloModels(kiloSettings);
   const readyModels = providerModelsFromSettings(
     kiloDiscoveredToServerModels(discovered),
-    PROVIDER,
     kiloSettings.customModels,
     DEFAULT_KILO_MODEL_CAPABILITIES,
   );
@@ -245,7 +243,6 @@ export const makePendingKiloProvider = (kiloSettings: KiloSettings): ServerProvi
   const checkedAt = new Date().toISOString();
   const models = providerModelsFromSettings(
     [],
-    PROVIDER,
     kiloSettings.customModels,
     DEFAULT_KILO_MODEL_CAPABILITIES,
   );

@@ -161,7 +161,6 @@ export const makePendingCopilotProvider = (settings: CopilotSettings): ServerPro
   const checkedAt = new Date().toISOString();
   const models = providerModelsFromSettings(
     [],
-    PROVIDER,
     settings.customModels,
     DEFAULT_COPILOT_MODEL_CAPABILITIES,
   );
@@ -204,7 +203,6 @@ export const checkCopilotProviderStatus = Effect.fn("checkCopilotProviderStatus"
   const checkedAt = new Date().toISOString();
   const models = providerModelsFromSettings(
     [],
-    PROVIDER,
     settings.customModels,
     DEFAULT_COPILOT_MODEL_CAPABILITIES,
   );

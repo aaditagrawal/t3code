@@ -109,7 +109,6 @@ export const checkGeminiCliStatus = Effect.fn("checkGeminiCliStatus")(function* 
   const checkedAt = new Date().toISOString();
   const allModels = providerModelsFromSettings(
     BUILT_IN_MODELS,
-    PROVIDER,
     config.customModels,
     DEFAULT_GEMINI_MODEL_CAPABILITIES,
   );
@@ -215,7 +214,6 @@ export const makePendingGeminiCliProvider = (
   const checkedAt = new Date().toISOString();
   const models = providerModelsFromSettings(
     BUILT_IN_MODELS,
-    PROVIDER,
     config.customModels,
     DEFAULT_GEMINI_MODEL_CAPABILITIES,
   );
