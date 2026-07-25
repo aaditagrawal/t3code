@@ -3743,6 +3743,10 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         });
         context.currentApiModelId = apiModelId;
       }
+      const selectedContextWindow = selectedClaudeContextWindow(modelSelection);
+      if (selectedContextWindow !== undefined) {
+        context.lastKnownContextWindow = selectedContextWindow;
+      }
       context.session = {
         ...context.session,
         model: modelSelection.model,
