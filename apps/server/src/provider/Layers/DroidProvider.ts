@@ -235,7 +235,6 @@ const modelsWithSettingsFallback = (
 ): ReadonlyArray<ServerProviderModel> =>
   providerModelsFromSettings(
     sdkModels.length > 0 ? sdkModels : FALLBACK_MODELS,
-    PROVIDER,
     settings.customModels,
     DROID_FALLBACK_MODEL_CAPABILITIES,
   );

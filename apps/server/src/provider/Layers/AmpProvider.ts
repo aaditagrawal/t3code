@@ -98,7 +98,6 @@ export const checkAmpStatus = Effect.fn("checkAmpStatus")(function* (
   const checkedAt = new Date().toISOString();
   const allModels = providerModelsFromSettings(
     BUILT_IN_MODELS,
-    PROVIDER,
     ampSettings.customModels,
     DEFAULT_AMP_MODEL_CAPABILITIES,
   );
@@ -200,7 +199,6 @@ export const makePendingAmpProvider = (
   const checkedAt = new Date().toISOString();
   const models = providerModelsFromSettings(
     BUILT_IN_MODELS,
-    PROVIDER,
     ampSettings.customModels,
     DEFAULT_AMP_MODEL_CAPABILITIES,
   );

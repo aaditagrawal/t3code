@@ -265,7 +265,6 @@ export function buildCursorDiscoveredModelsFromSdkModels(
   const builtInModels = discovered.length > 0 ? discovered : CURSOR_FALLBACK_MODELS;
   return providerModelsFromSettings(
     builtInModels,
-    PROVIDER,
     customModels,
     EMPTY_CURSOR_CAPABILITIES,
   );
