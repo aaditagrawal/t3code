@@ -23,8 +23,12 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
   id-token: none
+
+env:
+  T3CODE_RELEASE_REPOSITORY: aaditagrawal/t3code
+  T3CODE_DESKTOP_UPDATE_REPOSITORY: aaditagrawal/t3code
 
 jobs:
   check_changes:
@@ -78,6 +82,7 @@ jobs:
       cli_dist_tag: ${{ steps.release_meta.outputs.cli_dist_tag }}
       is_prerelease: ${{ steps.release_meta.outputs.is_prerelease }}
       make_latest: ${{ steps.release_meta.outputs.make_latest }}
+      release_repository: ${{ steps.release_meta.outputs.release_repository }}
       ref: ${{ github.sha }}
     steps:
       - name: Checkout
@@ -105,6 +110,20 @@ jobs:
           NIGHTLY_SHA: ${{ github.sha }}
           NIGHTLY_RUN_NUMBER: ${{ github.run_number }}
         run: |
+          release_repository="${T3CODE_RELEASE_REPOSITORY:?T3CODE_RELEASE_REPOSITORY is required}"
+          desktop_update_repository="${T3CODE_DESKTOP_UPDATE_REPOSITORY:?T3CODE_DESKTOP_UPDATE_REPOSITORY is required}"
+          for repository in "$release_repository" "$desktop_update_repository"; do
+            if [[ ! "$repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+              echo "Invalid release repository: $repository" >&2
+              exit 1
+            fi
+          done
+          if [[ "$GITHUB_REPOSITORY" != "$release_repository" || "$GITHUB_REPOSITORY" != "$desktop_update_repository" ]]; then
+            echo "This fork release workflow is configured for release repository $release_repository and desktop updater repository $desktop_update_repository, but it is running in $GITHUB_REPOSITORY." >&2
+            exit 1
+          fi
+          echo "release_repository=$release_repository" >> "$GITHUB_OUTPUT"
+
           if [[ "${GITHUB_EVENT_NAME}" == "schedule" || ( "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${DISPATCH_CHANNEL:-stable}" == "nightly" ) ]]; then
             nightly_date="$(date -u -d "$NIGHTLY_DATE" +%Y%m%d)"
 
@@ -204,6 +223,7 @@ jobs:
 
       - id: relay_state
         name: Read production relay tracing config
+        continue-on-error: true
         shell: bash
         run: |
           vp run --filter t3code-relay deploy \
@@ -213,15 +233,17 @@ jobs:
             --github-env-file "$RUNNER_TEMP/relay-client-tracing.env"
 
       - name: Upload relay client tracing config
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: relay-client-tracing-config
           path: ${{ runner.temp }}/relay-client-tracing.env
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 1
 
       - id: public_config
         name: Resolve production relay public config
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -243,8 +265,13 @@ jobs:
             fi
           done
           if (( ${#missing[@]} > 0 )); then
-            printf 'Missing required relay deployment configuration: %s\n' "${missing[*]}" >&2
-            exit 1
+            # Fork: relay/Clerk production config is optional for desktop releases.
+            printf 'Relay public config unavailable (%s); continuing without hosted relay wiring.\n' "${missing[*]}" >&2
+            echo "clerk_publishable_key=" >> "$GITHUB_OUTPUT"
+            echo "clerk_jwt_template=" >> "$GITHUB_OUTPUT"
+            echo "clerk_cli_oauth_client_id=" >> "$GITHUB_OUTPUT"
+            echo "relay_url=" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
           echo "clerk_publishable_key=$CLERK_PUBLISHABLE_KEY" >> "$GITHUB_OUTPUT"
@@ -262,7 +289,11 @@ jobs:
     name: Build WSL node-pty (linux-x64)
     needs: [preflight]
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Build against Debian bullseye glibc (≈ Ubuntu 20.04) so the bundled WSL
+    # native addon loads on common Ubuntu 20.04/22.04 WSL distros. N-API covers
+    # Node ABI, not libc ABI. Use a standard GitHub-hosted runner + Node bullseye
+    # container instead of Blacksmith Ubuntu 2004 labels, which can queue forever.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -283,11 +314,16 @@ jobs:
         run: |
           set -euo pipefail
           # Resolve node-pty from apps/server (where it's a dependency) and build
-          # its native binary from source for Linux. node-addon-api resolves from
-          # node-pty's own dependency tree, so node-gyp has everything it needs.
+          # its native binary from source for Linux against an older glibc. node-
+          # addon-api resolves from node-pty's own dependency tree inside the
+          # mounted workspace, so node-gyp has everything it needs.
           pty_pkg="$(node -e "console.log(require.resolve('node-pty/package.json', { paths: ['$GITHUB_WORKSPACE/apps/server'] }))")"
           pty_dir="$(dirname "$pty_pkg")"
-          ( cd "$pty_dir" && npx --yes node-gyp rebuild )
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" \
+            -w "$pty_dir" \
+            node:24.13.1-bullseye \
+            bash -lc 'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential python3 >/dev/null && npx --yes node-gyp rebuild'
           mkdir -p wsl-prebuild
           cp "$pty_dir/build/Release/pty.node" wsl-prebuild/pty.node
           file wsl-prebuild/pty.node
@@ -303,20 +339,15 @@ jobs:
     name: Build ${{ matrix.label }}
     # build_wsl_node_pty stays in `needs` so it runs first and its artifact is
     # available to download, but only the Windows matrix entry consumes it. We
-    # therefore gate the job on preflight + relay (must succeed) WITHOUT requiring
-    # build_wsl_node_pty, so a failed Linux prebuild doesn't skip the macOS/Linux
-    # builds. `!cancelled()` (not `!failure()`) lets the job run even when
-    # build_wsl_node_pty failed; the Windows-only download step below then fails
-    # that single platform if the prebuild is missing.
-    needs: [preflight, relay_public_config, build_wsl_node_pty]
-    if: ${{ !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' }}
+    # Gate the job on preflight only (fork: no relay requirement). `!cancelled()`
+    # (not `!failure()`) lets macOS/Linux builds run even when build_wsl_node_pty
+    # failed; the Windows-only download step below then fails that single
+    # platform if the prebuild is missing.
+    needs: [preflight, build_wsl_node_pty]
+    # Fork: desktop builds must not depend on upstream relay/Clerk production config.
+    if: ${{ !cancelled() && needs.preflight.result == 'success' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
-    env:
-      T3CODE_CLERK_PUBLISHABLE_KEY: ${{ needs.relay_public_config.outputs.clerk_publishable_key }}
-      T3CODE_CLERK_JWT_TEMPLATE: ${{ needs.relay_public_config.outputs.clerk_jwt_template }}
-      T3CODE_CLERK_CLI_OAUTH_CLIENT_ID: ${{ needs.relay_public_config.outputs.clerk_cli_oauth_client_id }}
-      T3CODE_RELAY_URL: ${{ needs.relay_public_config.outputs.relay_url }}
     strategy:
       fail-fast: false
       matrix:
@@ -361,6 +392,7 @@ jobs:
           run-install: true
 
       - name: Download relay client tracing config
+        continue-on-error: true
         uses: actions/download-artifact@v8
         with:
           name: relay-client-tracing-config
@@ -370,6 +402,10 @@ jobs:
         shell: bash
         run: |
           config_path="$RUNNER_TEMP/relay-client-tracing/relay-client-tracing.env"
+          if [[ ! -f "$config_path" ]]; then
+            echo "No relay client tracing config artifact; continuing without it."
+            exit 0
+          fi
           tracing_token="$(sed -n 's/^T3CODE_RELAY_CLIENT_OTLP_TRACES_TOKEN=//p' "$config_path")"
           echo "::add-mask::$tracing_token"
           cat "$config_path" >> "$GITHUB_ENV"
@@ -608,7 +644,8 @@ jobs:
   publish_cli:
     name: Publish CLI to npm
     needs: [preflight, relay_public_config, build]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.build.result == 'success' }}
+    # Fork: do not publish the globally named upstream npm package from this repo.
+    if: false
     runs-on: ubuntu-24.04 # blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     permissions:
@@ -637,6 +674,7 @@ jobs:
               - --filter=@t3tools/scripts...
 
       - name: Download relay client tracing config
+        continue-on-error: true
         uses: actions/download-artifact@v8
         with:
           name: relay-client-tracing-config
@@ -646,6 +684,10 @@ jobs:
         shell: bash
         run: |
           config_path="$RUNNER_TEMP/relay-client-tracing/relay-client-tracing.env"
+          if [[ ! -f "$config_path" ]]; then
+            echo "No relay client tracing config artifact; continuing without it."
+            exit 0
+          fi
           tracing_token="$(sed -n 's/^T3CODE_RELAY_CLIENT_OTLP_TRACES_TOKEN=//p' "$config_path")"
           echo "::add-mask::$tracing_token"
           cat "$config_path" >> "$GITHUB_ENV"
@@ -664,8 +706,8 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [preflight, build, publish_cli]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.build.result == 'success' && needs.publish_cli.result == 'success' }}
+    needs: [preflight, build]
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.build.result == 'success' }}
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
@@ -700,14 +742,28 @@ jobs:
 
       - name: Merge macOS updater manifests
         run: |
+          set -euo pipefail
           shopt -s nullglob
+
+          found_mac_manifest=false
           for x64_manifest in release-assets/*-mac-x64.yml; do
-            arm64_manifest="${x64_manifest%-x64.yml}.yml"
-            if [[ -f "$arm64_manifest" ]]; then
-              node scripts/merge-update-manifests.ts --platform mac "$arm64_manifest" "$x64_manifest"
-              rm -f "$x64_manifest"
+            arm64_manifest="${x64_manifest/-x64.yml/.yml}"
+            if [[ ! -f "$arm64_manifest" ]]; then
+              echo "Missing matching arm64 macOS manifest for $x64_manifest" >&2
+              exit 1
             fi
+
+            found_mac_manifest=true
+            node scripts/merge-update-manifests.ts --platform mac \
+              "$arm64_manifest" \
+              "$x64_manifest"
+            rm -f "$x64_manifest"
           done
+
+          if [[ "$found_mac_manifest" != true ]]; then
+            echo "No macOS updater manifests found to merge." >&2
+            exit 1
+          fi
 
       # - name: Merge Windows updater manifests
       #   run: |
@@ -745,6 +801,7 @@ jobs:
           tag_name: ${{ needs.preflight.outputs.tag }}
           target_commitish: ${{ needs.preflight.outputs.ref }}
           name: ${{ needs.preflight.outputs.release_name }}
+          repository: ${{ needs.preflight.outputs.release_repository }}
           generate_release_notes: true
           previous_tag: ${{ needs.preflight.outputs.previous_tag }}
           prerelease: ${{ needs.preflight.outputs.is_prerelease }}
@@ -766,6 +823,7 @@ jobs:
           tag_name: ${{ needs.preflight.outputs.tag }}
           target_commitish: ${{ needs.preflight.outputs.ref }}
           name: ${{ needs.preflight.outputs.release_name }}
+          repository: ${{ needs.preflight.outputs.release_repository }}
           generate_release_notes: true
           prerelease: ${{ needs.preflight.outputs.is_prerelease }}
           make_latest: ${{ needs.preflight.outputs.make_latest }}
@@ -814,6 +872,7 @@ jobs:
               - --filter=@t3tools/web...
 
       - name: Download relay client tracing config
+        continue-on-error: true
         uses: actions/download-artifact@v8
         with:
           name: relay-client-tracing-config
@@ -823,6 +882,10 @@ jobs:
         shell: bash
         run: |
           config_path="$RUNNER_TEMP/relay-client-tracing/relay-client-tracing.env"
+          if [[ ! -f "$config_path" ]]; then
+            echo "No relay client tracing config artifact; continuing without it."
+            exit 0
+          fi
           tracing_token="$(sed -n 's/^T3CODE_RELAY_CLIENT_OTLP_TRACES_TOKEN=//p' "$config_path")"
           echo "::add-mask::$tracing_token"
           cat "$config_path" >> "$GITHUB_ENV"

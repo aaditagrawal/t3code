@@ -35,20 +35,19 @@ catalogs:
       version: 0.2.2
 
 overrides:
-  '@clerk/backend': 3.11.2
-  '@clerk/clerk-js': 6.25.1
-  '@clerk/electron': 0.0.11
-  '@clerk/electron-passkeys': 0.0.3
-  '@clerk/expo': 3.7.2
-  '@clerk/react': 6.12.1
-  '@clerk/shared': 4.25.1
+  '@clerk/backend': 3.13.0
+  '@clerk/clerk-js': 6.25.7
   '@clerk/clerk-js>@base-org/account': '-'
   '@clerk/clerk-js>@coinbase/wallet-sdk': '-'
   '@clerk/clerk-js>@solana/wallet-adapter-base': '-'
   '@clerk/clerk-js>@solana/wallet-adapter-react': '-'
   '@clerk/clerk-js>@solana/wallet-standard': '-'
   '@clerk/clerk-js>@wallet-standard/core': '-'
-  '@expo/metro-config': 56.0.14
+  '@clerk/electron': 0.0.18
+  '@clerk/electron-passkeys': 0.0.3
+  '@clerk/expo': 4.0.2
+  '@clerk/react': 6.12.7
+  '@clerk/shared': 4.25.7
   '@effect/atom-react': 4.0.0-beta.78
   '@effect/platform-bun': 4.0.0-beta.78
   '@effect/platform-node': 4.0.0-beta.78
@@ -56,8 +55,8 @@ overrides:
   '@effect/sql-pg': 4.0.0-beta.78
   '@effect/sql-sqlite-bun': 4.0.0-beta.78
   '@effect/vitest': 4.0.0-beta.78
-  '@effect/vitest>@vitest/runner': '-'
   '@effect/vitest>vitest': '-'
+  '@expo/metro-config': 56.0.14
   '@pierre/diffs>@shikijs/transformers': ^4.2.0
   '@types/node': 24.12.4
   effect: 4.0.0-beta.78
@@ -110,8 +109,8 @@ importers:
   apps/desktop:
     dependencies:
       '@clerk/electron':
-        specifier: 0.0.11
-        version: 0.0.11(@clerk/electron-passkeys@0.0.3)(electron-store@8.2.0)(electron@41.5.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 0.0.18
+        version: 0.0.18(@clerk/electron-passkeys@0.0.3)(electron-store@8.2.0)(electron@41.5.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@clerk/electron-passkeys':
         specifier: 0.0.3
         version: 0.0.3
@@ -199,8 +198,8 @@ importers:
         specifier: ^0.7.1
         version: 0.7.1(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)
       '@clerk/expo':
-        specifier: 3.7.2
-        version: 3.7.2(expo-auth-session@56.0.14(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3))(expo-constants@56.0.18)(expo-crypto@56.0.4(expo@56.0.12))(expo-secure-store@56.0.4(expo@56.0.12))(expo-web-browser@56.0.5(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6)))(expo@56.0.12)(react-dom@19.2.3(react@19.2.3))(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)(typescript@6.0.3)
+        specifier: 4.0.2
+        version: 4.0.2(expo-auth-session@56.0.14(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3))(expo-constants@56.0.18)(expo-crypto@56.0.4(expo@56.0.12))(expo-secure-store@56.0.4(expo@56.0.12))(expo-web-browser@56.0.5(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6)))(expo@56.0.12)(react-dom@19.2.3(react@19.2.3))(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)(typescript@6.0.3)
       '@effect/atom-react':
         specifier: 4.0.0-beta.78
         version: 4.0.0-beta.78(effect@4.0.0-beta.78(patch_hash=c502bc684210b707dfceb87d8fe6ad6843395af6e19cfc02cd65854898bde2c5))(react@19.2.3)(scheduler@0.27.0)
@@ -347,7 +346,7 @@ importers:
         version: 56.0.4(expo@56.0.12)
       expo-sharing:
         specifier: ~56.0.18
-        version: 56.0.22(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)(typescript@6.0.3)
+        version: 56.0.18(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)(typescript@6.0.3)
       expo-splash-screen:
         specifier: ~56.0.10
         version: 56.0.10(expo@56.0.12)(typescript@6.0.3)
@@ -450,7 +449,7 @@ importers:
         version: 0.3.170(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
       '@cursor/sdk':
         specifier: ^1.0.13
-        version: 1.0.23
+        version: 1.0.24
       '@effect/platform-bun':
         specifier: 4.0.0-beta.78
         version: 4.0.0-beta.78(bufferutil@4.1.0)(effect@4.0.0-beta.78(patch_hash=c502bc684210b707dfceb87d8fe6ad6843395af6e19cfc02cd65854898bde2c5))(utf-8-validate@6.0.6)
@@ -487,6 +486,9 @@ importers:
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       '@effect/vitest':
         specifier: 4.0.0-beta.78
@@ -525,14 +527,14 @@ importers:
         specifier: ^1.4.1
         version: 1.5.0(@types/react@19.2.16)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@clerk/clerk-js':
-        specifier: 6.25.1
-        version: 6.25.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 6.25.7
+        version: 6.25.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@clerk/electron':
-        specifier: 0.0.11
-        version: 0.0.11(@clerk/electron-passkeys@0.0.3)(electron-store@8.2.0)(electron@41.5.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 0.0.18
+        version: 0.0.18(@clerk/electron-passkeys@0.0.3)(electron-store@8.2.0)(electron@41.5.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@clerk/react':
-        specifier: 6.12.1
-        version: 6.12.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 6.12.7
+        version: 6.12.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -583,7 +585,7 @@ importers:
         version: 0.19.4(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@tanstack/react-query':
         specifier: ^5.90.0
-        version: 5.101.2(react@19.2.6)
+        version: 5.101.4(react@19.2.6)
       '@tanstack/react-router':
         specifier: ^1.160.2
         version: 1.170.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -688,8 +690,8 @@ importers:
   infra/relay:
     dependencies:
       '@clerk/backend':
-        specifier: 3.11.2
-        version: 3.11.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 3.13.0
+        version: 3.13.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@effect/sql-pg':
         specifier: 4.0.0-beta.78
         version: 4.0.0-beta.78(effect@4.0.0-beta.78(patch_hash=c502bc684210b707dfceb87d8fe6ad6843395af6e19cfc02cd65854898bde2c5))
@@ -1715,12 +1717,12 @@ packages:
     resolution: {integrity: sha512-EYlRokl8szrP9Z25qT5aepMdBjzBvHF9ZEhzIiUBc9guz/T31EqRgvD0QSgZcpE93xiwrr+OkB4nz0BZyF6fSA==}
     engines: {node: '>= 20.12.0'}
 
-  '@clerk/backend@3.11.2':
-    resolution: {integrity: sha512-HaHAnKzThRpdRi+QJkMo3+Cx/3hJUt+UdbQ62Ikzwwt0zIhUE0+qgG+zgUHjAdYhSbfiUzEWYsLdnBsfQ7yv7g==}
+  '@clerk/backend@3.13.0':
+    resolution: {integrity: sha512-kYOgeR48iXYypudpYITE0L2yxi4TeFXU+ISAOULlVgOcurw8qnm1/JEuK6Mr2IFUbRS9hcHk1HVO0Ceo0XmL8Q==}
     engines: {node: '>=20.9.0'}
 
-  '@clerk/clerk-js@6.25.1':
-    resolution: {integrity: sha512-7SXj7ACQSiqg72768cMHDGfNsdmpadKPvViV0b6ozqNbRjYrGkDM74fEf8i0Mg/0nGk5zpYI5fNKgQavpg/iMg==}
+  '@clerk/clerk-js@6.25.7':
+    resolution: {integrity: sha512-GOnbEUzPKAdsdCodZsHhku2YloBBuwLGx5UP0VeezUj73wKLwlSYMlVPuntsJoY7c8+lVrMCY9LQWYVZ7VMLBw==}
     engines: {node: '>=20.9.0'}
 
   '@clerk/electron-passkeys-darwin-arm64@0.0.3':
@@ -1747,8 +1749,8 @@ packages:
     resolution: {integrity: sha512-OHhIe88qDL+FxyBalXdXNHAS5eEramr6Rerp+6iNkfkjqT8rx4hHNmfpmjg5/T1/am8QfknbOBZkqoXZlCrjPg==}
     engines: {node: '>=20.9.0'}
 
-  '@clerk/electron@0.0.11':
-    resolution: {integrity: sha512-QQzSYKwjrd447/kLiObkLQj+J6AyFr5MmPsg7k4TYXR2C4AAlpwkTnCV1ziRHa8V+Miq2MzQhcL6/2DdS7y9eA==}
+  '@clerk/electron@0.0.18':
+    resolution: {integrity: sha512-0lWiITlTxCviglPfPSu+uhERnQyXroiWrSMRpZcEO3FgBt3bnrpfgZUrXW8iaLoUYJrFP2byF7bHJPRwEPVXEw==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
       '@clerk/electron-passkeys': 0.0.3
@@ -1764,12 +1766,13 @@ packages:
       react-dom:
         optional: true
 
-  '@clerk/expo@3.7.2':
-    resolution: {integrity: sha512-wMTnieTEsTgJ3mJLZaiH+0uLaOp93lUsZLtmS0BQyK32xK49Y28ArFt7QkmnUB39EKT4MZve1XDctxZtCFmvVA==}
+  '@clerk/expo@4.0.2':
+    resolution: {integrity: sha512-afBdV2bLRM55p5L7FoAGV/wCamLxXusjIBPmNo+TwAYabU0oUokMsm+0++xWDA0nxzMt/O08Oj+xAGEtE+Qvxg==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
+      '@clerk/expo-google-signin': '>=0.1.0'
       '@clerk/expo-passkeys': '>=0.0.6'
-      expo: '>=53 <58'
+      expo: '>=54 <58'
       expo-apple-authentication: '>=7.0.0'
       expo-auth-session: '>=5'
       expo-constants: '>=12'
@@ -1781,6 +1784,8 @@ packages:
       react-dom: ^18.0.0 || ^19.0.0
       react-native: '>=0.75'
     peerDependenciesMeta:
+      '@clerk/expo-google-signin':
+        optional: true
       '@clerk/expo-passkeys':
         optional: true
       expo-apple-authentication:
@@ -1800,15 +1805,15 @@ packages:
       react-dom:
         optional: true
 
-  '@clerk/react@6.12.1':
-    resolution: {integrity: sha512-FFIv0SUQh9R8lBOCpHfAC5ki+FjU0WlvBrujJUPQgBTJX7uaRUlbzKswB/ZfRlauGKnE9c80H5dnir08cEtLgw==}
+  '@clerk/react@6.12.7':
+    resolution: {integrity: sha512-K8CK0tS7My/3RT5sAIJTjYgnH0xU+K4Jdnhi76xQdAY4agD/M07BbrBMWXEE0xUEDst2PqPfX660V1LRLOsxOQ==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
       react: ^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0
       react-dom: ^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0
 
-  '@clerk/shared@4.25.1':
-    resolution: {integrity: sha512-+FHoFEJ8zGenUymf03gARKEAYOLxOKm6B437tgukxP7oM5ORfI+ZND62W25S8ddVsDLlNTS0VEHlhDm3F+NF0A==}
+  '@clerk/shared@4.25.7':
+    resolution: {integrity: sha512-FfBbDeFkxwDuz/2YcVs4DhyZ0VxnqNtdbO0Tn/lkLAiDvFFspWw+PDYqo7LQiBymEQaOQkb094dX21WWnZbmlA==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
       react: ^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0
@@ -1879,38 +1884,38 @@ packages:
     peerDependencies:
       '@bufbuild/protobuf': ^1.10.0
 
-  '@cursor/sdk-darwin-arm64@1.0.23':
-    resolution: {integrity: sha512-HpltGkIDFG+XgsETJho0OiOvGLyMKqZKhh4uXtD3ZKZcgTtLvKgbbU8jVgEMa3qodtfwPz5lpwAjs5jM1zOt6w==}
+  '@cursor/sdk-darwin-arm64@1.0.24':
+    resolution: {integrity: sha512-0RIjcm2CFLuu0N/GnQ3G+8UGIQKv9jEgVkLr2gGjVoEN5UfwA6G3eLO/U6SfnMdFNkftJ9j/efcCHuS/OFPuNA==}
     cpu: [arm64]
     os: [darwin]
     hasBin: true
 
-  '@cursor/sdk-darwin-x64@1.0.23':
-    resolution: {integrity: sha512-sjRQVhU7UL3kYSR9DzY+BAwa/iFdnPvTI3E62mIhj/2ey3LEnhIhotZQ9ymNJ0wA5BfhC7Be+JYcSMDyHxxr1g==}
+  '@cursor/sdk-darwin-x64@1.0.24':
+    resolution: {integrity: sha512-BmD1hbV0SCIRv9FGIhoM4XgCbWdcVGpjiPXUiIlGaYDM9ZXpmit6x9tx2iSGUIIc7ytpIYsQaSBEUsSQsNl7wQ==}
     cpu: [x64]
     os: [darwin]
     hasBin: true
 
-  '@cursor/sdk-linux-arm64@1.0.23':
-    resolution: {integrity: sha512-RizTwZ2Hhhaq8bnF3yGUZWBUvLA+/lExlTAg/5Levc9f7hNoDZViIP3XaVWY/8yzPAxypeds8tWacVIaAA2/Ig==}
+  '@cursor/sdk-linux-arm64@1.0.24':
+    resolution: {integrity: sha512-zCZcHwKPopqeXEsja2EmsV6En3hAhd3alnCfKbiYZdE9XQAaTza0XFji7a4uRjKGitlQ0JDIYHRIJg/2nvTkrQ==}
     cpu: [arm64]
     os: [linux]
     hasBin: true
 
-  '@cursor/sdk-linux-x64@1.0.23':
-    resolution: {integrity: sha512-s93WBbi4hrE/uisTrEfNNH1m18bwfO6wmmsnIYQ3W3gbGBriFM1ZeroHxj1F6paMDE7o/dfUeW22lQ72rRZrSA==}
+  '@cursor/sdk-linux-x64@1.0.24':
+    resolution: {integrity: sha512-pK80OM4CSB0G8ModhRhb85+FYEROmK8nad6Lj8LDZngQ1ZgJi/nrdgUuHykOtza7T00D14x9Q2l0pwf/ybXxog==}
     cpu: [x64]
     os: [linux]
     hasBin: true
 
-  '@cursor/sdk-win32-x64@1.0.23':
-    resolution: {integrity: sha512-d1p1+tRJbNZTUqw8SPEW9OYtU02ynZysASDDvhpaEFtbPwGFUrez9sVbFHpbuXeOXL//H+faiHJanVFsUNfIZw==}
+  '@cursor/sdk-win32-x64@1.0.24':
+    resolution: {integrity: sha512-vU4ossYSuw0adCK0ssZvwCeT6dmdBR29EMdHrB9G89SzIJ9xpodkKKjDL0aN5dEwy7wOKyUJIjprfw/A4U8F5A==}
     cpu: [x64]
     os: [win32]
     hasBin: true
 
-  '@cursor/sdk@1.0.23':
-    resolution: {integrity: sha512-VIh8oW89XXACUkQqB2N8TaU3A/y2jQieF++VC6QqIqKhKRKj7kd+pzeh43MXusuPpebtxtEzqvjaCLlc1xbYTQ==}
+  '@cursor/sdk@1.0.24':
+    resolution: {integrity: sha512-pHoVRSiyBMTFBMjhAihvzXbiJSFNs63dULE+11jzCX/s1a7/I7Zp0cC4jWRw1ykckEPcho8QiEEgSR3qBRmDBw==}
     engines: {node: '>=22.13'}
 
   '@distilled.cloud/aws@0.23.1':
@@ -2516,14 +2521,8 @@ packages:
   '@expo/code-signing-certificates@0.0.6':
     resolution: {integrity: sha512-iNe0puxwBNEcuua9gmTGzq+SuMDa0iATai1FlFTMHJ/vUmKvN/V//drXoLJkVb5i5H3iE/n/qIJxyoBnXouD0w==}
 
-  '@expo/config-plugins@56.0.8':
-    resolution: {integrity: sha512-phTuyBhgVLfqUHMjQkAfRtbyoY6yTxoKja1awtpVnEkoJDxPJuXx1KX5uvq1eZtt4bJQ08OBJ6P95INqRSHpRg==}
-
   '@expo/config-plugins@56.0.9':
     resolution: {integrity: sha512-/6a/S9USwx8OC9tGjHxbviLFiBHyueN3aoNWMLvWDEJoZ1CIVW800ZBzwXq/FYNK2qzcN1LxFmQtzD1zeFQKNA==}
-
-  '@expo/config-types@56.0.5':
-    resolution: {integrity: sha512-GsAHO/MwW9ZRdgnmyfRXqVGLCP/zejD6rWnp5OROp8mBGRObKm4HfrjlUyT1skjMwCj1OrURx9ZfIc6yeBAkIA==}
 
   '@expo/config-types@56.0.6':
     resolution: {integrity: sha512-4Y6Aum5J4Re5NnxGVofRNe1aDwUBOmWhQYkynZsqzRtX/zEA1ADUeyHXuEckv9YD9djiyT7bKtLt5gKL3mA6VQ==}
@@ -4881,8 +4880,11 @@ packages:
     resolution: {integrity: sha512-qhCRSFei0hokQr3xYcQXqxsRD/LKlgHCxHXtKHrQoImp4x2Zu6tUOpUGVH4y2qexIrzSu3aibQBNNfC3Eay6Mg==}
     engines: {node: '>=18'}
 
-  '@tanstack/query-core@5.101.2':
-    resolution: {integrity: sha512-hH5MLoJhF7KaIGd7q3xTXGXvslI+GYlM1Z/35aSHHWaCJWB7XvTSHYuV3eM7tw+aE0mT/xMro4M4Q9rCGHT0lw==}
+  '@tanstack/query-core@5.100.14':
+    resolution: {integrity: sha512-5X41dGpxgeaHISCRW2oYwcSycZeULZzAunaudXT9ov1KOTj9xwt0CH6hbwqP1/z74ZWF7rYFnDpyYH07XFcZew==}
+
+  '@tanstack/query-core@5.101.4':
+    resolution: {integrity: sha512-gNwcvOJcRbLWPOLG/2OBm+zM+Yv+MKsXKEOWC57USuZDEsI71hEErQsiEGx5wX9rzWWkfwM0fVSPoiIFSsxfiw==}
 
   '@tanstack/react-pacer@0.19.4':
     resolution: {integrity: sha512-coj8ULAuR0qFpjAKD44gTgRuZyjxU6Xu+IX5MwwYvr4e61OtZcJshaExoOBKpCGde0Edb12jDnzzj2Im13Qm9Q==}
@@ -4891,8 +4893,8 @@ packages:
       react: '>=16.8'
       react-dom: '>=16.8'
 
-  '@tanstack/react-query@5.101.2':
-    resolution: {integrity: sha512-seDkr6kzGzX1okaaTtZPtgA688CDPlXUz1C6xSg0ESqn04Vuc8tlrYms1s3de+znBqhPVxFRfpAfUf+6XvfPWg==}
+  '@tanstack/react-query@5.101.4':
+    resolution: {integrity: sha512-yRg2pfOCxIs4ZJW3XYYHU/WgtD04FHSnfHlpRT7h7pR77hwkdRG4wxbKe4aq6P0RvXUTBSQpQeadS1SUYUe+KA==}
     peerDependencies:
       react: ^18 || ^19
 
@@ -5822,9 +5824,6 @@ packages:
 
   buffer-from@1.1.2:
     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
-
-  buffer@5.7.1:
-    resolution: {integrity: sha512-EHcyIPBQ4BSGlvjB16k5KgAJ27CIsHY/2JBmCRReo48y9rQ3MaUzWX3KVlBa4U7MyX02HdVj0K7C3WaB3ju7FQ==}
 
   bufferutil@4.1.0:
     resolution: {integrity: sha512-ZMANVnAixE6AWWnPzlW2KpUrxhm9woycYvPOo67jWHyFowASTEd9s+QN1EIMsSDtwhIxN4sWE1jotpuDUIgyIw==}
@@ -6885,8 +6884,8 @@ packages:
     resolution: {integrity: sha512-SmM2p2g3Jrktpiazcst+OxhjSzOHXKAY4BPURHYHXvApzzoybMmrNF4IEZ8DKZ145BhSe4ydAmlEFCRTsdtgUQ==}
     engines: {node: '>=20.16.0'}
 
-  expo-sharing@56.0.22:
-    resolution: {integrity: sha512-r2lt8sJUbEi6O1DIK192GEk6JayBEQNjfTvJ3iHzW//5dUy20NCaLSKFeE2z+DE+lVzu5izOocWRwIbbubywvw==}
+  expo-sharing@56.0.18:
+    resolution: {integrity: sha512-45w4BWNFmdTczp+fJX6YfwJrn9sX+VeRWz2VWLhauygcCrym44HtVDXX5yVYPB9TW9ZesLcEI+CCrCBNWL7smQ==}
     peerDependencies:
       expo: '*'
       react: '*'
@@ -7371,9 +7370,6 @@ packages:
 
   idb-keyval@6.2.1:
     resolution: {integrity: sha512-8Sb3veuYCyrZL+VBt9LJfZjLUPWVvqn8tG28VqYNFCo43KHcKuq+b4EiXGeuaLAQWL2YmyDgMp2aSpH9JHsEQg==}
-
-  ieee754@1.2.1:
-    resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
 
   ignore@5.3.2:
     resolution: {integrity: sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g==}
@@ -9105,8 +9101,8 @@ packages:
       react: '*'
       react-native: '*'
 
-  react-native-url-polyfill@2.0.0:
-    resolution: {integrity: sha512-My330Do7/DvKnEvwQc0WdcBnFPploYKp9CYlefDXzIdEaA+PAhDYllkvGeEroEzvc4Kzzj2O4yVdz8v6fjRvhA==}
+  react-native-url-polyfill@4.0.0:
+    resolution: {integrity: sha512-eqYM3wBAA0eL1sPYbBAoNfbES3+NkgcxUdelQ7QzmoVtqKB5qGG0U13MPTRUroAWK+y2EoJFS3MZUK0fwTf0pA==}
     peerDependencies:
       react-native: '*'
 
@@ -10348,10 +10344,6 @@ packages:
   webcrypto-core@1.9.2:
     resolution: {integrity: sha512-gsXecm82UQNlTBURJGuqOWy1Ww08S3kZUcr3aOJS02Pk0xLtkfeUAVC0u0xhgdonFme80edSJUIJyuvL/7250Q==}
 
-  webidl-conversions@5.0.0:
-    resolution: {integrity: sha512-VlZwKPCkYKxQgeSbH5EyngOmRp7Ww7I9rQLERETtf5ofd9pGeswWiOtogpEO850jziPRarreGxn5QIiTqpb2wA==}
-    engines: {node: '>=8'}
-
   webpack-virtual-modules@0.6.2:
     resolution: {integrity: sha512-66/V2i5hQanC51vBQKPH4aI8NMAcBW59FVBs+rC7eGHupMyfn34q7rZIE+ETlJ+XTevqfUhVVBgSUNSW2flEUQ==}
 
@@ -10360,10 +10352,6 @@ packages:
 
   whatwg-url-minimum@0.1.2:
     resolution: {integrity: sha512-XPEm0XFQWNVG292lII1PrRRJl3sItrs7CettZ4ncYxuDVpLyy+NwlGyut2hXI0JswcJUxeCH+CyOJK0ZzAXD6A==}
-
-  whatwg-url-without-unicode@8.0.0-3:
-    resolution: {integrity: sha512-HoKuzZrUlgpz35YO27XgD28uh/WJH4B0+3ttFqRo//lmq+9T/mIOJ6kqmINI9HpUpz1imRC/nR/lxKpJiv0uig==}
-    engines: {node: '>=10'}
 
   which-pm-runs@1.1.0:
     resolution: {integrity: sha512-n1brCuqClxfFfq/Rb0ICg9giSZqCS+pLtccdag6C2HyufBrh3fBOiy9nb6ggRMvWOVH5GrdJskj5iGTZNxd7SA==}
@@ -11575,21 +11563,21 @@ snapshots:
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
 
-  '@clerk/backend@3.11.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@clerk/backend@3.13.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
-      '@clerk/shared': 4.25.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@clerk/shared': 4.25.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       standardwebhooks: 1.0.0
       tslib: 2.8.1
     transitivePeerDependencies:
       - react
       - react-dom
 
-  '@clerk/clerk-js@6.25.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@clerk/clerk-js@6.25.7(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
-      '@clerk/shared': 4.25.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@clerk/shared': 4.25.7(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@stripe/stripe-js': 5.6.0
       '@swc/helpers': 0.5.21
-      '@tanstack/query-core': 5.101.2
+      '@tanstack/query-core': 5.100.14
       '@zxcvbn-ts/core': 3.0.4
       '@zxcvbn-ts/language-common': 3.0.4
       alien-signals: 2.0.6
@@ -11601,12 +11589,12 @@ snapshots:
       - react
       - react-dom
 
-  '@clerk/clerk-js@6.25.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@clerk/clerk-js@6.25.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
-      '@clerk/shared': 4.25.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@clerk/shared': 4.25.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@stripe/stripe-js': 5.6.0
       '@swc/helpers': 0.5.21
-      '@tanstack/query-core': 5.101.2
+      '@tanstack/query-core': 5.100.14
       '@zxcvbn-ts/core': 3.0.4
       '@zxcvbn-ts/language-common': 3.0.4
       alien-signals: 2.0.6
@@ -11637,11 +11625,11 @@ snapshots:
       '@clerk/electron-passkeys-win32-arm64-msvc': 0.0.3
       '@clerk/electron-passkeys-win32-x64-msvc': 0.0.3
 
-  '@clerk/electron@0.0.11(@clerk/electron-passkeys@0.0.3)(electron-store@8.2.0)(electron@41.5.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@clerk/electron@0.0.18(@clerk/electron-passkeys@0.0.3)(electron-store@8.2.0)(electron@41.5.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
-      '@clerk/clerk-js': 6.25.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@clerk/react': 6.12.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@clerk/shared': 4.25.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@clerk/clerk-js': 6.25.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@clerk/react': 6.12.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@clerk/shared': 4.25.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       electron: 41.5.0
       react: 19.2.6
       tslib: 2.8.1
@@ -11650,17 +11638,17 @@ snapshots:
       electron-store: 8.2.0
       react-dom: 19.2.6(react@19.2.6)
 
-  '@clerk/expo@3.7.2(expo-auth-session@56.0.14(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3))(expo-constants@56.0.18)(expo-crypto@56.0.4(expo@56.0.12))(expo-secure-store@56.0.4(expo@56.0.12))(expo-web-browser@56.0.5(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6)))(expo@56.0.12)(react-dom@19.2.3(react@19.2.3))(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)(typescript@6.0.3)':
+  '@clerk/expo@4.0.2(expo-auth-session@56.0.14(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3))(expo-constants@56.0.18)(expo-crypto@56.0.4(expo@56.0.12))(expo-secure-store@56.0.4(expo@56.0.12))(expo-web-browser@56.0.5(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6)))(expo@56.0.12)(react-dom@19.2.3(react@19.2.3))(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)(typescript@6.0.3)':
     dependencies:
-      '@clerk/clerk-js': 6.25.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@clerk/react': 6.12.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@clerk/shared': 4.25.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@clerk/clerk-js': 6.25.7(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@clerk/react': 6.12.7(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@clerk/shared': 4.25.7(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@expo/config-plugins': 56.0.9(typescript@6.0.3)
       base-64: 1.0.0
       expo: 56.0.12(8895228379997a2a064f9644cda56ed0)
       react: 19.2.3
       react-native: 0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6)
-      react-native-url-polyfill: 2.0.0(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))
+      react-native-url-polyfill: 4.0.0(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))
       tslib: 2.8.1
     optionalDependencies:
       expo-auth-session: 56.0.14(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)
@@ -11673,23 +11661,23 @@ snapshots:
       - supports-color
       - typescript
 
-  '@clerk/react@6.12.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@clerk/react@6.12.7(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
-      '@clerk/shared': 4.25.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@clerk/shared': 4.25.7(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
       tslib: 2.8.1
 
-  '@clerk/react@6.12.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@clerk/react@6.12.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
-      '@clerk/shared': 4.25.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@clerk/shared': 4.25.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
       tslib: 2.8.1
 
-  '@clerk/shared@4.25.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@clerk/shared@4.25.7(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
-      '@tanstack/query-core': 5.101.2
+      '@tanstack/query-core': 5.100.14
       dequal: 2.0.3
       glob-to-regexp: 0.4.1
       js-cookie: 3.0.7
@@ -11697,9 +11685,9 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  '@clerk/shared@4.25.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@clerk/shared@4.25.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
-      '@tanstack/query-core': 5.101.2
+      '@tanstack/query-core': 5.100.14
       dequal: 2.0.3
       glob-to-regexp: 0.4.1
       js-cookie: 3.0.7
@@ -11745,22 +11733,22 @@ snapshots:
     dependencies:
       '@bufbuild/protobuf': 1.10.0
 
-  '@cursor/sdk-darwin-arm64@1.0.23':
+  '@cursor/sdk-darwin-arm64@1.0.24':
     optional: true
 
-  '@cursor/sdk-darwin-x64@1.0.23':
+  '@cursor/sdk-darwin-x64@1.0.24':
     optional: true
 
-  '@cursor/sdk-linux-arm64@1.0.23':
+  '@cursor/sdk-linux-arm64@1.0.24':
     optional: true
 
-  '@cursor/sdk-linux-x64@1.0.23':
+  '@cursor/sdk-linux-x64@1.0.24':
     optional: true
 
-  '@cursor/sdk-win32-x64@1.0.23':
+  '@cursor/sdk-win32-x64@1.0.24':
     optional: true
 
-  '@cursor/sdk@1.0.23':
+  '@cursor/sdk@1.0.24':
     dependencies:
       '@bufbuild/protobuf': 1.10.0
       '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
@@ -11769,11 +11757,11 @@ snapshots:
       '@statsig/js-client': 3.31.0
       zod: 3.25.76
     optionalDependencies:
-      '@cursor/sdk-darwin-arm64': 1.0.23
-      '@cursor/sdk-darwin-x64': 1.0.23
-      '@cursor/sdk-linux-arm64': 1.0.23
-      '@cursor/sdk-linux-x64': 1.0.23
-      '@cursor/sdk-win32-x64': 1.0.23
+      '@cursor/sdk-darwin-arm64': 1.0.24
+      '@cursor/sdk-darwin-x64': 1.0.24
+      '@cursor/sdk-linux-arm64': 1.0.24
+      '@cursor/sdk-linux-x64': 1.0.24
+      '@cursor/sdk-win32-x64': 1.0.24
 
   '@distilled.cloud/aws@0.23.1(effect@4.0.0-beta.78(patch_hash=c502bc684210b707dfceb87d8fe6ad6843395af6e19cfc02cd65854898bde2c5))':
     dependencies:
@@ -12450,25 +12438,6 @@ snapshots:
     dependencies:
       node-forge: 1.4.0
 
-  '@expo/config-plugins@56.0.8(typescript@6.0.3)':
-    dependencies:
-      '@expo/config-types': 56.0.5
-      '@expo/json-file': 10.2.0
-      '@expo/plist': 0.7.0
-      '@expo/require-utils': 56.1.3(typescript@6.0.3)
-      '@expo/sdk-runtime-versions': 1.0.0
-      chalk: 4.1.2
-      debug: 4.4.3
-      getenv: 2.0.0
-      glob: 13.0.6
-      semver: 7.8.5
-      slugify: 1.6.9
-      xcode: 3.0.1
-      xml2js: 0.6.0
-    transitivePeerDependencies:
-      - supports-color
-      - typescript
-
   '@expo/config-plugins@56.0.9(typescript@6.0.3)':
     dependencies:
       '@expo/config-types': 56.0.6
@@ -12488,14 +12457,12 @@ snapshots:
       - supports-color
       - typescript
 
-  '@expo/config-types@56.0.5': {}
-
   '@expo/config-types@56.0.6': {}
 
   '@expo/config@56.0.9(typescript@6.0.3)':
     dependencies:
       '@expo/config-plugins': 56.0.9(typescript@6.0.3)
-      '@expo/config-types': 56.0.5
+      '@expo/config-types': 56.0.6
       '@expo/json-file': 10.2.0
       '@expo/require-utils': 56.1.3(typescript@6.0.3)
       deepmerge: 4.3.1
@@ -15025,7 +14992,9 @@ snapshots:
       '@tanstack/devtools-event-client': 0.4.3
       '@tanstack/store': 0.8.1
 
-  '@tanstack/query-core@5.101.2': {}
+  '@tanstack/query-core@5.100.14': {}
+
+  '@tanstack/query-core@5.101.4': {}
 
   '@tanstack/react-pacer@0.19.4(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
@@ -15034,9 +15003,9 @@ snapshots:
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
 
-  '@tanstack/react-query@5.101.2(react@19.2.6)':
+  '@tanstack/react-query@5.101.4(react@19.2.6)':
     dependencies:
-      '@tanstack/query-core': 5.101.2
+      '@tanstack/query-core': 5.101.4
       react: 19.2.6
 
   '@tanstack/react-router@1.170.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
@@ -16164,11 +16133,6 @@ snapshots:
   buffer-crc32@0.2.13: {}
 
   buffer-from@1.1.2: {}
-
-  buffer@5.7.1:
-    dependencies:
-      base64-js: 1.5.1
-      ieee754: 1.2.1
 
   bufferutil@4.1.0:
     dependencies:
@@ -17349,7 +17313,7 @@ snapshots:
 
   expo-server@56.0.5: {}
 
-  expo-sharing@56.0.22(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)(typescript@6.0.3):
+  expo-sharing@56.0.18(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)(typescript@6.0.3):
     dependencies:
       '@expo/config-plugins': 56.0.9(typescript@6.0.3)
       '@expo/config-types': 56.0.6
@@ -17363,7 +17327,7 @@ snapshots:
 
   expo-splash-screen@56.0.10(expo@56.0.12)(typescript@6.0.3):
     dependencies:
-      '@expo/config-plugins': 56.0.8(typescript@6.0.3)
+      '@expo/config-plugins': 56.0.9(typescript@6.0.3)
       '@expo/image-utils': 0.10.1(typescript@6.0.3)
       expo: 56.0.12(8895228379997a2a064f9644cda56ed0)
       xml2js: 0.6.0
@@ -18113,8 +18077,6 @@ snapshots:
 
   idb-keyval@6.2.1:
     optional: true
-
-  ieee754@1.2.1: {}
 
   ignore@5.3.2: {}
 
@@ -20100,10 +20062,9 @@ snapshots:
       react-native: 0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6)
       warn-once: 0.1.1
 
-  react-native-url-polyfill@2.0.0(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6)):
+  react-native-url-polyfill@4.0.0(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6)):
     dependencies:
       react-native: 0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6)
-      whatwg-url-without-unicode: 8.0.0-3
 
   react-native-webview@13.16.1(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.85.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.16)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3):
     dependencies:
@@ -21678,19 +21639,11 @@ snapshots:
       asn1js: 3.0.10
       tslib: 2.8.1
 
-  webidl-conversions@5.0.0: {}
-
   webpack-virtual-modules@0.6.2: {}
 
   whatwg-fetch@3.6.20: {}
 
   whatwg-url-minimum@0.1.2: {}
-
-  whatwg-url-without-unicode@8.0.0-3:
-    dependencies:
-      buffer: 5.7.1
-      punycode: 2.3.1
-      webidl-conversions: 5.0.0
 
   which-pm-runs@1.1.0: {}
 
