@@ -14,7 +14,6 @@ import { useAtomValue } from "@effect/atom-react";
 import {
   DEFAULT_SERVER_SETTINGS,
   type EnvironmentId,
-  ProviderDriverKind,
   ServerSettings,
   type ServerSettingsPatch,
 } from "@t3tools/contracts";
@@ -193,7 +192,6 @@ export function buildLegacyServerSettingsMigrationPatch(
           (model): model is string => typeof model === "string",
         ),
         new Set(),
-        ProviderDriverKind.make("copilot"),
       )
     : undefined;
   const copilotPatch = {
