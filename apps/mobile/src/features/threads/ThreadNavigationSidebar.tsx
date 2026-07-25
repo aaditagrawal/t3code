@@ -425,6 +425,7 @@ function ThreadNavigationSidebarPane(
     return supported;
   }, [serverConfigs]);
   const snoozeEnvironmentIds = useMemo(() => {
+    if (serverConfigs.size === 0) return undefined;
     const supported = new Set<EnvironmentId>();
     for (const [environmentId, config] of serverConfigs) {
       if (config.environment.capabilities.threadSnooze === true) {

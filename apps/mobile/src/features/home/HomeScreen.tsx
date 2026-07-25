@@ -498,6 +498,10 @@ export function HomeScreen(props: HomeScreenProps) {
     return supported;
   }, [serverConfigs]);
   const snoozeEnvironmentIds = useMemo(() => {
+    // Until server configs arrive, treat snooze support as unknown so the
+    // list builder keeps its default (assume supported) instead of flashing
+    // every snoozed thread as an empty Set of capabilities.
+    if (serverConfigs.size === 0) return undefined;
     const supported = new Set<EnvironmentId>();
     for (const [environmentId, config] of serverConfigs) {
       if (config.environment.capabilities.threadSnooze === true) {

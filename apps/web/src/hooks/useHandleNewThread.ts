@@ -4,7 +4,12 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "@t3tools/client-runtime/environment";
-import { DEFAULT_RUNTIME_MODE, type ScopedProjectRef } from "@t3tools/contracts";
+import {
+  DEFAULT_RUNTIME_MODE,
+  ProviderDriverKind,
+  type RuntimeMode,
+  type ScopedProjectRef,
+} from "@t3tools/contracts";
 import { useParams, useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 import {
@@ -15,6 +20,7 @@ import {
 } from "../composerDraftStore";
 import { newDraftId, newThreadId } from "../lib/utils";
 import { orderItemsByPreferredIds } from "../components/Sidebar.logic";
+import { normalizeRuntimeModeForProvider } from "../components/chat/runtimeModePresentation";
 import {
   deriveLogicalProjectKeyFromSettings,
   getProjectOrderKey,
@@ -26,6 +32,25 @@ import { primaryServerSettingsAtom } from "../state/server";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { legacyProjectCwdPreferenceKey, useUiStateStore } from "../uiStateStore";
 import { useClientSettings } from "./useSettings";
+
+function resolveCarriedRuntimeMode(
+  raw: RuntimeMode | null,
+  destinationInstanceId: string | null | undefined,
+): RuntimeMode | null {
+  if (raw === null) return null;
+  // Built-in instance ids match driver kinds. Custom instances fall through to
+  // base (non-Droid) options so medium-access cannot leak onto other providers.
+  const destinationProvider =
+    destinationInstanceId === "droid"
+      ? ProviderDriverKind.make("droid")
+      : destinationInstanceId
+        ? ProviderDriverKind.make("codex")
+        : undefined;
+  if (destinationProvider) {
+    return normalizeRuntimeModeForProvider(destinationProvider, raw);
+  }
+  return raw === "medium-access" ? "auto-accept-edits" : raw;
+}
 
 export function useNewThreadHandler() {
   const projects = useProjects();
@@ -90,11 +115,20 @@ export function useNewThreadHandler() {
         : null;
       const carryModelSelection =
         composerModelSelection ?? carrySourceShell?.modelSelection ?? null;
-      const carryRuntimeMode =
+      const carryRuntimeModeRaw =
         carrySourceComposer?.runtimeMode ??
         carrySourceShell?.runtimeMode ??
         carrySourceDraft?.runtimeMode ??
         null;
+      const destinationInstanceId =
+        carryModelSelection?.instanceId ??
+        carrySourceShell?.session?.providerInstanceId ??
+        carrySourceShell?.modelSelection.instanceId ??
+        null;
+      const carryRuntimeMode = resolveCarriedRuntimeMode(
+        carryRuntimeModeRaw,
+        destinationInstanceId,
+      );
       const carryInteractionMode =
         carrySourceComposer?.interactionMode ??
         carrySourceShell?.interactionMode ??

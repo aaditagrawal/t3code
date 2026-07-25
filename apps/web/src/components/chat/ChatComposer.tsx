@@ -154,19 +154,8 @@ import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { toastManager } from "../ui/toast";
-import {
-  BotIcon,
-  CircleAlertIcon,
-  ListTodoIcon,
-  PencilRulerIcon,
-  type LucideIcon,
-  LockIcon,
-  LockOpenIcon,
-  PenLineIcon,
-  ShieldIcon,
-  SparklesIcon,
-  XIcon,
-} from "lucide-react";
+import { BotIcon, CircleAlertIcon, ListTodoIcon, PencilRulerIcon, XIcon } from "lucide-react";
+import { getRuntimeModeConfig, getRuntimeModeOptions } from "./runtimeModePresentation";
 import { proposedPlanTitle } from "../../proposedPlan";
 import { getProviderDisplayName, getProviderInteractionModeToggle } from "../../providerModels";
 import {
@@ -194,38 +183,6 @@ import type { ReviewCommentContext } from "../../reviewCommentContext";
 
 const IMAGE_SIZE_LIMIT_LABEL = `${Math.round(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES / (1024 * 1024))}MB`;
 
-const runtimeModeConfig: Record<
-  RuntimeMode,
-  { label: string; description: string; icon: LucideIcon }
-> = {
-  "approval-required": {
-    label: "Supervised",
-    description: "Ask before commands and file changes.",
-    icon: LockIcon,
-  },
-  "auto-accept-edits": {
-    label: "Auto-accept edits",
-    description: "Auto-approve edits, ask before other actions.",
-    icon: PenLineIcon,
-  },
-  auto: {
-    label: "Auto",
-    description: "An AI reviewer approves routine actions; risky ones still ask.",
-    icon: SparklesIcon,
-  },
-  "medium-access": {
-    label: "Medium access",
-    description: "Allow reversible commands, ask before riskier actions.",
-    icon: ShieldIcon,
-  },
-  "full-access": {
-    label: "Full access",
-    description: "Allow commands and edits without prompts.",
-    icon: LockOpenIcon,
-  },
-};
-
-const runtimeModeOptions = Object.keys(runtimeModeConfig) as RuntimeMode[];
 const COMPOSER_FLOATING_LAYER_SELECTOR = [
   '[data-slot="popover-popup"]',
   '[data-slot="menu-popup"]',
@@ -267,6 +224,7 @@ function isInsideComposerFloatingLayer(element: Element): boolean {
 }
 
 const ComposerFooterModeControls = memo(function ComposerFooterModeControls(props: {
+  provider: ProviderDriverKind;
   showInteractionModeToggle: boolean;
   interactionMode: ProviderInteractionMode;
   runtimeMode: RuntimeMode;
@@ -277,6 +235,8 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
   onRuntimeModeChange: (mode: RuntimeMode) => void;
   onTogglePlanSidebar: () => void;
 }) {
+  const runtimeModeConfig = getRuntimeModeConfig(props.provider);
+  const runtimeModeOptions = getRuntimeModeOptions(props.provider);
   const runtimeModeOption = runtimeModeConfig[props.runtimeMode];
   const RuntimeModeIcon = runtimeModeOption.icon;
   const interactionModeTooltip =
@@ -2679,6 +2639,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
                 {isComposerFooterCompact ? (
                   <CompactComposerControlsMenu
+                    provider={selectedProvider}
                     activePlan={showPlanSidebarToggle}
                     interactionMode={interactionMode}
                     planSidebarLabel={planSidebarLabel}
@@ -2699,6 +2660,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       </>
                     ) : null}
                     <ComposerFooterModeControls
+                      provider={selectedProvider}
                       showInteractionModeToggle={composerProviderControls.showInteractionModeToggle}
                       interactionMode={interactionMode}
                       runtimeMode={runtimeMode}
