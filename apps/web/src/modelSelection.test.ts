@@ -11,7 +11,7 @@ import {
 function provider(input: {
   provider?: ProviderDriverKind;
   instanceId: string;
-  models?: ReadonlyArray<string>;
+  models?: ReadonlyArray<string | { slug: string; isDefault?: boolean }>;
 }): ServerProvider {
   const driver =
     input.provider ??
@@ -27,12 +27,16 @@ function provider(input: {
     status: "ready",
     auth: { status: "authenticated" },
     checkedAt: "2026-01-01T00:00:00.000Z",
-    models: (input.models ?? []).map((slug) => ({
-      slug,
-      name: slug,
-      isCustom: false,
-      capabilities: {},
-    })),
+    models: (input.models ?? []).map((model) => {
+      const slug = typeof model === "string" ? model : model.slug;
+      return {
+        slug,
+        name: slug,
+        isCustom: false,
+        capabilities: {},
+        ...(typeof model === "object" && model.isDefault ? { isDefault: true as const } : {}),
+      };
+    }),
     slashCommands: [],
     skills: [],
   };
@@ -283,7 +287,11 @@ describe("instance-scoped model selection", () => {
       provider({
         provider: ProviderDriverKind.make("claudeAgent"),
         instanceId: "claudeAgent",
-        models: ["claude-fable-5", "claude-sonnet-5", "claude-sonnet-4-6"],
+        models: [
+          "claude-fable-5",
+          { slug: "claude-sonnet-5", isDefault: true },
+          "claude-sonnet-4-6",
+        ],
       }),
     ];
 
@@ -341,12 +349,16 @@ describe("instance-scoped model selection", () => {
     });
   });
 
-  it("uses the Git text default when text generation falls back within an instance", () => {
+  it("uses the marked default model when text generation falls back within an instance", () => {
     const providers = [
       provider({
         provider: ProviderDriverKind.make("claudeAgent"),
         instanceId: "claudeAgent",
-        models: ["claude-fable-5", "claude-sonnet-5", "claude-haiku-4-5"],
+        models: [
+          "claude-fable-5",
+          "claude-sonnet-5",
+          { slug: "claude-haiku-4-5", isDefault: true },
+        ],
       }),
     ];
     const settings: UnifiedSettings = {

@@ -678,6 +678,9 @@ const buildAppUnderTest = (options?: {
           readEvents: () => Stream.empty,
           dispatch: () => Effect.succeed({ sequence: 0 }),
           streamDomainEvents: Stream.empty,
+          subscribeDomainEvents: Effect.flatMap(PubSub.unbounded<OrchestrationEvent>(), (pubsub) =>
+            PubSub.subscribe(pubsub),
+          ),
           latestSequence: Effect.succeed(0),
           ...options?.layers?.orchestrationEngine,
         }),
@@ -5749,6 +5752,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         layers: {
           orchestrationEngine: {
             streamDomainEvents: Stream.fromPubSub(liveEvents),
+            subscribeDomainEvents: PubSub.subscribe(liveEvents),
           },
           projectionSnapshotQuery: {
             getThreadDetailSnapshot: () =>
