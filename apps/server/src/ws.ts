@@ -1068,12 +1068,22 @@ const makeWsRpcLayer = (
           observeRpcStreamEffect(
             ORCHESTRATION_WS_METHODS.subscribeShell,
             Effect.gen(function* () {
-              const liveStream = orchestrationEngine.streamDomainEvents.pipe(
-                Stream.mapEffect(toShellStreamEvent),
-                Stream.flatMap((event) =>
-                  Option.isSome(event) ? Stream.succeed(event.value) : Stream.empty,
+              // Acquire the PubSub subscription synchronously before forking.
+              // `Stream.fromPubSub` defers subscribe until stream start, and
+              // `forkScoped` only schedules the fibre — so an event published
+              // between schedule and start would still drop without this.
+              const liveBuffer = yield* Queue.unbounded<OrchestrationShellStreamItem>();
+              const liveSubscription = yield* orchestrationEngine.subscribeDomainEvents;
+              yield* Effect.forkScoped(
+                Stream.fromSubscription(liveSubscription).pipe(
+                  Stream.mapEffect(toShellStreamEvent),
+                  Stream.flatMap((event) =>
+                    Option.isSome(event) ? Stream.succeed(event.value) : Stream.empty,
+                  ),
+                  Stream.runForEach((item) => Queue.offer(liveBuffer, item)),
                 ),
               );
+              const bufferedLiveStream = Stream.fromQueue(liveBuffer);
 
               // When the client already holds a shell snapshot (cached, or loaded
               // over HTTP) it passes that snapshot's sequence, and we resume by
@@ -1086,49 +1096,33 @@ const makeWsRpcLayer = (
               // page limit) since the shell filter runs after reading.
               if (input.afterSequence !== undefined) {
                 const afterSequence = input.afterSequence;
-                return Stream.unwrap(
-                  Effect.gen(function* () {
-                    const liveBuffer = yield* Queue.unbounded<OrchestrationShellStreamItem>();
-                    yield* Effect.forkScoped(
-                      liveStream.pipe(Stream.runForEach((item) => Queue.offer(liveBuffer, item))),
-                    );
-                    const catchUpStream = orchestrationEngine
-                      .readEvents(afterSequence, Number.MAX_SAFE_INTEGER)
-                      .pipe(
-                        Stream.mapEffect(toShellStreamEvent),
-                        Stream.flatMap((event) =>
-                          Option.isSome(event) ? Stream.succeed(event.value) : Stream.empty,
-                        ),
-                        Stream.mapError(
-                          (cause) =>
-                            new OrchestrationGetSnapshotError({
-                              message: "Failed to replay orchestration shell events",
-                              cause,
-                            }),
-                        ),
-                      );
-                    const afterCatchUp =
-                      input.requestCompletionMarker === true
-                        ? Stream.concat(
-                            Stream.fromEffect(
-                              Queue.offer(liveBuffer, { kind: "synchronized" as const }),
-                            ).pipe(Stream.drain),
-                            Stream.fromQueue(liveBuffer),
-                          )
-                        : Stream.fromQueue(liveBuffer);
-                    return Stream.concat(catchUpStream, afterCatchUp);
-                  }),
-                );
+                const catchUpStream = orchestrationEngine
+                  .readEvents(afterSequence, Number.MAX_SAFE_INTEGER)
+                  .pipe(
+                    Stream.mapEffect(toShellStreamEvent),
+                    Stream.flatMap((event) =>
+                      Option.isSome(event) ? Stream.succeed(event.value) : Stream.empty,
+                    ),
+                    Stream.mapError(
+                      (cause) =>
+                        new OrchestrationGetSnapshotError({
+                          message: "Failed to replay orchestration shell events",
+                          cause,
+                        }),
+                    ),
+                  );
+                const afterCatchUp =
+                  input.requestCompletionMarker === true
+                    ? Stream.concat(
+                        Stream.fromEffect(
+                          Queue.offer(liveBuffer, { kind: "synchronized" as const }),
+                        ).pipe(Stream.drain),
+                        bufferedLiveStream,
+                      )
+                    : bufferedLiveStream;
+                return Stream.concat(catchUpStream, afterCatchUp);
               }
 
-              // The full-snapshot fallback needs the same replay-window safety
-              // as the resume path: subscribe before loading the projection so
-              // events published while the snapshot is read are buffered.
-              const liveBuffer = yield* Queue.unbounded<OrchestrationShellStreamItem>();
-              yield* Effect.forkScoped(
-                liveStream.pipe(Stream.runForEach((item) => Queue.offer(liveBuffer, item))),
-              );
-              const bufferedLiveStream = Stream.fromQueue(liveBuffer);
               const snapshot = yield* projectionSnapshotQuery.getShellSnapshot().pipe(
                 Effect.tapError((cause) =>
                   Effect.logError("orchestration shell snapshot load failed", { cause }),
@@ -1185,21 +1179,30 @@ const makeWsRpcLayer = (
               const isThisThreadDetailEvent = (event: OrchestrationEvent) =>
                 event.aggregateKind === "thread" &&
                 event.aggregateId === input.threadId &&
-                isThreadDetailEvent(event);
-
-              const liveStream = orchestrationEngine.streamDomainEvents.pipe(
-                Stream.filter(isThisThreadDetailEvent),
-                Stream.map((event) => ({
-                  kind: "event" as const,
-                  event,
-                })),
-              );
+                (isThreadDetailEvent(event) ||
+                  event.type === "thread.deleted" ||
+                  event.type === "thread.archived");
 
               // Attach live delivery before reading either replay or snapshot state.
               // Otherwise an event published while the snapshot is loading is lost.
+              //
+              // Acquire the PubSub subscription synchronously before forking the
+              // buffer consumer. `streamDomainEvents` is `Stream.fromPubSub`, which
+              // defers subscribe until stream start, and `forkScoped` only
+              // schedules the fibre — so an event published between schedule and
+              // start would still drop. Same race the provider-registry
+              // `subscribeChanges` path closes.
               const liveBuffer = yield* Queue.unbounded<OrchestrationThreadStreamItem>();
+              const liveSubscription = yield* orchestrationEngine.subscribeDomainEvents;
               yield* Effect.forkScoped(
-                liveStream.pipe(Stream.runForEach((item) => Queue.offer(liveBuffer, item))),
+                Stream.fromSubscription(liveSubscription).pipe(
+                  Stream.filter(isThisThreadDetailEvent),
+                  Stream.map((event) => ({
+                    kind: "event" as const,
+                    event,
+                  })),
+                  Stream.runForEach((item) => Queue.offer(liveBuffer, item)),
+                ),
               );
               const bufferedLiveStream = Stream.fromQueue(liveBuffer);
 
@@ -1211,10 +1214,9 @@ const makeWsRpcLayer = (
               // The live PubSub subscription must be attached *before* draining
               // the catch-up replay, otherwise events published during the replay
               // window are dropped (they are past the persisted tail the replay
-              // read, but the live stream is not yet subscribed). So fork the
-              // live stream into a buffer bound to this stream's scope, then emit
-              // catch-up followed by the buffered/ongoing live events. Overlapping
-              // events are deduped by sequence on the client.
+              // read, but the live stream is not yet subscribed). The early
+              // buffer above covers both the snapshot-load and catch-up paths;
+              // overlapping events are deduped by sequence on the client.
               //
               // Read the full range after the cursor (not the store's default
               // page-bounded limit): the range is normally tiny (a fresh HTTP
