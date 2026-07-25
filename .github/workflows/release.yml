@@ -1,4 +1,4 @@
-name: Release Desktop
+name: Release
 
 on:
   push:
@@ -9,23 +9,28 @@ on:
     - cron: "0 */3 * * *"
   workflow_dispatch:
     inputs:
+      channel:
+        description: "Release channel"
+        required: false
+        default: stable
+        type: choice
+        options:
+          - stable
+          - nightly
       version:
         description: "Release version (for example 1.2.3 or v1.2.3)"
-        required: true
+        required: false
         type: string
 
 permissions:
-  contents: write
+  contents: read
   id-token: none
-
-env:
-  T3CODE_RELEASE_REPOSITORY: aaditagrawal/t3code
-  T3CODE_DESKTOP_UPDATE_REPOSITORY: aaditagrawal/t3code
 
 jobs:
   check_changes:
     name: Check for changes since last nightly
-    runs-on: ubuntu-24.04
+    if: github.event_name == 'schedule'
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     outputs:
       has_changes: ${{ steps.check.outputs.has_changes }}
     steps:
@@ -37,12 +42,6 @@ jobs:
       - id: check
         name: Compare HEAD to last nightly tag
         run: |
-          if [[ "${GITHUB_EVENT_NAME}" != "schedule" ]]; then
-            echo "Manual or tag release. Proceeding without nightly change detection."
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
           last_nightly_tag=$(git tag --list 'v*-nightly.*' 'nightly-v*' --sort=-creatordate | head -n 1)
           if [[ -z "$last_nightly_tag" ]]; then
             echo "No previous nightly tag found. Proceeding with release."
@@ -67,78 +66,24 @@ jobs:
     if: |
       !failure() && !cancelled() &&
       (github.event_name != 'schedule' || needs.check_changes.outputs.has_changes == 'true')
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     outputs:
+      release_channel: ${{ steps.release_meta.outputs.release_channel }}
       version: ${{ steps.release_meta.outputs.version }}
       tag: ${{ steps.release_meta.outputs.tag }}
-      release_name: ${{ steps.release_meta.outputs.release_name }}
-      release_channel: ${{ steps.release_meta.outputs.release_channel }}
-      release_repository: ${{ steps.release_meta.outputs.release_repository }}
+      release_name: ${{ steps.release_meta.outputs.name }}
+      short_sha: ${{ steps.release_meta.outputs.short_sha }}
+      previous_tag: ${{ steps.previous_tag.outputs.previous_tag }}
+      cli_dist_tag: ${{ steps.release_meta.outputs.cli_dist_tag }}
       is_prerelease: ${{ steps.release_meta.outputs.is_prerelease }}
       make_latest: ${{ steps.release_meta.outputs.make_latest }}
       ref: ${{ github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - id: release_meta
-        name: Resolve release version
-        shell: bash
-        run: |
-          release_repository="${T3CODE_RELEASE_REPOSITORY:?T3CODE_RELEASE_REPOSITORY is required}"
-          desktop_update_repository="${T3CODE_DESKTOP_UPDATE_REPOSITORY:?T3CODE_DESKTOP_UPDATE_REPOSITORY is required}"
-
-          for repository in "$release_repository" "$desktop_update_repository"; do
-            if [[ ! "$repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
-              echo "Invalid release repository: $repository" >&2
-              exit 1
-            fi
-          done
-
-          if [[ "$GITHUB_REPOSITORY" != "$release_repository" || "$GITHUB_REPOSITORY" != "$desktop_update_repository" ]]; then
-            echo "This fork release workflow is configured for release repository $release_repository and desktop updater repository $desktop_update_repository, but it is running in $GITHUB_REPOSITORY." >&2
-            exit 1
-          fi
-
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            raw="${{ github.event.inputs.version }}"
-          elif [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
-            # Nightly: derive a unique prerelease version from the current
-            # package.json base and today's date + run counter so every
-            # scheduled run produces a valid semver like
-            # `0.0.21-nightly.20260420.3`.
-            base_version=$(node -e "console.log(require('./apps/desktop/package.json').version)")
-            base_version="${base_version%%-*}"
-            date_stamp=$(date -u +%Y%m%d)
-            raw="${base_version}-nightly.${date_stamp}.${GITHUB_RUN_NUMBER}"
-          else
-            raw="${GITHUB_REF_NAME}"
-          fi
-
-          version="${raw#v}"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}\.[0-9]+$ ]]; then
-            echo "Invalid release version: $raw" >&2
-            exit 1
-          fi
-
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=v$version" >> "$GITHUB_OUTPUT"
-          echo "release_repository=$release_repository" >> "$GITHUB_OUTPUT"
-          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "release_name=T3 Code v$version" >> "$GITHUB_OUTPUT"
-            echo "release_channel=stable" >> "$GITHUB_OUTPUT"
-            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
-            echo "make_latest=true" >> "$GITHUB_OUTPUT"
-          elif [[ "$version" =~ -nightly\.[0-9]{8}\.[0-9]+$ ]]; then
-            echo "release_name=T3 Code Nightly $version (${GITHUB_SHA::12})" >> "$GITHUB_OUTPUT"
-            echo "release_channel=nightly" >> "$GITHUB_OUTPUT"
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "make_latest=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Unsupported prerelease version: $version" >&2
-            exit 1
-          fi
+        with:
+          fetch-depth: 0
 
       - name: Setup Vite+
         uses: voidzero-dev/setup-vp@v1
@@ -147,6 +92,63 @@ jobs:
           cache: true
           run-install: true
 
+      - name: Ensure Electron runtime is installed
+        run: vp run --filter @t3tools/desktop ensure:electron
+
+      - id: release_meta
+        name: Resolve release version
+        shell: bash
+        env:
+          DISPATCH_CHANNEL: ${{ github.event.inputs.channel }}
+          DISPATCH_VERSION: ${{ github.event.inputs.version }}
+          NIGHTLY_DATE: ${{ github.run_started_at }}
+          NIGHTLY_SHA: ${{ github.sha }}
+          NIGHTLY_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" || ( "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${DISPATCH_CHANNEL:-stable}" == "nightly" ) ]]; then
+            nightly_date="$(date -u -d "$NIGHTLY_DATE" +%Y%m%d)"
+
+            node scripts/resolve-nightly-release.ts \
+              --date "$nightly_date" \
+              --run-number "$NIGHTLY_RUN_NUMBER" \
+              --sha "$NIGHTLY_SHA" \
+              --github-output
+
+            echo "release_channel=nightly" >> "$GITHUB_OUTPUT"
+            echo "cli_dist_tag=nightly" >> "$GITHUB_OUTPUT"
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "make_latest=false" >> "$GITHUB_OUTPUT"
+          else
+            if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+              raw="${DISPATCH_VERSION}"
+              if [[ -z "$raw" ]]; then
+                echo "workflow_dispatch stable releases require the version input." >&2
+                exit 1
+              fi
+            else
+              raw="${GITHUB_REF_NAME}"
+            fi
+
+            version="${raw#v}"
+            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "Invalid release version: $raw" >&2
+              exit 1
+            fi
+
+            echo "release_channel=stable" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            echo "tag=v$version" >> "$GITHUB_OUTPUT"
+            echo "name=T3 Code v$version" >> "$GITHUB_OUTPUT"
+            echo "cli_dist_tag=latest" >> "$GITHUB_OUTPUT"
+            if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+              echo "make_latest=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+              echo "make_latest=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
       - name: Check
         run: vp check
 
@@ -154,7 +156,101 @@ jobs:
         run: vp run typecheck
 
       - name: Test
-        run: vp run --filter './apps/*' --filter './packages/*' --filter '!@t3tools/desktop' test
+        run: vp run test
+
+      - id: previous_tag
+        name: Resolve previous release tag
+        run: |
+          node scripts/resolve-previous-release-tag.ts \
+            --channel "${{ steps.release_meta.outputs.release_channel }}" \
+            --current-tag "${{ steps.release_meta.outputs.tag }}" \
+            --github-output
+
+  relay_public_config:
+    name: Resolve T3 Connect public config
+    needs: preflight
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 5
+    environment:
+      name: production
+    outputs:
+      clerk_publishable_key: ${{ steps.public_config.outputs.clerk_publishable_key }}
+      clerk_jwt_template: ${{ steps.public_config.outputs.clerk_jwt_template }}
+      clerk_cli_oauth_client_id: ${{ steps.public_config.outputs.clerk_cli_oauth_client_id }}
+      relay_url: ${{ steps.public_config.outputs.relay_url }}
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      RELAY_DOMAIN: ${{ vars.RELAY_DOMAIN }}
+      RELAY_API_ZONE_NAME: ${{ vars.RELAY_API_ZONE_NAME }}
+      CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY }}
+      CLERK_JWT_TEMPLATE: ${{ vars.CLERK_JWT_TEMPLATE }}
+      CLERK_CLI_OAUTH_CLIENT_ID: ${{ vars.CLERK_CLI_OAUTH_CLIENT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: |
+            args:
+              - --filter=t3code-relay...
+
+      - id: relay_state
+        name: Read production relay tracing config
+        shell: bash
+        run: |
+          vp run --filter t3code-relay deploy \
+            --stage prod \
+            --read-state \
+            --github-output \
+            --github-env-file "$RUNNER_TEMP/relay-client-tracing.env"
+
+      - name: Upload relay client tracing config
+        uses: actions/upload-artifact@v7
+        with:
+          name: relay-client-tracing-config
+          path: ${{ runner.temp }}/relay-client-tracing.env
+          if-no-files-found: error
+          retention-days: 1
+
+      - id: public_config
+        name: Resolve production relay public config
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          relay_domain="${RELAY_DOMAIN:-}"
+          if [[ -z "$relay_domain" && -n "${RELAY_API_ZONE_NAME:-}" ]]; then
+            relay_domain="relay.$RELAY_API_ZONE_NAME"
+          fi
+          required=(
+            relay_domain
+            CLERK_PUBLISHABLE_KEY
+            CLERK_JWT_TEMPLATE
+            CLERK_CLI_OAUTH_CLIENT_ID
+          )
+          missing=()
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required relay deployment configuration: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+          echo "clerk_publishable_key=$CLERK_PUBLISHABLE_KEY" >> "$GITHUB_OUTPUT"
+          echo "clerk_jwt_template=$CLERK_JWT_TEMPLATE" >> "$GITHUB_OUTPUT"
+          echo "clerk_cli_oauth_client_id=$CLERK_CLI_OAUTH_CLIENT_ID" >> "$GITHUB_OUTPUT"
+          echo "relay_url=https://$relay_domain" >> "$GITHUB_OUTPUT"
 
   # node-pty publishes no Linux prebuilt and the WSL backend runs under the
   # distro's own (Linux) Node, which can't load the Windows/Electron binary. We
@@ -166,11 +262,7 @@ jobs:
     name: Build WSL node-pty (linux-x64)
     needs: [preflight]
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
-    # Build against Debian bullseye glibc (≈ Ubuntu 20.04) so the bundled WSL
-    # native addon loads on common Ubuntu 20.04/22.04 WSL distros. N-API covers
-    # Node ABI, not libc ABI. Use a standard GitHub-hosted runner + Node bullseye
-    # container instead of Blacksmith Ubuntu 2004 labels, which can queue forever.
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -191,16 +283,11 @@ jobs:
         run: |
           set -euo pipefail
           # Resolve node-pty from apps/server (where it's a dependency) and build
-          # its native binary from source for Linux against an older glibc. node-
-          # addon-api resolves from node-pty's own dependency tree inside the
-          # mounted workspace, so node-gyp has everything it needs.
+          # its native binary from source for Linux. node-addon-api resolves from
+          # node-pty's own dependency tree, so node-gyp has everything it needs.
           pty_pkg="$(node -e "console.log(require.resolve('node-pty/package.json', { paths: ['$GITHUB_WORKSPACE/apps/server'] }))")"
           pty_dir="$(dirname "$pty_pkg")"
-          docker run --rm \
-            -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" \
-            -w "$pty_dir" \
-            node:24.13.1-bullseye \
-            bash -lc 'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential python3 >/dev/null && npx --yes node-gyp rebuild'
+          ( cd "$pty_dir" && npx --yes node-gyp rebuild )
           mkdir -p wsl-prebuild
           cp "$pty_dir/build/Release/pty.node" wsl-prebuild/pty.node
           file wsl-prebuild/pty.node
@@ -212,189 +299,53 @@ jobs:
           path: wsl-prebuild/pty.node
           if-no-files-found: error
 
-  build_android_apk:
-    name: Build Android APK
-    needs: [preflight]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    environment: production
-    permissions:
-      contents: read
-    env:
-      APP_VARIANT: production
-      EXPO_NO_GIT_STATUS: "1"
-      MOBILE_APP_VERSION: ${{ needs.preflight.outputs.version }}
-      MOBILE_ANDROID_VERSION_CODE: ${{ github.run_number }}
-      NODE_OPTIONS: --max-old-space-size=8192
-      T3CODE_CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY }}
-      T3CODE_CLERK_JWT_TEMPLATE: ${{ vars.CLERK_JWT_TEMPLATE }}
-      T3CODE_RELAY_URL: ${{ vars.RELAY_DOMAIN }}
-      RELAY_API_ZONE_NAME: ${{ vars.RELAY_API_ZONE_NAME }}
-      EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID }}
-      EXPO_PUBLIC_CLERK_GOOGLE_ANDROID_CLIENT_ID: ${{ vars.EXPO_PUBLIC_CLERK_GOOGLE_ANDROID_CLIENT_ID }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.ref }}
-          fetch-depth: 0
-
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version-file: package.json
-          cache: true
-          run-install: true
-
-      - name: Prebuild and compile signed APK
-        shell: bash
-        env:
-          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
-          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
-          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
-          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-
-          signing_values=(
-            "$ANDROID_RELEASE_KEYSTORE_BASE64"
-            "$ANDROID_RELEASE_KEYSTORE_PASSWORD"
-            "$ANDROID_RELEASE_KEY_ALIAS"
-            "$ANDROID_RELEASE_KEY_PASSWORD"
-          )
-          configured=0
-          for value in "${signing_values[@]}"; do
-            if [[ -n "$value" ]]; then
-              configured=$((configured + 1))
-            fi
-          done
-
-          keystore="$RUNNER_TEMP/t3code-android-release.p12"
-          if [[ "$configured" -eq 4 ]]; then
-            printf '%s' "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$keystore"
-            store_password="$ANDROID_RELEASE_KEYSTORE_PASSWORD"
-            key_alias="$ANDROID_RELEASE_KEY_ALIAS"
-            key_password="$ANDROID_RELEASE_KEY_PASSWORD"
-            echo "Using the configured persistent Android release key."
-          elif [[ "$configured" -eq 0 ]]; then
-            store_password="$(openssl rand -hex 32)"
-            key_password="$store_password"
-            key_alias="t3code-release"
-            keytool -genkeypair \
-              -keystore "$keystore" \
-              -storetype PKCS12 \
-              -storepass "$store_password" \
-              -alias "$key_alias" \
-              -keypass "$key_password" \
-              -keyalg RSA \
-              -keysize 4096 \
-              -validity 3650 \
-              -dname "CN=T3 Code CI, OU=Ephemeral Android Build, O=T3 Code"
-            echo "::warning::Android signing secrets are absent. This APK is installable, but its ephemeral key cannot upgrade APKs from another release. Configure the documented signing secrets before distributing production updates."
-          else
-            echo "Android release signing is only partially configured. Set all four ANDROID_RELEASE_* secrets or remove all four to use an ephemeral installable build." >&2
-            exit 1
-          fi
-
-          chmod 600 "$keystore"
-          export ORG_GRADLE_PROJECT_T3CODE_ANDROID_KEYSTORE_FILE="$keystore"
-          export ORG_GRADLE_PROJECT_T3CODE_ANDROID_KEYSTORE_PASSWORD="$store_password"
-          export ORG_GRADLE_PROJECT_T3CODE_ANDROID_KEY_ALIAS="$key_alias"
-          export ORG_GRADLE_PROJECT_T3CODE_ANDROID_KEY_PASSWORD="$key_password"
-
-          if [[ -z "${T3CODE_RELAY_URL:-}" && -n "${RELAY_API_ZONE_NAME:-}" ]]; then
-            export T3CODE_RELAY_URL="https://relay.${RELAY_API_ZONE_NAME}"
-          elif [[ -n "${T3CODE_RELAY_URL:-}" && ! "$T3CODE_RELAY_URL" =~ ^https?:// ]]; then
-            export T3CODE_RELAY_URL="https://${T3CODE_RELAY_URL}"
-          fi
-
-          vp exec --filter @t3tools/mobile -- expo prebuild --clean --platform android --no-install
-          apps/mobile/android/gradlew \
-            --project-dir apps/mobile/android \
-            :app:assembleRelease \
-            --no-daemon \
-            --stacktrace
-
-          shopt -s nullglob
-          apks=(apps/mobile/android/app/build/outputs/apk/release/*.apk)
-          if [[ "${#apks[@]}" -ne 1 ]]; then
-            echo "Expected exactly one release APK, found ${#apks[@]}." >&2
-            exit 1
-          fi
-
-          mkdir -p release-publish
-          cp "${apks[0]}" "release-publish/T3-Code-${MOBILE_APP_VERSION}-android.apk"
-
-      - name: Verify APK signature and metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          apk="release-publish/T3-Code-${MOBILE_APP_VERSION}-android.apk"
-          build_tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
-
-          "$build_tools/apksigner" verify --verbose --print-certs "$apk"
-          badging="$($build_tools/aapt dump badging "$apk" | head -n 1)"
-          echo "$badging"
-          grep -Fq "package: name='com.t3tools.t3code'" <<< "$badging"
-          grep -Fq "versionCode='${MOBILE_ANDROID_VERSION_CODE}'" <<< "$badging"
-          grep -Fq "versionName='${MOBILE_APP_VERSION}'" <<< "$badging"
-
-      - name: Upload Android APK
-        uses: actions/upload-artifact@v7
-        with:
-          name: android-apk
-          path: release-publish/*.apk
-          if-no-files-found: error
-
   build:
     name: Build ${{ matrix.label }}
     # build_wsl_node_pty stays in `needs` so it runs first and its artifact is
     # available to download, but only the Windows matrix entry consumes it. We
-    # gate the job on preflight only. `!cancelled()` (not `!failure()`) lets
-    # macOS/Linux builds run even when build_wsl_node_pty failed; the
-    # Windows-only download step below then fails that single platform if the
-    # prebuild is missing.
-    needs: [preflight, build_wsl_node_pty]
-    if: ${{ !cancelled() && needs.preflight.result == 'success' }}
+    # therefore gate the job on preflight + relay (must succeed) WITHOUT requiring
+    # build_wsl_node_pty, so a failed Linux prebuild doesn't skip the macOS/Linux
+    # builds. `!cancelled()` (not `!failure()`) lets the job run even when
+    # build_wsl_node_pty failed; the Windows-only download step below then fails
+    # that single platform if the prebuild is missing.
+    needs: [preflight, relay_public_config, build_wsl_node_pty]
+    if: ${{ !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    env:
+      T3CODE_CLERK_PUBLISHABLE_KEY: ${{ needs.relay_public_config.outputs.clerk_publishable_key }}
+      T3CODE_CLERK_JWT_TEMPLATE: ${{ needs.relay_public_config.outputs.clerk_jwt_template }}
+      T3CODE_CLERK_CLI_OAUTH_CLIENT_ID: ${{ needs.relay_public_config.outputs.clerk_cli_oauth_client_id }}
+      T3CODE_RELAY_URL: ${{ needs.relay_public_config.outputs.relay_url }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - label: macOS arm64
-            runner: macos-14
+            runner: blacksmith-12vcpu-macos-26
             platform: mac
             target: dmg
             arch: arm64
           - label: macOS x64
-            runner: macos-15-intel
+            runner: blacksmith-12vcpu-macos-26
             platform: mac
             target: dmg
             arch: x64
           - label: Linux x64
-            runner: ubuntu-24.04
+            runner: blacksmith-32vcpu-ubuntu-2404
             platform: linux
             target: AppImage
             arch: x64
           - label: Windows x64
-            runner: windows-2022
+            runner: blacksmith-32vcpu-windows-2025
             platform: win
             target: nsis
             arch: x64
+          # - label: Windows arm64
+          #   runner: windows-11-arm
+          #   platform: win
+          #   target: nsis
+          #   arch: arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -408,6 +359,20 @@ jobs:
           node-version-file: package.json
           cache: true
           run-install: true
+
+      - name: Download relay client tracing config
+        uses: actions/download-artifact@v8
+        with:
+          name: relay-client-tracing-config
+          path: ${{ runner.temp }}/relay-client-tracing
+
+      - name: Load relay client tracing config
+        shell: bash
+        run: |
+          config_path="$RUNNER_TEMP/relay-client-tracing/relay-client-tracing.env"
+          tracing_token="$(sed -n 's/^T3CODE_RELAY_CLIENT_OTLP_TRACES_TOKEN=//p' "$config_path")"
+          echo "::add-mask::$tracing_token"
+          cat "$config_path" >> "$GITHUB_ENV"
 
       - name: Align package versions to release version
         run: node scripts/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
@@ -532,12 +497,6 @@ jobs:
           AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
           AZURE_TRUSTED_SIGNING_PUBLISHER_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER_NAME }}
         run: |
-          # electron-builder walks large trees while packing; macOS runners often
-          # hit EMFILE without a higher soft limit.
-          if [[ "${{ matrix.platform }}" == "mac" ]]; then
-            ulimit -n 10240 || true
-          fi
-
           args=(
             --platform "${{ matrix.platform }}"
             --target "${{ matrix.target }}"
@@ -614,20 +573,30 @@ jobs:
             "release/*.AppImage" \
             "release/*.exe" \
             "release/*.blockmap" \
-            "release/latest*.yml" \
-            "release/nightly*.yml"; do
+            "release/*.yml"; do
             for file in $pattern; do
               cp "$file" release-publish/
             done
           done
 
           if [[ "${{ matrix.platform }}" == "mac" && "${{ matrix.arch }}" != "arm64" ]]; then
-            for channel in latest nightly; do
-              if [[ -f "release-publish/${channel}-mac.yml" ]]; then
-                mv "release-publish/${channel}-mac.yml" "release-publish/${channel}-mac-${{ matrix.arch }}.yml"
-              fi
+            shopt -s nullglob
+            for manifest in release-publish/*-mac.yml; do
+              mv "$manifest" "${manifest%.yml}-${{ matrix.arch }}.yml"
             done
           fi
+
+          # Enable if Windows arm64 builds are enabled.
+          # Windows updater metadata is channel-specific (for example
+          # "latest.yml" or "nightly.yml"). Suffix each per-arch copy so the
+          # release job can merge matching arm64/x64 manifests back into one
+          # canonical manifest per channel.
+          # if [[ "${{ matrix.platform }}" == "win" ]]; then
+          #   shopt -s nullglob
+          #   for manifest in release-publish/*.yml; do
+          #     mv "$manifest" "${manifest%.yml}-win-${{ matrix.arch }}.yml"
+          #   done
+          # fi
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
@@ -636,14 +605,20 @@ jobs:
           path: release-publish/*
           if-no-files-found: error
 
-  release:
-    name: Publish GitHub Release
-    needs: [preflight, build, build_android_apk]
-    runs-on: ubuntu-24.04
+  publish_cli:
+    name: Publish CLI to npm
+    needs: [preflight, relay_public_config, build]
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.build.result == 'success' }}
+    runs-on: ubuntu-24.04 # blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     permissions:
-      contents: write
-      id-token: none
+      contents: read
+      id-token: write
+    env:
+      T3CODE_CLERK_PUBLISHABLE_KEY: ${{ needs.relay_public_config.outputs.clerk_publishable_key }}
+      T3CODE_CLERK_JWT_TEMPLATE: ${{ needs.relay_public_config.outputs.clerk_jwt_template }}
+      T3CODE_CLERK_CLI_OAUTH_CLIENT_ID: ${{ needs.relay_public_config.outputs.clerk_cli_oauth_client_id }}
+      T3CODE_RELAY_URL: ${{ needs.relay_public_config.outputs.relay_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -655,7 +630,66 @@ jobs:
         with:
           node-version-file: package.json
           cache: true
-          run-install: true
+          run-install: |
+            args:
+              - --filter=t3...
+              - --filter=@t3tools/web...
+              - --filter=@t3tools/scripts...
+
+      - name: Download relay client tracing config
+        uses: actions/download-artifact@v8
+        with:
+          name: relay-client-tracing-config
+          path: ${{ runner.temp }}/relay-client-tracing
+
+      - name: Load relay client tracing config
+        shell: bash
+        run: |
+          config_path="$RUNNER_TEMP/relay-client-tracing/relay-client-tracing.env"
+          tracing_token="$(sed -n 's/^T3CODE_RELAY_CLIENT_OTLP_TRACES_TOKEN=//p' "$config_path")"
+          echo "::add-mask::$tracing_token"
+          cat "$config_path" >> "$GITHUB_ENV"
+
+      - name: Align package versions to release version
+        run: node scripts/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
+
+      - name: Build web package
+        run: vp run --filter @t3tools/web build
+
+      - name: Build CLI package
+        run: vp run --filter t3 build
+
+      - name: Publish CLI package
+        run: node apps/server/scripts/cli.ts publish --tag "${{ needs.preflight.outputs.cli_dist_tag }}" --app-version "${{ needs.preflight.outputs.version }}" --verbose
+
+  release:
+    name: Publish GitHub Release
+    needs: [preflight, build, publish_cli]
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.build.result == 'success' && needs.publish_cli.result == 'success' }}
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
+    steps:
+      - id: app_token
+        name: Mint release app token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: |
+            args:
+              - --filter=@t3tools/scripts...
 
       - name: Download all desktop artifacts
         uses: actions/download-artifact@v8
@@ -664,44 +698,74 @@ jobs:
           merge-multiple: true
           path: release-assets
 
-      - name: Download Android APK
-        uses: actions/download-artifact@v8
-        with:
-          name: android-apk
-          path: release-assets
-
       - name: Merge macOS updater manifests
         run: |
-          set -euo pipefail
           shopt -s nullglob
-
-          found_mac_manifest=false
           for x64_manifest in release-assets/*-mac-x64.yml; do
-            arm64_manifest="${x64_manifest/-x64.yml/.yml}"
-            if [[ ! -f "$arm64_manifest" ]]; then
-              echo "Missing matching arm64 macOS manifest for $x64_manifest" >&2
-              exit 1
+            arm64_manifest="${x64_manifest%-x64.yml}.yml"
+            if [[ -f "$arm64_manifest" ]]; then
+              node scripts/merge-update-manifests.ts --platform mac "$arm64_manifest" "$x64_manifest"
+              rm -f "$x64_manifest"
             fi
-
-            found_mac_manifest=true
-            node scripts/merge-update-manifests.ts --platform mac \
-              "$arm64_manifest" \
-              "$x64_manifest"
-            rm -f "$x64_manifest"
           done
 
-          if [[ "$found_mac_manifest" != true ]]; then
-            echo "No macOS updater manifests found to merge." >&2
-            exit 1
-          fi
+      # - name: Merge Windows updater manifests
+      #   run: |
+      #     shopt -s nullglob
+      #     found_windows_manifest=false
+      #     for x64_manifest in release-assets/*-win-x64.yml; do
+      #       if [[ "$(basename "$x64_manifest")" == builder-debug-* ]]; then
+      #         continue
+      #       fi
+
+      #       arm64_manifest="${x64_manifest/-x64.yml/-arm64.yml}"
+      #       output_manifest="${x64_manifest/-win-x64.yml/.yml}"
+      #       if [[ ! -f "$arm64_manifest" ]]; then
+      #         echo "Missing matching arm64 Windows manifest for $x64_manifest" >&2
+      #         exit 1
+      #       fi
+
+      #       found_windows_manifest=true
+      #       node scripts/merge-update-manifests.ts --platform win \
+      #         "$arm64_manifest" \
+      #         "$x64_manifest" \
+      #         "$output_manifest"
+      #       rm -f "$arm64_manifest" "$x64_manifest"
+      #     done
+
+      #     if [[ "$found_windows_manifest" != true ]]; then
+      #       echo "No Windows updater manifests found to merge." >&2
+      #       exit 1
+      #     fi
 
       - name: Publish release
+        if: needs.preflight.outputs.previous_tag != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.preflight.outputs.tag }}
           target_commitish: ${{ needs.preflight.outputs.ref }}
           name: ${{ needs.preflight.outputs.release_name }}
-          repository: ${{ needs.preflight.outputs.release_repository }}
+          generate_release_notes: true
+          previous_tag: ${{ needs.preflight.outputs.previous_tag }}
+          prerelease: ${{ needs.preflight.outputs.is_prerelease }}
+          make_latest: ${{ needs.preflight.outputs.make_latest }}
+          files: |
+            release-assets/*.dmg
+            release-assets/*.zip
+            release-assets/*.AppImage
+            release-assets/*.exe
+            release-assets/*.blockmap
+            release-assets/*.yml
+          fail_on_unmatched_files: true
+          token: ${{ steps.app_token.outputs.token }}
+
+      - name: Publish first release
+        if: needs.preflight.outputs.previous_tag == ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.preflight.outputs.tag }}
+          target_commitish: ${{ needs.preflight.outputs.ref }}
+          name: ${{ needs.preflight.outputs.release_name }}
           generate_release_notes: true
           prerelease: ${{ needs.preflight.outputs.is_prerelease }}
           make_latest: ${{ needs.preflight.outputs.make_latest }}
@@ -712,17 +776,20 @@ jobs:
             release-assets/*.exe
             release-assets/*.blockmap
             release-assets/*.yml
-            release-assets/*.apk
           fail_on_unmatched_files: true
+          token: ${{ steps.app_token.outputs.token }}
 
   deploy_web:
     name: Deploy hosted web app
-    needs: [preflight, release]
-    # Fork: enable once this fork has its own hosted app deployment configured.
-    if: false
-    runs-on: ubuntu-24.04
+    needs: [preflight, relay_public_config, release]
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.release.result == 'success' }}
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     env:
+      T3CODE_CLERK_PUBLISHABLE_KEY: ${{ needs.relay_public_config.outputs.clerk_publishable_key }}
+      T3CODE_CLERK_JWT_TEMPLATE: ${{ needs.relay_public_config.outputs.clerk_jwt_template }}
+      T3CODE_CLERK_CLI_OAUTH_CLIENT_ID: ${{ needs.relay_public_config.outputs.clerk_cli_oauth_client_id }}
+      T3CODE_RELAY_URL: ${{ needs.relay_public_config.outputs.relay_url }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -741,7 +808,24 @@ jobs:
         with:
           node-version-file: package.json
           cache: true
-          run-install: true
+          run-install: |
+            args:
+              - --filter=@t3tools/scripts...
+              - --filter=@t3tools/web...
+
+      - name: Download relay client tracing config
+        uses: actions/download-artifact@v8
+        with:
+          name: relay-client-tracing-config
+          path: ${{ runner.temp }}/relay-client-tracing
+
+      - name: Load relay client tracing config
+        shell: bash
+        run: |
+          config_path="$RUNNER_TEMP/relay-client-tracing/relay-client-tracing.env"
+          tracing_token="$(sed -n 's/^T3CODE_RELAY_CLIENT_OTLP_TRACES_TOKEN=//p' "$config_path")"
+          echo "::add-mask::$tracing_token"
+          cat "$config_path" >> "$GITHUB_ENV"
 
       - name: Align package versions to release version
         run: node scripts/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
@@ -786,6 +870,13 @@ jobs:
               --token "$VERCEL_TOKEN" \
               "${vercel_scope_args[@]}" \
               --build-env "APP_VERSION=${{ needs.preflight.outputs.version }}" \
+              --build-env "T3CODE_CLERK_PUBLISHABLE_KEY=${T3CODE_CLERK_PUBLISHABLE_KEY:-}" \
+              --build-env "T3CODE_CLERK_JWT_TEMPLATE=${T3CODE_CLERK_JWT_TEMPLATE:-}" \
+              --build-env "T3CODE_CLERK_CLI_OAUTH_CLIENT_ID=${T3CODE_CLERK_CLI_OAUTH_CLIENT_ID:-}" \
+              --build-env "T3CODE_RELAY_URL=${T3CODE_RELAY_URL:-}" \
+              --build-env "T3CODE_RELAY_CLIENT_OTLP_TRACES_URL=${T3CODE_RELAY_CLIENT_OTLP_TRACES_URL:-}" \
+              --build-env "T3CODE_RELAY_CLIENT_OTLP_TRACES_DATASET=${T3CODE_RELAY_CLIENT_OTLP_TRACES_DATASET:-}" \
+              --build-env "T3CODE_RELAY_CLIENT_OTLP_TRACES_TOKEN=${T3CODE_RELAY_CLIENT_OTLP_TRACES_TOKEN:-}" \
               --build-env "VITE_HOSTED_APP_URL=$router_url" \
               --build-env "VITE_HOSTED_APP_CHANNEL=$channel_name"
           )"
@@ -804,11 +895,9 @@ jobs:
 
   finalize:
     name: Finalize release
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel == 'stable' }}
     needs: [preflight, release]
-    # secrets context is not available in job-level `if`. Use an env/output
-    # from a prior job, or simply always run and let the token step fail-fast.
-    if: false # Fork: enable once RELEASE_APP_ID secret is configured
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
       - id: app_token
@@ -842,7 +931,10 @@ jobs:
         with:
           node-version-file: package.json
           cache: true
-          run-install: true
+          run-install: |
+            args:
+              - --filter=@t3tools/scripts...
+              - --filter=@t3tools/oxlint-plugin-t3code...
 
       - id: update_versions
         name: Update version strings
@@ -875,3 +967,58 @@ jobs:
           git add apps/server/package.json apps/desktop/package.json apps/web/package.json packages/contracts/package.json pnpm-lock.yaml
           git commit -m "chore(release): prepare $RELEASE_TAG"
           git push origin HEAD:main
+
+  announce_discord:
+    name: Announce release on Discord
+    if: |
+      always() && !cancelled() &&
+      needs.preflight.result == 'success' &&
+      needs.relay_public_config.result == 'success' &&
+      needs.release.result == 'success' &&
+      needs.deploy_web.result == 'success' &&
+      (needs.finalize.result == 'success' || needs.finalize.result == 'skipped')
+    needs: [preflight, relay_public_config, release, deploy_web, finalize]
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: |
+            args:
+              - --filter=@t3tools/scripts...
+
+      - name: Announce prerelease on Discord
+        if: needs.preflight.outputs.is_prerelease == 'true'
+        continue-on-error: true
+        env:
+          DISCORD_MENTION_ROLE_ID: ${{ secrets.DISCORD_RELEASE_NIGHTLY_ROLE_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+        run: |
+          node scripts/notify-discord-release.ts prerelease \
+            --role-id "$DISCORD_MENTION_ROLE_ID" \
+            --release-name "${{ needs.preflight.outputs.release_name }}" \
+            --release-version "${{ needs.preflight.outputs.version }}" \
+            --tag "${{ needs.preflight.outputs.tag }}" \
+            --release-url "https://github.com/${{ github.repository }}/releases/tag/${{ needs.preflight.outputs.tag }}"
+
+      - name: Announce latest release on Discord
+        if: needs.preflight.outputs.make_latest == 'true'
+        continue-on-error: true
+        env:
+          DISCORD_MENTION_ROLE_ID: ${{ secrets.DISCORD_RELEASE_LATEST_ROLE_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+        run: |
+          node scripts/notify-discord-release.ts latest \
+            --role-id "$DISCORD_MENTION_ROLE_ID" \
+            --release-name "${{ needs.preflight.outputs.release_name }}" \
+            --release-version "${{ needs.preflight.outputs.version }}" \
+            --tag "${{ needs.preflight.outputs.tag }}" \
+            --release-url "https://github.com/${{ github.repository }}/releases/tag/${{ needs.preflight.outputs.tag }}"

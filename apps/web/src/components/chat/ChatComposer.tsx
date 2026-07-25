@@ -45,6 +45,10 @@ import {
 } from "../../composer-logic";
 import { deriveComposerSendState, readFileAsDataUrl } from "../ChatView.logic";
 import {
+  dataTransferHasComposerMention,
+  makeComposerMentionDragHandlers,
+} from "./composerMentionDrag";
+import {
   type ComposerImageAttachment,
   type DraftId,
   type PersistedComposerImageAttachment,
@@ -1136,6 +1140,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isSendBusy ||
     isConnecting ||
     projectSelectionRequired ||
+    environmentUnavailable !== null ||
     !composerSendState.hasSendableContent;
   const collapsedComposerPrimaryActionLabel = "Send message";
   const showMobilePendingAnswerActions =
@@ -1674,7 +1679,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
   const shouldBlurMobileComposerOnSubmit = useCallback(() => {
     if (!isMobileViewport) return false;
-    if (isSendBusy || isConnecting || phase === "running") return false;
+    if (isSendBusy || isConnecting || environmentUnavailable !== null || phase === "running") {
+      return false;
+    }
     if (activePendingProgress) {
       return activePendingProgress.isLastQuestion && Boolean(activePendingResolvedAnswers);
     }
@@ -1683,6 +1690,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activePendingProgress,
     activePendingResolvedAnswers,
     composerSendState.hasSendableContent,
+    environmentUnavailable,
     isConnecting,
     isMobileViewport,
     isSendBusy,
@@ -1859,6 +1867,66 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     addComposerImages(files);
     focusComposer();
   };
+
+  const insertComposerTextAtEnd = (
+    text: string,
+    options?: { ensureLeadingBoundary?: boolean },
+  ): boolean => {
+    if (
+      text.length === 0 ||
+      isConnecting ||
+      isComposerApprovalState ||
+      pendingUserInputs.length > 0 ||
+      projectSelectionRequired
+    ) {
+      return false;
+    }
+    const prompt = promptRef.current;
+    const needsLeadingSpace =
+      (options?.ensureLeadingBoundary ?? false) && prompt.length > 0 && !/\s$/.test(prompt);
+    return applyPromptReplacement(
+      prompt.length,
+      prompt.length,
+      needsLeadingSpace ? ` ${text}` : text,
+    );
+  };
+
+  // File-tree drags land as mentions. Handled in the capture phase so the
+  // editor never sees the drop; the load-bearing rules (native stop, "move"
+  // effect, no eager focus) live in makeComposerMentionDragHandlers.
+  const composerMentionDragHandlers = makeComposerMentionDragHandlers({
+    insertMentionAtEnd: (text) => insertComposerTextAtEnd(text, { ensureLeadingBoundary: true }),
+    setDragActive: setIsDragOverComposer,
+    onInsertRejected: () => {
+      toastManager.add({
+        type: "error",
+        title: "Unable to add to chat",
+        description: "The composer is busy; try again once it is ready.",
+      });
+    },
+  });
+
+  const onComposerMentionDragLeaveCapture = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!dataTransferHasComposerMention(event.dataTransfer.types)) return;
+    event.stopPropagation();
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
+    setIsDragOverComposer(false);
+  };
+
+  // A cancelled drag (Escape) can end without a dragleave on the hovered
+  // target, which would leave the drop highlight stuck. dragend always fires
+  // on the in-page drag source and bubbles to window, so it is the reset of
+  // last resort while the highlight is up.
+  useEffect(() => {
+    if (!isDragOverComposer) return;
+    const onWindowDragEnd = () => {
+      dragDepthRef.current = 0;
+      setIsDragOverComposer(false);
+    };
+    window.addEventListener("dragend", onWindowDragEnd);
+    return () => window.removeEventListener("dragend", onWindowDragEnd);
+  }, [isDragOverComposer]);
   const handleInterruptPrimaryAction = useCallback(() => {
     void onInterrupt();
   }, [onInterrupt]);
@@ -1922,26 +1990,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       focusAt: (cursor: number) => {
         composerEditorRef.current?.focusAt(cursor);
       },
-      insertTextAtEnd: (text: string, options?: { ensureLeadingBoundary?: boolean }) => {
-        if (
-          text.length === 0 ||
-          isConnecting ||
-          isComposerApprovalState ||
-          pendingUserInputs.length > 0 ||
-          projectSelectionRequired ||
-          (environmentUnavailable !== null && activePendingProgress === null)
-        ) {
-          return false;
-        }
-        const prompt = promptRef.current;
-        const needsLeadingSpace =
-          (options?.ensureLeadingBoundary ?? false) && prompt.length > 0 && !/\s$/.test(prompt);
-        return applyPromptReplacement(
-          prompt.length,
-          prompt.length,
-          needsLeadingSpace ? ` ${text}` : text,
-        );
-      },
+      insertTextAtEnd: insertComposerTextAtEnd,
       openModelPicker: () => {
         setIsComposerModelPickerOpen(true);
       },
@@ -2036,8 +2085,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       isComposerApprovalState,
       pendingUserInputs.length,
       projectSelectionRequired,
-      environmentUnavailable,
-      activePendingProgress,
       applyPromptReplacement,
       isComposerModelPickerOpen,
       readComposerSnapshot,
@@ -2068,6 +2115,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         onDragOver={onComposerDragOver}
         onDragLeave={onComposerDragLeave}
         onDrop={onComposerDrop}
+        onDragEnterCapture={composerMentionDragHandlers.onDragEnter}
+        onDragOverCapture={composerMentionDragHandlers.onDragOver}
+        onDragLeaveCapture={onComposerMentionDragLeaveCapture}
+        onDropCapture={composerMentionDragHandlers.onDrop}
       >
         <div
           ref={composerSurfaceRef}
@@ -2075,7 +2126,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           className={cn(
             "chat-composer-glass rounded-[20px] border transition-[background-color] duration-200 has-focus-visible:border-ring/45",
             isDragOverComposer ? "border-primary/70 bg-accent/45" : "border-border",
-            environmentUnavailable || projectSelectionRequired ? "opacity-75" : null,
+            projectSelectionRequired ? "opacity-75" : null,
             composerProviderState.composerSurfaceClassName,
           )}
           onFocusCapture={(event) => {
@@ -2433,12 +2484,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                               ? "Ask for follow-up changes or attach images"
                               : "Ask anything, @tag files/folders, $use skills, or / for commands"
                 }
-                disabled={
-                  isConnecting ||
-                  isComposerApprovalState ||
-                  projectSelectionRequired ||
-                  (environmentUnavailable !== null && activePendingProgress === null)
-                }
+                disabled={isConnecting || isComposerApprovalState || projectSelectionRequired}
               />
               {showMobilePendingAnswerActions ? (
                 <div

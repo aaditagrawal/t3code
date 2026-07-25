@@ -40,6 +40,7 @@ export default defineConfig({
       "apps/mobile/ios/**",
       "apps/web/public/mockServiceWorker.js",
       "apps/web/src/lib/vendor/qrcodegen.ts",
+      "packages/shared/src/qrCode.ts",
       "apps/mobile/uniwind-types.d.ts",
       "*.icon/**",
     ],
