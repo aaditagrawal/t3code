@@ -58,6 +58,7 @@ export function toAutonomyLevelForRuntimeMode(runtimeMode: RuntimeMode): Autonom
       return AutonomyLevel.Off;
     case "auto-accept-edits":
       return AutonomyLevel.Low;
+    case "auto":
     case "medium-access":
       return AutonomyLevel.Medium;
     case "full-access":

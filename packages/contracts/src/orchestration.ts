@@ -118,6 +118,7 @@ export const RuntimeMode = Schema.Literals([
   "approval-required",
   "auto-accept-edits",
   "auto",
+  "medium-access",
   "full-access",
 ]);
 export type RuntimeMode = typeof RuntimeMode.Type;

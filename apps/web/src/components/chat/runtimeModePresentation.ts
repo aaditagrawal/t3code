@@ -1,5 +1,12 @@
 import { ProviderDriverKind, type RuntimeMode } from "@t3tools/contracts";
-import { LockIcon, LockOpenIcon, type LucideIcon, PenLineIcon, ShieldIcon } from "lucide-react";
+import {
+  LockIcon,
+  LockOpenIcon,
+  type LucideIcon,
+  PenLineIcon,
+  ShieldIcon,
+  SparklesIcon,
+} from "lucide-react";
 
 export interface RuntimeModePresentation {
   readonly label: string;
@@ -17,6 +24,11 @@ const BASE_RUNTIME_MODE_CONFIG: Record<RuntimeMode, RuntimeModePresentation> = {
     label: "Auto-accept edits",
     description: "Auto-approve edits, ask before other actions.",
     icon: PenLineIcon,
+  },
+  auto: {
+    label: "Auto",
+    description: "An AI reviewer approves routine actions; risky ones still ask.",
+    icon: SparklesIcon,
   },
   "medium-access": {
     label: "Medium access",
@@ -41,6 +53,11 @@ const DROID_RUNTIME_MODE_CONFIG: Record<RuntimeMode, RuntimeModePresentation> = 
     description: "Allow file edits and read-only commands.",
     icon: PenLineIcon,
   },
+  auto: {
+    label: "Auto",
+    description: "An AI reviewer approves routine actions; risky ones still ask.",
+    icon: SparklesIcon,
+  },
   "medium-access": {
     label: "Medium",
     description: "Allow reversible commands.",
@@ -56,6 +73,7 @@ const DROID_RUNTIME_MODE_CONFIG: Record<RuntimeMode, RuntimeModePresentation> = 
 const BASE_RUNTIME_MODE_OPTIONS: ReadonlyArray<RuntimeMode> = [
   "approval-required",
   "auto-accept-edits",
+  "auto",
   "full-access",
 ];
 const DROID_RUNTIME_MODE_OPTIONS: ReadonlyArray<RuntimeMode> = [

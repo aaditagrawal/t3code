@@ -166,6 +166,7 @@ import {
   LockIcon,
   LockOpenIcon,
   PenLineIcon,
+  ShieldIcon,
   SparklesIcon,
   XIcon,
 } from "lucide-react";
@@ -214,6 +215,11 @@ const runtimeModeConfig: Record<
     label: "Auto",
     description: "An AI reviewer approves routine actions; risky ones still ask.",
     icon: SparklesIcon,
+  },
+  "medium-access": {
+    label: "Medium access",
+    description: "Allow reversible commands, ask before riskier actions.",
+    icon: ShieldIcon,
   },
   "full-access": {
     label: "Full access",
