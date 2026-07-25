@@ -263,11 +263,7 @@ export function buildCursorDiscoveredModelsFromSdkModels(
   });
 
   const builtInModels = discovered.length > 0 ? discovered : CURSOR_FALLBACK_MODELS;
-  return providerModelsFromSettings(
-    builtInModels,
-    customModels,
-    EMPTY_CURSOR_CAPABILITIES,
-  );
+  return providerModelsFromSettings(builtInModels, customModels, EMPTY_CURSOR_CAPABILITIES);
 }
 
 export function toCursorToolItemType(toolName: string): ToolLifecycleItemType {
