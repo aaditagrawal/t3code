@@ -117,6 +117,7 @@ export type ModelSelection = typeof ModelSelection.Type;
 export const RuntimeMode = Schema.Literals([
   "approval-required",
   "auto-accept-edits",
+  "auto",
   "medium-access",
   "full-access",
 ]);
