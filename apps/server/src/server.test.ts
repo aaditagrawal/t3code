@@ -5687,6 +5687,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         layers: {
           orchestrationEngine: {
             streamDomainEvents: Stream.fromPubSub(liveEvents),
+            subscribeDomainEvents: PubSub.subscribe(liveEvents),
           },
           projectionSnapshotQuery: {
             getShellSnapshot: () =>
