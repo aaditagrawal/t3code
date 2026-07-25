@@ -35,17 +35,27 @@ import Migration0019 from "./Migrations/019_ProjectionSnapshotLookupIndexes.ts";
 import Migration0020 from "./Migrations/020_AuthAccessManagement.ts";
 import Migration0021 from "./Migrations/021_AuthSessionClientMetadata.ts";
 import Migration0022 from "./Migrations/022_AuthSessionLastConnectedAt.ts";
-import Migration0023 from "./Migrations/023_ProjectionThreadShellSummary.ts";
-import Migration0024 from "./Migrations/024_BackfillProjectionThreadShellSummary.ts";
-import Migration0025 from "./Migrations/025_CleanupInvalidProjectionPendingApprovals.ts";
-import Migration0026 from "./Migrations/026_CanonicalizeModelSelectionOptions.ts";
-import Migration0027 from "./Migrations/027_ProviderSessionRuntimeInstanceId.ts";
-import Migration0028 from "./Migrations/028_ProjectionThreadSessionInstanceId.ts";
-import Migration0029 from "./Migrations/029_ProjectionThreadDetailOrderingIndexes.ts";
-import Migration0030 from "./Migrations/030_ProjectionThreadShellArchiveIndexes.ts";
-import Migration0031 from "./Migrations/031_AuthAuthorizationScopes.ts";
-import Migration0032 from "./Migrations/032_AuthPairingProofKeyThumbprint.ts";
-import Migration0033 from "./Migrations/033_ProjectionThreadsSettled.ts";
+// Fork-only migrations (filenames re-use 020/021 prefixes; IDs 23/24 keep them
+// installed after the fork's first deployment).
+import Migration0023 from "./Migrations/020_NormalizeLegacyProviderKinds.ts";
+import Migration0024 from "./Migrations/021_RepairProjectionThreadProposedPlanImplementationColumns.ts";
+// Upstream migrations renumbered to sit after the fork's 23/24.
+import Migration0025 from "./Migrations/023_ProjectionThreadShellSummary.ts";
+import Migration0026 from "./Migrations/024_BackfillProjectionThreadShellSummary.ts";
+import Migration0027 from "./Migrations/025_CleanupInvalidProjectionPendingApprovals.ts";
+import Migration0028 from "./Migrations/026_CanonicalizeModelSelectionOptions.ts";
+import Migration0029 from "./Migrations/027_ProviderSessionRuntimeInstanceId.ts";
+import Migration0030 from "./Migrations/028_ProjectionThreadSessionInstanceId.ts";
+// Fork-only migration: backfills `provider_instance_id` for the four fork
+// drivers (amp/copilot/geminiCli/kilo) so existing rows resolve under the
+// new instance-based routing model introduced by upstream PR #2277.
+import Migration0031 from "./Migrations/029_BackfillForkProviderInstanceIds.ts";
+import Migration0032 from "./Migrations/029_ProjectionThreadDetailOrderingIndexes.ts";
+import Migration0033 from "./Migrations/030_ProjectionThreadShellArchiveIndexes.ts";
+// Upstream migrations renumbered to sit after the fork's 31-33.
+import Migration0034 from "./Migrations/031_AuthAuthorizationScopes.ts";
+import Migration0035 from "./Migrations/032_AuthPairingProofKeyThumbprint.ts";
+import Migration0036 from "./Migrations/033_ProjectionThreadsSettled.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -80,17 +90,20 @@ export const migrationEntries = [
   [20, "AuthAccessManagement", Migration0020],
   [21, "AuthSessionClientMetadata", Migration0021],
   [22, "AuthSessionLastConnectedAt", Migration0022],
-  [23, "ProjectionThreadShellSummary", Migration0023],
-  [24, "BackfillProjectionThreadShellSummary", Migration0024],
-  [25, "CleanupInvalidProjectionPendingApprovals", Migration0025],
-  [26, "CanonicalizeModelSelectionOptions", Migration0026],
-  [27, "ProviderSessionRuntimeInstanceId", Migration0027],
-  [28, "ProjectionThreadSessionInstanceId", Migration0028],
-  [29, "ProjectionThreadDetailOrderingIndexes", Migration0029],
-  [30, "ProjectionThreadShellArchiveIndexes", Migration0030],
-  [31, "AuthAuthorizationScopes", Migration0031],
-  [32, "AuthPairingProofKeyThumbprint", Migration0032],
-  [33, "ProjectionThreadsSettled", Migration0033],
+  [23, "NormalizeLegacyProviderKinds", Migration0023],
+  [24, "RepairProjectionThreadProposedPlanImplementationColumns", Migration0024],
+  [25, "ProjectionThreadShellSummary", Migration0025],
+  [26, "BackfillProjectionThreadShellSummary", Migration0026],
+  [27, "CleanupInvalidProjectionPendingApprovals", Migration0027],
+  [28, "CanonicalizeModelSelectionOptions", Migration0028],
+  [29, "ProviderSessionRuntimeInstanceId", Migration0029],
+  [30, "ProjectionThreadSessionInstanceId", Migration0030],
+  [31, "BackfillForkProviderInstanceIds", Migration0031],
+  [32, "ProjectionThreadDetailOrderingIndexes", Migration0032],
+  [33, "ProjectionThreadShellArchiveIndexes", Migration0033],
+  [34, "AuthAuthorizationScopes", Migration0034],
+  [35, "AuthPairingProofKeyThumbprint", Migration0035],
+  [36, "ProjectionThreadsSettled", Migration0036],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>
