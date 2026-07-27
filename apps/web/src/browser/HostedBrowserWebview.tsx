@@ -10,13 +10,18 @@ import { cn } from "~/lib/utils";
 
 import { resolveBrowserSurfacePanelRect, useBrowserSurfaceStore } from "./browserSurfaceStore";
 import { reconcileLockedAspectRatio } from "./browserDeviceToolbarState";
-import { browserViewportSettingKey } from "./browserViewportLayout";
+import { browserViewportSettingKey, resolveBrowserViewportLayout } from "./browserViewportLayout";
 import { BrowserDeviceToolbar } from "./BrowserDeviceToolbar";
 import { BrowserViewportResizeHandles } from "./BrowserViewportResizeHandles";
 import { acquireDesktopTab, type AcquiredDesktopTab } from "./desktopTabLifetime";
 import { resolveHostedBrowserWebviewWrapperStyle } from "./hostedBrowserWebviewStyle";
 import { usePreviewWebviewConfig } from "./previewWebviewConfigState";
 import { useBrowserViewportResize } from "./useBrowserViewportResize";
+import {
+  INITIAL_WEBVIEW_CRASH_RECOVERY_STATE,
+  planWebviewCrashRecovery,
+  type WebviewCrashRecoveryState,
+} from "./webviewCrashRecovery";
 
 interface ElectronWebview extends HTMLElement {
   src: string;
@@ -46,11 +51,15 @@ export function HostedBrowserWebview(props: {
   const tabLeaseRef = useRef<AcquiredDesktopTab | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const webviewRef = useRef<ElectronWebview | null>(null);
+  const crashRecoveryRef = useRef<WebviewCrashRecoveryState>(INITIAL_WEBVIEW_CRASH_RECOVERY_STATE);
   const [lockedAspectRatio, setLockedAspectRatio] = useState<number | null>(null);
   const presentation = useBrowserSurfaceStore(
     useShallow((state) => {
       const current = state.byTabId[tabId];
       return {
+        cornerRadius: current?.cornerRadius ?? 0,
+        fitSourceContent: current?.fitSourceContent ?? false,
+        fittedSourceContent: current?.fittedSourceContent ?? null,
         rect: resolveBrowserSurfacePanelRect(state.byTabId, tabId),
         visible: current?.visible ?? false,
       };
@@ -59,6 +68,7 @@ export function HostedBrowserWebview(props: {
   usePreviewBridge({ threadRef, tabId });
 
   useEffect(() => {
+    crashRecoveryRef.current = INITIAL_WEBVIEW_CRASH_RECOVERY_STATE;
     const lease = acquireDesktopTab(tabId);
     tabLeaseRef.current = lease;
     return () => {
@@ -66,6 +76,14 @@ export function HostedBrowserWebview(props: {
       lease.release();
     };
   }, [tabId]);
+
+  const [webviewGeneration, setWebviewGeneration] = useState(0);
+  const [recoverySrc, setRecoverySrc] = useState(initialSrc);
+  const latestUrlRef = useRef(initialUrl);
+
+  useEffect(() => {
+    latestUrlRef.current = initialUrl;
+  }, [initialUrl]);
 
   const setWebviewRef = useCallback((node: HTMLElement | null) => {
     webviewRef.current = node as ElectronWebview | null;
@@ -77,6 +95,7 @@ export function HostedBrowserWebview(props: {
     const bridge = previewBridge;
     if (!webview || !config || !bridge) return;
     let disposed = false;
+    let recoveryTimeout: ReturnType<typeof setTimeout> | null = null;
     const register = () => {
       const lease = tabLeaseRef.current;
       if (!lease) return;
@@ -96,15 +115,31 @@ export function HostedBrowserWebview(props: {
         }
       })();
     };
+    const recoverGuest = () => {
+      if (disposed || recoveryTimeout !== null) return;
+      const recovery = planWebviewCrashRecovery(crashRecoveryRef.current, Date.now());
+      if (!recovery) return;
+      crashRecoveryRef.current = recovery.state;
+      recoveryTimeout = setTimeout(() => {
+        recoveryTimeout = null;
+        if (!disposed) {
+          setRecoverySrc(latestUrlRef.current ?? initialSrc);
+          setWebviewGeneration((generation) => generation + 1);
+        }
+      }, recovery.delayMs);
+    };
     webview.addEventListener("did-attach", register);
     webview.addEventListener("dom-ready", register);
+    webview.addEventListener("render-process-gone", recoverGuest);
     register();
     return () => {
       disposed = true;
+      if (recoveryTimeout !== null) clearTimeout(recoveryTimeout);
       webview.removeEventListener("did-attach", register);
       webview.removeEventListener("dom-ready", register);
+      webview.removeEventListener("render-process-gone", recoverGuest);
     };
-  }, [config, tabId]);
+  }, [config, initialSrc, tabId, webviewGeneration]);
 
   const active = presentation.visible && presentation.rect !== null;
   const lastRect = presentation.rect;
@@ -124,14 +159,14 @@ export function HostedBrowserWebview(props: {
         }
       : { width: lastRect?.width ?? 1280, height: lastRect?.height ?? 800 };
   const containerSize = active && lastRect ? lastRect : hiddenSize;
-  const deviceToolbarVisible = active && viewport._tag !== "fill";
+  const deviceToolbarVisible = active && viewport._tag !== "fill" && !presentation.fitSourceContent;
   const {
     activeDrag,
     commitViewportChange,
     effectiveViewport,
     handleResizeKeyDown,
     handleResizePointerDown,
-    layout,
+    layout: viewportLayout,
   } = useBrowserViewportResize({
     tabId,
     viewport,
@@ -140,6 +175,38 @@ export function HostedBrowserWebview(props: {
     deviceToolbarVisible,
     aspectRatio: lockedAspectRatio,
   });
+  const fittedSourceViewport =
+    presentation.fitSourceContent && lastRect
+      ? presentation.fittedSourceContent
+        ? {
+            _tag: "freeform" as const,
+            width: Math.max(
+              1,
+              Math.round(
+                presentation.fittedSourceContent.width /
+                  presentation.fittedSourceContent.scale /
+                  normalizedZoomFactor,
+              ),
+            ),
+            height: Math.max(
+              1,
+              Math.round(
+                presentation.fittedSourceContent.height /
+                  presentation.fittedSourceContent.scale /
+                  normalizedZoomFactor,
+              ),
+            ),
+          }
+        : {
+            _tag: "freeform" as const,
+            width: viewport._tag === "fill" ? 1280 : viewport.width,
+            height: viewport._tag === "fill" ? 800 : viewport.height,
+          }
+      : null;
+  const layout =
+    fittedSourceViewport && lastRect
+      ? resolveBrowserViewportLayout(lastRect, fittedSourceViewport, normalizedZoomFactor)
+      : viewportLayout;
 
   const syncContentPresentation = useCallback(() => {
     const wrapper = wrapperRef.current;
@@ -170,6 +237,7 @@ export function HostedBrowserWebview(props: {
 
   const wrapperStyle = resolveHostedBrowserWebviewWrapperStyle({
     active,
+    cornerRadius: presentation.cornerRadius,
     rect: lastRect,
     hiddenSize,
   });
@@ -193,8 +261,9 @@ export function HostedBrowserWebview(props: {
           />
         ) : null}
         <webview
+          key={webviewGeneration}
           ref={setWebviewRef}
-          src={initialSrc}
+          src={webviewGeneration === 0 ? initialSrc : recoverySrc}
           partition={config.partition}
           webpreferences={config.webPreferences}
           {...(config.preloadUrl ? { preload: config.preloadUrl } : {})}
@@ -202,14 +271,18 @@ export function HostedBrowserWebview(props: {
           data-preview-viewport-mode={effectiveViewport._tag}
           data-preview-viewport-key={browserViewportSettingKey(effectiveViewport)}
           data-preview-css-width={
-            effectiveViewport._tag === "fill"
-              ? Math.max(1, Math.round(layout.viewportWidth / normalizedZoomFactor))
-              : effectiveViewport.width
+            fittedSourceViewport
+              ? fittedSourceViewport.width
+              : effectiveViewport._tag === "fill"
+                ? Math.max(1, Math.round(layout.viewportWidth / normalizedZoomFactor))
+                : effectiveViewport.width
           }
           data-preview-css-height={
-            effectiveViewport._tag === "fill"
-              ? Math.max(1, Math.round(layout.viewportHeight / normalizedZoomFactor))
-              : effectiveViewport.height
+            fittedSourceViewport
+              ? fittedSourceViewport.height
+              : effectiveViewport._tag === "fill"
+                ? Math.max(1, Math.round(layout.viewportHeight / normalizedZoomFactor))
+                : effectiveViewport.height
           }
           aria-hidden={active ? undefined : true}
           className={cn(
@@ -225,7 +298,7 @@ export function HostedBrowserWebview(props: {
             transformOrigin: "top left",
           }}
         />
-        {active && effectiveViewport._tag !== "fill" ? (
+        {active && effectiveViewport._tag !== "fill" && !fittedSourceViewport ? (
           <>
             <BrowserViewportResizeHandles
               layout={layout}
