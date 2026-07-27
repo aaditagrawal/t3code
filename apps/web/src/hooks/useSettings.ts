@@ -33,6 +33,8 @@ import { normalizeCustomModelSlugs } from "~/modelSelection";
 
 const CLIENT_SETTINGS_PERSISTENCE_ERROR_SCOPE = "[CLIENT_SETTINGS]";
 
+type UnifiedSettingsPatch = ServerSettingsPatch & ClientSettingsPatch;
+
 const clientSettingsListeners = new Set<() => void>();
 const clientSettingsHydrationListeners = new Set<() => void>();
 let clientSettingsSnapshot = DEFAULT_CLIENT_SETTINGS;
@@ -145,7 +147,7 @@ function persistClientSettings(settings: ClientSettings): void {
 
 const SERVER_SETTINGS_KEYS = new Set<string>(Struct.keys(ServerSettings.fields));
 
-function splitPatch(patch: Partial<UnifiedSettings>): {
+function splitPatch(patch: UnifiedSettingsPatch): {
   serverPatch: ServerSettingsPatch;
   clientPatch: ClientSettingsPatch;
 } {
@@ -296,7 +298,7 @@ function useUpdateSettingsTarget(environmentId: EnvironmentId | null) {
     "server settings update",
   );
   const updateSettings = useCallback(
-    (patch: Partial<UnifiedSettings>) => {
+    (patch: UnifiedSettingsPatch) => {
       const { serverPatch, clientPatch } = splitPatch(patch);
 
       if (Object.keys(serverPatch).length > 0) {
