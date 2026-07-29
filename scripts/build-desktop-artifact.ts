@@ -595,7 +595,20 @@ interface StagePackageJson {
 }
 
 export const STAGE_INSTALL_ARGS = ["install", "--prod"] as const;
-export const DESKTOP_ASAR_UNPACK = ["node_modules/@ff-labs/fff-bin-*/**/*"] as const;
+export const DESKTOP_ELECTRON_LANGUAGES = ["en-US"] as const;
+export const DESKTOP_FILE_EXCLUSIONS = [
+  // T3 Code always passes the user's installed Claude executable to the SDK,
+  // so the SDK's optional platform packages (each a ~200MB bundled executable)
+  // are dead weight. The trailing dash keeps the SDK's own JS package.
+  "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**/*",
+] as const;
+// The WSL backend launches the server with plain `wsl.exe -- node`, which
+// cannot read inside an asar archive — and the server bundle externalizes its
+// runtime deps, so the whole node_modules tree must be unpacked, not just the
+// bundle (otherwise ERR_MODULE_NOT_FOUND: "Cannot find package 'effect'").
+// The Windows primary backend reads the same files through the asar redirect,
+// so nothing is duplicated.
+export const WINDOWS_ASAR_UNPACK = ["apps/server/dist/**", "**/node_modules/**"] as const;
 
 export interface MacPasskeySigningConfiguration {
   readonly appId: string;
@@ -1406,24 +1419,23 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     appId: DESKTOP_APP_ID,
     productName: resolveDesktopProductName(version),
     artifactName: "T3-Code-${version}-${arch}.${ext}",
+    electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
+    files: [...DESKTOP_FILE_EXCLUSIONS],
     directories: {
       buildResources: "apps/desktop/resources",
     },
-    // Keep native binaries and the server dist outside the asar for the Electron
-    // primary. On Windows only, also unpack the full node_modules tree: the WSL
-    // backend launches plain `wsl.exe -- node`, which cannot read Electron asar
-    // archives, and the server bundle externalizes runtime deps (effect,
-    // @effect/*, node-pty, ...) so unpacking just the bundle isn't enough.
-    // Unpacking every module on macOS/Linux blows the open-file limit during
-    // electron-builder (EMFILE under large trees like core-js). The Windows
-    // primary keeps reading the same files through asar (redirected to the
-    // unpacked copy), so there's no duplication for that path.
-    asarUnpack: [
-      "node_modules/@github/copilot*/**/*",
-      ...DESKTOP_ASAR_UNPACK,
-      "apps/server/dist/**",
-      ...(platform === "win" ? (["**/node_modules/**"] as const) : []),
-    ],
+    // Only the Windows WSL backend needs the whole tree outside the asar (see
+    // WINDOWS_ASAR_UNPACK); macOS and Linux stay packed — smart unpack
+    // extracts native libraries, which fff-node finds in app.asar.unpacked.
+    //
+    // The bundled Copilot CLI is the exception: it is a real executable spawned
+    // as a subprocess, and `resolveBundledCopilotCliPath` probes
+    // `app.asar.unpacked/node_modules/@github/copilot-*`, so it has to stay
+    // unpacked on every platform. WINDOWS_ASAR_UNPACK already covers it on win.
+    asarUnpack:
+      platform === "win"
+        ? [...WINDOWS_ASAR_UNPACK]
+        : (["node_modules/@github/copilot*/**/*"] as const),
   };
   const updateChannel = resolveDesktopUpdateChannel(version);
   const publishConfig = yield* resolveGitHubPublishConfig(updateChannel);
