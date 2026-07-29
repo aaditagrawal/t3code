@@ -26,6 +26,8 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
+import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
 import { ServerConfig } from "../../config.ts";
 import { makeGeminiCliTextGeneration } from "../../textGeneration/GeminiCliTextGeneration.ts";
 import { ProviderDriverError } from "../Errors.ts";
@@ -50,11 +52,13 @@ const MAINTENANCE_CAPABILITIES = makeManualOnlyProviderMaintenanceCapabilities({
 });
 
 export type GeminiCliDriverEnv =
+  | BackgroundPolicy.BackgroundPolicy
   | ChildProcessSpawner.ChildProcessSpawner
   | FileSystem.FileSystem
   | Path.Path
   | ProviderEventLoggers
-  | ServerConfig;
+  | ServerConfig
+  | ServerSettingsService;
 
 const withInstanceIdentity =
   (input: {
