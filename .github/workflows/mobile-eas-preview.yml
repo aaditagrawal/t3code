@@ -2,7 +2,7 @@ name: Mobile EAS Preview
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, labeled, unlabeled]
+    types: [opened, reopened, synchronize, labeled]
 
 jobs:
   preview:
@@ -10,8 +10,14 @@ jobs:
     # Fork-only and label-gated. Keep this off upstream and avoid private
     # upstream runners; the token check below skips the body when EAS is not
     # configured for the fork.
-    if: github.repository == 'aaditagrawal/t3code' && contains(github.event.pull_request.labels.*.name, '🚀 Mobile Continuous Deployment')
+    if: |
+      github.repository == 'aaditagrawal/t3code' &&
+      contains(github.event.pull_request.labels.*.name, '🚀 Mobile Continuous Deployment') &&
+      (github.event.action != 'labeled' || github.event.label.name == '🚀 Mobile Continuous Deployment')
     runs-on: ubuntu-24.04
+    concurrency:
+      group: mobile-eas-preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     permissions:
       contents: read
       pull-requests: write
@@ -37,6 +43,10 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
 
       - name: Setup Vite+
         if: steps.expo-token.outputs.present == 'true'
@@ -44,7 +54,9 @@ jobs:
         with:
           node-version-file: package.json
           cache: true
-          run-install: true
+          run-install: |
+            args:
+              - --filter=@t3tools/mobile...
 
       - name: Expose pnpm
         if: steps.expo-token.outputs.present == 'true'
