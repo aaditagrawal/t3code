@@ -7,6 +7,10 @@ import {
   type EnvironmentProject,
   type EnvironmentThreadShell,
 } from "@t3tools/client-runtime/state/shell";
+import {
+  threadSearchMatchKey,
+  type EnvironmentThreadSearchMatch,
+} from "@t3tools/client-runtime/state/thread-search";
 import type {
   EnvironmentId,
   SidebarProjectGroupingMode,
@@ -22,11 +26,12 @@ import { useThemeColor } from "../../lib/useThemeColor";
 
 import { AppText as Text } from "../../components/AppText";
 import { EmptyState } from "../../components/EmptyState";
-import type { WorkspaceState } from "../../state/workspaceModel";
+import type { WorkspaceEnvironment, WorkspaceState } from "../../state/workspaceModel";
 import type { SavedRemoteConnection } from "../../lib/connection";
 import { scopedProjectKey } from "../../lib/scopedEntities";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+import { useThreadSearch } from "../../state/queries";
 import { useThreadListV2Enabled } from "../threads/use-thread-list-v2-enabled";
 import { environmentServerConfigsAtom } from "../../state/server";
 import type { PendingNewTask } from "../../state/use-pending-new-tasks";
@@ -72,7 +77,9 @@ interface HomeScreenProps {
   readonly pendingTasks: ReadonlyArray<PendingNewTask>;
   readonly catalogState: WorkspaceState;
   readonly savedConnectionsById: Readonly<Record<string, SavedRemoteConnection>>;
-  readonly environments: ReadonlyArray<HomeListFilterMenuEnvironment>;
+  readonly environments: ReadonlyArray<
+    HomeListFilterMenuEnvironment & Pick<WorkspaceEnvironment, "connectionState">
+  >;
   readonly searchQuery: string;
   readonly selectedEnvironmentId: EnvironmentId | null;
   readonly selectedProjectKey: string | null;
@@ -194,6 +201,35 @@ export function HomeScreen(props: HomeScreenProps) {
     Platform.OS === "ios" && !NATIVE_LIQUID_GLASS_SUPPORTED
       ? PRE_LIQUID_GLASS_BOTTOM_TOOLBAR_HEIGHT
       : 0;
+  const searchEnvironmentIds = useMemo(
+    () =>
+      props.selectedEnvironmentId === null
+        ? props.environments
+            .filter((environment) => environment.connectionState === "connected")
+            .map((environment) => environment.environmentId)
+        : props.environments.some(
+              (environment) =>
+                environment.environmentId === props.selectedEnvironmentId &&
+                environment.connectionState === "connected",
+            )
+          ? [props.selectedEnvironmentId]
+          : [],
+    [props.environments, props.selectedEnvironmentId],
+  );
+  const threadSearch = useThreadSearch(searchEnvironmentIds, props.searchQuery);
+  const threadSearchMatchByKey = useMemo(() => {
+    const matches = new Map<string, EnvironmentThreadSearchMatch>();
+    for (const match of threadSearch.matches) {
+      if (match.source === "user" || match.source === "assistant") {
+        matches.set(threadSearchMatchKey(match), match);
+      }
+    }
+    return matches;
+  }, [threadSearch.matches]);
+  const matchedThreadKeys = useMemo(
+    () => new Set(threadSearch.matches.map(threadSearchMatchKey)),
+    [threadSearch.matches],
+  );
   const effectiveGroupDisplayStates = useMemo(() => {
     const next = new Map(groupDisplayStates);
     if (!AsyncResult.isSuccess(preferencesResult)) {
@@ -323,6 +359,7 @@ export function HomeScreen(props: HomeScreenProps) {
         pendingTasks: scopedPendingTasks,
         environmentId: props.selectedEnvironmentId,
         searchQuery: props.searchQuery,
+        matchedThreadKeys,
         projectSortOrder: props.projectSortOrder,
         threadSortOrder: props.threadSortOrder,
         projectGroupingMode: props.projectGroupingMode,
@@ -333,6 +370,7 @@ export function HomeScreen(props: HomeScreenProps) {
       props.searchQuery,
       props.selectedEnvironmentId,
       props.threadSortOrder,
+      matchedThreadKeys,
       scopedPendingTasks,
       scopedProjects,
       scopedThreads,
@@ -525,6 +563,7 @@ export function HomeScreen(props: HomeScreenProps) {
       environmentId: props.selectedEnvironmentId,
       projectRefs: v2ScopedProjectGroup === null ? null : v2ScopedProjectGroup.projectRefs,
       searchQuery: props.searchQuery,
+      matchedThreadKeys,
       changeRequestStateByKey,
       settlementEnvironmentIds,
       snoozeEnvironmentIds,
@@ -542,6 +581,7 @@ export function HomeScreen(props: HomeScreenProps) {
     props.searchQuery,
     props.selectedEnvironmentId,
     props.threads,
+    matchedThreadKeys,
     threadListV2Enabled,
     v2ScopedProjectGroup,
   ]);
@@ -638,6 +678,13 @@ export function HomeScreen(props: HomeScreenProps) {
               ? (props.savedConnectionsById[thread.environmentId]?.environmentLabel ?? null)
               : null
           }
+          searchMatch={threadSearchMatchByKey.get(
+            threadSearchMatchKey({
+              environmentId: thread.environmentId,
+              threadId: thread.id,
+            }),
+          )}
+          searchQuery={props.searchQuery}
           onSelectThread={props.onSelectThread}
           onDeleteThread={handleDeleteThread}
           onArchiveThread={props.onArchiveThread}
@@ -669,7 +716,9 @@ export function HomeScreen(props: HomeScreenProps) {
       props.savedConnectionsById,
       serverConfigs,
       settlementEnvironmentIds,
+      threadSearchMatchByKey,
       v2ProjectTitleByProjectKey,
+      props.searchQuery,
     ],
   );
   const v2KeyExtractor = useCallback((item: ThreadListV2ListItem) => item.key, []);
@@ -684,19 +733,28 @@ export function HomeScreen(props: HomeScreenProps) {
       projectTitleByProjectKey: v2ProjectTitleByProjectKey,
       serverConfigs,
       savedConnectionsById: props.savedConnectionsById,
+      searchQuery: props.searchQuery,
+      threadSearchMatchByKey,
     }),
     [
       projectByKey,
       projectCwdByKey,
+      props.searchQuery,
       props.savedConnectionsById,
       serverConfigs,
+      threadSearchMatchByKey,
       v2ProjectTitleByProjectKey,
     ],
   );
 
   const extraData = useMemo(
-    () => ({ savedConnectionsById: props.savedConnectionsById, projectCwdByKey }),
-    [props.savedConnectionsById, projectCwdByKey],
+    () => ({
+      projectCwdByKey,
+      savedConnectionsById: props.savedConnectionsById,
+      searchQuery: props.searchQuery,
+      threadSearchMatchByKey,
+    }),
+    [projectCwdByKey, props.savedConnectionsById, props.searchQuery, threadSearchMatchByKey],
   );
 
   const renderItem = useCallback(
@@ -749,6 +807,13 @@ export function HomeScreen(props: HomeScreenProps) {
                 null
               }
               isLast={item.isLast}
+              searchMatch={threadSearchMatchByKey.get(
+                threadSearchMatchKey({
+                  environmentId: thread.environmentId,
+                  threadId: thread.id,
+                }),
+              )}
+              searchQuery={props.searchQuery}
               onArchiveThread={props.onArchiveThread}
               onDeleteThread={props.onDeleteThread}
               onSelectThread={props.onSelectThread}
@@ -779,7 +844,9 @@ export function HomeScreen(props: HomeScreenProps) {
       props.onNewThreadInProject,
       props.onSelectPendingTask,
       props.onSelectThread,
+      props.searchQuery,
       props.savedConnectionsById,
+      threadSearchMatchByKey,
       updateGroupDisplay,
     ],
   );
@@ -872,7 +939,7 @@ export function HomeScreen(props: HomeScreenProps) {
   const v2ListHeader = listHeader;
 
   const listEmpty = !hasResults ? (
-    hasSearchQuery ? (
+    hasSearchQuery && threadSearch.isPending ? null : hasSearchQuery ? (
       <EmptyState title="No results" detail={`No threads matching "${props.searchQuery}".`} />
     ) : selectedProjectScope !== null ? (
       <EmptyState
@@ -895,31 +962,34 @@ export function HomeScreen(props: HomeScreenProps) {
   // threads yet" over an inbox that is merely all-snoozed reads as data
   // loss.
   const v2SnoozedCount = threadListV2Layout.snoozedCount;
-  const v2ListEmpty = hasSearchQuery ? (
-    v2SnoozedCount > 0 ? (
-      // The snoozed threads already passed this search filter: "No
-      // results" would claim nothing matched when matches are merely
-      // parked.
+  const v2ListEmpty =
+    hasSearchQuery && threadSearch.isPending && v2SnoozedCount === 0 ? null : hasSearchQuery ? (
+      v2SnoozedCount > 0 ? (
+        // The snoozed threads already passed this search filter: "No
+        // results" would claim nothing matched when matches are merely
+        // parked.
+        <EmptyState
+          title={
+            v2SnoozedCount === 1 ? "1 matching thread snoozed" : `All matching threads snoozed`
+          }
+          detail={`Threads matching "${props.searchQuery}" are snoozed and return when their wake time passes.`}
+        />
+      ) : (
+        <EmptyState title="No results" detail={`No threads matching "${props.searchQuery}".`} />
+      )
+    ) : v2SnoozedCount > 0 ? (
       <EmptyState
-        title={v2SnoozedCount === 1 ? "1 matching thread snoozed" : `All matching threads snoozed`}
-        detail={`Threads matching "${props.searchQuery}" are snoozed and return when their wake time passes.`}
+        title={v2SnoozedCount === 1 ? "1 thread snoozed" : `${v2SnoozedCount} threads snoozed`}
+        detail="Snoozed threads return when their wake time passes."
+      />
+    ) : v2ScopedProjectGroup !== null ? (
+      <EmptyState
+        title={`No threads in ${v2ScopedProjectGroup.title}`}
+        detail="Choose another project or create a new task."
       />
     ) : (
-      <EmptyState title="No results" detail={`No threads matching "${props.searchQuery}".`} />
-    )
-  ) : v2SnoozedCount > 0 ? (
-    <EmptyState
-      title={v2SnoozedCount === 1 ? "1 thread snoozed" : `${v2SnoozedCount} threads snoozed`}
-      detail="Snoozed threads return when their wake time passes."
-    />
-  ) : v2ScopedProjectGroup !== null ? (
-    <EmptyState
-      title={`No threads in ${v2ScopedProjectGroup.title}`}
-      detail="Choose another project or create a new task."
-    />
-  ) : (
-    listEmpty
-  );
+      listEmpty
+    );
 
   if (threadListV2Enabled) {
     return (
