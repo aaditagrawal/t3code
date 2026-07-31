@@ -187,7 +187,7 @@ describe("EventNdjsonLogger", () => {
         assert.deepEqual(
           lines.map(({ stream, payload }) => ({ stream, payload })),
           [
-            { stream: "NTIVE", payload: '{"id":"native-event"}' },
+            { stream: "NATIVE", payload: '{"id":"native-event"}' },
             {
               stream: "CANON",
               payload: '{"type":"item.completed","id":"canonical-event"}',
@@ -224,7 +224,7 @@ describe("EventNdjsonLogger", () => {
         assert.deepEqual(
           lines.map(({ stream, payload }) => ({ stream, payload })),
           [
-            { stream: "NTIVE", payload: '{"id":"before-close"}' },
+            { stream: "NATIVE", payload: '{"id":"before-close"}' },
             {
               stream: "CANON",
               payload: '{"type":"item.completed","id":"after-close"}',
@@ -313,7 +313,7 @@ describe("EventNdjsonLogger", () => {
           lines.map(({ stream, payload }) => ({ stream, payload })),
           [
             { stream: "CANON", payload: '{"type":"item.completed","id":"final"}' },
-            { stream: "NTIVE", payload: '{"type":"content.delta","id":"native-delta"}' },
+            { stream: "NATIVE", payload: '{"type":"content.delta","id":"native-delta"}' },
           ],
         );
       } finally {

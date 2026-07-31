@@ -13,8 +13,10 @@ layer("035_ProjectionThreadTitleRegeneration", (it) => {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      yield* runMigrations({ toMigrationInclusive: 34 });
-      yield* runMigrations({ toMigrationInclusive: 35 });
+      // The fork's registry renumbers upstream migrations after its own, so
+      // upstream's 035 file is installed as ID 38 (see Migrations.ts).
+      yield* runMigrations({ toMigrationInclusive: 37 });
+      yield* runMigrations({ toMigrationInclusive: 38 });
 
       const columns = yield* sql<{ readonly name: string }>`
         PRAGMA table_info(projection_threads)
