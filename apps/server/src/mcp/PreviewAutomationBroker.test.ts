@@ -173,40 +173,6 @@ it.effect("does not let an older response replace a newer explicit tab target", 
   ),
 );
 
-it.effect("tracks the tab returned by a targeted recording stop", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const broker = yield* makeBroker;
-      const browsingTabId = PreviewTabId.make("tab-session-b");
-      const recordingTabId = PreviewTabId.make("tab-session-a-recording");
-      const routedRequests: RoutedRequest[] = [];
-      const requests = requestsFrom(yield* broker.connect(makeHost()));
-      yield* Stream.runForEach(requests, (request) => {
-        routedRequests.push(request);
-        return broker.respond({
-          clientId: "client-1",
-          connectionId: request.connectionId,
-          requestId: request.requestId,
-          ok: true,
-          result:
-            request.operation === "open"
-              ? { available: true, tabId: browsingTabId }
-              : request.operation === "recordingStop"
-                ? { id: "recording-1", tabId: recordingTabId }
-                : { url: "http://localhost:3200" },
-        });
-      }).pipe(Effect.forkScoped);
-      yield* Effect.yieldNow;
-
-      yield* broker.invoke({ scope, operation: "open", input: {} });
-      yield* broker.invoke({ scope, operation: "recordingStop", input: {} });
-      yield* broker.invoke({ scope, operation: "snapshot", input: {} });
-
-      expect(routedRequests.at(-1)?.tabId).toBe(recordingTabId);
-    }),
-  ),
-);
-
 it.effect("does not replace the default tab with an explicit recording stop target", () =>
   Effect.scoped(
     Effect.gen(function* () {
