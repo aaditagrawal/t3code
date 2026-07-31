@@ -49,6 +49,7 @@ import {
   SettingsSection,
   useRelativeTimeTick,
 } from "./settingsLayout";
+import { searchableSetting } from "./settingsSearch";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
 import {
@@ -3340,7 +3341,7 @@ export function ConnectionsSettings() {
       )}
 
       <SettingsSection
-        title="Remote environments"
+        {...searchableSetting("remote-environments")}
         headerAction={
           <Dialog
             open={addBackendDialogOpen}
