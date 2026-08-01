@@ -228,4 +228,97 @@ describe("RateLimitsPanel helpers", () => {
       },
     ]);
   });
+
+  it("merges sparse rolling updates instead of dropping the untouched window", () => {
+    // Codex sends sparse rolling updates: a later notification can carry only
+    // one window, and the other must stay visible.
+    const rateLimits = deriveAccountRateLimits([
+      {
+        activities: [
+          makeActivity(
+            "activity-full",
+            "account.rate-limits.updated",
+            {
+              provider: "codex",
+              limits: [
+                { window: "5h", usedPercent: 20, windowDurationMins: 300 },
+                { window: "Weekly", usedPercent: 40, windowDurationMins: 10_080 },
+              ],
+            },
+            "2099-04-08T18:00:00.000Z",
+          ),
+          makeActivity(
+            "activity-sparse",
+            "account.rate-limits.updated",
+            {
+              provider: "codex",
+              limits: [{ window: "5h", usedPercent: 35, windowDurationMins: 300 }],
+            },
+            "2099-04-08T19:00:00.000Z",
+          ),
+        ],
+      },
+    ]);
+
+    expect(deriveVisibleRateLimitRows(rateLimits)).toEqual([
+      { id: "codex-5h", label: "5h", remainingPercent: 65, windowDurationMins: 300 },
+      { id: "codex-Weekly", label: "Weekly", remainingPercent: 60, windowDurationMins: 10_080 },
+    ]);
+  });
+
+  it("keeps distinct Codex buckets apart and shows the most constrained window", () => {
+    const rateLimits = deriveAccountRateLimits([
+      {
+        activities: [
+          makeActivity(
+            "activity-bucket-a",
+            "account.rate-limits.updated",
+            {
+              provider: "codex",
+              limits: [
+                { limitId: "codex", window: "5h", usedPercent: 80, windowDurationMins: 300 },
+              ],
+            },
+            "2099-04-08T18:00:00.000Z",
+          ),
+          makeActivity(
+            "activity-bucket-b",
+            "account.rate-limits.updated",
+            {
+              provider: "codex",
+              limits: [
+                { limitId: "codex-mini", window: "5h", usedPercent: 10, windowDurationMins: 300 },
+              ],
+            },
+            "2099-04-08T19:00:00.000Z",
+          ),
+        ],
+      },
+    ]);
+
+    // The later, roomier bucket must not mask the constrained one.
+    expect(deriveVisibleRateLimitRows(rateLimits)).toEqual([
+      { id: "codex-5h", label: "5h", remainingPercent: 20, windowDurationMins: 300 },
+    ]);
+  });
+
+  it("expires a merged window with no reset once its duration has elapsed", () => {
+    const rateLimits = deriveAccountRateLimits([
+      {
+        activities: [
+          makeActivity(
+            "activity-expired",
+            "account.rate-limits.updated",
+            {
+              provider: "codex",
+              limits: [{ window: "5h", usedPercent: 90, windowDurationMins: 300 }],
+            },
+            "2020-01-01T00:00:00.000Z",
+          ),
+        ],
+      },
+    ]);
+
+    expect(rateLimits).toEqual([]);
+  });
 });
