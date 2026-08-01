@@ -13,7 +13,8 @@ import {
   createStageWorkspaceConfig,
   createStagePatchedDependencies,
   createBuildConfig,
-  DESKTOP_ASAR_UNPACK,
+  DESKTOP_ELECTRON_LANGUAGES,
+  DESKTOP_FILE_EXCLUSIONS,
   InvalidMacPasskeyRpDomainError,
   InvalidMacPasskeyPublishableKeyError,
   InvalidMockUpdateServerPortError,
@@ -37,6 +38,7 @@ import {
   resolvePackageManagerUserAgent,
   stageLinuxIconSize,
   STAGE_INSTALL_ARGS,
+  WINDOWS_ASAR_UNPACK,
 } from "./build-desktop-artifact.ts";
 import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
 import { HostProcessArchitecture, HostProcessPlatform } from "@t3tools/shared/hostProcess";
@@ -303,9 +305,54 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     );
   });
 
-  it("unpacks the fff shared library for filesystem and FFI access", () => {
-    assert.deepStrictEqual(DESKTOP_ASAR_UNPACK, ["node_modules/@ff-labs/fff-bin-*/**/*"]);
+  it("limits Electron locales and excludes the unused Claude SDK executable", () => {
+    assert.deepStrictEqual(DESKTOP_ELECTRON_LANGUAGES, ["en-US"]);
+    assert.deepStrictEqual(DESKTOP_FILE_EXCLUSIONS, [
+      "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**/*",
+    ]);
   });
+
+  it.effect("applies platform-specific packaging to the build config", () =>
+    Effect.gen(function* () {
+      const mac = yield* createBuildConfig(
+        "mac",
+        "dmg",
+        "1.2.3",
+        false,
+        false,
+        undefined,
+        undefined,
+      );
+      const linux = yield* createBuildConfig(
+        "linux",
+        "AppImage",
+        "1.2.3",
+        false,
+        false,
+        undefined,
+        undefined,
+      );
+      const win = yield* createBuildConfig(
+        "win",
+        "nsis",
+        "1.2.3",
+        false,
+        false,
+        undefined,
+        undefined,
+      );
+
+      // macOS and Linux stay packed except for the bundled Copilot CLI, which is
+      // spawned as a subprocess and must exist in app.asar.unpacked.
+      assert.deepStrictEqual(mac.asarUnpack, ["node_modules/@github/copilot*/**/*"]);
+      assert.deepStrictEqual(linux.asarUnpack, ["node_modules/@github/copilot*/**/*"]);
+      assert.deepStrictEqual(win.asarUnpack, WINDOWS_ASAR_UNPACK);
+      for (const config of [mac, linux, win]) {
+        assert.deepStrictEqual(config.electronLanguages, DESKTOP_ELECTRON_LANGUAGES);
+        assert.deepStrictEqual(config.files, DESKTOP_FILE_EXCLUSIONS);
+      }
+    }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
+  );
 
   it.effect("preserves both Linux icon resize failures with structural context", () => {
     const commands: Array<{ readonly command: string; readonly args: ReadonlyArray<string> }> = [];
@@ -476,11 +523,8 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       assert.deepStrictEqual(mac.protocols, [
         { name: "T3 Code", schemes: ["t3code", "t3code-dev"] },
       ]);
-      assert.deepStrictEqual(config.asarUnpack, [
-        "node_modules/@github/copilot*/**/*",
-        ...DESKTOP_ASAR_UNPACK,
-        "apps/server/dist/**",
-      ]);
+      // macOS stays packed apart from the spawnable Copilot CLI.
+      assert.deepStrictEqual(config.asarUnpack, ["node_modules/@github/copilot*/**/*"]);
     }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
   );
 
@@ -500,12 +544,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       assert.equal(win.icon, "icon.ico");
       assert.equal(win.signAndEditExecutable, true);
       assert.notProperty(win, "azureSignOptions");
-      assert.deepStrictEqual(config.asarUnpack, [
-        "node_modules/@github/copilot*/**/*",
-        ...DESKTOP_ASAR_UNPACK,
-        "apps/server/dist/**",
-        "**/node_modules/**",
-      ]);
+      assert.deepStrictEqual(config.asarUnpack, [...WINDOWS_ASAR_UNPACK]);
     }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
   );
 
