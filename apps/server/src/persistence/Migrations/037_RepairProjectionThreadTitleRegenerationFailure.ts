@@ -10,6 +10,11 @@
  * never grows the failure columns — every thread and shell snapshot query then
  * fails on the missing columns.
  *
+ * Both shapes of 39 reached `main` in the same merge, so no released build ever
+ * carried the earlier one — the affected databases are those on machines that
+ * ran the PR branch mid-review. Narrow, but the failure is a hard one: every
+ * thread and shell snapshot query selects the missing columns.
+ *
  * Adding them again under a fresh id fixes those databases and no-ops on any
  * database that got them from 39. The orphaned `title_regeneration_error`
  * column is left in place: it is nullable and unreferenced, and dropping it
