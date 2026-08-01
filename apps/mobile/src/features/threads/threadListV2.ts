@@ -2,6 +2,8 @@ import { effectiveSettled, effectiveSnoozed } from "@t3tools/client-runtime/stat
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
 
+import type { PendingNewTask } from "../../state/use-pending-new-tasks";
+
 /**
  * Thread List v2 model, ported from the web sidebar v2
  * (apps/web/src/components/Sidebar.logic.ts + SidebarV2.tsx).
@@ -19,34 +21,23 @@ export const THREAD_LIST_V2_SETTLED_INITIAL_COUNT = 10;
 export const THREAD_LIST_V2_SETTLED_PAGE_COUNT = 25;
 
 /**
- * Whether Thread List v2 is on by default for an app variant. The `development`
- * and `preview` variants are mobile's nightly equivalents and opt in;
- * `production` stays on v1. Counterpart of web's `resolveSidebarV2Default`.
- */
-export function resolveThreadListV2Default(appVariant: unknown): boolean {
-  return appVariant === "development" || appVariant === "preview";
-}
-
-/**
- * Resolved Thread List v2 state: the device-local preference if the user has
- * set one, otherwise the default for this app variant. Preferences persist as
- * sparse patches, so `undefined` genuinely means "never chosen".
+ * Thread List v2 is on by default on every app variant; the Settings → Beta
+ * toggle is an opt-out. Preferences persist as sparse patches, so `undefined`
+ * genuinely means "never chosen".
  *
  * `preferencesLoaded` guards the startup window: preferences load
- * asynchronously, and treating "still loading" as "never chosen" would mount
- * v2 on a development build and then flip to v1 once a stored opt-out arrives,
- * remounting the whole list. While loading, hold v1 — the state both variants
- * already start from.
+ * asynchronously, and rendering one list before the stored choice arrives would
+ * remount the whole thing a tick later. While loading, hold the default — that
+ * is where every device without an explicit opt-out lands anyway.
  */
 export function resolveThreadListV2Enabled(input: {
   readonly preference: boolean | undefined;
   readonly preferencesLoaded: boolean;
-  readonly appVariant: unknown;
 }): boolean {
   if (!input.preferencesLoaded) {
-    return false;
+    return true;
   }
-  return input.preference ?? resolveThreadListV2Default(input.appVariant);
+  return input.preference ?? true;
 }
 
 export function resolveThreadListV2Status(
@@ -122,6 +113,60 @@ export interface ThreadListV2Layout {
       a timeout at this boundary so the list re-partitions the moment a
       snooze expires instead of on the next minute tick. */
   readonly nextSnoozeWakeAt: string | null;
+}
+
+export interface ThreadListV2ThreadListItem {
+  readonly type: "v2-thread";
+  readonly key: string;
+  readonly item: ThreadListV2Item;
+}
+
+export interface ThreadListV2PendingListItem {
+  readonly type: "v2-pending";
+  readonly key: string;
+  readonly pendingTask: PendingNewTask;
+  /** First queued row after the active block draws the PENDING divider. */
+  readonly showPendingDivider: boolean;
+}
+
+export type ThreadListV2ListItem = ThreadListV2ThreadListItem | ThreadListV2PendingListItem;
+
+/**
+ * Splices queued tasks between the active block and the settled tail, so the
+ * list reads active → pending → settled. Queued work sits below the live
+ * threads because nothing can happen to it until its environment returns:
+ * it is waiting, not asking. Shared by the compact Home list and the iPad
+ * sidebar so both order and label the sections identically.
+ */
+export function buildThreadListV2ListItems(input: {
+  readonly items: ReadonlyArray<ThreadListV2Item>;
+  readonly pendingTasks: ReadonlyArray<PendingNewTask>;
+}): ThreadListV2ListItem[] {
+  const threadItems = input.items.map(
+    (item): ThreadListV2ListItem => ({
+      type: "v2-thread",
+      key: `v2-thread:${item.thread.environmentId}:${item.thread.id}`,
+      item,
+    }),
+  );
+  if (input.pendingTasks.length === 0) return threadItems;
+
+  const pendingItems = input.pendingTasks.map(
+    (pendingTask, index): ThreadListV2ListItem => ({
+      type: "v2-pending",
+      key: `v2-pending:${pendingTask.message.messageId}`,
+      pendingTask,
+      showPendingDivider: index === 0,
+    }),
+  );
+  // The settled tail begins at the row that draws the SETTLED divider; with
+  // no settled rows the queued block simply ends the list.
+  const settledStart = threadItems.findIndex(
+    (entry) => entry.type === "v2-thread" && entry.item.showSettledDivider,
+  );
+  return settledStart === -1
+    ? [...threadItems, ...pendingItems]
+    : [...threadItems.slice(0, settledStart), ...pendingItems, ...threadItems.slice(settledStart)];
 }
 
 /**
