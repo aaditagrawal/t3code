@@ -635,7 +635,11 @@ export function runtimeEventToActivities(
             limits: normalized.limits,
             ...(normalized.status ? { status: normalized.status } : {}),
           },
-          turnId: toTurnId(event.turnId) ?? null,
+          // Account usage is not turn-scoped. Claude emits `rate_limit_event`
+          // mid-turn, and the revert projector drops every activity whose turn
+          // is not retained, so keeping the turn here would let a revert erase
+          // account quota that reverting conversation state cannot undo.
+          turnId: null,
           ...maybeSequence,
         },
       ];

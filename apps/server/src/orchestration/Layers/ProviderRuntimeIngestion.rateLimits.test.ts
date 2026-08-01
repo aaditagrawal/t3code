@@ -4,6 +4,7 @@ import {
   ProviderInstanceId,
   type ProviderRuntimeEvent,
   ThreadId,
+  TurnId,
 } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -12,6 +13,7 @@ import { runtimeEventToActivities } from "./ProviderRuntimeIngestion.ts";
 function rateLimitEvent(
   provider: "codex" | "claudeAgent",
   rateLimits: unknown,
+  turnId?: string,
 ): ProviderRuntimeEvent {
   return {
     type: "account.rate-limits.updated",
@@ -20,6 +22,7 @@ function rateLimitEvent(
     providerInstanceId: ProviderInstanceId.make(provider),
     threadId: ThreadId.make("thread-1"),
     createdAt: "2026-07-29T00:00:00.000Z",
+    ...(turnId ? { turnId: TurnId.make(turnId) } : {}),
     payload: { rateLimits },
   };
 }
@@ -53,6 +56,7 @@ describe("runtimeEventToActivities account.rate-limits.updated", () => {
       providerInstanceId: "codex",
       limits: [
         {
+          limitId: "codex",
           window: "Weekly",
           usedPercent: 53,
           resetsAt: "2026-08-04T12:55:23.000Z",
@@ -96,5 +100,39 @@ describe("runtimeEventToActivities account.rate-limits.updated", () => {
     expect(
       runtimeEventToActivities(rateLimitEvent("codex", { rateLimits: { primary: null } })),
     ).toEqual([]);
+  });
+
+  it("keeps the activity outside turn scope so a revert cannot erase account usage", () => {
+    const activities = runtimeEventToActivities(
+      rateLimitEvent(
+        "claudeAgent",
+        {
+          type: "rate_limit_event",
+          rate_limit_info: { rateLimitType: "five_hour", utilization: 0.42 },
+        },
+        "turn-1",
+      ),
+    );
+
+    expect(activities).toHaveLength(1);
+    expect(activities[0]!.turnId).toBeNull();
+  });
+
+  it("preserves the Codex bucket id so two buckets cannot mask each other", () => {
+    const activities = runtimeEventToActivities(
+      rateLimitEvent("codex", {
+        rateLimits: {
+          limitId: "codex-mini",
+          primary: { usedPercent: 12, windowDurationMins: 300 },
+          secondary: null,
+        },
+      }),
+    );
+
+    expect(activities[0]!.payload).toEqual({
+      provider: "codex",
+      providerInstanceId: "codex",
+      limits: [{ limitId: "codex-mini", window: "5h", usedPercent: 12, windowDurationMins: 300 }],
+    });
   });
 });

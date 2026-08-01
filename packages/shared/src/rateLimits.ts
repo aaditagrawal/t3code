@@ -7,6 +7,12 @@ import * as Option from "effect/Option";
 
 export interface RateLimitWindow {
   window: string;
+  /**
+   * Codex meters several buckets independently and identifies each one by
+   * `limitId`. Two buckets can share a window label, so the id has to survive
+   * normalization or a later bucket's update would mask a more constrained one.
+   */
+  limitId?: string;
   usedPercent?: number;
   utilization?: number;
   resetsAt?: string;
@@ -105,6 +111,7 @@ export function compareWindowLabels(a: string, b: string): number {
 function normalizeLimitWindow(
   label: string,
   rawWindow: Record<string, unknown>,
+  limitId?: string,
 ): RateLimitWindow | null {
   const usedPercent = resolveUsedPercent(rawWindow);
   const windowDurationMins =
@@ -116,6 +123,9 @@ function normalizeLimitWindow(
   const window: RateLimitWindow = {
     window: normalizeRateLimitLabel(label, windowDurationMins),
   };
+  if (limitId !== undefined) {
+    window.limitId = limitId;
+  }
   if (usedPercent !== undefined) {
     window.usedPercent = usedPercent;
   }
@@ -132,9 +142,9 @@ function extractLimitsFromById(payload: Record<string, unknown>): RateLimitWindo
   const rateLimitsByLimitId = asRecord(payload.rateLimitsByLimitId);
   if (!rateLimitsByLimitId) return undefined;
 
-  const limits = Object.values(rateLimitsByLimitId)
-    .map((entry) => asRecord(entry))
-    .flatMap((entry) => {
+  const limits = Object.entries(rateLimitsByLimitId)
+    .map(([limitId, value]) => [limitId, asRecord(value)] as const)
+    .flatMap(([limitId, entry]) => {
       if (!entry) return [];
       const primary = asRecord(entry.primary);
       if (!primary) return [];
@@ -144,7 +154,7 @@ function extractLimitsFromById(payload: Record<string, unknown>): RateLimitWindo
           : typeof entry.window === "string"
             ? entry.window
             : "";
-      const normalized = normalizeLimitWindow(label, primary);
+      const normalized = normalizeLimitWindow(label, primary, limitId);
       return normalized ? [normalized] : [];
     });
 
@@ -158,7 +168,11 @@ function extractLimitsFromArray(payload: Record<string, unknown>): RateLimitWind
     .map((entry) => asRecord(entry))
     .flatMap((entry) => {
       if (!entry || typeof entry.window !== "string") return [];
-      const normalized = normalizeLimitWindow(entry.window, entry);
+      const normalized = normalizeLimitWindow(
+        entry.window,
+        entry,
+        typeof entry.limitId === "string" ? entry.limitId : undefined,
+      );
       return normalized ? [normalized] : [];
     });
 
@@ -177,23 +191,33 @@ function extractLimitsFromCodexPayload(
 
   const primary = asRecord(nestedRateLimits.primary);
   const secondary = asRecord(nestedRateLimits.secondary);
+  const limitId =
+    typeof nestedRateLimits.limitId === "string" ? nestedRateLimits.limitId : undefined;
   const limits: RateLimitWindow[] = [];
 
   if (primary) {
-    const normalized = normalizeLimitWindow("Session", {
-      usedPercent: primary.usedPercent,
-      resetsAt: primary.resetsAt,
-      windowDurationMins: primary.windowDurationMins,
-    });
+    const normalized = normalizeLimitWindow(
+      "Session",
+      {
+        usedPercent: primary.usedPercent,
+        resetsAt: primary.resetsAt,
+        windowDurationMins: primary.windowDurationMins,
+      },
+      limitId,
+    );
     if (normalized) limits.push(normalized);
   }
 
   if (secondary) {
-    const normalized = normalizeLimitWindow("Weekly", {
-      usedPercent: secondary.usedPercent,
-      resetsAt: secondary.resetsAt,
-      windowDurationMins: secondary.windowDurationMins,
-    });
+    const normalized = normalizeLimitWindow(
+      "Weekly",
+      {
+        usedPercent: secondary.usedPercent,
+        resetsAt: secondary.resetsAt,
+        windowDurationMins: secondary.windowDurationMins,
+      },
+      limitId,
+    );
     if (normalized) limits.push(normalized);
   }
 

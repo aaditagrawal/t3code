@@ -66,6 +66,9 @@ describe("normalizeProviderRateLimitPayload", () => {
     });
 
     expect(normalized?.limits.map((limit) => limit.window)).toEqual(["5h", "Weekly"]);
+    // The bucket key is the limit id; it has to survive so two buckets sharing a
+    // window label stay distinguishable downstream.
+    expect(normalized?.limits.map((limit) => limit.limitId)).toEqual(["short", "weekly"]);
   });
 
   it("returns undefined when no window carries usage or a reset", () => {
