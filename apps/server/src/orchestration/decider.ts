@@ -662,10 +662,16 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
                   requestId: command.commandId,
                   startedAt: occurredAt,
                 },
+                // A retry supersedes whatever the last attempt reported.
+                titleRegenerationFailure: null,
               }
             : {}),
           ...(command.title !== undefined && thread.titleRegeneration != null
             ? { titleRegeneration: null }
+            : {}),
+          // A manual rename answers the question the failure was reporting.
+          ...(command.title !== undefined && thread.titleRegenerationFailure != null
+            ? { titleRegenerationFailure: null }
             : {}),
           ...(command.modelSelection !== undefined
             ? { modelSelection: command.modelSelection }
@@ -685,6 +691,13 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       });
       const requestIsCurrent = thread.titleRegeneration?.requestId === command.requestId;
       const occurredAt = yield* nowIso;
+      // Every completion clears the pending record — the request is over either
+      // way. A failure additionally records why, on its own field, so clients
+      // that only understand "pending or not" are unaffected.
+      const failure =
+        command.error !== undefined
+          ? { requestId: command.requestId, failedAt: occurredAt, error: command.error }
+          : null;
       return {
         ...(yield* withEventBase({
           aggregateKind: "thread",
@@ -696,7 +709,9 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           ...(requestIsCurrent && command.title !== undefined ? { title: command.title } : {}),
-          ...(requestIsCurrent ? { titleRegeneration: null } : {}),
+          ...(requestIsCurrent
+            ? { titleRegeneration: null, titleRegenerationFailure: failure }
+            : {}),
           updatedAt: requestIsCurrent ? occurredAt : thread.updatedAt,
         },
       };

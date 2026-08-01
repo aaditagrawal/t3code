@@ -6,6 +6,11 @@ import {
   effectiveSnoozed,
   threadWokeAt,
 } from "@t3tools/client-runtime/state/thread-settled";
+import {
+  collectTitleRegenerationFailures,
+  isTitleRegenerationPending,
+  titleRegenerationFailureReason,
+} from "@t3tools/client-runtime/state/thread-title-regeneration";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import {
   scopeProjectRef,
@@ -445,7 +450,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
     [thread.environmentId, thread.id],
   );
   const threadKey = scopedThreadKey(threadRef);
-  const isRegeneratingTitle = thread.titleRegeneration != null;
+  const isRegeneratingTitle = isTitleRegenerationPending(thread);
   const lastVisitedAt = useUiStateStore((state) => state.threadLastVisitedAtById[threadKey]);
   const isSelected = useThreadSelectionStore((state) => state.selectedThreadKeys.has(threadKey));
   const openPrLink = useOpenPrLink();
@@ -1068,10 +1073,52 @@ function latestTurnDiff(
   return null;
 }
 
+const TITLE_REGENERATION_ERROR_MENU_MAX_CHARS = 72;
+
+/**
+ * Provider failure details are prose and can run long or wrap lines. The
+ * context menu is where the reason survives a reload (the toast only fires on
+ * a live transition), so it is collapsed to one readable clause rather than
+ * dropped.
+ */
+function summarizeTitleRegenerationError(error: string): string {
+  const collapsed = error.replace(/\s+/g, " ").trim();
+  return collapsed.length > TITLE_REGENERATION_ERROR_MENU_MAX_CHARS
+    ? `${collapsed.slice(0, TITLE_REGENERATION_ERROR_MENU_MAX_CHARS - 1).trimEnd()}…`
+    : collapsed;
+}
+
 export default function SidebarV2() {
   const projects = useProjects();
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const threads = useThreadShells();
+  // Title regeneration runs on the server and can fail long after the click
+  // (an unreachable CLI, a provider with no text-generation support). The row
+  // spinner just clears, so the toast is the only place the reason surfaces.
+  const seenTitleRegenerationFailures = useRef(new Map<string, string | null>());
+  useEffect(() => {
+    const failures = collectTitleRegenerationFailures(
+      threads,
+      (thread) => scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
+      seenTitleRegenerationFailures.current,
+    );
+    if (failures.length === 0) return;
+    const titleByKey = new Map(
+      threads.map((thread) => [
+        scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
+        thread.title,
+      ]),
+    );
+    for (const failure of failures) {
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title: `Could not regenerate title for “${titleByKey.get(failure.key) ?? "thread"}”`,
+          description: failure.error,
+        }),
+      );
+    }
+  }, [threads]);
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -1945,7 +1992,7 @@ export default function SidebarV2() {
             .threadTitleRegeneration === true,
       );
       const regeneratableTitleThreads = titleRegenerationThreads.filter(
-        (thread) => thread.titleRegeneration == null,
+        (thread) => !isTitleRegenerationPending(thread),
       );
       const titleRegenerationMenuItem = buildBulkTitleRegenerationContextMenuItem({
         supportedCount: titleRegenerationThreads.length,
@@ -2119,7 +2166,8 @@ export default function SidebarV2() {
         const supportsTitleRegeneration =
           serverConfigs.get(thread.environmentId)?.environment.capabilities
             .threadTitleRegeneration === true;
-        const isRegeneratingTitle = thread.titleRegeneration != null;
+        const isRegeneratingTitle = isTitleRegenerationPending(thread);
+        const lastTitleRegenerationError = titleRegenerationFailureReason(thread);
         const isSettled = settledThreadKeysRef.current.has(threadKey);
         const isSnoozed = snoozedThreadKeysRef.current.has(threadKey);
         // Presets resolve at menu-open time (same as the popover).
@@ -2162,7 +2210,13 @@ export default function SidebarV2() {
                 ? [
                     {
                       id: "regenerate-title",
-                      label: isRegeneratingTitle ? "Regenerating…" : "Regenerate title",
+                      label: isRegeneratingTitle
+                        ? "Regenerating…"
+                        : lastTitleRegenerationError
+                          ? `Retry regenerate title — ${summarizeTitleRegenerationError(
+                              lastTitleRegenerationError,
+                            )}`
+                          : "Regenerate title",
                       disabled: isRegeneratingTitle,
                     },
                   ]

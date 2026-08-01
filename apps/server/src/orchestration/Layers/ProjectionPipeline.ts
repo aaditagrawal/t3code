@@ -733,6 +733,16 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
                   titleRegenerationStartedAt: event.payload.titleRegeneration?.startedAt ?? null,
                 }
               : {}),
+            ...(event.payload.titleRegenerationFailure !== undefined
+              ? {
+                  titleRegenerationFailureRequestId:
+                    event.payload.titleRegenerationFailure?.requestId ?? null,
+                  titleRegenerationFailureAt:
+                    event.payload.titleRegenerationFailure?.failedAt ?? null,
+                  titleRegenerationFailureError:
+                    event.payload.titleRegenerationFailure?.error ?? null,
+                }
+              : {}),
             ...(event.payload.modelSelection !== undefined
               ? { modelSelection: event.payload.modelSelection }
               : {}),

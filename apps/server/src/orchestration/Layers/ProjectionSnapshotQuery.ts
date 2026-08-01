@@ -255,6 +255,18 @@ function mapTitleRegeneration(row: Schema.Schema.Type<typeof ProjectionThreadDbR
     : null;
 }
 
+function mapTitleRegenerationFailure(row: Schema.Schema.Type<typeof ProjectionThreadDbRowSchema>) {
+  return row.titleRegenerationFailureRequestId != null &&
+    row.titleRegenerationFailureAt != null &&
+    row.titleRegenerationFailureError != null
+    ? {
+        requestId: row.titleRegenerationFailureRequestId,
+        failedAt: row.titleRegenerationFailureAt,
+        error: row.titleRegenerationFailureError,
+      }
+    : null;
+}
+
 function mapSessionRow(
   row: Schema.Schema.Type<typeof ProjectionThreadSessionDbRowSchema>,
 ): OrchestrationSession {
@@ -386,6 +398,9 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           snoozed_at AS "snoozedAt",
           title_regeneration_request_id AS "titleRegenerationRequestId",
           title_regeneration_started_at AS "titleRegenerationStartedAt",
+          title_regeneration_failure_request_id AS "titleRegenerationFailureRequestId",
+          title_regeneration_failure_at AS "titleRegenerationFailureAt",
+          title_regeneration_failure_error AS "titleRegenerationFailureError",
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
@@ -420,6 +435,9 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           snoozed_at AS "snoozedAt",
           title_regeneration_request_id AS "titleRegenerationRequestId",
           title_regeneration_started_at AS "titleRegenerationStartedAt",
+          title_regeneration_failure_request_id AS "titleRegenerationFailureRequestId",
+          title_regeneration_failure_at AS "titleRegenerationFailureAt",
+          title_regeneration_failure_error AS "titleRegenerationFailureError",
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
@@ -456,6 +474,9 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           snoozed_at AS "snoozedAt",
           title_regeneration_request_id AS "titleRegenerationRequestId",
           title_regeneration_started_at AS "titleRegenerationStartedAt",
+          title_regeneration_failure_request_id AS "titleRegenerationFailureRequestId",
+          title_regeneration_failure_at AS "titleRegenerationFailureAt",
+          title_regeneration_failure_error AS "titleRegenerationFailureError",
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
@@ -892,6 +913,9 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           snoozed_at AS "snoozedAt",
           title_regeneration_request_id AS "titleRegenerationRequestId",
           title_regeneration_started_at AS "titleRegenerationStartedAt",
+          title_regeneration_failure_request_id AS "titleRegenerationFailureRequestId",
+          title_regeneration_failure_at AS "titleRegenerationFailureAt",
+          title_regeneration_failure_error AS "titleRegenerationFailureError",
           latest_user_message_at AS "latestUserMessageAt",
           pending_approval_count AS "pendingApprovalCount",
           pending_user_input_count AS "pendingUserInputCount",
@@ -1329,6 +1353,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 snoozedUntil: row.snoozedUntil,
                 snoozedAt: row.snoozedAt,
                 titleRegeneration: mapTitleRegeneration(row),
+                titleRegenerationFailure: mapTitleRegenerationFailure(row),
                 deletedAt: row.deletedAt,
                 messages: messagesByThread.get(row.threadId) ?? [],
                 proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
@@ -1532,6 +1557,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   snoozedUntil: row.snoozedUntil,
                   snoozedAt: row.snoozedAt,
                   titleRegeneration: mapTitleRegeneration(row),
+                  titleRegenerationFailure: mapTitleRegenerationFailure(row),
                   deletedAt: row.deletedAt,
                   messages: [],
                   proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
@@ -1666,6 +1692,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                       snoozedUntil: row.snoozedUntil,
                       snoozedAt: row.snoozedAt,
                       titleRegeneration: mapTitleRegeneration(row),
+                      titleRegenerationFailure: mapTitleRegenerationFailure(row),
                       session: sessionByThread.get(row.threadId) ?? null,
                       latestUserMessageAt: row.latestUserMessageAt,
                       hasPendingApprovals: row.pendingApprovalCount > 0,
@@ -1805,6 +1832,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   snoozedUntil: row.snoozedUntil,
                   snoozedAt: row.snoozedAt,
                   titleRegeneration: mapTitleRegeneration(row),
+                  titleRegenerationFailure: mapTitleRegenerationFailure(row),
                   session: sessionByThread.get(row.threadId) ?? null,
                   latestUserMessageAt: row.latestUserMessageAt,
                   hasPendingApprovals: row.pendingApprovalCount > 0,
@@ -2076,6 +2104,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         snoozedUntil: threadRow.value.snoozedUntil,
         snoozedAt: threadRow.value.snoozedAt,
         titleRegeneration: mapTitleRegeneration(threadRow.value),
+        titleRegenerationFailure: mapTitleRegenerationFailure(threadRow.value),
         session: Option.isSome(sessionRow) ? mapSessionRow(sessionRow.value) : null,
         latestUserMessageAt: threadRow.value.latestUserMessageAt,
         hasPendingApprovals: threadRow.value.pendingApprovalCount > 0,
@@ -2175,6 +2204,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         snoozedUntil: threadRow.value.snoozedUntil,
         snoozedAt: threadRow.value.snoozedAt,
         titleRegeneration: mapTitleRegeneration(threadRow.value),
+        titleRegenerationFailure: mapTitleRegenerationFailure(threadRow.value),
         deletedAt: null,
         messages: messageRows.map((row) => {
           const message = {

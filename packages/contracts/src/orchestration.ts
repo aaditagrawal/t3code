@@ -350,6 +350,24 @@ export const ThreadTitleRegeneration = Schema.Struct({
 });
 export type ThreadTitleRegeneration = typeof ThreadTitleRegeneration.Type;
 
+/**
+ * Why the last regeneration request produced no title.
+ *
+ * Deliberately a sibling of `titleRegeneration` rather than a field on it:
+ * clients — including older ones that predate this field — treat any non-null
+ * `titleRegeneration` as "in flight", so a failure recorded there would leave
+ * them spinning forever. Keeping the pending record strictly pending means an
+ * old client sees a failure exactly as it sees a success (cleared) and simply
+ * ignores what it cannot read, while a current client can say why the title
+ * did not change. Cleared by the next regeneration request or a manual rename.
+ */
+export const ThreadTitleRegenerationFailure = Schema.Struct({
+  requestId: CommandId,
+  failedAt: IsoDateTime,
+  error: TrimmedNonEmptyString,
+});
+export type ThreadTitleRegenerationFailure = typeof ThreadTitleRegenerationFailure.Type;
+
 export const OrchestrationThread = Schema.Struct({
   id: ThreadId,
   projectId: ProjectId,
@@ -377,6 +395,7 @@ export const OrchestrationThread = Schema.Struct({
   snoozedAt: Schema.optional(Schema.NullOr(IsoDateTime)),
   // Pending-only state. Optional so older servers remain compatible.
   titleRegeneration: Schema.optional(Schema.NullOr(ThreadTitleRegeneration)),
+  titleRegenerationFailure: Schema.optional(Schema.NullOr(ThreadTitleRegenerationFailure)),
   deletedAt: Schema.NullOr(IsoDateTime),
   messages: Schema.Array(OrchestrationMessage),
   proposedPlans: Schema.Array(OrchestrationProposedPlan).pipe(
@@ -430,6 +449,7 @@ export const OrchestrationThreadShell = Schema.Struct({
   snoozedUntil: Schema.optional(Schema.NullOr(IsoDateTime)),
   snoozedAt: Schema.optional(Schema.NullOr(IsoDateTime)),
   titleRegeneration: Schema.optional(Schema.NullOr(ThreadTitleRegeneration)),
+  titleRegenerationFailure: Schema.optional(Schema.NullOr(ThreadTitleRegenerationFailure)),
   session: Schema.NullOr(OrchestrationSession),
   latestUserMessageAt: Schema.NullOr(IsoDateTime),
   hasPendingApprovals: Schema.Boolean,
@@ -884,6 +904,11 @@ const ThreadTitleRegenerationCompleteCommand = Schema.Struct({
   threadId: ThreadId,
   requestId: CommandId,
   title: Schema.optional(TrimmedNonEmptyString),
+  /**
+   * Why generation produced no title. Mutually exclusive with `title`: a
+   * completion carries either the new title or the reason there is none.
+   */
+  error: Schema.optional(TrimmedNonEmptyString),
 });
 
 const InternalOrchestrationCommand = Schema.Union([
@@ -1034,6 +1059,8 @@ export const ThreadMetaUpdatedPayload = Schema.Struct({
   previousTitle: Schema.optional(TrimmedNonEmptyString),
   /** Pending state shared with clients. Null clears a matching request. */
   titleRegeneration: Schema.optional(Schema.NullOr(ThreadTitleRegeneration)),
+  /** Why the request produced no title. Null clears a recorded failure. */
+  titleRegenerationFailure: Schema.optional(Schema.NullOr(ThreadTitleRegenerationFailure)),
   modelSelection: Schema.optional(ModelSelection),
   branch: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   worktreePath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
