@@ -297,9 +297,13 @@ export function normalizeProviderRateLimitPayload(
       extractFallbackLimits(root);
 
     if (limits && limits.length > 0) {
+      // Re-normalizing an already-persisted activity takes the `limits` branch,
+      // which never sees `rate_limit_info`, so the status has to be read back
+      // from the top level or it would not survive the round trip.
+      const status = claude?.status ?? (typeof root.status === "string" ? root.status : undefined);
       return {
         limits: limits.toSorted((a, b) => compareWindowLabels(a.window, b.window)),
-        ...(claude?.status ? { status: claude.status } : {}),
+        ...(status ? { status } : {}),
       };
     }
   }

@@ -57,6 +57,19 @@ describe("normalizeProviderRateLimitPayload", () => {
     expect(normalizeProviderRateLimitPayload({ provider: "codex", limits })).toEqual({ limits });
   });
 
+  it("preserves a top-level status when re-normalizing a persisted payload", () => {
+    // The persisted activity shape takes the `limits` branch, which never sees
+    // `rate_limit_info`, so the status must be read back from the top level.
+    const limits = [{ window: "5h", usedPercent: 30, windowDurationMins: 300 }];
+    expect(
+      normalizeProviderRateLimitPayload({
+        provider: "claudeAgent",
+        limits,
+        status: "allowed_warning",
+      }),
+    ).toEqual({ limits, status: "allowed_warning" });
+  });
+
   it("reads a keyed rateLimitsByLimitId snapshot", () => {
     const normalized = normalizeProviderRateLimitPayload({
       rateLimitsByLimitId: {
