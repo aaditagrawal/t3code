@@ -10,6 +10,7 @@ import {
   buildLegacyClientSettingsMigrationPatch,
   buildLegacyServerSettingsMigrationPatch,
   mergeEnvironmentSettings,
+  resolveEnvironmentIdentificationMode,
 } from "./useSettings";
 
 describe("buildLegacyClientSettingsMigrationPatch", () => {
@@ -43,6 +44,17 @@ describe("buildLegacyServerSettingsMigrationPatch", () => {
         },
       },
     });
+  });
+});
+
+describe("resolveEnvironmentIdentificationMode", () => {
+  it("keeps identification hidden until client settings hydrate", () => {
+    expect(resolveEnvironmentIdentificationMode({ mode: "artwork", settingsHydrated: false })).toBe(
+      "none",
+    );
+    expect(resolveEnvironmentIdentificationMode({ mode: "pill", settingsHydrated: true })).toBe(
+      "pill",
+    );
   });
 });
 
