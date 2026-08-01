@@ -28,6 +28,11 @@ jobs:
           cache: true
           run-install: true
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
       - name: Cache Electron binary
         uses: actions/cache@v5
         with:
@@ -48,6 +53,9 @@ jobs:
 
       - name: Typecheck
         run: vpr typecheck
+
+      - name: Check resource monitor formatting
+        run: cargo fmt --manifest-path native/resource-monitor/Cargo.toml -- --check
 
       - name: Build desktop pipeline
         run: vp run build:desktop
@@ -74,6 +82,9 @@ jobs:
           node-version-file: package.json
           cache: true
           run-install: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Electron binary
         uses: actions/cache@v5
@@ -153,6 +164,9 @@ jobs:
             src/components/chat/ProviderModelPicker.browser.tsx \
             src/components/chat/CompactComposerControlsMenu.browser.tsx \
             src/components/settings/SettingsPanels.browser.tsx
+
+      - name: Test resource monitor
+        run: cargo test --locked --manifest-path native/resource-monitor/Cargo.toml
 
   mobile_native_static_analysis:
     name: Mobile Native Static Analysis
