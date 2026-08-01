@@ -92,6 +92,7 @@ const HANDLED_TURN_START_KEY_TTL = Duration.minutes(30);
 const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
 const DEFAULT_THREAD_TITLE = "New thread";
 const MAX_REGENERATION_ATTACHMENTS = 4;
+const TITLE_REGENERATION_FALLBACK_ERROR = "Title generation failed unexpectedly.";
 const MAX_THREAD_TITLE_CONTEXT_CHARS = 8_000;
 const THREAD_TITLE_CONTEXT_TRUNCATION_MARKER = "[Earlier content truncated]\n\n";
 
@@ -890,6 +891,7 @@ const make = Effect.gen(function* () {
     readonly threadId: ThreadId;
     readonly requestId: CommandId;
     readonly title?: string;
+    readonly error?: string;
   }) {
     yield* orchestrationEngine.dispatch({
       type: "thread.title.regeneration.complete",
@@ -897,6 +899,7 @@ const make = Effect.gen(function* () {
       threadId: input.threadId,
       requestId: input.requestId,
       ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.error !== undefined ? { error: input.error } : {}),
     });
   });
   const clearInterruptedThreadTitleRegenerations = Effect.fn(
@@ -906,7 +909,13 @@ const make = Effect.gen(function* () {
     yield* Effect.forEach(
       readModel.threads,
       (thread) => {
-        const requestId = thread.titleRegeneration?.requestId;
+        // Only in-flight requests were interrupted. A request that already
+        // failed is a finished result the user has not acknowledged yet, so
+        // clearing it here would re-hide the error the restart did not cause.
+        const requestId =
+          thread.titleRegeneration != null && thread.titleRegeneration.error == null
+            ? thread.titleRegeneration.requestId
+            : undefined;
         if (requestId === undefined) {
           return Effect.void;
         }
@@ -941,7 +950,24 @@ const make = Effect.gen(function* () {
       if (requestId === null) {
         return;
       }
+      // Generation failures are carried into the completion instead of being
+      // swallowed: without them the request completes "successfully" with no
+      // title and the user sees a spinner clear with nothing changed. Providers
+      // whose text generation is unimplemented fail this way every time.
       const result = yield* regenerateThreadTitle(event, requestId).pipe(
+        Effect.catchTag("TextGenerationError", (error) =>
+          Effect.logWarning("provider command reactor failed to regenerate thread title", {
+            threadId: event.payload.threadId,
+            detail: error.detail,
+          }).pipe(
+            Effect.as({
+              _tag: "Failed",
+              // The completion payload requires a non-empty reason; a provider
+              // that fails without one still has to produce a visible error.
+              error: error.detail.trim() || TITLE_REGENERATION_FALLBACK_ERROR,
+            } as const),
+          ),
+        ),
         Effect.catchCause((cause) => {
           if (Cause.hasInterruptsOnly(cause)) {
             return Effect.failCause(cause);
@@ -949,7 +975,7 @@ const make = Effect.gen(function* () {
           return Effect.logWarning("provider command reactor failed to regenerate thread title", {
             threadId: event.payload.threadId,
             cause: Cause.pretty(cause),
-          }).pipe(Effect.as({ _tag: "Completed", title: undefined } as const));
+          }).pipe(Effect.as({ _tag: "Failed", error: TITLE_REGENERATION_FALLBACK_ERROR } as const));
         }),
       );
       if (result._tag === "Superseded") {
@@ -959,7 +985,10 @@ const make = Effect.gen(function* () {
       const completion = {
         threadId: event.payload.threadId,
         requestId,
-        ...(result.title !== undefined ? { title: result.title } : {}),
+        ...(result._tag === "Completed" && result.title !== undefined
+          ? { title: result.title }
+          : {}),
+        ...(result._tag === "Failed" ? { error: result.error } : {}),
       };
       yield* dispatchThreadTitleRegenerationCompletion(completion).pipe(
         Effect.catchCause((cause) => {

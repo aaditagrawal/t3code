@@ -347,6 +347,16 @@ export type OrchestrationLatestTurn = typeof OrchestrationLatestTurn.Type;
 export const ThreadTitleRegeneration = Schema.Struct({
   requestId: CommandId,
   startedAt: IsoDateTime,
+  /**
+   * Failure detail for a request that finished unsuccessfully. Regeneration is
+   * *pending* only while this is null/absent — a non-null `error` means the
+   * request is over and produced no title. Keeping the record (instead of
+   * clearing it, as a success does) is what lets clients tell "the title did
+   * not change because generation failed" apart from "the title did not need
+   * to change", which is otherwise indistinguishable. Cleared by the next
+   * regeneration request or a manual rename.
+   */
+  error: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
 });
 export type ThreadTitleRegeneration = typeof ThreadTitleRegeneration.Type;
 
@@ -884,6 +894,11 @@ const ThreadTitleRegenerationCompleteCommand = Schema.Struct({
   threadId: ThreadId,
   requestId: CommandId,
   title: Schema.optional(TrimmedNonEmptyString),
+  /**
+   * Why generation produced no title. Mutually exclusive with `title`: a
+   * completion carries either the new title or the reason there is none.
+   */
+  error: Schema.optional(TrimmedNonEmptyString),
 });
 
 const InternalOrchestrationCommand = Schema.Union([

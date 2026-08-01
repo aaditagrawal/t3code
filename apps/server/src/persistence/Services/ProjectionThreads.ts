@@ -43,6 +43,7 @@ export const ProjectionThread = Schema.Struct({
   snoozedAt: Schema.NullOr(IsoDateTime),
   titleRegenerationRequestId: Schema.optional(Schema.NullOr(CommandId)),
   titleRegenerationStartedAt: Schema.optional(Schema.NullOr(IsoDateTime)),
+  titleRegenerationError: Schema.optional(Schema.NullOr(Schema.String)),
   latestUserMessageAt: Schema.NullOr(IsoDateTime),
   pendingApprovalCount: NonNegativeInt,
   pendingUserInputCount: NonNegativeInt,

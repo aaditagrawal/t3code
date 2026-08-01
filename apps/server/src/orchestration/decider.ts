@@ -683,8 +683,16 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
-      const requestIsCurrent = thread.titleRegeneration?.requestId === command.requestId;
+      const pending = thread.titleRegeneration;
+      const requestIsCurrent = pending?.requestId === command.requestId;
       const occurredAt = yield* nowIso;
+      // A failed completion keeps the record and stamps the reason instead of
+      // clearing it, so the sidebar can say why the title did not change. A
+      // successful (or no-op) completion clears it back to "not regenerating".
+      const nextTitleRegeneration =
+        command.error !== undefined && pending != null
+          ? { requestId: pending.requestId, startedAt: pending.startedAt, error: command.error }
+          : null;
       return {
         ...(yield* withEventBase({
           aggregateKind: "thread",
@@ -696,7 +704,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           threadId: command.threadId,
           ...(requestIsCurrent && command.title !== undefined ? { title: command.title } : {}),
-          ...(requestIsCurrent ? { titleRegeneration: null } : {}),
+          ...(requestIsCurrent ? { titleRegeneration: nextTitleRegeneration } : {}),
           updatedAt: requestIsCurrent ? occurredAt : thread.updatedAt,
         },
       };

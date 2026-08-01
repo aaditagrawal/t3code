@@ -131,6 +131,10 @@
       "types": "./src/state/threadSettled.ts",
       "default": "./src/state/threadSettled.ts"
     },
+    "./state/thread-title-regeneration": {
+      "types": "./src/state/threadTitleRegeneration.ts",
+      "default": "./src/state/threadTitleRegeneration.ts"
+    },
     "./state/thread-search": {
       "types": "./src/state/threadSearch.ts",
       "default": "./src/state/threadSearch.ts"

@@ -6,6 +6,11 @@ import {
   effectiveSnoozed,
   threadWokeAt,
 } from "@t3tools/client-runtime/state/thread-settled";
+import {
+  collectTitleRegenerationFailures,
+  isTitleRegenerationPending,
+  titleRegenerationError,
+} from "@t3tools/client-runtime/state/thread-title-regeneration";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import {
   scopeProjectRef,
@@ -445,7 +450,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
     [thread.environmentId, thread.id],
   );
   const threadKey = scopedThreadKey(threadRef);
-  const isRegeneratingTitle = thread.titleRegeneration != null;
+  const isRegeneratingTitle = isTitleRegenerationPending(thread);
   const lastVisitedAt = useUiStateStore((state) => state.threadLastVisitedAtById[threadKey]);
   const isSelected = useThreadSelectionStore((state) => state.selectedThreadKeys.has(threadKey));
   const openPrLink = useOpenPrLink();
@@ -1072,6 +1077,33 @@ export default function SidebarV2() {
   const projects = useProjects();
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const threads = useThreadShells();
+  // Title regeneration runs on the server and can fail long after the click
+  // (an unreachable CLI, a provider with no text-generation support). The row
+  // spinner just clears, so the toast is the only place the reason surfaces.
+  const seenTitleRegenerationFailures = useRef(new Map<string, string | null>());
+  useEffect(() => {
+    const failures = collectTitleRegenerationFailures(
+      threads,
+      (thread) => scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
+      seenTitleRegenerationFailures.current,
+    );
+    if (failures.length === 0) return;
+    const titleByKey = new Map(
+      threads.map((thread) => [
+        scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
+        thread.title,
+      ]),
+    );
+    for (const failure of failures) {
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title: `Could not regenerate title for “${titleByKey.get(failure.key) ?? "thread"}”`,
+          description: failure.error,
+        }),
+      );
+    }
+  }, [threads]);
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -1945,7 +1977,7 @@ export default function SidebarV2() {
             .threadTitleRegeneration === true,
       );
       const regeneratableTitleThreads = titleRegenerationThreads.filter(
-        (thread) => thread.titleRegeneration == null,
+        (thread) => !isTitleRegenerationPending(thread),
       );
       const titleRegenerationMenuItem = buildBulkTitleRegenerationContextMenuItem({
         supportedCount: titleRegenerationThreads.length,
@@ -2119,7 +2151,8 @@ export default function SidebarV2() {
         const supportsTitleRegeneration =
           serverConfigs.get(thread.environmentId)?.environment.capabilities
             .threadTitleRegeneration === true;
-        const isRegeneratingTitle = thread.titleRegeneration != null;
+        const isRegeneratingTitle = isTitleRegenerationPending(thread);
+        const lastTitleRegenerationError = titleRegenerationError(thread);
         const isSettled = settledThreadKeysRef.current.has(threadKey);
         const isSnoozed = snoozedThreadKeysRef.current.has(threadKey);
         // Presets resolve at menu-open time (same as the popover).
@@ -2162,7 +2195,11 @@ export default function SidebarV2() {
                 ? [
                     {
                       id: "regenerate-title",
-                      label: isRegeneratingTitle ? "Regenerating…" : "Regenerate title",
+                      label: isRegeneratingTitle
+                        ? "Regenerating…"
+                        : lastTitleRegenerationError
+                          ? "Retry regenerate title"
+                          : "Regenerate title",
                       disabled: isRegeneratingTitle,
                     },
                   ]

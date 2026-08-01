@@ -864,7 +864,7 @@ describe("ProviderCommandReactor", () => {
     expect(thread?.titleRegeneration).toBeNull();
   });
 
-  it("clears title regeneration state when generation fails", async () => {
+  it("records the failure reason when generation fails", async () => {
     const harness = await createHarness();
     const now = "2026-01-01T00:00:00.000Z";
 
@@ -906,6 +906,64 @@ describe("ProviderCommandReactor", () => {
     const readModel = await harness.readModel();
     const thread = readModel.threads.find((entry) => entry.id === ThreadId.make("thread-1"));
     expect(thread?.title).toBe("Keep title after failure");
+    // The request is over (no spinner) but the reason survives, so the client
+    // can say why the title did not change instead of silently no-opping.
+    expect(thread?.titleRegeneration).toMatchObject({
+      requestId: CommandId.make("cmd-thread-title-failed-regeneration"),
+      error: "disabled in test harness",
+    });
+  });
+
+  it("clears a recorded failure when regeneration is requested again", async () => {
+    const harness = await createHarness();
+    const now = "2026-01-01T00:00:00.000Z";
+
+    await harness.runEffect(
+      harness.engine.dispatch({
+        type: "thread.turn.start",
+        commandId: CommandId.make("cmd-turn-start-before-retried-regeneration"),
+        threadId: ThreadId.make("thread-1"),
+        message: {
+          messageId: asMessageId("user-message-before-retried-regeneration"),
+          role: "user",
+          text: "Investigate the reconnect state.",
+          attachments: [],
+        },
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        runtimeMode: "approval-required",
+        createdAt: now,
+      }),
+    );
+    await harness.runEffect(
+      harness.engine.dispatch({
+        type: "thread.meta.update",
+        commandId: CommandId.make("cmd-thread-title-first-failed-regeneration"),
+        threadId: ThreadId.make("thread-1"),
+        regenerateTitle: true,
+      }),
+    );
+    await harness.drain();
+
+    let readModel = await harness.readModel();
+    expect(
+      readModel.threads.find((entry) => entry.id === ThreadId.make("thread-1"))?.titleRegeneration
+        ?.error,
+    ).toBe("disabled in test harness");
+
+    harness.generateThreadTitle.mockReturnValue(Effect.succeed({ title: "Recovered title" }));
+    await harness.runEffect(
+      harness.engine.dispatch({
+        type: "thread.meta.update",
+        commandId: CommandId.make("cmd-thread-title-retried-regeneration"),
+        threadId: ThreadId.make("thread-1"),
+        regenerateTitle: true,
+      }),
+    );
+    await harness.drain();
+
+    readModel = await harness.readModel();
+    const thread = readModel.threads.find((entry) => entry.id === ThreadId.make("thread-1"));
+    expect(thread?.title).toBe("Recovered title");
     expect(thread?.titleRegeneration).toBeNull();
   });
 
