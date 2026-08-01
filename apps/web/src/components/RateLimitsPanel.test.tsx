@@ -228,4 +228,41 @@ describe("RateLimitsPanel helpers", () => {
       },
     ]);
   });
+
+  it("merges sparse rolling updates instead of dropping the untouched window", () => {
+    // Codex sends sparse rolling updates: a later notification can carry only
+    // one window, and the other must stay visible.
+    const rateLimits = deriveAccountRateLimits([
+      {
+        activities: [
+          makeActivity(
+            "activity-full",
+            "account.rate-limits.updated",
+            {
+              provider: "codex",
+              limits: [
+                { window: "5h", usedPercent: 20, windowDurationMins: 300 },
+                { window: "Weekly", usedPercent: 40, windowDurationMins: 10_080 },
+              ],
+            },
+            "2099-04-08T18:00:00.000Z",
+          ),
+          makeActivity(
+            "activity-sparse",
+            "account.rate-limits.updated",
+            {
+              provider: "codex",
+              limits: [{ window: "5h", usedPercent: 35, windowDurationMins: 300 }],
+            },
+            "2099-04-08T19:00:00.000Z",
+          ),
+        ],
+      },
+    ]);
+
+    expect(deriveVisibleRateLimitRows(rateLimits)).toEqual([
+      { id: "codex-5h", label: "5h", remainingPercent: 65, windowDurationMins: 300 },
+      { id: "codex-Weekly", label: "Weekly", remainingPercent: 60, windowDurationMins: 10_080 },
+    ]);
+  });
 });

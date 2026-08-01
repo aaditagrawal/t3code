@@ -44,10 +44,16 @@ function isUpcomingReset(resetsAt: string | undefined, nowMs: number): boolean {
   return Number.isNaN(resetMs) || resetMs >= nowMs;
 }
 
+interface AccumulatedRateLimits {
+  updatedAt: string;
+  status?: string;
+  windows: Map<string, { limit: RateLimitWindow; observedAt: string }>;
+}
+
 export function deriveAccountRateLimits(
   threads: ReadonlyArray<Pick<OrchestrationThread, "activities">>,
 ): ProviderRateLimit[] {
-  const byProvider = new Map<string, ProviderRateLimit>();
+  const byProvider = new Map<string, AccumulatedRateLimits>();
   const nowMs = Date.now();
 
   for (const thread of threads) {
@@ -62,24 +68,54 @@ export function deriveAccountRateLimits(
       const payload = asRecord(activity.payload);
       if (!payload) continue;
 
-      const provider = typeof payload.provider === "string" ? payload.provider : "unknown";
-      const existing = byProvider.get(provider);
-      if (existing && existing.updatedAt > activity.createdAt) continue;
-
       const normalized = normalizeProviderRateLimitPayload(payload);
-      const limits = normalized?.limits.filter((limit) => isUpcomingReset(limit.resetsAt, nowMs));
-      if (!limits || limits.length === 0) continue;
+      if (!normalized) continue;
 
-      byProvider.set(provider, {
-        provider,
-        updatedAt: activity.createdAt,
-        limits,
-        ...(normalized?.status ? { status: normalized.status } : {}),
-      });
+      const provider = typeof payload.provider === "string" ? payload.provider : "unknown";
+      let accumulated = byProvider.get(provider);
+      if (!accumulated) {
+        accumulated = { updatedAt: activity.createdAt, windows: new Map() };
+        byProvider.set(provider, accumulated);
+      }
+
+      // Codex documents these notifications as sparse rolling updates: one may
+      // carry only the 5h window and the next only the weekly one. Replacing the
+      // whole provider snapshot would make the untouched window vanish from the
+      // panel, so merge the newest value per window instead.
+      for (const limit of normalized.limits) {
+        const existing = accumulated.windows.get(limit.window);
+        if (!existing || existing.observedAt <= activity.createdAt) {
+          accumulated.windows.set(limit.window, { limit, observedAt: activity.createdAt });
+        }
+      }
+
+      if (accumulated.updatedAt <= activity.createdAt) {
+        accumulated.updatedAt = activity.createdAt;
+        if (normalized.status) {
+          accumulated.status = normalized.status;
+        }
+      }
     }
   }
 
-  return Array.from(byProvider.values());
+  const rateLimits: ProviderRateLimit[] = [];
+  for (const [provider, accumulated] of byProvider) {
+    // A window whose reset has already passed is stale rather than merely old,
+    // which also bounds how long a merged-forward window can survive.
+    const limits = Array.from(accumulated.windows.values(), (entry) => entry.limit)
+      .filter((limit) => isUpcomingReset(limit.resetsAt, nowMs))
+      .toSorted((a, b) => compareWindowLabels(a.window, b.window));
+    if (limits.length === 0) continue;
+
+    rateLimits.push({
+      provider,
+      updatedAt: accumulated.updatedAt,
+      limits,
+      ...(accumulated.status ? { status: accumulated.status } : {}),
+    });
+  }
+
+  return rateLimits;
 }
 
 export function deriveVisibleRateLimitRows(
