@@ -9,7 +9,7 @@ import {
 import {
   collectTitleRegenerationFailures,
   isTitleRegenerationPending,
-  titleRegenerationError,
+  titleRegenerationFailureReason,
 } from "@t3tools/client-runtime/state/thread-title-regeneration";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import {
@@ -1071,6 +1071,21 @@ function latestTurnDiff(
   // shell projection grows them. Kept as a seam so the row layout is ready.
   void thread;
   return null;
+}
+
+const TITLE_REGENERATION_ERROR_MENU_MAX_CHARS = 72;
+
+/**
+ * Provider failure details are prose and can run long or wrap lines. The
+ * context menu is where the reason survives a reload (the toast only fires on
+ * a live transition), so it is collapsed to one readable clause rather than
+ * dropped.
+ */
+function summarizeTitleRegenerationError(error: string): string {
+  const collapsed = error.replace(/\s+/g, " ").trim();
+  return collapsed.length > TITLE_REGENERATION_ERROR_MENU_MAX_CHARS
+    ? `${collapsed.slice(0, TITLE_REGENERATION_ERROR_MENU_MAX_CHARS - 1).trimEnd()}…`
+    : collapsed;
 }
 
 export default function SidebarV2() {
@@ -2152,7 +2167,7 @@ export default function SidebarV2() {
           serverConfigs.get(thread.environmentId)?.environment.capabilities
             .threadTitleRegeneration === true;
         const isRegeneratingTitle = isTitleRegenerationPending(thread);
-        const lastTitleRegenerationError = titleRegenerationError(thread);
+        const lastTitleRegenerationError = titleRegenerationFailureReason(thread);
         const isSettled = settledThreadKeysRef.current.has(threadKey);
         const isSnoozed = snoozedThreadKeysRef.current.has(threadKey);
         // Presets resolve at menu-open time (same as the popover).
@@ -2198,7 +2213,9 @@ export default function SidebarV2() {
                       label: isRegeneratingTitle
                         ? "Regenerating…"
                         : lastTitleRegenerationError
-                          ? "Retry regenerate title"
+                          ? `Retry regenerate title — ${summarizeTitleRegenerationError(
+                              lastTitleRegenerationError,
+                            )}`
                           : "Regenerate title",
                       disabled: isRegeneratingTitle,
                     },

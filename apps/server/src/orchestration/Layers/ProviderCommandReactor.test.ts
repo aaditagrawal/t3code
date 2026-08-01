@@ -906,9 +906,11 @@ describe("ProviderCommandReactor", () => {
     const readModel = await harness.readModel();
     const thread = readModel.threads.find((entry) => entry.id === ThreadId.make("thread-1"));
     expect(thread?.title).toBe("Keep title after failure");
-    // The request is over (no spinner) but the reason survives, so the client
-    // can say why the title did not change instead of silently no-opping.
-    expect(thread?.titleRegeneration).toMatchObject({
+    // The request is over — the pending record clears exactly as it does on
+    // success, so clients that only understand "pending or not" are unaffected
+    // — but the reason survives on its own field.
+    expect(thread?.titleRegeneration).toBeNull();
+    expect(thread?.titleRegenerationFailure).toMatchObject({
       requestId: CommandId.make("cmd-thread-title-failed-regeneration"),
       error: "disabled in test harness",
     });
@@ -946,8 +948,8 @@ describe("ProviderCommandReactor", () => {
 
     let readModel = await harness.readModel();
     expect(
-      readModel.threads.find((entry) => entry.id === ThreadId.make("thread-1"))?.titleRegeneration
-        ?.error,
+      readModel.threads.find((entry) => entry.id === ThreadId.make("thread-1"))
+        ?.titleRegenerationFailure?.error,
     ).toBe("disabled in test harness");
 
     harness.generateThreadTitle.mockReturnValue(Effect.succeed({ title: "Recovered title" }));
@@ -965,6 +967,7 @@ describe("ProviderCommandReactor", () => {
     const thread = readModel.threads.find((entry) => entry.id === ThreadId.make("thread-1"));
     expect(thread?.title).toBe("Recovered title");
     expect(thread?.titleRegeneration).toBeNull();
+    expect(thread?.titleRegenerationFailure).toBeNull();
   });
 
   it("retries a failed completion and continues regenerating", async () => {

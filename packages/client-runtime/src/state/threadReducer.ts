@@ -159,6 +159,9 @@ export function applyThreadDetailEvent(
           ...(event.payload.titleRegeneration !== undefined
             ? { titleRegeneration: event.payload.titleRegeneration }
             : {}),
+          ...(event.payload.titleRegenerationFailure !== undefined
+            ? { titleRegenerationFailure: event.payload.titleRegenerationFailure }
+            : {}),
           ...(event.payload.modelSelection !== undefined
             ? { modelSelection: event.payload.modelSelection }
             : {}),

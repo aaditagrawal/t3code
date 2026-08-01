@@ -1,31 +1,36 @@
 /**
  * Thread title regeneration state helpers.
  *
- * `titleRegeneration` carries two states in one record: a request is *pending*
- * while `error` is unset, and *failed* once the server stamps a reason. Both
- * clients read it, so the predicates and the failure diff live here rather than
- * being re-derived per surface.
+ * Regeneration has two independent pieces of state: `titleRegeneration` while a
+ * request is in flight, and `titleRegenerationFailure` describing why the last
+ * finished request produced no title. Both clients read them, so the predicates
+ * and the failure diff live here rather than being re-derived per surface.
  *
  * @module threadTitleRegeneration
  */
-import type { ThreadTitleRegeneration } from "@t3tools/contracts";
+import type { ThreadTitleRegeneration, ThreadTitleRegenerationFailure } from "@t3tools/contracts";
 
 export interface ThreadTitleRegenerationHolder {
   readonly titleRegeneration?: ThreadTitleRegeneration | null | undefined;
+  readonly titleRegenerationFailure?: ThreadTitleRegenerationFailure | null | undefined;
 }
 
 /** True while generation is in flight — the only state that shows a spinner. */
 export function isTitleRegenerationPending(thread: ThreadTitleRegenerationHolder): boolean {
-  const regeneration = thread.titleRegeneration;
-  return regeneration != null && regeneration.error == null;
+  return thread.titleRegeneration != null;
 }
 
-/** The failure reason for a finished-but-failed request, if any. */
-export function titleRegenerationError(thread: ThreadTitleRegenerationHolder): string | null {
-  return thread.titleRegeneration?.error ?? null;
+/** Why the last finished request produced no title, if it failed. */
+export function titleRegenerationFailureReason(
+  thread: ThreadTitleRegenerationHolder,
+): string | null {
+  // A pending retry supersedes the previous reason on the server, but a client
+  // applying events out of order could briefly hold both. Pending wins.
+  if (thread.titleRegeneration != null) return null;
+  return thread.titleRegenerationFailure?.error ?? null;
 }
 
-export interface TitleRegenerationFailure<Key> {
+export interface TitleRegenerationFailureNotice<Key> {
   readonly key: Key;
   readonly requestId: string;
   readonly error: string;
@@ -37,8 +42,9 @@ export interface TitleRegenerationFailure<Key> {
  * Only transitions are reported. A thread that is already failed the first time
  * it is seen (a fresh page load, a newly loaded environment) is recorded
  * silently, so restoring persisted state never replays old errors as if they
- * just happened; a repeated failure for the same thread still reports because
- * each request carries its own id.
+ * just happened; the reason stays available on the thread for surfaces that
+ * render it directly. A repeated failure still reports because each request
+ * carries its own id.
  *
  * `seen` is mutated in place with the current state and is expected to be
  * long-lived (one map per client session).
@@ -47,26 +53,19 @@ export function collectTitleRegenerationFailures<Key, Thread extends ThreadTitle
   threads: ReadonlyArray<Thread>,
   keyOf: (thread: Thread) => Key,
   seen: Map<Key, string | null>,
-): ReadonlyArray<TitleRegenerationFailure<Key>> {
-  const failures: TitleRegenerationFailure<Key>[] = [];
+): ReadonlyArray<TitleRegenerationFailureNotice<Key>> {
+  const failures: TitleRegenerationFailureNotice<Key>[] = [];
   const present = new Set<Key>();
 
   for (const thread of threads) {
     const key = keyOf(thread);
     present.add(key);
-    const regeneration = thread.titleRegeneration ?? null;
-    const failedRequestId =
-      regeneration != null && regeneration.error != null ? regeneration.requestId : null;
+    const failure = thread.titleRegenerationFailure ?? null;
     const wasKnown = seen.has(key);
     const previous = seen.get(key) ?? null;
-    seen.set(key, failedRequestId);
-    if (
-      failedRequestId != null &&
-      wasKnown &&
-      previous !== failedRequestId &&
-      regeneration?.error != null
-    ) {
-      failures.push({ key, requestId: failedRequestId, error: regeneration.error });
+    seen.set(key, failure?.requestId ?? null);
+    if (failure != null && wasKnown && previous !== failure.requestId) {
+      failures.push({ key, requestId: failure.requestId, error: failure.error });
     }
   }
 

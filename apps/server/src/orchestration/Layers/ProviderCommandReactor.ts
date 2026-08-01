@@ -909,13 +909,7 @@ const make = Effect.gen(function* () {
     yield* Effect.forEach(
       readModel.threads,
       (thread) => {
-        // Only in-flight requests were interrupted. A request that already
-        // failed is a finished result the user has not acknowledged yet, so
-        // clearing it here would re-hide the error the restart did not cause.
-        const requestId =
-          thread.titleRegeneration != null && thread.titleRegeneration.error == null
-            ? thread.titleRegeneration.requestId
-            : undefined;
+        const requestId = thread.titleRegeneration?.requestId;
         if (requestId === undefined) {
           return Effect.void;
         }

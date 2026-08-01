@@ -403,6 +403,9 @@ export function projectEvent(
             ...(payload.titleRegeneration !== undefined
               ? { titleRegeneration: payload.titleRegeneration }
               : {}),
+            ...(payload.titleRegenerationFailure !== undefined
+              ? { titleRegenerationFailure: payload.titleRegenerationFailure }
+              : {}),
             ...(payload.modelSelection !== undefined
               ? { modelSelection: payload.modelSelection }
               : {}),

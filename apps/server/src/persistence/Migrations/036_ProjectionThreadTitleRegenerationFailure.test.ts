@@ -8,8 +8,8 @@ import * as NodeSqliteClient from "../NodeSqliteClient.ts";
 
 const layer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
 
-layer("036_ProjectionThreadTitleRegenerationError", (it) => {
-  it.effect("adds the title regeneration error column", () =>
+layer("036_ProjectionThreadTitleRegenerationFailure", (it) => {
+  it.effect("adds the title regeneration failure columns", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
@@ -20,11 +20,16 @@ layer("036_ProjectionThreadTitleRegenerationError", (it) => {
         PRAGMA table_info(projection_threads)
       `;
       const names = new Set(columns.map((column) => column.name));
-      assert.ok(names.has("title_regeneration_error"));
+      assert.ok(names.has("title_regeneration_failure_request_id"));
+      assert.ok(names.has("title_regeneration_failure_at"));
+      assert.ok(names.has("title_regeneration_failure_error"));
+      // The pending columns stay separate so "in flight" keeps its meaning.
+      assert.ok(names.has("title_regeneration_request_id"));
+      assert.ok(names.has("title_regeneration_started_at"));
     }),
   );
 
-  it.effect("is idempotent when the column already exists", () =>
+  it.effect("is idempotent when the columns already exist", () =>
     Effect.gen(function* () {
       yield* runMigrations({ toMigrationInclusive: 39 });
       yield* runMigrations({ toMigrationInclusive: 39 });
@@ -34,7 +39,7 @@ layer("036_ProjectionThreadTitleRegenerationError", (it) => {
         PRAGMA table_info(projection_threads)
       `;
       assert.strictEqual(
-        columns.filter((column) => column.name === "title_regeneration_error").length,
+        columns.filter((column) => column.name === "title_regeneration_failure_error").length,
         1,
       );
     }),

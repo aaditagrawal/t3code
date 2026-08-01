@@ -5,7 +5,7 @@ import { CommandId } from "@t3tools/contracts";
 import {
   collectTitleRegenerationFailures,
   isTitleRegenerationPending,
-  titleRegenerationError,
+  titleRegenerationFailureReason,
   type ThreadTitleRegenerationHolder,
 } from "./threadTitleRegeneration.ts";
 
@@ -17,15 +17,15 @@ const pending = (requestId: string): ThreadTitleRegenerationHolder => ({
 });
 
 const failed = (requestId: string, error: string): ThreadTitleRegenerationHolder => ({
-  titleRegeneration: {
+  titleRegenerationFailure: {
     requestId: CommandId.make(requestId),
-    startedAt: "2026-01-01T00:00:00.000Z",
+    failedAt: "2026-01-01T00:00:01.000Z",
     error,
   },
 });
 
 describe("isTitleRegenerationPending", () => {
-  it("is pending only while no failure is recorded", () => {
+  it("is pending only while a request is in flight", () => {
     expect(isTitleRegenerationPending(pending("req-1"))).toBe(true);
     expect(isTitleRegenerationPending(failed("req-1", "nope"))).toBe(false);
     expect(isTitleRegenerationPending({ titleRegeneration: null })).toBe(false);
@@ -33,11 +33,22 @@ describe("isTitleRegenerationPending", () => {
   });
 });
 
-describe("titleRegenerationError", () => {
+describe("titleRegenerationFailureReason", () => {
   it("returns the recorded failure reason", () => {
-    expect(titleRegenerationError(failed("req-1", "provider offline"))).toBe("provider offline");
-    expect(titleRegenerationError(pending("req-1"))).toBeNull();
-    expect(titleRegenerationError({})).toBeNull();
+    expect(titleRegenerationFailureReason(failed("req-1", "provider offline"))).toBe(
+      "provider offline",
+    );
+    expect(titleRegenerationFailureReason(pending("req-1"))).toBeNull();
+    expect(titleRegenerationFailureReason({})).toBeNull();
+  });
+
+  it("lets a pending retry win over a stale failure", () => {
+    expect(
+      titleRegenerationFailureReason({
+        ...pending("req-2"),
+        ...failed("req-1", "provider offline"),
+      }),
+    ).toBeNull();
   });
 });
 
