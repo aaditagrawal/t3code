@@ -26,6 +26,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import { makeDrainableWorker } from "@t3tools/shared/DrainableWorker";
+import { normalizeProviderRateLimitPayload } from "@t3tools/shared/rateLimits";
 
 import { ProviderService } from "../../provider/Services/ProviderService.ts";
 import { ProjectionTurnRepository } from "../../persistence/Services/ProjectionTurns.ts";
@@ -607,6 +608,33 @@ export function runtimeEventToActivities(
           kind: "context-window.updated",
           summary: "Context window updated",
           payload,
+          turnId: toTurnId(event.turnId) ?? null,
+          ...maybeSequence,
+        },
+      ];
+    }
+
+    case "account.rate-limits.updated": {
+      const normalized = normalizeProviderRateLimitPayload(event.payload);
+      if (!normalized) {
+        return [];
+      }
+
+      return [
+        {
+          id: event.eventId,
+          createdAt: event.createdAt,
+          tone: "info",
+          kind: "account.rate-limits.updated",
+          summary: "Rate limits updated",
+          payload: {
+            // The client groups snapshots by provider, so the driver kind has to
+            // travel with the payload rather than be inferred from the thread.
+            provider: event.provider,
+            ...(event.providerInstanceId ? { providerInstanceId: event.providerInstanceId } : {}),
+            limits: normalized.limits,
+            ...(normalized.status ? { status: normalized.status } : {}),
+          },
           turnId: toTurnId(event.turnId) ?? null,
           ...maybeSequence,
         },

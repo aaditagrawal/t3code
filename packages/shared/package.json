@@ -67,6 +67,10 @@
       "types": "./src/schemaYaml.ts",
       "import": "./src/schemaYaml.ts"
     },
+    "./rateLimits": {
+      "types": "./src/rateLimits.ts",
+      "import": "./src/rateLimits.ts"
+    },
     "./toolActivity": {
       "types": "./src/toolActivity.ts",
       "import": "./src/toolActivity.ts"
