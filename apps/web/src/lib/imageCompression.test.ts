@@ -123,7 +123,14 @@ describe("compressImageForStash", () => {
   });
 
   it("reports too-large when even the smallest encoding overflows the budget", async () => {
-    const { close } = stubCanvasPipeline(() => 8_000_000);
+    // Every encode attempt is base64'd by hand in a chunked loop, and giving up
+    // costs the most attempts of any path here (3 dimension scales x 1 probe +
+    // 4 quality steps). Size the payload just past the budget rather than far
+    // past it: at 8MB this single case spent longer base64-encoding than the
+    // whole file's 15s budget allows on a 2-core CI runner. 1.2MB encodes to
+    // ~1.6M chars against a 1.3M budget, which overflows at every step just as
+    // decisively for a seventh of the work.
+    const { close } = stubCanvasPipeline(() => 1_200_000);
 
     const result = await compressImageForStash(makeFile(9_000_000));
 
