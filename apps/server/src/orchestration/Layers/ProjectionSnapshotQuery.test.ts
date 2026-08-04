@@ -312,6 +312,7 @@ projectionSnapshotLayer("ProjectionSnapshotQuery", (it) => {
           settledAt: null,
           snoozedUntil: null,
           snoozedAt: null,
+          pinnedAt: null,
           titleRegeneration: null,
           titleRegenerationFailure: null,
           deletedAt: null,
@@ -428,6 +429,7 @@ projectionSnapshotLayer("ProjectionSnapshotQuery", (it) => {
           settledAt: null,
           snoozedUntil: null,
           snoozedAt: null,
+          pinnedAt: null,
           titleRegeneration: null,
           titleRegenerationFailure: null,
           session: {

@@ -205,6 +205,8 @@ function ThreadNavigationSidebarPane(
     snoozeThread,
     unsnoozeThread,
     unsettleThread,
+    pinThread,
+    unpinThread,
   } = useThreadListActions();
   const threadListV2Enabled = useThreadListV2Enabled();
   const pendingTasks = usePendingNewTasks();
@@ -477,6 +479,15 @@ function ThreadNavigationSidebarPane(
     const supported = new Set<EnvironmentId>();
     for (const [environmentId, config] of serverConfigs) {
       if (config.environment.capabilities.threadSnooze === true) {
+        supported.add(environmentId);
+      }
+    }
+    return supported;
+  }, [serverConfigs]);
+  const pinningEnvironmentIds = useMemo(() => {
+    const supported = new Set<EnvironmentId>();
+    for (const [environmentId, config] of serverConfigs) {
+      if (config.environment.capabilities.threadPinning === true) {
         supported.add(environmentId);
       }
     }
@@ -793,6 +804,7 @@ function ThreadNavigationSidebarPane(
           previous.item.thread === item.item.thread &&
           previous.item.variant === item.item.variant &&
           previous.item.snoozed === item.item.snoozed &&
+          previous.item.pinned === item.item.pinned &&
           previous.snoozeWakeLabelText === item.snoozeWakeLabelText
         );
       }
@@ -880,6 +892,7 @@ function ThreadNavigationSidebarPane(
               thread={thread}
               variant={item.item.variant}
               snoozed={item.item.snoozed}
+              pinned={item.item.pinned}
               snoozePresetMinute={nowMinute}
               snoozeWakeLabelText={item.snoozeWakeLabelText}
               project={projectByKey.get(scopeKey) ?? null}
@@ -916,9 +929,12 @@ function ThreadNavigationSidebarPane(
               settlementSupported={settlementEnvironmentIds.has(thread.environmentId)}
               onSettleThread={settleThread}
               snoozeSupported={snoozeEnvironmentIds?.has(thread.environmentId) ?? true}
+              pinningSupported={pinningEnvironmentIds.has(thread.environmentId)}
               onSnoozeThread={snoozeThread}
               onUnsnoozeThread={unsnoozeThread}
               onUnsettleThread={unsettleThread}
+              onPinThread={pinThread}
+              onUnpinThread={unpinThread}
               onChangeRequestState={handleChangeRequestState}
               projectCwd={projectCwdByKey.get(scopeKey) ?? null}
               onSwipeableClose={handleSwipeableClose}
@@ -1046,6 +1062,8 @@ function ThreadNavigationSidebarPane(
       handleSwipeableClose,
       handleSwipeableWillOpen,
       openPendingTask,
+      pinThread,
+      pinningEnvironmentIds,
       projectByKey,
       projectCwdByKey,
       projectTitleByProjectKey,
@@ -1065,6 +1083,7 @@ function ThreadNavigationSidebarPane(
       nowMinute,
       toggleSettledShelf,
       toggleSnoozedShelf,
+      unpinThread,
       unsettleThread,
       unsnoozeThread,
       updateGroupDisplay,
