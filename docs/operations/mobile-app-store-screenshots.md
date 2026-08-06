@@ -43,7 +43,7 @@ Captures wait for the real environment snapshot to hydrate and for the requested
 active. Both platforms record readiness in the simulator/emulator app container. A final settle
 delay allows native terminal and Git review data to finish rendering.
 
-A full capture regenerates the selected native project with Expo's clean development prebuild before
+A full capture regenerates the selected native project with Expo's clean production prebuild before
 building it. Use --skip-build for repeated captures after the first build.
 
 The harness uses fixed Metro port `8199`, which separates it from Expo's normal default port but is
@@ -61,7 +61,7 @@ The default matrix is:
 | ----------------------------- | ------------------------- | ----------------- | ----------------------------------------- |
 | `apple/iphone-6.9/dark/`      | iPhone 17 Pro Max         | 1320×2868         | App Store Connect iPhone 6.9-inch         |
 | `apple/iphone-6.5/dark/`      | disposable iPhone 14 Plus | 1284×2778         | App Store Connect iPhone 6.5-inch         |
-| `apple/ipad-13/dark/`         | iPad Pro 13-inch (M5)     | 2064×2752         | App Store Connect iPad 13-inch            |
+| `apple/ipad-13/dark/`         | iPad Pro 13-inch (M5)     | 2752×2064         | App Store Connect iPad 13-inch, landscape |
 | `google-play/phone/dark/`     | Pixel AVD at 420 dpi      | 1080×1920         | Google Play phone, portrait 9:16          |
 | `google-play/tablet-7/dark/`  | Pixel AVD at 600dp width  | 1080×1920         | Google Play 7-inch tablet, portrait 9:16  |
 | `google-play/tablet-10/dark/` | Pixel AVD at 800dp width  | 1440×2560         | Google Play 10-inch tablet, portrait 9:16 |
@@ -86,7 +86,8 @@ A light-only run writes the same tree under `light/`; `--appearance both` writes
 folders.
 
 Edit [mobile-showcase.config.ts](../../scripts/mobile-showcase.config.ts) to change simulator or AVD
-names, light/dark appearance, scenes, output directory, capture delay, Android ABI, or viewport.
+names, light/dark appearance, iOS orientation, scenes, output directory, capture delay, Android ABI,
+or viewport.
 
 ## Capture in GitHub Actions
 
@@ -127,7 +128,7 @@ By default, let the screenshot runner start Metro on port `8199`. To keep Metro 
 terminal, start it with the same showcase environment and explicit harness port:
 
     cd apps/mobile
-    APP_VARIANT=development EXPO_PUBLIC_SHOWCASE=1 pnpm exec expo start --dev-client --port 8199
+    APP_VARIANT=production EXPO_PUBLIC_SHOWCASE=1 pnpm exec expo start --dev-client --port 8199
 
 Then run the capture from the repository root:
 
