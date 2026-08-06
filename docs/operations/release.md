@@ -50,7 +50,7 @@ The production job also reads `CLERK_PUBLISHABLE_KEY`, `CLERK_JWT_TEMPLATE`, `RE
 
 ## Required release credentials
 
-The release workflow requires these GitHub Actions secrets in addition to the platform and deployment
+Stable releases require these GitHub Actions secrets in addition to the platform and deployment
 credentials documented below:
 
 - `RELEASE_APP_ID`
