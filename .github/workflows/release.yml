@@ -796,6 +796,17 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Fork: keep publishing GitHub Releases with the Release App token rather
+      # than github.token from upstream #5394. This fork's RELEASE_APP_* secrets
+      # are the established publish path for assets and release notes.
+      - id: app_token
+        name: Mint release app token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -895,7 +906,7 @@ jobs:
             release-assets/*.blockmap
             release-assets/*.yml
           fail_on_unmatched_files: true
-          token: ${{ github.token }}
+          token: ${{ steps.app_token.outputs.token }}
 
       - name: Publish first release
         if: needs.preflight.outputs.previous_tag == ''
@@ -916,7 +927,7 @@ jobs:
             release-assets/*.blockmap
             release-assets/*.yml
           fail_on_unmatched_files: true
-          token: ${{ github.token }}
+          token: ${{ steps.app_token.outputs.token }}
 
   deploy_web:
     name: Deploy hosted web app
