@@ -948,7 +948,22 @@ jobs:
       T3CODE_WEB_NIGHTLY_DOMAIN: ${{ vars.T3CODE_WEB_NIGHTLY_DOMAIN }}
       VERCEL_TEAM_SLUG: ${{ vars.VERCEL_TEAM_SLUG }}
     steps:
+      - id: vercel_config
+        name: Check Vercel configuration
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [[ -z "${VERCEL_TOKEN:-}" || -z "${VERCEL_ORG_ID:-}" || -z "${VERCEL_PROJECT_ID:-}" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Vercel secrets not configured; skipping hosted web deploy."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.vercel_config.outputs.configured == 'true'
         uses: actions/checkout@v6
         with:
           ref: ${{ needs.preflight.outputs.ref }}
@@ -958,6 +973,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Setup Vite+
+        if: steps.vercel_config.outputs.configured == 'true'
         uses: voidzero-dev/setup-vp@v1
         with:
           node-version-file: package.json
@@ -968,6 +984,7 @@ jobs:
               - --filter=@t3tools/web...
 
       - name: Download relay client tracing config
+        if: steps.vercel_config.outputs.configured == 'true'
         continue-on-error: true
         uses: actions/download-artifact@v8
         with:
@@ -975,6 +992,7 @@ jobs:
           path: ${{ runner.temp }}/relay-client-tracing
 
       - name: Load relay client tracing config
+        if: steps.vercel_config.outputs.configured == 'true'
         shell: bash
         run: |
           config_path="$RUNNER_TEMP/relay-client-tracing/relay-client-tracing.env"
@@ -987,20 +1005,20 @@ jobs:
           cat "$config_path" >> "$GITHUB_ENV"
 
       - name: Align package versions to release version
+        if: steps.vercel_config.outputs.configured == 'true'
         run: node scripts/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
 
       - name: Refresh release lockfile
+        if: steps.vercel_config.outputs.configured == 'true'
         run: vp install --lockfile-only --ignore-scripts
 
       - name: Deploy and alias channel
+        id: deploy
+        if: steps.vercel_config.outputs.configured == 'true'
+        continue-on-error: false
         shell: bash
         run: |
           set -euo pipefail
-
-          if [[ -z "${VERCEL_TOKEN:-}" || -z "${VERCEL_ORG_ID:-}" || -z "${VERCEL_PROJECT_ID:-}" ]]; then
-            echo "Missing one or more required Vercel secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID." >&2
-            exit 1
-          fi
 
           router_url="${T3CODE_WEB_ROUTER_URL:-https://app.t3.codes}"
           latest_domain="${T3CODE_WEB_LATEST_DOMAIN:-latest.app.t3.codes}"
@@ -1059,6 +1077,8 @@ jobs:
     needs: [preflight, release]
     runs-on: ubuntu-24.04 # blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
       # Prefer RELEASE_APP_* when configured; fall back to github.token
       # (upstream #5394) when those secrets are absent or minting fails.
@@ -1084,14 +1104,21 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - id: app_bot
-        name: Resolve GitHub App bot identity
+        name: Resolve commit identity
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token || github.token }}
           APP_SLUG: ${{ steps.app_token.outputs.app-slug }}
         run: |
-          user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
-          echo "name=${APP_SLUG}[bot]" >> "$GITHUB_OUTPUT"
-          echo "email=${user_id}+${APP_SLUG}[bot]@users.noreply.github.com" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [[ -n "${APP_SLUG:-}" ]]; then
+            user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+            echo "name=${APP_SLUG}[bot]" >> "$GITHUB_OUTPUT"
+            echo "email=${user_id}+${APP_SLUG}[bot]@users.noreply.github.com" >> "$GITHUB_OUTPUT"
+          else
+            echo "RELEASE_APP token unavailable; using github-actions identity."
+            echo "name=github-actions[bot]" >> "$GITHUB_OUTPUT"
+            echo "email=41898282+github-actions[bot]@users.noreply.github.com" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Vite+
         uses: voidzero-dev/setup-vp@v1
