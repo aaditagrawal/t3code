@@ -1,6 +1,5 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import * as SchemaIssue from "effect/SchemaIssue";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import * as Struct from "effect/Struct";
 import { ProviderOptionSelections } from "./model.ts";
@@ -1391,9 +1390,7 @@ export const TurnCountRange = Schema.Struct({
   Schema.makeFilter(
     (input) =>
       input.fromTurnCount <= input.toTurnCount ||
-      new SchemaIssue.InvalidValue({
-        message: "fromTurnCount must be less than or equal to toTurnCount",
-      }),
+      "fromTurnCount must be less than or equal to toTurnCount",
     { identifier: "OrchestrationTurnDiffRange" },
   ),
 );
