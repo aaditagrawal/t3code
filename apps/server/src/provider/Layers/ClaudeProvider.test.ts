@@ -41,4 +41,27 @@ describe("ClaudeProvider", () => {
       currentValue: "200k",
     });
   });
+
+  it("folds non-current Claude models into legacy while keeping fork option catalogs", () => {
+    const models = getBuiltInClaudeModelsForVersion("2.1.219");
+    const bySlug = new Map(models.map((model) => [model.slug, model]));
+
+    expect(bySlug.get("claude-fable-5")?.isLegacy).toBeUndefined();
+    expect(bySlug.get("claude-opus-5")?.isLegacy).toBeUndefined();
+    expect(bySlug.get("claude-sonnet-5")?.isLegacy).toBeUndefined();
+    expect(bySlug.get("claude-opus-4-8")?.isLegacy).toBe(true);
+    expect(bySlug.get("claude-haiku-4-5")?.isLegacy).toBe(true);
+
+    const sonnetDescriptors = getProviderOptionDescriptors({
+      caps: getClaudeModelCapabilities("claude-sonnet-5"),
+    });
+    expect(
+      sonnetDescriptors.some(
+        (descriptor) =>
+          descriptor.type === "select" &&
+          descriptor.id === "effort" &&
+          descriptor.options.some((option) => option.id === "ultracode"),
+      ),
+    ).toBe(true);
+  });
 });
