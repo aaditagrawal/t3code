@@ -260,6 +260,7 @@ export const OpenInPicker = memo(function OpenInPicker({
     <Group aria-label="Open in editor actions">
       <Button
         aria-label={compact ? "Open file in preferred editor" : undefined}
+        className="ps-[8.5px]"
         size="xs"
         variant="outline"
         disabled={!preferredEditor || !openInCwd}
