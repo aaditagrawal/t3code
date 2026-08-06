@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Schema from "effect/Schema";
 
-import {
-  classifyTaskAgentKind,
-  ProviderRuntimeEvent,
-  RuntimeEventRaw,
-} from "./providerRuntime.ts";
+import { classifyTaskAgentKind, ProviderRuntimeEvent, RuntimeEventRaw } from "./providerRuntime.ts";
 
 const decodeRuntimeEvent = Schema.decodeUnknownSync(ProviderRuntimeEvent);
 const decodeRuntimeEventRaw = Schema.decodeUnknownSync(RuntimeEventRaw);
