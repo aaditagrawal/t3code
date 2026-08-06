@@ -2,7 +2,11 @@ name: Mobile EAS Preview
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, labeled]
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+concurrency:
+  group: mobile-eas-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   preview:
@@ -15,9 +19,6 @@ jobs:
       contains(github.event.pull_request.labels.*.name, '🚀 Mobile Continuous Deployment') &&
       (github.event.action != 'labeled' || github.event.label.name == '🚀 Mobile Continuous Deployment')
     runs-on: ubuntu-24.04
-    concurrency:
-      group: mobile-eas-preview-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
     permissions:
       contents: read
       pull-requests: write

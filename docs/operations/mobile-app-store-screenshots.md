@@ -128,7 +128,7 @@ By default, let the screenshot runner start Metro on port `8199`. To keep Metro 
 terminal, start it with the same showcase environment and explicit harness port:
 
     cd apps/mobile
-    APP_VARIANT=development EXPO_PUBLIC_SHOWCASE=1 pnpm exec expo start --dev-client --port 8199
+    APP_VARIANT=production EXPO_PUBLIC_SHOWCASE=1 pnpm exec expo start --dev-client --port 8199
 
 Then run the capture from the repository root:
 
