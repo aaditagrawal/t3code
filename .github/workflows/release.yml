@@ -796,11 +796,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      # Fork: keep publishing GitHub Releases with the Release App token rather
-      # than github.token from upstream #5394. This fork's RELEASE_APP_* secrets
-      # are the established publish path for assets and release notes.
+      # Prefer RELEASE_APP_* when configured; fall back to github.token
+      # (upstream #5394) when those secrets are absent or minting fails.
       - id: app_token
         name: Mint release app token
+        continue-on-error: true
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
@@ -906,7 +906,7 @@ jobs:
             release-assets/*.blockmap
             release-assets/*.yml
           fail_on_unmatched_files: true
-          token: ${{ steps.app_token.outputs.token }}
+          token: ${{ steps.app_token.outputs.token || github.token }}
 
       - name: Publish first release
         if: needs.preflight.outputs.previous_tag == ''
@@ -927,7 +927,7 @@ jobs:
             release-assets/*.blockmap
             release-assets/*.yml
           fail_on_unmatched_files: true
-          token: ${{ steps.app_token.outputs.token }}
+          token: ${{ steps.app_token.outputs.token || github.token }}
 
   deploy_web:
     name: Deploy hosted web app
@@ -1060,8 +1060,11 @@ jobs:
     runs-on: ubuntu-24.04 # blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
+      # Prefer RELEASE_APP_* when configured; fall back to github.token
+      # (upstream #5394) when those secrets are absent or minting fails.
       - id: app_token
         name: Mint release app token
+        continue-on-error: true
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
@@ -1073,7 +1076,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ steps.app_token.outputs.token }}
+          token: ${{ steps.app_token.outputs.token || github.token }}
           persist-credentials: true
           sparse-checkout: |
             /*
@@ -1083,7 +1086,7 @@ jobs:
       - id: app_bot
         name: Resolve GitHub App bot identity
         env:
-          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token || github.token }}
           APP_SLUG: ${{ steps.app_token.outputs.app-slug }}
         run: |
           user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
