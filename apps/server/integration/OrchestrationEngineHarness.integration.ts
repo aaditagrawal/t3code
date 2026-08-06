@@ -17,7 +17,6 @@ import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
-import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
@@ -52,6 +51,8 @@ import * as RepositoryIdentityResolver from "../src/project/RepositoryIdentityRe
 import { OrchestrationEngineLive } from "../src/orchestration/Layers/OrchestrationEngine.ts";
 import { OrchestrationProjectionPipelineLive } from "../src/orchestration/Layers/ProjectionPipeline.ts";
 import { OrchestrationProjectionSnapshotQueryLive } from "../src/orchestration/Layers/ProjectionSnapshotQuery.ts";
+import * as ThreadBackgroundLiveness from "../src/orchestration/ThreadBackgroundLiveness.ts";
+import { RuntimeReceiptBusTest } from "../src/orchestration/Layers/RuntimeReceiptBus.ts";
 import { OrchestrationReactorLive } from "../src/orchestration/Layers/OrchestrationReactor.ts";
 import { ProviderCommandReactorLive } from "../src/orchestration/Layers/ProviderCommandReactor.ts";
 import { ProviderRuntimeIngestionLive } from "../src/orchestration/Layers/ProviderRuntimeIngestion.ts";
@@ -246,13 +247,6 @@ export const makeOrchestrationIntegrationHarness = (
           makeAdapterRegistryMock({ [adapterHarness.provider]: adapterHarness.adapter }),
         )
       : null;
-    const receiptPubSub = yield* PubSub.unbounded<OrchestrationRuntimeReceipt>();
-    const runtimeReceiptBusLayer = Layer.succeed(RuntimeReceiptBus, {
-      publish: (receipt) => PubSub.publish(receiptPubSub, receipt).pipe(Effect.asVoid),
-      get streamEventsForTest() {
-        return Stream.fromPubSub(receiptPubSub);
-      },
-    });
     const rootDir = yield* fileSystem.makeTempDirectoryScoped({
       prefix: "t3-orchestration-integration-",
     });
@@ -312,8 +306,8 @@ export const makeOrchestrationIntegrationHarness = (
       ProjectionPendingApprovalRepositoryLive,
       checkpointStoreLayer,
       providerLayer,
-      runtimeReceiptBusLayer,
-    );
+      RuntimeReceiptBusTest,
+    ).pipe(Layer.provideMerge(ThreadBackgroundLiveness.layer));
     const serverSettingsLayer = ServerSettingsService.layerTest();
     const runtimeIngestionLayer = ProviderRuntimeIngestionLive.pipe(
       Layer.provideMerge(runtimeServicesLayer),
