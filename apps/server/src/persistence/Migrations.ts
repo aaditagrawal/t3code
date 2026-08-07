@@ -63,6 +63,9 @@ import Migration0040 from "./Migrations/037_RepairProjectionThreadTitleRegenerat
 // Upstream ProjectionThreadsPinned (upstream file 036 / runtime 36) renumbered
 // past fork titleRegenerationFailure filenames 036/037 and runtime ids 39/40.
 import Migration0041 from "./Migrations/038_ProjectionThreadsPinned.ts";
+// Upstream ProjectionTurnsKeysetIndex (upstream file/runtime 037) renumbered
+// after the fork's title and pinned migration sequence.
+import Migration0042 from "./Migrations/039_ProjectionTurnsKeysetIndex.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -116,6 +119,7 @@ export const migrationEntries = [
   [39, "ProjectionThreadTitleRegenerationFailure", Migration0039],
   [40, "RepairProjectionThreadTitleRegenerationFailure", Migration0040],
   [41, "ProjectionThreadsPinned", Migration0041],
+  [42, "ProjectionTurnsKeysetIndex", Migration0042],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
