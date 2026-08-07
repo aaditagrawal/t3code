@@ -244,7 +244,12 @@ import { ChatHeader } from "./chat/ChatHeader";
 import { PanelLayoutControls, RightPanelMaximizeControl } from "./chat/PanelLayoutControls";
 import { type ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import { NoActiveThreadState } from "./NoActiveThreadState";
-import { resolveEffectiveEnvMode, resolveLocalCheckoutBranchMismatch } from "./BranchToolbar.logic";
+import {
+  resolveEffectiveEnvMode,
+  resolveLocalCheckoutBranchMismatch,
+  shouldShowComposerContextStrip,
+  shouldShowEnvironmentIndicator,
+} from "./BranchToolbar.logic";
 import {
   getProviderStatusBannerKey,
   ProviderStatusBanner,
@@ -1746,6 +1751,14 @@ function ChatViewContent(props: ChatViewProps) {
     return envs;
   }, [activeProject, allProjects, projectGroupingSettings, primaryEnvironmentId, environmentById]);
   const hasMultipleEnvironments = logicalProjectEnvironments.length > 1;
+  const activeEnvironmentOption =
+    logicalProjectEnvironments.find(
+      (environment) => environment.environmentId === activeThread?.environmentId,
+    ) ?? null;
+  const showComposerEnvironmentIndicator = shouldShowEnvironmentIndicator({
+    activeEnvironment: activeEnvironmentOption,
+    canPickEnvironment: hasMultipleEnvironments,
+  });
 
   const openPullRequestDialog = useCallback(
     (reference?: string) => {
@@ -2518,7 +2531,11 @@ function ChatViewContent(props: ChatViewProps) {
     terminalUiLaunchContext?.threadId === activeThreadId ? terminalUiLaunchContext : null;
   // Default true while loading to avoid toolbar flicker.
   const isGitRepo = gitStatusQuery.data?.isRepo ?? true;
-  const showComposerContextStrip = isGitRepo && activeProject !== null;
+  const showComposerContextStrip = shouldShowComposerContextStrip({
+    hasActiveProject: activeProject !== null,
+    isGitRepo,
+    showEnvironmentIndicator: showComposerEnvironmentIndicator,
+  });
   const initialDiffPanelGitScope =
     gitStatusQuery.data?.hasWorkingTreeChanges === true ? "unstaged" : "branch";
   const diffPanelGitStatusResolutionKey = gitStatusQuery.data ? "resolved" : "pending";
@@ -6294,6 +6311,7 @@ function ChatViewContent(props: ChatViewProps) {
                               <BranchToolbar
                                 environmentId={activeThread.environmentId}
                                 threadId={activeThread.id}
+                                showGitControls={isGitRepo}
                                 {...(routeKind === "draft" && draftId ? { draftId } : {})}
                                 onEnvModeChange={onEnvModeChange}
                                 startFromOrigin={startFromOrigin}
