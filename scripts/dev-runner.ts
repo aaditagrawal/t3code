@@ -347,6 +347,13 @@ export function createDevRunnerEnv({
     // Always strip bootstrap fd — it refers to the parent's descriptor and
     // must never leak into turbo/child processes regardless of mode.
     delete output.T3CODE_BOOTSTRAP_FD;
+    // A dev-runner server is never launcher-managed. When the shell that runs
+    // this script was itself spawned by the machine's managed t3 service (an
+    // agent working inside T3 Code), these leak through and the child server
+    // fails startup with "The service launcher started a different t3 version"
+    // (serviceLauncherClient.ts resolveStartup).
+    delete output.T3_SERVICE_LAUNCHER_CONTEXT;
+    delete output.T3_BOOT_SERVICE_UNIT;
 
     if (!isDesktopMode) {
       output.T3CODE_PORT = String(serverPort);

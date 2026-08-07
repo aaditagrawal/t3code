@@ -102,6 +102,15 @@ Adapters are registered in `provider/Layers/ProviderAdapterRegistry.ts` and look
 
 Provider runtime activity is normalized into canonical `OrchestrationEvent`s by the ingestion layer, persisted in a SQLite event store with sequence-based ordering, and projected into in-memory materialized views. Clients receive ordered events via Effect RPC streams (replay + live merge). Command receipts provide idempotency for reconnects and retries.
 
+## Local Development Notes
+
+- `vp i` installs. Worktrees get this from the `t3.json` setup script; if module resolution looks broken, it probably did not run.
+- `vp run dev` starts server and web. In a worktree, state defaults to that worktree's gitignored `.t3`, which deliberately outranks an ambient `T3CODE_HOME` so you cannot land on shared state by accident. An explicit `--home-dir` still wins.
+- Ports derive from the worktree path and are stable across restarts, but read the real ones from the `[dev-runner]` line since occupied ports shift.
+- Sharing over the tailnet is three steps: run `vp run dev --share` in the background, wait for the `pairingUrl:` line in its output, paste that full URL (token included) in your reply. Do not wire up `tailscale serve` by hand for this, and do not open the URL yourself.
+- The web app requires pairing. Hand over the pairing URL, not the bare origin. A URL without its token is useless to whoever you gave it to. If the token got consumed, mint a fresh one with `node apps/server/src/bin.ts pair` — note it carries standard scopes, while the startup URL carries admin scopes (needed for Settings → Connections management).
+- Stop what you started, by the PID you tracked.
+
 ### Effect Architecture
 
 The server uses Effect throughout for dependency injection, typed errors, and streaming:
