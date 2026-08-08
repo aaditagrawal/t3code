@@ -5,19 +5,11 @@
   "integrationBranch": "codex/alpha",
   "trackedPrs": [
     {
-      "number": 179,
-      "title": "Claude Code adapter",
-      "localBranch": "codex/pr-179-track"
-    },
-    {
-      "number": 295,
-      "title": "GitHub Copilot adapter",
-      "localBranch": "codex/pr-295-track"
-    },
-    {
-      "number": 364,
-      "title": "OpenCode adapter",
-      "localBranch": "codex/pr-364-track"
+      "number": 2829,
+      "title": "feat(orchestrator): introduce new orchestrator",
+      "localBranch": "codex/pr-2829-track",
+      "upstreamUrl": "https://github.com/pingdotgg/t3code/pull/2829",
+      "notes": "Long-running orchestration V2 rewrite (XXL). CONFLICTING with upstream main as of 2026-08-08. Refresh with `vp run sync:upstream-prs` / `npm run sync:upstream-prs` before attempting a port onto the fork."
     }
   ]
 }
