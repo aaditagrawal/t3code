@@ -100,6 +100,7 @@ it.layer(NodeServices.layer)("service state persistence", (it) => {
       const statePath = path.join(root, "runtime", "service-state.json");
       const versionDir = path.join(root, "runtime", "versions", "1.0.0");
       const entryPath = path.join(versionDir, "node_modules", "t3", "dist", "bin.mjs");
+      const markerPath = path.join(root, "runtime", SERVICE_STOP_MARKER_FILE);
       yield* fs.makeDirectory(path.dirname(entryPath), { recursive: true });
       yield* fs.writeFileString(entryPath, "setInterval(() => {}, 1_000);\n");
       yield* fs.writeFileString(path.join(versionDir, ".install-complete"), "1.0.0\n");
@@ -114,11 +115,13 @@ it.layer(NodeServices.layer)("service state persistence", (it) => {
       const running = launcher.run();
       const stopping = launcher.stop("SIGTERM");
       // An explicit stop leaves the marker that tells a child shutting down
-      // mid-update that no replacement server is coming. It is present as
-      // soon as stop() returns its promise, before queued transitions run.
-      assert.isTrue(yield* fs.exists(path.join(root, "runtime", SERVICE_STOP_MARKER_FILE)));
+      // mid-update that no replacement server is coming. stop() writes it
+      // synchronously; recover must not clear it while #stopRequested.
+      assert.isTrue(yield* fs.exists(markerPath));
       yield* Effect.promise(() => stopping);
       yield* Effect.promise(() => running);
+      // Prove recover did not wipe the marker after stop() raced ahead of it.
+      assert.isTrue(yield* fs.exists(markerPath));
     }),
   );
 

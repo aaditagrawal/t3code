@@ -351,8 +351,11 @@ export class Launcher {
   async #recover(): Promise<void> {
     // A fresh launcher means servers are running again: any stop marker from
     // a previous explicit stop is stale and must not make a future update
-    // handoff release its tunnel.
-    await NodeFSP.rm(stopMarkerPath(this.#baseDir), { force: true }).catch(() => undefined);
+    // handoff release its tunnel. Keep the marker when stop() already asked
+    // for shutdown so a child started by this recover still observes it.
+    if (!this.#stopRequested) {
+      await NodeFSP.rm(stopMarkerPath(this.#baseDir), { force: true }).catch(() => undefined);
+    }
     const update = this.#state.update;
     if (update?.status !== "pending") {
       if (update !== undefined) {
