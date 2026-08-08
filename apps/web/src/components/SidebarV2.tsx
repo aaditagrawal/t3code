@@ -507,13 +507,17 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
       ? {
           label: "Working",
           icon: "working" as const,
-          className:
-            "animate-sidebar-working-text text-sky-600 motion-reduce:animate-none dark:text-sky-400",
+          // No shimmer: a label that animates forever is noise in a sidebar
+          // full of them (and repaints every vsync on high-refresh displays).
+          // Working is a background state, so it rests at the dim end of what
+          // the old pulse cycled through; only the thread you have open gets
+          // the label at full strength.
+          className: cn("text-sky-600 dark:text-sky-400", !props.isActive && "opacity-75"),
         }
       : status === "monitoring"
         ? {
-            // Steady label, no duty-cycled shimmer: monitoring is calm
-            // background presence, not active progress (monitoring-pill D6).
+            // Monitoring is calm background presence, not active progress
+            // (monitoring-pill D6), so it keeps the label at full strength.
             label: "Monitoring",
             icon: null,
             className: "text-sky-600 dark:text-sky-400",
@@ -1103,7 +1107,18 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
               ) : null}
             </div>
             <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground/75">
-              {thread.branch ? (
+              {/* While working, the current plan step outranks the branch:
+                  it's the one line that says what the thread is doing. */}
+              {status === "working" && thread.planProgress ? (
+                <span className="min-w-0 flex-1 truncate whitespace-nowrap">
+                  {thread.planProgress.step}
+                  {/* Completed count, matching the transcript chip's n/m. */}
+                  <span className="text-muted-foreground/50 tabular-nums">
+                    {" "}
+                    {thread.planProgress.completedSteps}/{thread.planProgress.totalSteps}
+                  </span>
+                </span>
+              ) : thread.branch ? (
                 <span className="min-w-0 flex-1 truncate whitespace-nowrap">{thread.branch}</span>
               ) : (
                 <span className="flex-1" />

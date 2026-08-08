@@ -111,11 +111,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/general",
   },
   {
-    id: "auto-open-task-panel",
-    title: "Auto-open task panel",
-    to: "/settings/general",
-  },
-  {
     id: "new-threads",
     title: "New threads",
     to: "/settings/general",
@@ -181,6 +176,11 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Auto-settle inactive threads",
     to: "/settings/beta",
     targetId: "sidebar-v2",
+  },
+  {
+    id: "restore-plan-mode",
+    title: "Restore plan mode (legacy)",
+    to: "/settings/beta",
   },
   {
     id: "archive",
