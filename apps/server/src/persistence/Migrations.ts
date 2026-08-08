@@ -66,6 +66,9 @@ import Migration0041 from "./Migrations/038_ProjectionThreadsPinned.ts";
 // Upstream ProjectionTurnsKeysetIndex (upstream file/runtime 037) renumbered
 // after the fork's title and pinned migration sequence.
 import Migration0042 from "./Migrations/039_ProjectionTurnsKeysetIndex.ts";
+// Upstream ProjectionThreadsPinOrderKey (upstream file/runtime 038) renumbered
+// after the fork's keyset migration.
+import Migration0043 from "./Migrations/040_ProjectionThreadsPinOrderKey.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -120,6 +123,7 @@ export const migrationEntries = [
   [40, "RepairProjectionThreadTitleRegenerationFailure", Migration0040],
   [41, "ProjectionThreadsPinned", Migration0041],
   [42, "ProjectionTurnsKeysetIndex", Migration0042],
+  [43, "ProjectionThreadsPinOrderKey", Migration0043],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
