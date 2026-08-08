@@ -27,7 +27,7 @@ const BASE_RUNTIME_MODE_CONFIG: Record<RuntimeMode, RuntimeModePresentation> = {
   },
   auto: {
     label: "Auto",
-    description: "An AI reviewer approves routine actions; risky ones still ask.",
+    description: "Supported providers approve routine actions; others still ask.",
     icon: SparklesIcon,
   },
   "medium-access": {

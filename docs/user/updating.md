@@ -24,7 +24,7 @@ The update does not remove saved threads, settings, or project files.
 
 | Action                     | What to do                                                                                                                                                                  |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Update server**          | Available for the T3 Code Linux background service. Select the button and leave T3 Code open while it prepares, tests, restarts, and reconnects.                            |
+| **Update**                 | Available for the T3 Code Linux background service. Select the button and leave T3 Code open while it prepares, tests, restarts, and reconnects.                            |
 | **Update the desktop app** | Open the T3 Code desktop app on the machine that runs the server and install the app update there. Reopen it if needed.                                                     |
 | **Copy update command**    | Copy the command, open a terminal on the server machine, stop the current T3 Code server, and relaunch it with the copied command and any startup options you normally use. |
 
@@ -35,10 +35,10 @@ An older background-service launcher may ask you to run the exact
 `npx t3@<version> service update` command on the server machine. That one local update installs the
 rollback support needed for later remote updates, including versions that change the database.
 
-After selecting **Update server**, the warning becomes a three-step progress rail:
-**Download**, **Install**, and **Resume**. The same progress appears in the conversation and in
-Connections, so navigating between them does not lose the update. A failed step remains visible
-with its error and an option to retry.
+After selecting **Update**, the notice becomes a live status line: **Downloading…** while the new
+version is fetched and verified, then **Restarting…** while the server restarts into it. The same
+status appears in the conversation and in Connections, so navigating between them does not lose the
+update. A failure remains visible with its error and an option to retry.
 
 **Copy update command** gives you `npx t3@<client-version>`, which relaunches the server directly
 at the matching version. Add whatever startup options you normally use.
