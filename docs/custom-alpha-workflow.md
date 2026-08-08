@@ -342,9 +342,13 @@ That command:
 
 Current tracked PRs in this repo:
 
-- `#179` Claude Code adapter
-- `#295` GitHub Copilot adapter
-- `#364` OpenCode adapter
+- `#2829` feat(orchestrator): introduce new orchestrator — long-running orchestration V2 rewrite; refresh before porting (`codex/pr-2829-track`)
+
+Retired tracks (already landed or closed upstream; removed from the config):
+
+- `#179` Claude Code adapter (merged)
+- `#295` GitHub Copilot adapter (closed)
+- `#364` OpenCode adapter (closed)
 
 ### 1. Fetch the PR into a dedicated tracking branch
 
