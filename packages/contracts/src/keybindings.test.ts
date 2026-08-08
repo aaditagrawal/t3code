@@ -78,6 +78,12 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedProjectSearch.command, "projectSearch.toggle");
 
+    const parsedThemeEditor = yield* decode(KeybindingRule, {
+      key: "mod+alt+shift+t",
+      command: "themeEditor.toggle",
+    });
+    assert.strictEqual(parsedThemeEditor.command, "themeEditor.toggle");
+
     const parsedLocal = yield* decode(KeybindingRule, {
       key: "mod+shift+n",
       command: "chat.newLocal",
