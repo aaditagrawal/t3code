@@ -261,7 +261,7 @@ function withUnifiedCompatSettings(
     | "confirmThreadDelete"
     | "defaultThreadEnvMode"
     | "diffIgnoreWhitespace"
-    | "enableAssistantStreaming"
+    | "enableLegacyTokenStreaming"
     | "providers"
     | "sidebarProjectSortOrder"
     | "sidebarThreadSortOrder"
@@ -280,7 +280,7 @@ function withUnifiedCompatSettings(
     confirmThreadDelete: unifiedSettings.confirmThreadDelete,
     diffWordWrap: unifiedSettings.wordWrap,
     diffIgnoreWhitespace: unifiedSettings.diffIgnoreWhitespace,
-    enableAssistantStreaming: unifiedSettings.enableAssistantStreaming,
+    enableAssistantStreaming: unifiedSettings.enableLegacyTokenStreaming,
     sidebarProjectSortOrder: unifiedSettings.sidebarProjectSortOrder,
     sidebarThreadSortOrder: unifiedSettings.sidebarThreadSortOrder,
     timestampFormat: unifiedSettings.timestampFormat,
@@ -356,7 +356,7 @@ function toUnifiedPatch(patch: Partial<AppSettings>): Partial<UnifiedSettings> {
       ? { defaultThreadEnvMode: patch.defaultThreadEnvMode }
       : {}),
     ...(patch.enableAssistantStreaming !== undefined
-      ? { enableAssistantStreaming: patch.enableAssistantStreaming }
+      ? { enableLegacyTokenStreaming: patch.enableAssistantStreaming }
       : {}),
     ...(Object.keys(providersPatch).length > 0
       ? { providers: providersPatch as Partial<UnifiedSettings["providers"]> }
@@ -400,7 +400,7 @@ export function useAppSettings() {
       defaultThreadEnvMode: unifiedSettings.defaultThreadEnvMode,
       wordWrap: unifiedSettings.wordWrap,
       diffIgnoreWhitespace: unifiedSettings.diffIgnoreWhitespace,
-      enableAssistantStreaming: unifiedSettings.enableAssistantStreaming,
+      enableLegacyTokenStreaming: unifiedSettings.enableLegacyTokenStreaming,
       providers: unifiedSettings.providers,
       sidebarProjectSortOrder: unifiedSettings.sidebarProjectSortOrder,
       sidebarThreadSortOrder: unifiedSettings.sidebarThreadSortOrder,
