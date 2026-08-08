@@ -140,14 +140,14 @@ import {
   planPinnedReorder,
   resolveAdjacentThreadId,
   resolveSettledTimestamp,
-  resolveSidebarV2Status,
+  resolveSidebarThreadStatus,
   searchSidebarThreadsByTitle,
   resolveWorkingStartedAt,
   shouldNavigateAfterProjectRemoval,
   sortLogicalProjectsForSidebar,
-  sortPinnedThreadsForSidebarV2,
-  sortSettledThreadsForSidebarV2,
-  sortThreadsForSidebarV2,
+  sortPinnedThreadsForSidebar,
+  sortSettledThreadsForSidebar,
+  sortThreadsForSidebar,
 } from "./Sidebar.logic";
 import { resolveLocalCheckoutBranchMismatch } from "./BranchToolbar.logic";
 import {
@@ -542,7 +542,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
   // Same semantics as v1 (never-visited counts as read): flipping the beta
   // flag must not light up every historical thread as unread.
   const isUnread = hasUnseenCompletion({ ...thread, lastVisitedAt });
-  const status = resolveSidebarV2Status(thread);
+  const status = resolveSidebarThreadStatus(thread);
   // A woken thread reappears at its original position (the sort is
   // deliberately static), so the pill has to carry the weight. Snoozing is
   // an explicit act, so the pill clears only when the user re-engages:
@@ -1871,7 +1871,7 @@ export default function SidebarV2() {
     // sort, or mixed-version fleets would render different pinned orders on
     // web and mobile from the same data.
     return {
-      pinnedThreads: sortPinnedThreadsForSidebarV2(pinned),
+      pinnedThreads: sortPinnedThreadsForSidebar(pinned),
       reorderablePinnedKeys: new Set(
         pinned
           .filter(
@@ -1881,14 +1881,14 @@ export default function SidebarV2() {
           )
           .map((thread) => scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))),
       ),
-      activeThreads: sortThreadsForSidebarV2(active),
+      activeThreads: sortThreadsForSidebar(active),
       // Soonest wake first: "what comes back next" is the shelf's question.
       snoozedThreads: snoozed.toSorted(
         (left, right) =>
           firstValidTimestampMs(left.snoozedUntil ?? null) -
           firstValidTimestampMs(right.snoozedUntil ?? null),
       ),
-      settledThreads: sortSettledThreadsForSidebarV2(settled),
+      settledThreads: sortSettledThreadsForSidebar(settled),
       snoozeNow: preciseNow,
     };
   }, [
