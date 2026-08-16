@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+step() {
+  local label="$1"
+  shift
+  local started=$SECONDS
+  printf '\n==> %s\n' "$label"
+  "$@"
+  printf '<== %s (%ss)\n' "$label" "$((SECONDS - started))"
+}
+
+install_system_packages() {
+  local required=(build-essential python3)
+  local missing=()
+  local package
+
+  for package in "${required[@]}"; do
+    if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -Fqx 'install ok installed'; then
+      missing+=("$package")
+    fi
+  done
+
+  if ((${#missing[@]} == 0)); then
+    echo "System build dependencies are already installed."
+    return
+  fi
+
+  sudo apt-get update
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}"
+}
+
+install_vite_plus() {
+  local expected_version
+  local installed_version=""
+
+  expected_version="$(awk '$1 == "vite-plus:" { print $2; exit }' pnpm-workspace.yaml)"
+  if [[ -z "$expected_version" ]]; then
+    echo "Could not resolve the Vite+ version from pnpm-workspace.yaml." >&2
+    return 1
+  fi
+
+  if [[ -x "$HOME/.vite-plus/bin/vp" ]]; then
+    installed_version="$("$HOME/.vite-plus/bin/vp" --version 2>/dev/null | sed -n '1s/^vp v//p')"
+  fi
+
+  if [[ "$installed_version" == "$expected_version" ]]; then
+    echo "Vite+ $expected_version is already installed."
+    return
+  fi
+
+  export CI=1
+  export VP_NODE_MANAGER=yes
+  export VP_VERSION="$expected_version"
+  export VITE_PLUS_VERSION="$expected_version"
+  curl -fsSL --connect-timeout 10 --max-time 30 https://viteplus.dev/install.sh | bash
+}
+
+install_rust() {
+  if [[ ! -x "$HOME/.cargo/bin/rustup" ]]; then
+    curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- \
+      -y \
+      --profile minimal \
+      --default-toolchain stable \
+      --component rustfmt
+  fi
+
+  # shellcheck disable=SC1091
+  source "$HOME/.cargo/env"
+
+  if ! command -v rustfmt >/dev/null 2>&1; then
+    rustup component add rustfmt
+  fi
+
+  rustc --version
+  cargo --version
+  rustfmt --version
+}
+
+configure_node() {
+  vp env on
+  vp env install
+  node --version
+  pnpm --version
+}
+
+install_dependencies() {
+  export ELECTRON_MIRROR="${ELECTRON_MIRROR:-https://npmmirror.com/mirrors/electron/}"
+  vp install --frozen-lockfile
+}
+
+step "Checking system build dependencies" install_system_packages
+step "Installing the repository-pinned Vite+" install_vite_plus
+
+# The installer persists this file in login-shell profiles, but this running
+# setup process must load it explicitly before invoking Vite+ shims.
+# shellcheck disable=SC1091
+source "$HOME/.vite-plus/env"
+
+step "Installing the package.json Node.js runtime" configure_node
+step "Installing Rust and rustfmt" install_rust
+step "Installing workspace dependencies" install_dependencies
+
+printf '\nOrb setup complete in %ss.\n' "$SECONDS"
