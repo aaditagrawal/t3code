@@ -3,7 +3,6 @@ import { ProviderDriverKind, ProviderInstanceId, type PiSettings } from "@t3tool
 import {
   applyStandardAcpModelSelection,
   currentStandardAcpModelFromSetup,
-  firstAdvertisedAuthMethod,
   makeStandardAcpCliRuntime,
   normalizeStandardAcpModel,
 } from "../acp/StandardAcpCliSupport.ts";
@@ -25,7 +24,6 @@ export function makePiAdapter(settings: PiSettings, options?: StandardAcpAdapter
           ...input,
           command: settings.binaryPath || "pi-acp",
           ...(options?.environment ? { environment: options.environment } : {}),
-          resolveAuthMethodId: firstAdvertisedAuthMethod,
         }),
       normalizeModel: (model) => normalizeStandardAcpModel(model, PROVIDER),
       currentModelFromSetup: currentStandardAcpModelFromSetup,

@@ -143,8 +143,12 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
       cwd: process.cwd(),
       environment: config.environment,
       clientInfo: { name: "t3-code-provider-probe", version: "0.0.0" },
-      resolveAuthMethodId: (initializeResult) =>
-        firstAdvertisedAuthMethod(initializeResult, config.excludedAuthMethodIds),
+      ...(config.excludedAuthMethodIds
+        ? {
+            resolveAuthMethodId: (initializeResult) =>
+              firstAdvertisedAuthMethod(initializeResult, config.excludedAuthMethodIds),
+          }
+        : {}),
     }).pipe(
       Effect.flatMap((runtime) => runtime.start()),
       Effect.map((started) =>
