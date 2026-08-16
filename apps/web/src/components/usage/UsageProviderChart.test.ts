@@ -77,15 +77,46 @@ describe("buildDayColumns", () => {
     ]);
   });
 
-  it("keeps the bands contiguous so the areas stay additive", () => {
+  it("keeps band values absolute rather than cumulative", () => {
+    // Regression: the bands were once stack offsets, which drew Claude Code
+    // permanently above Codex regardless of which provider spent more.
+    const [first] = buildDayColumns(days, byDay, "cost");
+
+    expect(first?.bands).toEqual([
+      { provider: "codex", value: 10 },
+      { provider: "claude", value: 20 },
+    ]);
+  });
+
+  it("reports the total as the sum of its bands", () => {
     for (const column of buildDayColumns(days, byDay, "cost")) {
-      let expectedBase = 0;
-      for (const band of column.bands) {
-        expect(band.base).toBeCloseTo(expectedBase, 9);
-        expect(band.top).toBeCloseTo(band.base + band.value, 9);
-        expectedBase = band.top;
-      }
-      expect(column.total).toBeCloseTo(expectedBase, 9);
+      const sum = column.bands.reduce((running, band) => running + band.value, 0);
+      expect(column.total).toBeCloseTo(sum, 9);
     }
+  });
+});
+
+describe("hourly chart columns", () => {
+  it("zero-fills inactive hours and preserves hourly provider values", () => {
+    const byHour = new Map([
+      [
+        "2026-08-11T09:37:00.000Z",
+        {
+          day: "2026-08-11",
+          hourStart: "2026-08-11T09:37:00.000Z",
+          costUsd: 4,
+          totalTokens: 40,
+          byProvider: new Map([["codex" as const, { costUsd: 4, totalTokens: 40 }]]),
+        },
+      ],
+    ]);
+
+    expect(
+      buildDayColumns(
+        ["2026-08-11T08:37:00.000Z", "2026-08-11T09:37:00.000Z", "2026-08-11T10:37:00.000Z"],
+        byHour,
+        "cost",
+      ).map((column) => column.total),
+    ).toEqual([0, 4, 0]);
   });
 });

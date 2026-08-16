@@ -1,9 +1,15 @@
 import type { UsageProviderKind } from "@t3tools/contracts";
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import type { DailyTotals } from "../../usage/usageMerge";
-import { formatDayShort, formatTokens, formatUsd } from "../../usage/usageFormat";
-import { PROVIDER_COLOR, PROVIDER_LABEL, PROVIDER_MARK, PROVIDER_ORDER } from "./usageProviders";
+import type { DailyTotals, HourlyTotals } from "@t3tools/shared/usageMerge";
+import {
+  formatDayShort,
+  formatHourShort,
+  formatRelativeHourShort,
+  formatTokens,
+  formatUsd,
+} from "@t3tools/shared/usageFormat";
+import { PROVIDER_ORDER, PROVIDER_PRESENTATION } from "./usageProviders";
 
 const VIEW_WIDTH = 960;
 const VIEW_HEIGHT = 260;
@@ -15,16 +21,19 @@ export type UsageChartMetric = "tokens" | "cost";
 interface UsageProviderChartProps {
   readonly days: readonly string[];
   readonly daily: readonly DailyTotals[];
+  readonly hours: readonly string[];
+  readonly hourly: readonly HourlyTotals[];
   readonly metric: UsageChartMetric;
+  readonly referenceTime: string | undefined;
+  readonly resolution: "day" | "hour";
+  readonly timeZone: string;
 }
 
-/** One day's stacked bands, shared by the paths and the hover readout. */
+/** One day's per-provider values, shared by the paths and the hover readout. */
 export interface DayColumn {
   readonly bands: readonly {
     readonly provider: UsageProviderKind;
     readonly value: number;
-    readonly base: number;
-    readonly top: number;
   }[];
   readonly total: number;
 }
@@ -35,13 +44,28 @@ interface Point {
 }
 
 function valueFor(
-  daily: DailyTotals | undefined,
+  totals: DailyTotals | HourlyTotals | undefined,
   provider: UsageProviderKind,
   metric: UsageChartMetric,
 ): number {
-  const entry = daily?.byProvider.get(provider);
+  const entry = totals?.byProvider.get(provider);
   if (entry === undefined) return 0;
   return metric === "tokens" ? entry.totalTokens : entry.costUsd;
+}
+
+function buildPeriodColumns(
+  periods: readonly string[],
+  byPeriod: ReadonlyMap<string, DailyTotals | HourlyTotals>,
+  metric: UsageChartMetric,
+): readonly DayColumn[] {
+  return periods.map((period) => {
+    const entry = byPeriod.get(period);
+    const bands = PROVIDER_ORDER.map((provider) => ({
+      provider,
+      value: valueFor(entry, provider, metric),
+    }));
+    return { bands, total: bands.reduce((sum, band) => sum + band.value, 0) };
+  });
 }
 
 /**
@@ -131,28 +155,6 @@ function curvePath(segments: readonly CurveSegment[], startCommand: "M" | "L"): 
 }
 
 /**
- * The same curve walked end to start. A cubic reverses exactly by swapping its
- * control points, so this traces the identical geometry.
- *
- * Bands must use this rather than re-smoothing their base points in reverse:
- * the tangent clamp in `monotoneTangents` runs left to right, so smoothing is
- * not perfectly symmetric under reversal, and independently smoothed edges of
- * adjacent bands could hairline-gap or overlap. Sharing one curve per stack
- * boundary makes that geometrically impossible.
- */
-function reversedCurvePath(segments: readonly CurveSegment[], startCommand: "M" | "L"): string {
-  const last = segments[segments.length - 1];
-  if (last === undefined) return "";
-  let path = `${startCommand}${last.to.x.toFixed(2)},${last.to.y.toFixed(2)}`;
-  for (let index = segments.length - 1; index >= 0; index -= 1) {
-    const segment = segments[index];
-    if (segment === undefined) continue;
-    path += ` C${segment.c2.x.toFixed(2)},${segment.c2.y.toFixed(2)} ${segment.c1.x.toFixed(2)},${segment.c1.y.toFixed(2)} ${segment.from.x.toFixed(2)},${segment.from.y.toFixed(2)}`;
-  }
-  return path;
-}
-
-/**
  * Builds a scale whose maximum is a readable 1/2/5 x 10^n step at or above the
  * peak.
  *
@@ -175,7 +177,12 @@ export function niceScale(peak: number, count: number): { max: number; ticks: re
 }
 
 /**
- * Turns the merged daily totals into stacked bands, one column per day.
+ * Turns the merged daily totals into one column per day.
+ *
+ * Values are absolute, not cumulative: the series are layered from a shared
+ * zero baseline rather than stacked. A stacked chart puts whichever provider is
+ * drawn last permanently above the other, which reads as "that one is bigger"
+ * even on days where it is not.
  *
  * The chart paths and the hover readout both consume this, so the number under
  * the cursor is by construction the number that was plotted rather than a
@@ -186,26 +193,32 @@ export function buildDayColumns(
   byDay: ReadonlyMap<string, DailyTotals>,
   metric: UsageChartMetric,
 ): readonly DayColumn[] {
-  return days.map((day) => {
-    const entry = byDay.get(day);
-    let stackTop = 0;
-    const bands = PROVIDER_ORDER.map((provider) => {
-      const value = valueFor(entry, provider, metric);
-      const base = stackTop;
-      stackTop += value;
-      return { provider, value, base, top: stackTop };
-    });
-    return { bands, total: stackTop };
-  });
+  return buildPeriodColumns(days, byDay, metric);
 }
 
-export function UsageProviderChart({ days, daily, metric }: UsageProviderChartProps) {
-  const byDay = useMemo(() => new Map(daily.map((entry) => [entry.day, entry])), [daily]);
+export function UsageProviderChart({
+  days,
+  daily,
+  hours,
+  hourly,
+  metric,
+  referenceTime,
+  resolution,
+  timeZone,
+}: UsageProviderChartProps) {
+  const periods = resolution === "hour" ? hours : days;
+  const byPeriod = useMemo(
+    () =>
+      resolution === "hour"
+        ? new Map(hourly.map((entry) => [entry.hourStart, entry]))
+        : new Map(daily.map((entry) => [entry.day, entry])),
+    [daily, hourly, resolution],
+  );
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const plotRef = useRef<HTMLDivElement | null>(null);
 
   const { paths, ticks, stepX, toY, series } = useMemo(() => {
-    if (days.length === 0) {
+    if (periods.length === 0) {
       return {
         paths: [],
         ticks: [0] as readonly number[],
@@ -215,58 +228,68 @@ export function UsageProviderChart({ days, daily, metric }: UsageProviderChartPr
       };
     }
 
-    const stacked = buildDayColumns(days, byDay, metric);
+    const columns = buildPeriodColumns(periods, byPeriod, metric);
 
-    const peak = stacked.reduce((max, column) => Math.max(max, column.total), 0);
+    // The scale tops out at the largest single provider-day, not the largest
+    // sum: layered series each measure from zero, so a combined peak would
+    // leave the plot permanently half empty.
+    const peak = columns.reduce(
+      (max, column) => column.bands.reduce((inner, band) => Math.max(inner, band.value), max),
+      0,
+    );
     const { max, ticks: tickValues } = niceScale(peak, TICK_COUNT);
-    const step = days.length === 1 ? 0 : VIEW_WIDTH / (days.length - 1);
+    const step = periods.length === 1 ? 0 : VIEW_WIDTH / (periods.length - 1);
     // Reserve a sliver above the top gridline so the series stroke, which is
     // drawn at constant screen width, is not shaved off at a peak.
     const toY = (value: number) =>
       max === 0 ? VIEW_HEIGHT : VIEW_HEIGHT - (value / max) * (VIEW_HEIGHT - PLOT_TOP);
 
-    // One smoothed curve per stack boundary (baseline, then each provider's
-    // cumulative top). Band k is the region between boundary k and k+1, both
-    // drawn from these shared control points.
-    const boundaries = [
-      stacked.map((_, dayIndex) => ({ x: dayIndex * step, y: toY(0) })),
-      ...PROVIDER_ORDER.map((_, providerIndex) =>
-        stacked.map((column, dayIndex) => ({
-          x: dayIndex * step,
-          y: toY(column.bands[providerIndex]?.top ?? 0),
-        })),
-      ),
-    ].map(smoothCurve);
-
     const built = PROVIDER_ORDER.map((provider, providerIndex) => {
-      const top = boundaries[providerIndex + 1] ?? [];
-      const base = boundaries[providerIndex] ?? [];
+      const curve = smoothCurve(
+        columns.map((column, dayIndex) => ({
+          x: dayIndex * step,
+          y: toY(column.bands[providerIndex]?.value ?? 0),
+        })),
+      );
+      const line = curvePath(curve, "M");
       return {
         provider,
-        area: `${curvePath(top, "M")} ${reversedCurvePath(base, "L")} Z`,
-        line: curvePath(top, "M"),
+        total: columns.reduce((sum, column) => sum + (column.bands[providerIndex]?.value ?? 0), 0),
+        area: line === "" ? "" : `${line} L${VIEW_WIDTH},${VIEW_HEIGHT} L0,${VIEW_HEIGHT} Z`,
+        line,
       };
     });
 
-    return { paths: built, ticks: tickValues, stepX: step, toY, series: stacked };
-  }, [byDay, days, metric]);
+    // Paint the heavier series first so the lighter one is never buried under
+    // it. The fills are faint enough that the order barely shows, but the
+    // strokes are drawn in a second pass regardless, so neither can be hidden.
+    const ordered = [...built].sort((a, b) => b.total - a.total);
+
+    return { paths: ordered, ticks: tickValues, stepX: step, toY, series: columns };
+  }, [byPeriod, metric, periods]);
 
   const format = metric === "tokens" ? formatTokens : formatUsd;
 
   const handleMove = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       const bounds = plotRef.current?.getBoundingClientRect();
-      if (bounds === undefined || bounds.width === 0 || days.length === 0) return;
+      if (bounds === undefined || bounds.width === 0 || periods.length === 0) return;
       const fraction = (event.clientX - bounds.left) / bounds.width;
-      const index = Math.round(fraction * (days.length - 1));
-      setHoverIndex(Math.min(days.length - 1, Math.max(0, index)));
+      const index = Math.round(fraction * (periods.length - 1));
+      setHoverIndex(Math.min(periods.length - 1, Math.max(0, index)));
     },
-    [days.length],
+    [periods.length],
   );
 
-  const hoveredDay = hoverIndex === null ? undefined : days[hoverIndex];
+  const hoveredPeriod = hoverIndex === null ? undefined : periods[hoverIndex];
   const hoveredColumn = hoverIndex === null ? undefined : series[hoverIndex];
-  const hoverLeft = days.length <= 1 ? 0 : ((hoverIndex ?? 0) / (days.length - 1)) * 100;
+  const hoverLeft = periods.length <= 1 ? 0 : ((hoverIndex ?? 0) / (periods.length - 1)) * 100;
+  const formatPeriod = (period: string) =>
+    resolution === "hour" ? formatHourShort(period, timeZone) : formatDayShort(period);
+  const formatTooltipPeriod = (period: string) =>
+    resolution === "hour" && referenceTime !== undefined
+      ? formatRelativeHourShort(period, referenceTime, timeZone)
+      : formatPeriod(period);
 
   return (
     <div className="flex flex-col gap-1">
@@ -295,7 +318,7 @@ export function UsageProviderChart({ days, daily, metric }: UsageProviderChartPr
             viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
             preserveAspectRatio="none"
             role="img"
-            aria-label={`Daily ${metric === "tokens" ? "processed tokens" : "cost"} by provider`}
+            aria-label={`${resolution === "hour" ? "Hourly" : "Daily"} ${metric === "tokens" ? "processed tokens" : "cost"} by provider`}
           >
             {ticks.map((tick) => {
               const y = toY(tick);
@@ -314,17 +337,24 @@ export function UsageProviderChart({ days, daily, metric }: UsageProviderChartPr
               );
             })}
 
-            {paths.map(({ provider, area, line }) => (
-              <g key={provider}>
-                <path d={area} fill={PROVIDER_COLOR[provider]} fillOpacity={0.5} />
-                <path
-                  d={line}
-                  fill="none"
-                  stroke={PROVIDER_COLOR[provider]}
-                  strokeWidth={1.5}
-                  vectorEffect="non-scaling-stroke"
-                />
-              </g>
+            {/* Fills first, then every stroke, so no series covers another's line. */}
+            {paths.map(({ provider, area }) => (
+              <path
+                key={provider}
+                d={area}
+                fill={PROVIDER_PRESENTATION[provider].color}
+                fillOpacity={0.12}
+              />
+            ))}
+            {paths.map(({ provider, line }) => (
+              <path
+                key={provider}
+                d={line}
+                fill="none"
+                stroke={PROVIDER_PRESENTATION[provider].color}
+                strokeWidth={2}
+                vectorEffect="non-scaling-stroke"
+              />
             ))}
 
             {hoverIndex === null ? null : (
@@ -341,7 +371,7 @@ export function UsageProviderChart({ days, daily, metric }: UsageProviderChartPr
             )}
           </svg>
 
-          {hoveredDay === undefined ? null : (
+          {hoveredPeriod === undefined ? null : (
             <div
               className="pointer-events-none absolute top-0 z-10 min-w-36 border border-border bg-background/95 px-2 py-1.5 text-xs"
               style={{
@@ -349,14 +379,14 @@ export function UsageProviderChart({ days, daily, metric }: UsageProviderChartPr
                 transform: hoverLeft > 60 ? "translateX(-100%)" : "translateX(0)",
               }}
             >
-              <div className="mb-1 text-muted-foreground">{formatDayShort(hoveredDay)}</div>
+              <div className="mb-1 text-muted-foreground">{formatTooltipPeriod(hoveredPeriod)}</div>
               {PROVIDER_ORDER.map((provider) => {
-                const Mark = PROVIDER_MARK[provider];
+                const { label, mark: Mark } = PROVIDER_PRESENTATION[provider];
                 return (
                   <div key={provider} className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <Mark className="size-3 shrink-0" aria-hidden />
-                      {PROVIDER_LABEL[provider]}
+                      {label}
                     </span>
                     <span className="text-foreground tabular-nums">
                       {format(
@@ -378,14 +408,16 @@ export function UsageProviderChart({ days, daily, metric }: UsageProviderChartPr
       </div>
 
       <div className="flex justify-between pl-16 text-[10px] text-muted-foreground uppercase">
-        <span>{days[0] === undefined ? "" : formatDayShort(days[0])}</span>
+        <span>{periods[0] === undefined ? "" : formatPeriod(periods[0])}</span>
         <span>
-          {days[Math.floor(days.length / 2)] === undefined
+          {periods[Math.floor(periods.length / 2)] === undefined
             ? ""
-            : formatDayShort(days[Math.floor(days.length / 2)] ?? "")}
+            : formatPeriod(periods[Math.floor(periods.length / 2)] ?? "")}
         </span>
         <span>
-          {days[days.length - 1] === undefined ? "" : formatDayShort(days[days.length - 1] ?? "")}
+          {periods[periods.length - 1] === undefined
+            ? ""
+            : formatPeriod(periods[periods.length - 1] ?? "")}
         </span>
       </div>
     </div>
@@ -396,13 +428,13 @@ export function UsageChartLegend() {
   return (
     <div className="flex items-center gap-4">
       {PROVIDER_ORDER.map((provider) => {
-        // The marks carry the same fills as the bands, so they key the chart
-        // just as a colour swatch would.
-        const Mark = PROVIDER_MARK[provider];
+        // Brand marks keep monochrome providers identifiable even when their
+        // chart series use distinct colors.
+        const { label, mark: Mark } = PROVIDER_PRESENTATION[provider];
         return (
           <span key={provider} className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Mark className="size-3.5 shrink-0" aria-hidden />
-            {PROVIDER_LABEL[provider]}
+            {label}
           </span>
         );
       })}

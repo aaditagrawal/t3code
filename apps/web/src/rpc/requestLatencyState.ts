@@ -57,7 +57,7 @@ function shouldTrackRpcAck(method: string): boolean {
   // later than the user-visible payload). Match `subscribe` at the start of
   // the tag or after a path-segment delimiter so `thread/unsubscribe` and
   // similar still get tracked.
-  return !/(?:^|[./:])subscribe/i.test(method);
+  return !/(?:^|[./:])subscribe/i.test(method) && !method.startsWith("pullRequests.");
 }
 
 function rpcAckThresholdMs(method: string): number {

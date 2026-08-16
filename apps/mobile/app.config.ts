@@ -9,7 +9,7 @@ const repoEnv = loadRepoEnv();
 Object.assign(process.env, repoEnv);
 
 const APP_VARIANT = resolveAppVariant(repoEnv.APP_VARIANT);
-const APP_VERSION = process.env.MOBILE_APP_VERSION?.trim() || "1.0.2";
+const APP_VERSION = process.env.MOBILE_APP_VERSION?.trim() || "1.0.4";
 const ANDROID_VERSION_CODE = resolveAndroidVersionCode(process.env.MOBILE_ANDROID_VERSION_CODE);
 const isIosPersonalTeamBuild = repoEnv.T3CODE_IOS_PERSONAL_TEAM === "1";
 
@@ -358,6 +358,7 @@ const config: ExpoConfig = {
     "./plugins/withAndroidModernAlertDialog.cjs",
     "./plugins/withAndroidPredictiveBackCompat.cjs",
     "./plugins/withAndroidReleaseSigning.cjs",
+    "./plugins/withAndroidTabletOrientation.cjs",
     ...(isIosPersonalTeamBuild ? ["./plugins/withoutIosPersonalTeamCapabilities.cjs"] : []),
   ],
   extra: {

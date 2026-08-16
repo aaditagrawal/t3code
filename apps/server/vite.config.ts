@@ -7,16 +7,12 @@ import baseConfig from "../../vite.config.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
 import packageJson from "./package.json" with { type: "json" };
 
-const bundledPackagePrefixes = [
-  "@pierre/diffs",
-  "@t3tools/",
-  "effect-acp",
-  "effect-codex-app-server",
-  "@github/copilot",
-  "vscode-jsonrpc",
-  "@anthropic-ai/claude-agent-sdk",
-  "@opencode-ai/",
-];
+import {
+  isExternalCliDependency,
+  shouldBundleCliDependency,
+} from "../../scripts/lib/cli-external-packages.ts";
+
+export { shouldBundleCliDependency };
 
 const require = NodeModule.createRequire(import.meta.url);
 
@@ -29,10 +25,6 @@ try {
   vscodeJsonrpcNodePath = require.resolve("vscode-jsonrpc/node.js");
 } catch {
   vscodeJsonrpcNodePath = undefined;
-}
-
-export function shouldBundleCliDependency(id: string): boolean {
-  return bundledPackagePrefixes.some((prefix) => id.startsWith(prefix));
 }
 
 const repoEnv = loadRepoEnv();
@@ -68,7 +60,14 @@ export default mergeConfig(
       sourcemap: true,
       clean: true,
       deps: {
+        // Both halves are required. `alwaysBundle` forces the JS dependencies in
+        // (declared deps are external by default, which is what this change is
+        // undoing). `neverBundle` forces the native packages out: returning
+        // false from `alwaysBundle` only means "no opinion", so a transitive
+        // dependency would still be bundled — which silently inlined
+        // msgpackr-extract and its loader, losing native acceleration.
         alwaysBundle: shouldBundleCliDependency,
+        neverBundle: (id: string) => isExternalCliDependency(id),
         onlyBundle: false,
       },
       banner: {
