@@ -132,7 +132,9 @@ const CLAUDE_DRIVER_KIND = ProviderDriverKind.make("claudeAgent");
 const CURSOR_DRIVER_KIND = ProviderDriverKind.make("cursor");
 const DROID_DRIVER_KIND = ProviderDriverKind.make("droid");
 const GROK_DRIVER_KIND = ProviderDriverKind.make("grok");
+const HERMES_DRIVER_KIND = ProviderDriverKind.make("hermes");
 const OPENCODE_DRIVER_KIND = ProviderDriverKind.make("opencode");
+const PI_DRIVER_KIND = ProviderDriverKind.make("pi");
 
 export const DEFAULT_MODEL = "gpt-5.6-sol";
 
@@ -229,5 +231,7 @@ export const PROVIDER_DISPLAY_NAMES: Partial<Record<ProviderDriverKind, string>>
   [CURSOR_DRIVER_KIND]: "Cursor",
   [DROID_DRIVER_KIND]: "Droid",
   [GROK_DRIVER_KIND]: "Grok",
+  [HERMES_DRIVER_KIND]: "Hermes Agent",
   [OPENCODE_DRIVER_KIND]: "OpenCode",
+  [PI_DRIVER_KIND]: "Pi",
 };

@@ -1,0 +1,194 @@
+import type {
+  ModelCapabilities,
+  ProviderDriverKind,
+  ServerProviderModel,
+} from "@t3tools/contracts";
+import { createModelCapabilities } from "@t3tools/shared/model";
+import * as Crypto from "effect/Crypto";
+import * as DateTime from "effect/DateTime";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Option from "effect/Option";
+import { ChildProcessSpawner } from "effect/unstable/process";
+import type * as EffectAcpSchema from "effect-acp/schema";
+
+import {
+  firstAdvertisedAuthMethod,
+  makeStandardAcpCliRuntime,
+  normalizeStandardAcpModel,
+} from "../acp/StandardAcpCliSupport.ts";
+import {
+  buildServerProvider,
+  providerModelsFromSettings,
+  type ServerProviderDraft,
+} from "../providerSnapshot.ts";
+
+const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
+const EMPTY_CAPABILITIES: ModelCapabilities = createModelCapabilities({ optionDescriptors: [] });
+
+export interface StandardAcpCliProviderConfig {
+  readonly provider: ProviderDriverKind;
+  readonly displayName: string;
+  readonly command: string;
+  readonly enabled: boolean;
+  readonly customModels: ReadonlyArray<string>;
+  readonly environment: NodeJS.ProcessEnv;
+  readonly setupHint: string;
+  readonly missingCommandMessage: string;
+  readonly excludedAuthMethodIds?: ReadonlySet<string>;
+}
+
+function modelsFromSessionState(
+  state: EffectAcpSchema.SessionModelState | null | undefined,
+  provider: ProviderDriverKind,
+): ReadonlyArray<ServerProviderModel> {
+  if (!state) return [];
+  const seen = new Set<string>();
+  return state.availableModels.flatMap((model) => {
+    const slug = normalizeStandardAcpModel(model.modelId, provider);
+    if (!slug || seen.has(slug)) return [];
+    seen.add(slug);
+    return [
+      {
+        slug,
+        name: model.name.trim() || slug,
+        isCustom: false,
+        capabilities: EMPTY_CAPABILITIES,
+      } satisfies ServerProviderModel,
+    ];
+  });
+}
+
+function hasMissingCommandCause(cause: unknown, seen = new WeakSet<object>()): boolean {
+  if (!cause || typeof cause !== "object" || seen.has(cause)) return false;
+  seen.add(cause);
+  if (Array.isArray(cause)) {
+    return cause.some((entry) => hasMissingCommandCause(entry, seen));
+  }
+  const record = cause as Record<string, unknown>;
+  if (record._tag === "AcpSpawnError") return true;
+  return Object.values(record).some((entry) => hasMissingCommandCause(entry, seen));
+}
+
+export function buildInitialStandardAcpCliProviderSnapshot(
+  config: StandardAcpCliProviderConfig,
+): Effect.Effect<ServerProviderDraft> {
+  return Effect.map(DateTime.now, (now) =>
+    buildServerProvider({
+      presentation: {
+        displayName: config.displayName,
+        badgeLabel: "Early Access",
+        showInteractionModeToggle: true,
+        requiresNewThreadForModelChange: false,
+      },
+      enabled: config.enabled,
+      checkedAt: DateTime.formatIso(now),
+      models: providerModelsFromSettings([], config.customModels, EMPTY_CAPABILITIES),
+      probe: config.enabled
+        ? {
+            installed: true,
+            version: null,
+            status: "warning",
+            auth: { status: "unknown" },
+            message: `Checking ${config.displayName} ACP availability...`,
+          }
+        : {
+            installed: false,
+            version: null,
+            status: "warning",
+            auth: { status: "unknown" },
+            message: `${config.displayName} is disabled in T3 Code settings.`,
+          },
+    }),
+  );
+}
+
+export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliProviderStatus")(
+  function* (
+    config: StandardAcpCliProviderConfig,
+  ): Effect.fn.Return<
+    ServerProviderDraft,
+    never,
+    ChildProcessSpawner.ChildProcessSpawner | Crypto.Crypto
+  > {
+    const checkedAt = DateTime.formatIso(yield* DateTime.now);
+    const fallbackModels = providerModelsFromSettings([], config.customModels, EMPTY_CAPABILITIES);
+    const presentation = {
+      displayName: config.displayName,
+      badgeLabel: "Early Access",
+      showInteractionModeToggle: true,
+      requiresNewThreadForModelChange: false,
+    } as const;
+
+    if (!config.enabled) {
+      return buildServerProvider({
+        presentation,
+        enabled: false,
+        checkedAt,
+        models: fallbackModels,
+        probe: {
+          installed: false,
+          version: null,
+          status: "warning",
+          auth: { status: "unknown" },
+          message: `${config.displayName} is disabled in T3 Code settings.`,
+        },
+      });
+    }
+
+    const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+    const discovery = yield* makeStandardAcpCliRuntime({
+      childProcessSpawner,
+      command: config.command,
+      cwd: process.cwd(),
+      environment: config.environment,
+      clientInfo: { name: "t3-code-provider-probe", version: "0.0.0" },
+      resolveAuthMethodId: (initializeResult) =>
+        firstAdvertisedAuthMethod(initializeResult, config.excludedAuthMethodIds),
+    }).pipe(
+      Effect.flatMap((runtime) => runtime.start()),
+      Effect.map((started) =>
+        modelsFromSessionState(started.sessionSetupResult.models, config.provider),
+      ),
+      Effect.scoped,
+      Effect.timeoutOption(MODEL_DISCOVERY_TIMEOUT_MS),
+      Effect.exit,
+    );
+
+    if (Exit.isSuccess(discovery) && Option.isSome(discovery.value)) {
+      const discoveredModels = discovery.value.value;
+      return buildServerProvider({
+        presentation,
+        enabled: true,
+        checkedAt,
+        models:
+          discoveredModels.length > 0
+            ? providerModelsFromSettings(discoveredModels, config.customModels, EMPTY_CAPABILITIES)
+            : fallbackModels,
+        probe: {
+          installed: true,
+          version: null,
+          status: "ready",
+          auth: { status: "unknown" },
+        },
+      });
+    }
+
+    const missing = Exit.isFailure(discovery) && hasMissingCommandCause(discovery.cause);
+    return buildServerProvider({
+      presentation,
+      enabled: true,
+      checkedAt,
+      models: fallbackModels,
+      probe: {
+        installed: !missing,
+        version: null,
+        status: "error",
+        auth: { status: "unknown" },
+        message: missing
+          ? config.missingCommandMessage
+          : `${config.displayName} ACP startup failed or timed out. ${config.setupHint}`,
+      },
+    });
+  },
+);

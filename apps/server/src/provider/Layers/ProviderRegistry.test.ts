@@ -1381,7 +1381,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
                   claudeAgent: { enabled: false },
                   cursor: { enabled: false },
                   grok: { enabled: false },
+                  hermes: { enabled: false },
                   opencode: { enabled: false },
+                  pi: { enabled: false },
                 },
                 // `providerInstances` keys are branded `ProviderInstanceId`;
                 // the branded index signature rejects plain string literals
@@ -1760,8 +1762,10 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
                 "droid",
                 "geminiCli",
                 "grok",
+                "hermes",
                 "kilo",
                 "opencode",
+                "pi",
               ]);
               assert.strictEqual(cursorProvider?.enabled, false);
               assert.strictEqual(cursorProvider?.status, "disabled");

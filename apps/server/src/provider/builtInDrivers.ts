@@ -28,8 +28,10 @@ import { CursorDriver, type CursorDriverEnv } from "./Drivers/CursorDriver.ts";
 import { DroidDriver, type DroidDriverEnv } from "./Drivers/DroidDriver.ts";
 import { GeminiCliDriver, type GeminiCliDriverEnv } from "./Drivers/GeminiCliDriver.ts";
 import { GrokDriver, type GrokDriverEnv } from "./Drivers/GrokDriver.ts";
+import { HermesDriver, type HermesDriverEnv } from "./Drivers/HermesDriver.ts";
 import { KiloDriver, type KiloDriverEnv } from "./Drivers/KiloDriver.ts";
 import { OpenCodeDriver, type OpenCodeDriverEnv } from "./Drivers/OpenCodeDriver.ts";
+import { PiDriver, type PiDriverEnv } from "./Drivers/PiDriver.ts";
 import type { AnyProviderDriver } from "./ProviderDriver.ts";
 
 /**
@@ -43,11 +45,13 @@ export type BuiltInDriversEnv =
   | CursorDriverEnv
   | DroidDriverEnv
   | GrokDriverEnv
+  | HermesDriverEnv
   | OpenCodeDriverEnv
   | AmpDriverEnv
   | CopilotDriverEnv
   | GeminiCliDriverEnv
-  | KiloDriverEnv;
+  | KiloDriverEnv
+  | PiDriverEnv;
 
 /**
  * Ordered list of built-in drivers. Order matters only for tie-breaking in
@@ -67,5 +71,7 @@ export const BUILT_IN_DRIVERS: ReadonlyArray<AnyProviderDriver<BuiltInDriversEnv
   AmpDriver,
   CopilotDriver,
   GeminiCliDriver,
+  HermesDriver,
   KiloDriver,
+  PiDriver,
 ];

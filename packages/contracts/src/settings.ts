@@ -641,6 +641,49 @@ export const KiloSettings = makeProviderSettingsSchema(
 );
 export type KiloSettings = typeof KiloSettings.Type;
 
+function makeAcpCliProviderSettingsSchema(input: {
+  readonly defaultBinary: string;
+  readonly description: string;
+}) {
+  return makeProviderSettingsSchema(
+    {
+      enabled: Schema.Boolean.pipe(
+        Schema.withDecodingDefault(Effect.succeed(true)),
+        Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+      ),
+      binaryPath: makeBinaryPathSetting(input.defaultBinary).pipe(
+        Schema.annotateKey({
+          title: "ACP binary path",
+          description: input.description,
+          providerSettingsForm: {
+            placeholder: input.defaultBinary,
+            clearWhenEmpty: "omit",
+          },
+        }),
+      ),
+      customModels: Schema.Array(Schema.String).pipe(
+        Schema.withDecodingDefault(Effect.succeed([])),
+        Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+      ),
+    },
+    {
+      order: ["binaryPath"],
+    },
+  );
+}
+
+export const HermesSettings = makeAcpCliProviderSettingsSchema({
+  defaultBinary: "hermes-acp",
+  description: "Path to the Hermes Agent ACP executable.",
+});
+export type HermesSettings = typeof HermesSettings.Type;
+
+export const PiSettings = makeAcpCliProviderSettingsSchema({
+  defaultBinary: "pi-acp",
+  description: "Path to the pi-acp executable. The Pi coding agent must also be installed.",
+});
+export type PiSettings = typeof PiSettings.Type;
+
 export const GenericProviderSettings = Schema.Struct({
   enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   customModels: Schema.Array(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
@@ -783,7 +826,9 @@ export const ServerSettings = Schema.Struct({
     opencode: OpenCodeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     geminiCli: GeminiCliSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     amp: AmpSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    hermes: HermesSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     kilo: KiloSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    pi: PiSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   }).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   // New driver-agnostic instance map. Keyed by `ProviderInstanceId`; values
   // are `ProviderInstanceConfig` envelopes. The driver-specific config blob
@@ -944,7 +989,9 @@ export const ServerSettingsPatch = Schema.Struct({
       opencode: Schema.optionalKey(OpenCodeSettingsPatch),
       geminiCli: Schema.optionalKey(GenericProviderSettingsPatch),
       amp: Schema.optionalKey(GenericProviderSettingsPatch),
+      hermes: Schema.optionalKey(GenericProviderSettingsPatch),
       kilo: Schema.optionalKey(GenericProviderSettingsPatch),
+      pi: Schema.optionalKey(GenericProviderSettingsPatch),
     }),
   ),
   // Whole-map replacement for the new instance config. Patching individual

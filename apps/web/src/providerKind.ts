@@ -3,7 +3,7 @@
  *
  * Upstream's #2277 refactor removed the `ProviderKind` union from
  * `@t3tools/contracts` in favor of `ProviderDriverKind` (an open branded
- * slug). The fork still relies on a closed union of the eight provider names
+ * slug). The fork still relies on a closed union of built-in provider names
  * it ships adapters for — used as keys in `Record<ProviderKind, …>` shapes
  * and as the discriminator in exhaustive `switch` statements throughout the
  * web app.
@@ -22,6 +22,8 @@ export const PROVIDER_KINDS = [
   "geminiCli",
   "amp",
   "kilo",
+  "hermes",
+  "pi",
 ] as const;
 
 export type ProviderKind = (typeof PROVIDER_KINDS)[number];

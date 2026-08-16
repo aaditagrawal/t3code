@@ -7,8 +7,10 @@ import {
   DroidSettings,
   GeminiCliSettings,
   GrokSettings,
+  HermesSettings,
   KiloSettings,
   OpenCodeSettings,
+  PiSettings,
   ProviderDriverKind,
 } from "@t3tools/contracts";
 import type * as Schema from "effect/Schema";
@@ -20,10 +22,12 @@ import {
   DroidIcon,
   GeminiCliIcon,
   GrokIcon,
+  HermesIcon,
   type Icon,
   KiloIcon,
   OpenAI,
   OpenCodeIcon,
+  PiAgentIcon,
 } from "../Icons";
 
 type ProviderSettingsSchema = {
@@ -117,6 +121,20 @@ export const PROVIDER_CLIENT_DEFINITIONS: readonly ProviderClientDefinition[] = 
     label: "Kilo Code",
     icon: KiloIcon,
     settingsSchema: KiloSettings,
+    badgeLabel: "Fork Extension",
+  },
+  {
+    value: ProviderDriverKind.make("hermes"),
+    label: "Hermes",
+    icon: HermesIcon,
+    settingsSchema: HermesSettings,
+    badgeLabel: "Fork Extension",
+  },
+  {
+    value: ProviderDriverKind.make("pi"),
+    label: "Pi",
+    icon: PiAgentIcon,
+    settingsSchema: PiSettings,
     badgeLabel: "Fork Extension",
   },
 ];

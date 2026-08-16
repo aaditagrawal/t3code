@@ -1773,6 +1773,8 @@ describe("PROVIDER_OPTIONS", () => {
       { value: "geminiCli", label: "Gemini CLI", available: true },
       { value: "amp", label: "AMPcode", available: true },
       { value: "kilo", label: "Kilo", available: true },
+      { value: "hermes", label: "Hermes", available: true },
+      { value: "pi", label: "Pi", available: true },
     ]);
     expect(copilot).toEqual({
       value: "copilot",

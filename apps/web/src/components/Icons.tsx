@@ -904,6 +904,16 @@ export const PiAgentIcon: Icon = ({ className, ...props }) => (
   </svg>
 );
 
+// Hermes — original winged-H glyph, kept monochrome to match provider chrome.
+export const HermesIcon: Icon = ({ className, ...props }) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" className={cn(className)}>
+    <path
+      fill="currentColor"
+      d="M4 5h3v5h10V5h3v14h-3v-6H7v6H4V5Zm-3 2 3 2v3L1 10V7Zm22 0v3l-3 2V9l3-2Z"
+    />
+  </svg>
+);
+
 // Amp / Sourcegraph — orange ampersand-inspired wedge mark.
 export const AmpIcon: Icon = ({ className, monochrome, ...props }) => (
   <svg
