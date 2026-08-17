@@ -1,0 +1,15 @@
+# Tool configuration only — the plugin is installed by copying the directory
+# (see install.sh), not packaged, so there is deliberately no [project] table.
+
+[tool.ruff]
+# The plugin's floor: the code uses `X | None` unions and dict/list generics
+# that require Python 3.10+.
+target-version = "py310"
+
+[tool.ruff.lint]
+# F catches real bugs — F811 (redefinition) is the rule that would have
+# flagged the duplicated definitions this config was added alongside.
+select = ["E", "W", "F"]
+# The plugin favors long explanatory docstrings and comments; do not enforce a
+# line length rather than reflowing existing prose.
+ignore = ["E501"]
