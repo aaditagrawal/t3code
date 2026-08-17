@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off
 import {
   CheckpointRef,
   CommandId,
@@ -10,6 +11,9 @@ import {
   ProviderInstanceId,
 } from "@t3tools/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeFS from "node:fs";
+import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
@@ -22,7 +26,10 @@ import { describe, expect, it } from "vite-plus/test";
 import { PersistenceSqlError } from "../../persistence/Errors.ts";
 import { OrchestrationCommandReceiptRepositoryLive } from "../../persistence/Layers/OrchestrationCommandReceipts.ts";
 import { OrchestrationEventStoreLive } from "../../persistence/Layers/OrchestrationEventStore.ts";
-import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
+import {
+  makeSqlitePersistenceLive,
+  SqlitePersistenceMemory,
+} from "../../persistence/Layers/Sqlite.ts";
 import {
   OrchestrationEventStore,
   type OrchestrationEventStoreShape,
@@ -46,10 +53,17 @@ const asMessageId = (value: string): MessageId => MessageId.make(value);
 const asTurnId = (value: string): TurnId => TurnId.make(value);
 const asCheckpointRef = (value: string): CheckpointRef => CheckpointRef.make(value);
 
-async function createOrchestrationSystem() {
-  const ServerConfigLayer = ServerConfig.layerTest(process.cwd(), {
-    prefix: "t3-orchestration-engine-test-",
-  });
+async function createOrchestrationSystem(options?: {
+  readonly baseDir?: string;
+  readonly dbPath?: string;
+}) {
+  const ServerConfigLayer = ServerConfig.layerTest(
+    process.cwd(),
+    options?.baseDir ?? { prefix: "t3-orchestration-engine-test-" },
+  );
+  const persistenceLayer = options?.dbPath
+    ? makeSqlitePersistenceLive(options.dbPath)
+    : SqlitePersistenceMemory;
   const orchestrationLayer = Layer.mergeAll(
     OrchestrationEngineLive.pipe(
       Layer.provide(OrchestrationProjectionSnapshotQueryLive),
@@ -62,7 +76,7 @@ async function createOrchestrationSystem() {
     Layer.provide(OrchestrationEventStoreLive),
     Layer.provide(OrchestrationCommandReceiptRepositoryLive),
     Layer.provide(RepositoryIdentityResolver.layer),
-    Layer.provide(SqlitePersistenceMemory),
+    Layer.provide(persistenceLayer),
     Layer.provideMerge(ServerConfigLayer),
     Layer.provideMerge(NodeServices.layer),
   );
@@ -1292,6 +1306,85 @@ describe("OrchestrationEngine", () => {
     expect(thread?.messages.filter((message) => message.role === "user")).toHaveLength(1);
 
     await system.dispose();
+  });
+
+  it("deduplicates a durable notification after the orchestration runtime restarts", async () => {
+    const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-notification-restart-"));
+    const dbPath = NodePath.join(baseDir, "state.sqlite");
+    const createdAt = now();
+    const projectId = asProjectId("project-notification-restart");
+    const threadId = ThreadId.make("thread-notification-restart");
+    const notification = {
+      type: "thread.notification.deliver",
+      commandId: CommandId.make("hermes-delivery-restart-proof"),
+      threadId,
+      messageId: asMessageId("hermes-delivery-restart-proof"),
+      deliveryId: "delivery-restart-proof",
+      kind: "cron",
+      label: "Cron: restart proof",
+      text: "Persist exactly once.",
+      createdAt,
+    } as const;
+
+    try {
+      let firstSequence = 0;
+      const first = await createOrchestrationSystem({ baseDir, dbPath });
+      try {
+        await first.run(
+          first.engine.dispatch({
+            type: "project.create",
+            commandId: CommandId.make("cmd-notification-restart-project"),
+            projectId,
+            title: "Notification Restart",
+            workspaceRoot: NodePath.join(baseDir, "workspace"),
+            defaultModelSelection: {
+              instanceId: ProviderInstanceId.make("hermes"),
+              model: "hermes",
+            },
+            createdAt,
+          }),
+        );
+        await first.run(
+          first.engine.dispatch({
+            type: "thread.create",
+            commandId: CommandId.make("cmd-notification-restart-thread"),
+            threadId,
+            projectId,
+            title: "Home",
+            modelSelection: {
+              instanceId: ProviderInstanceId.make("hermes"),
+              model: "hermes",
+            },
+            interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+            runtimeMode: "approval-required",
+            branch: null,
+            worktreePath: null,
+            createdAt,
+          }),
+        );
+        firstSequence = (await first.run(first.engine.dispatch(notification))).sequence;
+      } finally {
+        await first.dispose();
+      }
+
+      const second = await createOrchestrationSystem({ baseDir, dbPath });
+      try {
+        const retried = await second.run(second.engine.dispatch(notification));
+        expect(retried.sequence).toBe(firstSequence);
+
+        const readModel = await second.readModel();
+        const thread = readModel.threads.find((candidate) => candidate.id === threadId);
+        const delivered = thread?.messages.filter(
+          (message) => message.id === notification.messageId,
+        );
+        expect(delivered).toHaveLength(1);
+        expect(delivered?.[0]?.text).toBe("> Cron: restart proof\n\nPersist exactly once.");
+      } finally {
+        await second.dispose();
+      }
+    } finally {
+      NodeFS.rmSync(baseDir, { recursive: true, force: true });
+    }
   });
 
   it("rejects reusing an accepted command id for a different aggregate", async () => {

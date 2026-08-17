@@ -443,6 +443,46 @@ describe("MessagesTimeline", () => {
     expect(onAnchorReady).toHaveBeenCalledWith(secondEntry.message.id, 1);
   });
 
+  it("renders proactive assistant image and file attachments", () => {
+    const entry = buildAssistantTimelineEntry("Cron output");
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          {
+            ...entry,
+            message: {
+              ...entry.message,
+              attachments: [
+                {
+                  type: "image" as const,
+                  id: "attachment-image",
+                  name: "chart.png",
+                  mimeType: "image/png",
+                  sizeBytes: 10,
+                  previewUrl: "https://assets.example/chart.png",
+                },
+                {
+                  type: "file" as const,
+                  id: "attachment-file",
+                  name: "report.pdf",
+                  mimeType: "application/pdf",
+                  sizeBytes: 20,
+                  previewUrl: "https://assets.example/report.bin",
+                },
+              ],
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain('alt="chart.png"');
+    expect(markup).toContain('href="https://assets.example/report.bin"');
+    expect(markup).toContain('download="report.pdf"');
+    expect(markup).toContain("application/pdf");
+  });
+
   it("renders collapse controls for long user messages", () => {
     const markup = renderToStaticMarkup(
       <MessagesTimeline

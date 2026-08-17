@@ -34,12 +34,15 @@ export function toSafeThreadAttachmentSegment(threadId: string): string | null {
   return segment;
 }
 
-export function createAttachmentId(threadId: string): string | null {
+export function createAttachmentId(
+  threadId: string,
+  uniqueId: string = NodeCrypto.randomUUID(),
+): string | null {
   const threadSegment = toSafeThreadAttachmentSegment(threadId);
   if (!threadSegment) {
     return null;
   }
-  return `${threadSegment}-${NodeCrypto.randomUUID()}`;
+  return `${threadSegment}-${uniqueId}`;
 }
 
 export function parseThreadSegmentFromAttachmentId(attachmentId: string): string | null {
@@ -63,6 +66,10 @@ export function attachmentRelativePath(attachment: ChatAttachment): string {
       });
       return `${attachment.id}${extension}`;
     }
+    case "file":
+      // Keep user-controlled names and MIME-derived extensions out of paths.
+      // The asset service supplies safe download semantics for this opaque file.
+      return `${attachment.id}.bin`;
   }
 }
 

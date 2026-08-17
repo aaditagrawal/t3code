@@ -51,6 +51,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CircleAlertIcon,
+  FileIcon,
   EyeIcon,
   GlobeIcon,
   HammerIcon,
@@ -955,7 +956,9 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
 
 function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
-  const userImages = row.message.attachments ?? [];
+  const attachments = row.message.attachments ?? [];
+  const userImages = attachments.filter((attachment) => attachment.type === "image");
+  const userFiles = attachments.filter((attachment) => attachment.type === "file");
   const displayedUserMessage = deriveDisplayedUserMessageState(row.message.text);
   const terminalContexts = displayedUserMessage.contexts;
   const previewAnnotations: ParsedPreviewAnnotation[] = [];
@@ -1011,6 +1014,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
             ))}
           </div>
         )}
+        <MessageFileAttachments attachments={userFiles} />
         {previewAnnotations.map((annotation, index) => (
           <UserMessagePreviewAnnotationCard
             key={annotation.id}
@@ -1117,6 +1121,7 @@ function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "mess
           lineBreaks={shouldPreserveAssistantLineBreaks(messageText)}
           skills={ctx.skills}
         />
+        <MessageAttachments attachments={row.message.attachments ?? []} />
         <AssistantChangedFilesSection
           turnSummary={row.assistantTurnDiffSummary}
           routeThreadKey={ctx.routeThreadKey}
@@ -1142,6 +1147,80 @@ function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "mess
         ) : null}
       </div>
     </>
+  );
+}
+
+function MessageAttachments(props: {
+  attachments: ReadonlyArray<NonNullable<TimelineMessage["attachments"]>[number]>;
+}) {
+  const ctx = use(TimelineRowCtx);
+  const images = props.attachments.filter((attachment) => attachment.type === "image");
+  const files = props.attachments.filter((attachment) => attachment.type === "file");
+  return (
+    <>
+      {images.length > 0 ? (
+        <div className="mt-2 grid max-w-[560px] grid-cols-2 gap-2">
+          {images.map((image) => (
+            <div key={image.id} className="overflow-hidden rounded-lg border border-border/80">
+              {image.previewUrl ? (
+                <button
+                  type="button"
+                  className="h-full w-full cursor-zoom-in"
+                  aria-label={`Preview ${image.name}`}
+                  onClick={() => {
+                    const preview = buildExpandedImagePreview(images, image.id);
+                    if (preview) ctx.onImageExpand(preview);
+                  }}
+                >
+                  <img
+                    src={image.previewUrl}
+                    alt={image.name}
+                    className="block h-auto max-h-[320px] w-full object-contain"
+                  />
+                </button>
+              ) : (
+                <div className="p-3 text-muted-foreground text-xs">{image.name}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <MessageFileAttachments attachments={files} />
+    </>
+  );
+}
+
+function MessageFileAttachments(props: {
+  attachments: ReadonlyArray<
+    Extract<NonNullable<TimelineMessage["attachments"]>[number], { type: "file" }>
+  >;
+}) {
+  if (props.attachments.length === 0) return null;
+  return (
+    <div className="mt-2 flex max-w-[560px] flex-col gap-1.5">
+      {props.attachments.map((file) =>
+        file.previewUrl ? (
+          <a
+            key={file.id}
+            href={file.previewUrl}
+            download={file.name}
+            className="flex items-center gap-2 rounded-lg border border-border/80 bg-muted/30 px-3 py-2 text-sm hover:bg-muted/60"
+          >
+            <FileIcon className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{file.name}</span>
+            <span className="shrink-0 text-muted-foreground text-xs">{file.mimeType}</span>
+          </a>
+        ) : (
+          <div
+            key={file.id}
+            className="flex items-center gap-2 rounded-lg border border-border/80 px-3 py-2 text-sm"
+          >
+            <FileIcon className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{file.name}</span>
+          </div>
+        ),
+      )}
+    </div>
   );
 }
 
