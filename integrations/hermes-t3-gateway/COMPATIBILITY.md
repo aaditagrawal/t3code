@@ -2,13 +2,14 @@
 
 The plugin deliberately uses only public Hermes plugin and platform-adapter
 surfaces. The compatibility shims were audited at Hermes Agent upstream commit
-`62e07223` (v0.19.0); the handoff callback was separately audited on current
-official main at `d109785b`.
+`62e07223` (v0.19.0). The supported handoff callback shape was separately
+audited at official revision `d109785b`; v0.19.0 remains supported through the
+documented Home fallback.
 
-T3 interactive turns are intentionally outside this plugin: `hermes-acp` owns
-them. The v4 validators and BasePlatformAdapter callbacks remain for API/wire
-compatibility, but gateway `turn.start` and `turn.steer` dispatch fails
-recoverably before invoking Hermes.
+T3 interactive turns are intentionally outside the companion integration:
+`hermes-acp` owns them. The v4 validators and BasePlatformAdapter callbacks
+remain for API/wire compatibility, but companion `turn.start` and `turn.steer`
+dispatch fails recoverably before invoking Hermes.
 
 Scope note: this file inventories **upstream Hermes** surfaces only. T3-side
 machinery the plugin talks to over the wire — `withHermesConfig`, the broker's
@@ -465,14 +466,15 @@ Resolving through that accessor rather than `~/.hermes` makes the queue
 profile-scoped: a second profile cannot replay another profile's deliveries
 into its own home thread.
 
-Correctness rests on one rule: a `home.deliver` entry is removed **only** on its
-`home.deliver.ack`, and a `media.deliver` entry is removed **only** on its
-`media.deliver.ack`. Everything else — a socket that dropped mid-send, a server
+Correctness rests on one rule: an entry is removed **only** on the matching ack
+(`home.deliver.ack` for text or `media.deliver.ack` for media). Everything else
+— a socket that dropped mid-send, a server
 that died before writing, a plugin restart — leaves the entry to be replayed,
-which is safe because T3 dedupes on `deliveryId`. Acking before the durable write
-on the server side would break this. The queue is capped at 300 entries and
-256MiB total, dropping oldest-first with a logged warning. One flush replays at
-most 50 entries or 100MiB so a reconnect does not stall live traffic.
+which is safe because T3 dedupes on `deliveryId`. Acking before the durable
+write on the server side would break this. The queue is capped at 300 entries
+and 256MiB total, dropping oldest-first with a logged warning; retention beyond
+those bounds is therefore not guaranteed. One flush replays
+at most 50 entries or 100MiB so a reconnect does not stall live traffic.
 
 ### Cron tool-hook misattribution
 

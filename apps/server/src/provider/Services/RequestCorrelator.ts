@@ -21,7 +21,12 @@ export interface RequestCorrelator<Owner, Response> {
   readonly request: (
     input: RequestCorrelatorSend<Owner>,
   ) => Effect.Effect<Response, ProviderAdapterRequestError>;
-  readonly complete: (requestId: string, response: Response) => Effect.Effect<boolean>;
+  /** Complete only when the response arrived over the request's exact owner. */
+  readonly complete: (
+    owner: Owner,
+    requestId: string,
+    response: Response,
+  ) => Effect.Effect<boolean>;
   readonly failOwner: (owner: Owner, detail: string) => Effect.Effect<void>;
   readonly sweep: Effect.Effect<void>;
   readonly pendingCount: Effect.Effect<number>;

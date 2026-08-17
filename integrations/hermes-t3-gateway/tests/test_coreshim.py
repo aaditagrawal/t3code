@@ -11,6 +11,7 @@ real module: these tests must run with no Hermes installed.
 from __future__ import annotations
 
 import enum
+import asyncio
 import importlib.util
 import pathlib
 import sys
@@ -173,6 +174,28 @@ class ShimApplicationTests(unittest.TestCase):
         self.assertFalse(
             hasattr(module._send_via_adapter.__wrapped__, "__wrapped__")
         )
+
+    def test_wrapper_preserves_positional_only_and_keyword_only_kinds(self):
+        module = _fake_core()
+        calls = []
+
+        async def _send_via_adapter(
+            platform, pconfig, chat_id, chunk, /, *, thread_id=None,
+            media_files=None, force_document=False
+        ):
+            calls.append((platform, chat_id, chunk, thread_id))
+            return {"success": True}
+
+        module._send_via_adapter = _send_via_adapter
+        self.assertTrue(coreshim.apply(module)["_send_via_adapter"])
+
+        async def exercise():
+            return await module._send_via_adapter(
+                Platform.T3, None, "home", "text", thread_id="thread"
+            )
+
+        self.assertEqual(asyncio.run(exercise()), {"success": True})
+        self.assertEqual(calls, [(Platform.T3, "home", "text", "thread")])
 
 
 class FailOpenTests(unittest.TestCase):

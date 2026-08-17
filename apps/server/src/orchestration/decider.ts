@@ -1423,6 +1423,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
+      if (thread.modelSelection.instanceId !== command.expectedProviderInstanceId) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Thread '${command.threadId}' is no longer owned by provider instance '${command.expectedProviderInstanceId}'.`,
+        });
+      }
       const messageEvent: Omit<OrchestrationEvent, "sequence"> = {
         ...(yield* withEventBase({
           aggregateKind: "thread",

@@ -1254,32 +1254,34 @@ export const makeHermesGatewayBroker = Effect.gen(function* () {
     ).pipe(Effect.andThen(effect));
 
   const receive = (registration: HermesGatewayConnectionRegistration, message: PluginMessage) =>
-    withAuthorizedConnection(
-      registration,
-      Effect.gen(function* () {
-        // A delivery connection's frames — `home.deliver` and `media.deliver` —
-        // are handled at the transport layer, because their acks have to go back
-        // to that specific short-lived socket. Anything else it sends is outside
-        // its remit and is dropped here: it holds no session, so completing a
-        // correlated request or publishing a status off it would let a throwaway
-        // cron socket speak for the live connection.
-        if (registration.role === "delivery") return;
+    Effect.gen(function* () {
+      // Delivery operations deliberately retain the lifecycle lock through
+      // their durable commit so revocation cannot return while an old
+      // credential is still writing. Primary response frames take this
+      // generation-fenced fast path instead: a large media fsync must never
+      // hold up pong processing and make a healthy socket look half-open.
+      if (registration.role === "delivery" || registration.generation === null) return;
+      const active = yield* connections.connection(registration.instanceId);
+      if (active?.generation !== registration.generation) return;
 
-        if (message.type === "connection.status") {
-          const applied = yield* connections.recordSessionCount(
-            registration,
-            message.activeSessionCount,
-          );
-          if (!applied) return;
-          yield* publishCurrentStatus(registration.instanceId, "get-status");
-        }
+      if (message.type === "connection.status") {
+        const applied = yield* connections.recordSessionCount(
+          registration,
+          message.activeSessionCount,
+        );
+        if (!applied) return;
+        yield* publishCurrentStatus(registration.instanceId, "get-status");
+      }
 
-        if ("requestId" in message && message.requestId) {
-          yield* correlator.complete(message.requestId, message);
-        }
-        yield* PubSub.publish(events, { instanceId: registration.instanceId, message });
-      }),
-    );
+      if ("requestId" in message && message.requestId) {
+        yield* correlator.complete(
+          requestOwner(registration.instanceId, registration.generation),
+          message.requestId,
+          message,
+        );
+      }
+      yield* PubSub.publish(events, { instanceId: registration.instanceId, message });
+    });
 
   const disconnect = (registration: HermesGatewayConnectionRegistration) =>
     Effect.gen(function* () {

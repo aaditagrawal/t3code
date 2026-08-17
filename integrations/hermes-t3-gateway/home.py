@@ -164,7 +164,7 @@ class HomeDeliveryQueue:
     Entries are stored as raw wire frames keyed on `deliveryId`, so the queue
     carries `home.deliver` and `media.deliver` alike: flushing replays the
     frame verbatim and T3 discriminates on `type`. A media entry is large (up
-    to ~34MiB of base64 on one line), so the entry cap doubles as a coarse disk
+    to ~34MB of base64 on one line), so the entry cap doubles as a coarse disk
     bound; a genuinely wedged connection under heavy media output trades disk
     for durability, which is the documented preference.
 
@@ -630,7 +630,7 @@ def build_media_delivery(
     reason as `build_delivery`.
 
     Raises `OSError` when the file cannot be read and `ValueError` when it is
-    empty or over the 25MiB wire ceiling — the caller decides whether that is a
+    empty or over the 25MB wire ceiling — the caller decides whether that is a
     logged skip (adapter) or a reported error (standalone sender).
     """
     file_path = Path(path)
@@ -683,7 +683,7 @@ async def standalone_send(
 
     `media_files` rides the v4 wire as one `media.deliver` frame per file
     (upstream passes `(path, is_voice)` tuples; bare path strings are accepted
-    too). A file that cannot be read or exceeds the 25MiB frame ceiling is
+    too). A file that cannot be read or exceeds the 25MB frame ceiling is
     reported in `detail` and skipped — never queued, because a queued frame
     that T3 will always reject would sit in the outbox forever. `force_document`
     remains signature parity only: T3 derives rendering from `mimeType`, so
@@ -797,10 +797,14 @@ async def standalone_send(
     # Never short-circuit this batch. A failed first write must not prevent the
     # later media frames from reaching the durable outbox, and success below is
     # computed per delivery rather than from one misleading aggregate boolean.
-    queued_ids: set[str] = set()
+    append_results = []
     for frame in frames:
-        if await asyncio.to_thread(queue.append, frame):
-            queued_ids.add(str(frame["deliveryId"]))
+        append_results.append(await asyncio.to_thread(queue.append, frame))
+    queued_ids = {
+        str(frame["deliveryId"])
+        for frame, appended in zip(frames, append_results)
+        if appended
+    }
     expected_ids = set(all_ids)
 
     try:
@@ -871,6 +875,8 @@ async def _deliver_over_short_lived_socket(
     `media.deliver.ack` are equivalent here). A timeout returns whatever was
     acked so far — the caller purges exactly those and leaves the rest queued.
     """
+    import asyncio
+
     from .connection import _open_socket, authenticate_socket
 
     hermes_version = _hermes_version()
@@ -900,7 +906,7 @@ async def _deliver_over_short_lived_socket(
                 return acked
             try:
                 raw = await asyncio.wait_for(socket.recv(), timeout=remaining)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return acked
             try:
                 reply = json.loads(raw)

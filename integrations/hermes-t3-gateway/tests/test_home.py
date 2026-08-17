@@ -550,58 +550,37 @@ class StandaloneSenderTests(unittest.IsolatedAsyncioTestCase):
         # Acked, so nothing is left queued for the live gateway to replay.
         self.assertEqual(home.HomeDeliveryQueue().entries(), [])
 
-    async def test_delivery_timeout_returns_the_acknowledged_prefix(self):
-        class FirstAckThenTimeout(MockDeliveryServer):
-            def __init__(self):
-                super().__init__(ack=False)
-                self._acked_delivery = False
-
-            async def send(self, raw):
-                await super().send(raw)
-                message = json.loads(raw)
-                if message.get("type") == "home.deliver" and not self._acked_delivery:
-                    self._acked_delivery = True
-                    self._outbox.append(
-                        json.dumps(
-                            {
-                                "type": "home.deliver.ack",
-                                "protocolVersion": protocol.PROTOCOL_VERSION,
-                                "deliveryId": message["deliveryId"],
-                            }
-                        )
-                    )
-
+    async def test_delivery_ack_timeout_returns_ids_received_so_far(self):
+        class PartialAckServer(MockDeliveryServer):
             async def recv(self):
                 if self._outbox:
                     return self._outbox.pop(0)
-                await asyncio.Event().wait()
+                await asyncio.Future()
 
-        first = protocol.home_deliver(
-            delivery_id_value="delivery-first",
-            thread_id="home-thread",
-            text="First",
-            kind="cron",
-            label="Cron",
-        )
-        second = protocol.home_deliver(
-            delivery_id_value="delivery-second",
-            thread_id="home-thread",
-            text="Second",
-            kind="cron",
-            label="Cron",
-        )
-        server = FirstAckThenTimeout()
+        frames = [
+            home.build_delivery(thread_id="home-thread", text=text)
+            for text in ("first", "second")
+        ]
+        server = PartialAckServer()
+        # Suppress the second ack so recv blocks after the first one.
+        original_send = server.send
 
+        async def send(value):
+            await original_send(value)
+            if len([m for m in server.sent if m.get("type") == "home.deliver"]) == 2:
+                server._outbox.pop()
+
+        server.send = send
         with self._serve(server):
             acked = await home._deliver_over_short_lived_socket(
                 url="wss://t3.example/api/hermes-gateway/ws",
                 instance_id="provider-instance",
                 credential="secret",
-                frames=[first, second],
+                frames=frames,
                 timeout=0.01,
             )
 
-        self.assertEqual(acked, {"delivery-first"})
+        self.assertEqual(acked, {frames[0]["deliveryId"]})
         self.assertTrue(server.closed)
 
     async def test_an_unreachable_t3_queues_rather_than_failing_the_cron_job(self):

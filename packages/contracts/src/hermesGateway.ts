@@ -739,7 +739,7 @@ export const HermesGatewayHomeDeliver = Schema.Struct({
   threadId: ThreadId,
   kind: HermesGatewayHomeDeliveryKind,
   /** Human source label rendered as the badge — "Cron: daily-digest". */
-  label: TrimmedNonEmptyString.check(Schema.isMaxLength(200)),
+  label: TrimmedNonEmptyString.check(Schema.isMaxLength(200), Schema.isPattern(/^[^\r\n]*$/)),
   text: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(120_000)),
   /**
    * When Hermes produced the content, not when it reached T3. These diverge
@@ -786,7 +786,7 @@ export const HermesGatewayMediaDeliver = Schema.Struct({
   turnId: Schema.optional(TurnId),
   kind: HermesGatewayHomeDeliveryKind,
   /** Human source label rendered as the badge — "Cron: daily-digest". */
-  label: TrimmedNonEmptyString.check(Schema.isMaxLength(200)),
+  label: TrimmedNonEmptyString.check(Schema.isMaxLength(200), Schema.isPattern(/^[^\r\n]*$/)),
   name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
   mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100)),
   sizeBytes: PositiveInt,

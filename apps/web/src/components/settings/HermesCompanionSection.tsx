@@ -13,6 +13,7 @@ import type {
 import { useAtomCommand } from "../../state/use-atom-command";
 import { serverEnvironment } from "../../state/server";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
+import { requestConfirmDialog } from "../../confirmDialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { toastManager } from "../ui/toast";
@@ -160,16 +161,15 @@ export function HermesCompanionSection(props: {
       action === "revoke"
         ? "Revoke this companion's access? It will need to be enrolled again."
         : "Remove this companion enrollment record? Your Hermes provider remains configured.";
-    if (!window.confirm(prompt)) return;
+    if (!(await requestConfirmDialog(prompt, { variant: "destructive" }))) return;
     refreshGeneration.current += 1;
     setPending(true);
     setError(null);
-    const target = {
-      environmentId: props.environmentId,
-      input: { instanceId: props.instanceId },
-    };
     if (action === "revoke") {
-      const result = await revoke(target);
+      const result = await revoke({
+        environmentId: props.environmentId,
+        input: { instanceId: props.instanceId },
+      });
       if (result._tag === "Success") {
         setEnrollment(null);
         setStatus(result.value);
@@ -177,7 +177,10 @@ export function HermesCompanionSection(props: {
         setError(messageFromUnknownError(squashAtomCommandFailure(result)));
       }
     } else {
-      const result = await remove(target);
+      const result = await remove({
+        environmentId: props.environmentId,
+        input: { instanceId: props.instanceId },
+      });
       if (result._tag === "Success") {
         setEnrollment(null);
         setStatus(null);

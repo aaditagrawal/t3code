@@ -82,13 +82,16 @@ class ProtocolTests(unittest.TestCase):
         self.assertTrue(hello["capabilities"]["streaming"])
         self.assertEqual(hello["model"], "gpt-5.6-terra")
 
-    def test_hello_preserves_delivery_role_and_defaults_unknown_roles(self):
-        common = {
-            "hermes_version": "0.19.0",
-            "authentication": {"type": "instance-credential", "credential": "secret"},
-        }
-        self.assertEqual(protocol.connection_hello(**common, role="delivery")["role"], "delivery")
-        self.assertEqual(protocol.connection_hello(**common, role="future-role")["role"], "gateway")
+    def test_hello_normalizes_supported_roles_and_falls_back_to_gateway(self):
+        authentication = {"type": "instance-credential", "credential": "secret"}
+        delivery = protocol.connection_hello(
+            hermes_version="0.19.0", authentication=authentication, role=" DELIVERY "
+        )
+        invalid = protocol.connection_hello(
+            hermes_version="0.19.0", authentication=authentication, role="admin"
+        )
+        self.assertEqual(delivery["role"], "delivery")
+        self.assertEqual(invalid["role"], "gateway")
 
     def test_hello_reports_the_configured_hermes_model(self):
         config = {"model": {"default": "gpt-5.6-terra"}}

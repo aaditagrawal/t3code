@@ -127,10 +127,13 @@ export const makeRequestCorrelator = <Owner, Response>(
         );
       });
 
-    const complete = (requestId: string, response: Response) =>
+    const complete = (owner: Owner, requestId: string, response: Response) =>
       Ref.modify(pending, (current) => {
         const found = current.get(requestId);
-        if (!found) return [undefined, current] as const;
+        // A request id identifies a request only within the connection that
+        // owns it. A stale/replaced connection must not be able to satisfy a
+        // newer generation's waiter by replaying the same id.
+        if (!found || found.owner !== owner) return [undefined, current] as const;
         const next = new Map(current);
         next.delete(requestId);
         return [found, next] as const;

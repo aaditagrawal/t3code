@@ -106,10 +106,12 @@ const readHomeThreadRow = Effect.fn("readHomeThreadRow")(function* (threadId: Th
   // thread from one that was actually deleted. Production uses the indexed
   // query above, so this O(n) fallback is not on the gateway hot path.
   const active = yield* query.getThreadShellById(threadId);
-  if (Option.isSome(active)) return { archivedAt: active.value.archivedAt };
+  if (Option.isSome(active)) {
+    return { projectId: active.value.projectId, archivedAt: active.value.archivedAt };
+  }
   const archived = yield* query.getArchivedShellSnapshot();
   const row = archived.threads.find((thread) => thread.id === threadId);
-  return row === undefined ? undefined : { archivedAt: row.archivedAt };
+  return row === undefined ? undefined : { projectId: row.projectId, archivedAt: row.archivedAt };
 });
 
 /**

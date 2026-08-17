@@ -69,7 +69,7 @@ MAX_SKILL_BODY_CHARS = 512_000
 
 # Raw-byte ceiling for a single `media.deliver` frame, and for each attachment
 # riding an inbound turn frame. Mirrors `HERMES_MEDIA_MAX_BYTES` in the T3
-# contract: 25MiB of raw bytes is ~34MiB of base64, and the schema bound there is
+# contract: 25MB of raw bytes is ~34MB of base64, and the schema bound there is
 # on the encoded string so an oversized frame fails at decode. Deliberately no
 # chunking — a file that does not fit does not send, with a clear error.
 MAX_MEDIA_BYTES = 25 * 1024 * 1024
@@ -341,8 +341,7 @@ def connection_hello(
     return hello
 
 
-def _normalized_provenance(kind: str, label: str) -> tuple[str, str]:
-    """Clamp delivery provenance to the shared T3 wire bounds."""
+def _normalize_delivery_provenance(kind: str, label: str) -> tuple[str, str]:
     normalized_kind = str(kind or "").strip().lower()
     if normalized_kind not in HOME_DELIVERY_KINDS:
         normalized_kind = "other"
@@ -374,7 +373,7 @@ def home_deliver(
     a misclassified badge is the documented worst case, a dropped delivery is
     not.
     """
-    normalized_kind, normalized_label = _normalized_provenance(kind, label)
+    normalized_kind, normalized_label = _normalize_delivery_provenance(kind, label)
     normalized_text = str(text or "")[:MAX_HOME_DELIVERY_TEXT_CHARS]
     if not normalized_text:
         normalized_text = " "
@@ -430,9 +429,9 @@ def media_deliver(
     if len(data) > MAX_MEDIA_BYTES:
         raise ValueError(
             f"media.deliver payload is {len(data)} bytes; "
-            f"the wire ceiling is {MAX_MEDIA_BYTES} bytes (25MiB)"
+            f"the wire ceiling is {MAX_MEDIA_BYTES} bytes (25MB)"
         )
-    normalized_kind, normalized_label = _normalized_provenance(kind, label)
+    normalized_kind, normalized_label = _normalize_delivery_provenance(kind, label)
     normalized_name = str(name or "").strip()[:MAX_MEDIA_NAME_CHARS].strip()
     if not normalized_name:
         normalized_name = "attachment.bin"
@@ -499,7 +498,7 @@ def turn_attachments(message: dict[str, Any]) -> list[dict[str, Any]]:
         if len(data) > MAX_MEDIA_BYTES:
             raise ValueError(
                 f"turn attachment {name!r} is {len(data)} bytes; "
-                f"the wire ceiling is {MAX_MEDIA_BYTES} bytes (25MiB)"
+                f"the wire ceiling is {MAX_MEDIA_BYTES} bytes (25MB)"
             )
         mime = str(entry.get("mimeType") or "").strip()
         attachments.append(

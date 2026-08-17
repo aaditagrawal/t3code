@@ -9,14 +9,12 @@ public port.
 Ordinary interactive conversations use T3's built-in **`hermes-acp`** provider.
 This companion only handles enrollment and proactive Home delivery (cron,
 `send_message`, lifecycle notices, media, and handoff). Current Hermes releases
-at and after the audited `d109785b` revision call the plugin's public
-`BasePlatformAdapter.create_handoff_thread` callback; T3 creates a dedicated
-thread and the companion delivers Hermes' synthetic handoff response there.
-Older peers take the documented `None` fallback and deliver the summary to
-Home. Gateway `turn.start` and `turn.steer` commands receive a recoverable error
-and never invoke Hermes. The platform callbacks remain implemented because
-public Hermes delivery APIs use the adapter; they are not an alternative
-interactive runtime.
+call the plugin's public `BasePlatformAdapter.create_handoff_thread` callback;
+T3 creates a dedicated thread and the companion delivers Hermes' synthetic
+handoff response there. Gateway `turn.start` and `turn.steer` commands receive a
+recoverable error and never invoke Hermes. The platform callbacks remain
+implemented because public Hermes delivery APIs use the adapter; they are not
+an alternative interactive runtime.
 
 The gateway wire protocol is v4. The T3 server and Hermes plugin must be updated
 together; mismatched versions fail the connection handshake closed.
@@ -104,23 +102,22 @@ therefore be **overwritten on the next reconnect** — to move the Home thread,
 change it in T3, not in `.env`. (`/sethome` is likewise inert for this platform:
 the designation is fixed, so Hermes' "set a home channel" nudge is suppressed.)
 
-Deliveries use a durable queue in both directions. Each one is written to a
-small JSONL queue at `<hermes home>/gateway/t3_home_delivery_queue.jsonl` before
-it is sent and removed only once T3 acknowledges it. A successfully queued
-entry that remains within the configured bounds survives either side restarting
-mid-flight; queued deliveries flush on the next connect, and T3 deduplicates so
-a replay is harmless. The queue is capped and drops oldest-first with a logged
-warning rather than growing without bound. Its default bounds are 300 entries
-and 256MiB total; one reconnect flushes at most 50 entries or 100MiB so backlog
-replay cannot starve liveness traffic.
+Deliveries use a bounded durable outbox. Each one is written to a JSONL
+queue at `<hermes home>/gateway/t3_home_delivery_queue.jsonl` before it is sent
+and removed only once T3 acknowledges its matching frame type
+(`home.deliver.ack` for text, `media.deliver.ack` for media). Queued deliveries
+survive restarts and flush on the next connect, and T3 deduplicates replays.
+The queue drops oldest-first with a logged warning at its bounds, so retention
+beyond those bounds is not guaranteed. The defaults are
+300 entries and 256MiB total; one reconnect flushes at most 50 entries or
+100MiB so backlog replay cannot starve liveness traffic.
 
 Cron works whether or not the gateway is co-resident. When `hermes cron` runs in
 its own process there is no live adapter, so the plugin dials T3 over a
 short-lived delivery connection — authenticated the same way, but never
 registered as the instance's primary connection, so it cannot disturb a running
 `hermes gateway`. If T3 is unreachable the delivery is queued and the cron job
-still reports success only when every delivery frame was durably queued; a
-queue-write failure is reported to the cron job.
+still reports success.
 
 Attachments ride the same queue-then-ack durability as text: one `media.deliver`
 frame per file, each carrying the file's bytes rather than its path, so a
@@ -130,11 +127,6 @@ exceeds the ceiling is reported in the result's `detail` and skipped rather than
 queued — a frame T3 would reject forever must not sit in the outbox forever.
 Every successful send result also reports `media_count`, `acked_count`, and
 `delivery_ids`.
-
-## Overall integration behavior
-
-Ordinary ACP attachments are MIME-typed independently of the companion: images
-remain image blocks, while other supported files use ACP resource links.
 
 ## Companion scope
 
@@ -146,6 +138,9 @@ remain image blocks, while other supported files use ACP resource links.
   correlated timeout/reconnect cleanup and deterministic server idempotency
 - Outbound attachments: `MEDIA:` files from cron, `send_message`, and `/handoff`
   are delivered as `media.deliver` frames
+
+MIME-typed attachments on ordinary interactive prompts belong to the separate
+ACP transport, not this companion socket.
 
 Except for a server-created handoff destination, non-Home T3 threads remain
 session-only: Hermes cannot message them unprompted, and an unsolicited send to
@@ -190,11 +185,11 @@ text-only send — reaches the original untouched.
 target function and, on any signature or shape mismatch, logs one warning and
 leaves core alone rather than risking a crash on an upstream upgrade. When that
 happens the two bugs return as described above. The accounting keys on every
-successful send result (`media_count`, `acked_count`, and a note naming the
-delivered file count) are the backstop — they sit in the same JSON as any stale
-warning and contradict it directly. Grep the logs for `leaving it unpatched` to
-detect it. The whole module is removable once upstream drives media handling
-from platform capabilities instead of the hard-coded list.
+send result (`media_count`, `acked_count`, and a note naming the delivered file
+count) are the backstop — they sit in the same JSON as any stale warning and
+contradict it directly. Grep the logs for `leaving it unpatched` to detect it.
+The whole module is removable once upstream drives media handling from platform
+capabilities instead of the hard-coded list.
 
 See [COMPATIBILITY.md](./COMPATIBILITY.md) for public Hermes extension-surface
 limitations.

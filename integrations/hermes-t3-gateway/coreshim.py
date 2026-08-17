@@ -180,17 +180,14 @@ def _patch_send_via_adapter(module: Any) -> bool:
         return False
 
     from .home import standalone_send
+    signature = inspect.signature(original)
 
-    async def _send_via_adapter(
-        platform,
-        pconfig,
-        chat_id,
-        chunk,
-        *,
-        thread_id=None,
-        media_files=None,
-        force_document=False,
-    ):
+    async def _send_via_adapter(*args, **kwargs):
+        bound = signature.bind(*args, **kwargs)
+        bound.apply_defaults()
+        values = bound.arguments
+        platform = values["platform"]
+        media_files = values["media_files"]
         if _platform_name(platform) == PLATFORM and media_files:
             # Core would hand this to `adapter.send(chat_id, content, metadata)`
             # and drop `media_files` on the floor. Our sender takes the whole
@@ -198,22 +195,14 @@ def _patch_send_via_adapter(module: Any) -> bool:
             # short-lived `role: "delivery"` socket, which by design cannot
             # displace the live gateway connection sitting in the same process.
             return await standalone_send(
-                pconfig,
-                chat_id,
-                chunk,
-                thread_id=thread_id,
+                values["pconfig"],
+                values["chat_id"],
+                values["chunk"],
+                thread_id=values.get("thread_id"),
                 media_files=media_files,
-                force_document=force_document,
+                force_document=values.get("force_document", False),
             )
-        return await original(
-            platform,
-            pconfig,
-            chat_id,
-            chunk,
-            thread_id=thread_id,
-            media_files=media_files,
-            force_document=force_document,
-        )
+        return await original(*args, **kwargs)
 
     setattr(_send_via_adapter, _MARKER, True)
     _send_via_adapter.__wrapped__ = original
@@ -285,35 +274,26 @@ def _patch_send_to_platform(module: Any) -> bool:
         return False
 
     from .home import standalone_send
+    signature = inspect.signature(original)
 
-    async def _send_to_platform(
-        platform,
-        pconfig,
-        chat_id,
-        message,
-        thread_id=None,
-        media_files=None,
-        force_document=False,
-    ):
+    async def _send_to_platform(*args, **kwargs):
+        bound = signature.bind(*args, **kwargs)
+        bound.apply_defaults()
+        values = bound.arguments
+        platform = values["platform"]
+        media_files = values["media_files"]
+        message = values["message"]
         is_t3_media = _platform_name(platform) == PLATFORM and bool(media_files)
         if is_t3_media and not str(message or "").strip():
             return await standalone_send(
-                pconfig,
-                chat_id,
+                values["pconfig"],
+                values["chat_id"],
                 message or "",
-                thread_id=thread_id,
+                thread_id=values.get("thread_id"),
                 media_files=media_files,
-                force_document=force_document,
+                force_document=values.get("force_document", False),
             )
-        result = await original(
-            platform,
-            pconfig,
-            chat_id,
-            message,
-            thread_id=thread_id,
-            media_files=media_files,
-            force_document=force_document,
-        )
+        result = await original(*args, **kwargs)
         if not is_t3_media:
             return result
         if isinstance(result, dict) and result.get("success"):

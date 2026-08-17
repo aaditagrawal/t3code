@@ -70,7 +70,6 @@ const mediaFrame = (
 
 const makeHarness = (options?: {
   readonly trackedThreadId?: ThreadId;
-  readonly trackedThreadArchivedAt?: string;
   readonly failDispatch?: boolean;
   /** Archive state of the designated home thread, as the projection sees it. */
   readonly homeThreadArchivedAt?: string;
@@ -116,23 +115,16 @@ const makeHarness = (options?: {
     const queryLayer = Layer.mock(ProjectionSnapshotQuery)({
       // The home thread is designated in settings and exists, so home-thread
       // resolution takes the fast path without dispatching a thread.create.
-      getThreadArchiveStateById: (threadId) =>
+      getThreadArchiveStateById: () =>
         Effect.succeed(
-          threadId === HOME_THREAD_ID
-            ? Option.some({
-                projectId: AGENT_PROJECT_ID,
-                archivedAt: options?.homeThreadArchivedAt ?? null,
-              })
-            : options?.trackedThreadId === threadId && options.trackedThreadArchivedAt
-              ? Option.some({
-                  projectId: AGENT_PROJECT_ID,
-                  archivedAt: options.trackedThreadArchivedAt,
-                })
-              : Option.none(),
+          Option.some({
+            projectId: AGENT_PROJECT_ID,
+            archivedAt: options?.homeThreadArchivedAt ?? null,
+          }),
         ),
       getThreadShellById: (threadId) =>
         Effect.succeed(
-          options?.trackedThreadId === threadId && !options.trackedThreadArchivedAt
+          options?.trackedThreadId === threadId
             ? Option.some({
                 id: threadId,
                 projectId: AGENT_PROJECT_ID,
@@ -273,7 +265,7 @@ it.effect("refuses a forged handoff parent without creating a thread", () =>
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
-it.effect("reports an unexpected handoff dispatch failure as recoverable", () =>
+it.effect("reports unexpected handoff creation failures as recoverable", () =>
   Effect.gen(function* () {
     const harness = yield* makeHarness({ failDispatch: true });
     yield* harness.createHandoffThread(
@@ -291,7 +283,6 @@ it.effect("reports an unexpected handoff dispatch failure as recoverable", () =>
     assert.equal(harness.sent.length, 1);
     assert.equal(harness.sent[0]?.type, "protocol.error");
     if (harness.sent[0]?.type === "protocol.error") {
-      assert.equal(harness.sent[0].requestId, "handoff-dispatch-failure");
       assert.equal(harness.sent[0].code, "internal-error");
       assert.equal(harness.sent[0].recoverable, true);
     }
@@ -320,39 +311,6 @@ it.effect("allows handoff delivery only into a thread owned by the instance agen
     const delivery = dispatchedDeliveries(yield* Ref.get(harness.dispatched))[0]!;
     assert.equal(delivery.threadId, handoffThreadId);
     assert.equal(delivery.kind, "handoff");
-    assert.equal(harness.sent[0]?.type, "home.deliver.ack");
-  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
-);
-
-it.effect("resolves and reopens an archived handoff destination with a narrow lookup", () =>
-  Effect.gen(function* () {
-    const handoffThreadId = ThreadId.make("hermes-handoff-archived");
-    const harness = yield* makeHarness({
-      trackedThreadId: handoffThreadId,
-      trackedThreadArchivedAt: "2026-08-17T20:00:00.000Z",
-    });
-    yield* harness.deliverHomeNotification(
-      registration,
-      {
-        type: "home.deliver",
-        protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
-        deliveryId: HermesGatewayDeliveryId.make("handoff-delivery-archived"),
-        threadId: handoffThreadId,
-        kind: "handoff",
-        label: "Handoff",
-        text: "Resume in the archived thread.",
-        createdAt: CREATED_AT,
-      },
-      harness.transport,
-    );
-
-    const commands = yield* Ref.get(harness.dispatched);
-    assert.isTrue(
-      commands.some(
-        (command) => command.type === "thread.unarchive" && command.threadId === handoffThreadId,
-      ),
-    );
-    assert.equal(dispatchedDeliveries(commands)[0]?.threadId, handoffThreadId);
     assert.equal(harness.sent[0]?.type, "home.deliver.ack");
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
@@ -401,6 +359,30 @@ it.effect("writes turnless media to the home thread with provenance and acks aft
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
+it.effect("retries after an interrupted atomic media write", () =>
+  Effect.gen(function* () {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const completed = yield* makeHarness();
+    yield* completed.deliverMedia(registration, mediaFrame(), completed.transport);
+    const finalName = (yield* fileSystem.readDirectory(completed.attachmentsDir)).find((entry) =>
+      entry.endsWith(".png"),
+    );
+    assert.isDefined(finalName);
+
+    const retry = yield* makeHarness();
+    const interruptedDirectory = `${retry.attachmentsDir}/${finalName}.interrupted`;
+    yield* fileSystem.makeDirectory(interruptedDirectory);
+    yield* fileSystem.writeFileString(`${interruptedDirectory}/contents.tmp`, "PARTIAL");
+
+    yield* retry.deliverMedia(registration, mediaFrame(), retry.transport);
+
+    const persisted = yield* fileSystem.readFile(`${retry.attachmentsDir}/${finalName}`);
+    assert.equal(Buffer.from(persisted).toString("utf8"), "PNGBYTES");
+    assert.equal(dispatchedDeliveries(yield* Ref.get(retry.dispatched)).length, 1);
+    assert.equal(retry.sent[0]?.type, "media.deliver.ack");
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
 it.effect("acks a duplicate deliveryId without dispatching a second message", () =>
   Effect.gen(function* () {
     const harness = yield* makeHarness();
@@ -413,6 +395,68 @@ it.effect("acks a duplicate deliveryId without dispatching a second message", ()
     assert.equal(dispatchedDeliveries(yield* Ref.get(harness.dispatched)).length, 1);
     assert.equal(harness.sent.length, 2);
     assert.equal(harness.sent[0]?.type, "media.deliver.ack");
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+it.effect("keeps delivery identity stable when a retry resolves to another thread", () =>
+  Effect.gen(function* () {
+    const handoffThreadId = ThreadId.make("hermes-handoff-redesignated");
+    const harness = yield* makeHarness({ trackedThreadId: handoffThreadId });
+    const deliveryId = HermesGatewayDeliveryId.make("delivery-across-redesignation");
+
+    yield* harness.deliverHomeNotification(
+      registration,
+      {
+        type: "home.deliver",
+        protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
+        deliveryId,
+        threadId: HOME_THREAD_ID,
+        kind: "cron",
+        label: "Cron",
+        text: "Committed before the ack was lost.",
+        createdAt: CREATED_AT,
+      },
+      harness.transport,
+    );
+    yield* harness.deliverHomeNotification(
+      registration,
+      {
+        type: "home.deliver",
+        protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
+        deliveryId,
+        threadId: handoffThreadId,
+        kind: "handoff",
+        label: "Retry",
+        text: "Must not commit again.",
+        createdAt: CREATED_AT,
+      },
+      harness.transport,
+    );
+
+    const deliveries = dispatchedDeliveries(yield* Ref.get(harness.dispatched));
+    assert.equal(deliveries.length, 1);
+    assert.equal(deliveries[0]?.threadId, HOME_THREAD_ID);
+    assert.equal(harness.sent.length, 2);
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+it.effect("never overwrites committed media bytes on a conflicting retry", () =>
+  Effect.gen(function* () {
+    const harness = yield* makeHarness();
+    yield* harness.deliverMedia(registration, mediaFrame(), harness.transport);
+    yield* harness.deliverMedia(
+      registration,
+      mediaFrame({ data: Buffer.from("DIFFERENT").toString("base64"), sizeBytes: 9 }),
+      harness.transport,
+    );
+
+    const delivery = dispatchedDeliveries(yield* Ref.get(harness.dispatched))[0]!;
+    const attachment = delivery.attachments![0]!;
+    const entries = yield* (yield* FileSystem.FileSystem).readDirectory(harness.attachmentsDir);
+    const persistedPath = `${harness.attachmentsDir}/${entries.find((entry) => entry.startsWith(attachment.id))}`;
+    const persisted = yield* (yield* FileSystem.FileSystem).readFile(persistedPath);
+    assert.equal(Buffer.from(persisted).toString("utf8"), "PNGBYTES");
+    assert.equal(harness.sent.length, 1, "the conflicting retry must remain unacked");
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 

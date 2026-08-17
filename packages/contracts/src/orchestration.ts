@@ -1074,6 +1074,8 @@ const ThreadNotificationDeliverCommand = Schema.Struct({
   type: Schema.Literal("thread.notification.deliver"),
   commandId: CommandId,
   threadId: ThreadId,
+  /** Provider instance that must still own the destination at commit time. */
+  expectedProviderInstanceId: ProviderInstanceId,
   messageId: MessageId,
   deliveryId: TrimmedNonEmptyString,
   kind: Schema.Literals(["cron", "message", "lifecycle", "handoff", "other"]),

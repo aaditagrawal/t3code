@@ -448,20 +448,15 @@ it.effect("does not resurrect a credential for an enrollment superseded mid-hand
       "the superseded enrollment's credential must not survive the replacement",
     );
     // ...and cannot be replayed to authenticate.
-    if (registered._tag === "Failure") {
-      return yield* Effect.die(new Error("the superseded handshake unexpectedly failed"));
-    }
-    const credential = registered.success.accepted.credential;
+    assert.equal(registered._tag, "Success");
+    const credential =
+      registered._tag === "Success" ? registered.success.accepted.credential : undefined;
     if (!credential) {
-      return yield* Effect.die(new Error("the superseded handshake issued no credential"));
+      return yield* Effect.die(new Error("the handshake did not issue a credential to replay"));
     }
     const replayed = yield* Effect.flip(
       broker.registerConnection(
-        hello({
-          type: "instance-credential",
-          instanceId,
-          credential,
-        }),
+        hello({ type: "instance-credential", instanceId, credential }),
         recordingTransport().transport,
       ),
     );
@@ -718,6 +713,42 @@ it.effect("reports a null model for a plugin that predates the field", () =>
 );
 
 // ── Ping loop ─────────────────────────────────────────────────────
+
+it.effect("processes primary responses while a durable delivery holds the lifecycle lock", () =>
+  Effect.gen(function* () {
+    const broker = yield* makeBroker(makeSecretStore());
+    const enrollment = yield* enroll(broker, instanceId, "Concurrent Hermes");
+    const registration = yield* broker.registerConnection(
+      hello({ type: "enrollment-token", token: enrollment.oneTimeToken }),
+      recordingTransport().transport,
+    );
+    const releaseDelivery = yield* Deferred.make<void>();
+    const delivery = yield* broker
+      .withAuthorizedConnection(registration, Deferred.await(releaseDelivery))
+      .pipe(Effect.forkChild({ startImmediately: true }));
+    yield* Effect.yieldNow;
+
+    const response = yield* broker
+      .receive(registration, {
+        type: "pong",
+        protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
+        requestId: HermesGatewayRequestId.make("pong-while-delivering"),
+        sentAt: "2026-07-23T12:00:00.000Z",
+      })
+      .pipe(Effect.forkChild({ startImmediately: true }));
+    for (let i = 0; i < 20 && response.pollUnsafe() === undefined; i += 1) {
+      yield* Effect.yieldNow;
+    }
+    assert.isDefined(
+      response.pollUnsafe(),
+      "liveness responses must not wait behind media persistence",
+    );
+
+    yield* Deferred.succeed(releaseDelivery, undefined);
+    yield* Fiber.join(delivery);
+    yield* Fiber.join(response);
+  }).pipe(Effect.provide(testLayer)),
+);
 
 it.effect("pings an active connection and stays connected while pongs arrive", () =>
   Effect.gen(function* () {
@@ -1386,38 +1417,5 @@ it.effect("a delivery connection never displaces the live gateway connection", (
       broker.withAuthorizedConnection(delivery, Effect.void),
     );
     assert.include(revokedDelivery.detail, "no longer authorized");
-  }).pipe(Effect.provide(testLayer)),
-);
-
-it.effect("does not hold the instance lifecycle lock while authorized work runs", () =>
-  Effect.gen(function* () {
-    const broker = yield* makeBroker(makeSecretStore());
-    const enrollment = yield* enroll(broker, instanceId, "Remote Hermes");
-    const registration = yield* broker.registerConnection(
-      hello({ type: "enrollment-token", token: enrollment.oneTimeToken }),
-      recordingTransport().transport,
-    );
-    const workStarted = yield* Deferred.make<void>();
-    const releaseWork = yield* Deferred.make<void>();
-    const inFlight = yield* broker
-      .withAuthorizedConnection(
-        registration,
-        Deferred.succeed(workStarted, undefined).pipe(Effect.andThen(Deferred.await(releaseWork))),
-      )
-      .pipe(Effect.forkChild({ startImmediately: true }));
-    yield* Deferred.await(workStarted);
-
-    const revoked = yield* broker
-      .revokeInstance(instanceId)
-      .pipe(Effect.forkChild({ startImmediately: true }));
-    yield* Effect.yieldNow;
-    assert.isDefined(
-      revoked.pollUnsafe(),
-      "an authorized delivery must not block revocation or liveness for the instance",
-    );
-
-    yield* Deferred.succeed(releaseWork, undefined);
-    yield* Fiber.join(inFlight);
-    yield* Fiber.join(revoked);
   }).pipe(Effect.provide(testLayer)),
 );

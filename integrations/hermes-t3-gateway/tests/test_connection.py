@@ -361,6 +361,40 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
             release_callback.set()
             await conn.disconnect()
 
+    async def test_disconnect_cancels_handlers_before_notifying_disconnected(self):
+        handler_started = asyncio.Event()
+        handler_drained = asyncio.Event()
+        notifications = []
+
+        async def handler(_message):
+            handler_started.set()
+            try:
+                await asyncio.Future()
+            finally:
+                await asyncio.sleep(0)
+                handler_drained.set()
+
+        async def on_state(connected, _reason):
+            if not connected:
+                notifications.append(handler_drained.is_set())
+
+        conn = connection.T3GatewayConnection(
+            url="ws://unused",
+            instance_id="provider-instance",
+            credential="secret",
+            hermes_version="0.19.0",
+            on_message=handler,
+            on_state=on_state,
+        )
+        conn._spawn_handler({"type": "turn.start"})
+        await handler_started.wait()
+
+        await conn.disconnect()
+
+        self.assertTrue(handler_drained.is_set())
+        self.assertEqual(notifications, [True])
+        self.assertEqual(conn._handlers, set())
+
 
 if __name__ == "__main__":
     unittest.main()

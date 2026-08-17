@@ -65,17 +65,34 @@ function deliveryUuid(input: {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-function deliveryIds(input: {
-  readonly instanceId: string;
-  readonly threadId: string;
-  readonly deliveryId: string;
-}) {
-  const id = deliveryUuid({ ...input, purpose: "message" });
+function deliveryIds(input: { readonly instanceId: string; readonly deliveryId: string }) {
+  // The identity belongs to the source instance and delivery, not to the
+  // destination selected at retry time. Home can be re-designated after a
+  // commit whose ack was lost; retaining the same command/message ids lets
+  // the durable receipt acknowledge that retry instead of appending twice.
+  const id = deliveryUuid({ ...input, threadId: "", purpose: "message" });
   return {
     commandId: CommandId.make(`hermes-delivery-${id}`),
     messageId: MessageId.make(`hermes-delivery-${id}`),
   };
 }
+
+const writeMediaAtomically = Effect.fn("writeHermesMediaAtomically")(function* (
+  filePath: string,
+  bytes: Uint8Array,
+) {
+  const fileSystem = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const targetDirectory = path.dirname(filePath);
+  const tempDirectory = yield* fileSystem.makeTempDirectoryScoped({
+    directory: targetDirectory,
+    prefix: `${path.basename(filePath)}.`,
+  });
+  const tempPath = path.join(tempDirectory, "contents.tmp");
+
+  yield* fileSystem.writeFile(tempPath, bytes);
+  yield* fileSystem.rename(tempPath, filePath);
+});
 
 /**
  * Build the durable-write-then-ack handlers for plugin-initiated deliveries.
@@ -115,12 +132,14 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
         title: input.registration.accepted.nickname,
       });
       const active = yield* projection.getThreadShellById(input.requestedThreadId);
+      const archived =
+        Option.isNone(active) && projection.getThreadArchiveStateById !== undefined
+          ? yield* projection.getThreadArchiveStateById(input.requestedThreadId)
+          : Option.none();
       const thread = Option.isSome(active)
-        ? { projectId: active.value.projectId, archivedAt: active.value.archivedAt }
+        ? active.value
         : projection.getThreadArchiveStateById !== undefined
-          ? Option.getOrUndefined(
-              yield* projection.getThreadArchiveStateById(input.requestedThreadId),
-            )
+          ? Option.getOrUndefined(archived)
           : (yield* projection.getArchivedShellSnapshot()).threads.find(
               (candidate) => candidate.id === input.requestedThreadId,
             );
@@ -139,7 +158,7 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
               `hermes-handoff-unarchive-${deliveryUuid({
                 instanceId: input.registration.instanceId,
                 threadId: input.requestedThreadId,
-                deliveryId: String(thread.archivedAt),
+                deliveryId: String(thread.updatedAt),
                 purpose: "unarchive",
               })}`,
             ),
@@ -179,7 +198,6 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
 
       const ids = deliveryIds({
         instanceId: registration.instanceId,
-        threadId: deliveryThreadId,
         deliveryId: message.deliveryId,
       });
       // Command receipts make this idempotent across retries and restarts.
@@ -187,6 +205,7 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
         type: "thread.notification.deliver",
         ...ids,
         threadId: deliveryThreadId,
+        expectedProviderInstanceId: registration.instanceId,
         deliveryId: message.deliveryId,
         kind: message.kind,
         label: message.label,
@@ -292,7 +311,6 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
 
       const ids = deliveryIds({
         instanceId: registration.instanceId,
-        threadId,
         deliveryId: message.deliveryId,
       });
       {
@@ -301,7 +319,7 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
           threadId,
           deliveryUuid({
             instanceId: registration.instanceId,
-            threadId,
+            threadId: "",
             deliveryId: message.deliveryId,
             purpose: "attachment",
           }),
@@ -350,14 +368,30 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
         }
         // Bytes before row, deliberately: a row pointing at a missing file
         // renders broken forever, while an orphaned file from a failed
-        // dispatch is retried under a fresh id and merely leaks bytes.
+        // dispatch is harmless. Publish through a sibling temporary file so
+        // an interrupted write cannot leave a partial final file that poisons
+        // every retry of this deterministic delivery id.
         yield* fileSystem.makeDirectory(path.dirname(attachmentPath), { recursive: true });
-        yield* fileSystem.writeFile(attachmentPath, bytes);
+        if (yield* fileSystem.exists(attachmentPath)) {
+          const persisted = yield* fileSystem.readFile(attachmentPath);
+          if (!Buffer.from(persisted).equals(bytes)) {
+            return yield* Effect.fail(
+              new ProviderAdapterRequestError({
+                provider: "hermes",
+                method: "media.deliver",
+                detail: `Delivery '${message.deliveryId}' was retried with different media bytes.`,
+              }),
+            );
+          }
+        } else {
+          yield* Effect.scoped(writeMediaAtomically(attachmentPath, bytes));
+        }
 
         yield* engine.dispatch({
           type: "thread.notification.deliver",
           ...ids,
           threadId,
+          expectedProviderInstanceId: registration.instanceId,
           deliveryId: message.deliveryId,
           kind: message.kind,
           label: message.label,
@@ -394,30 +428,22 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
   ) =>
     Effect.gen(function* () {
       if (registration.role !== "gateway") {
-        yield* transport.send({
-          type: "protocol.error",
-          protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
-          requestId: message.requestId,
-          code: "invalid-message",
-          message: "A delivery-only connection cannot create handoff threads.",
-          recoverable: false,
+        return yield* new ProviderAdapterRequestError({
+          provider: "hermes",
+          method: "handoff.create",
+          detail: "A delivery-only connection cannot create handoff threads.",
         });
-        return;
       }
       const homeThreadId = yield* getOrCreateHomeThread({
         instanceId: registration.instanceId,
         title: registration.accepted.nickname,
       });
       if (message.parentThreadId !== homeThreadId) {
-        yield* transport.send({
-          type: "protocol.error",
-          protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
-          requestId: message.requestId,
-          code: "invalid-message",
-          message: "A Hermes handoff must start from the instance's Home thread.",
-          recoverable: false,
+        return yield* new ProviderAdapterRequestError({
+          provider: "hermes",
+          method: "handoff.create",
+          detail: "A Hermes handoff must start from the instance's Home thread.",
         });
-        return;
       }
       const project = yield* getOrCreateAgentProject({
         instanceId: registration.instanceId,
@@ -453,6 +479,18 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
         threadId,
       });
     }).pipe(
+      Effect.catchTag("ProviderAdapterRequestError", (error) =>
+        error.method === "handoff.create"
+          ? transport.send({
+              type: "protocol.error",
+              protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
+              requestId: message.requestId,
+              code: "invalid-message",
+              message: error.detail,
+              recoverable: false,
+            })
+          : Effect.fail(error),
+      ),
       Effect.catchCause((cause) =>
         transport
           .send({

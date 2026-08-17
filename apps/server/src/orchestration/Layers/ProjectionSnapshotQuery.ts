@@ -2480,10 +2480,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         Option.flatMap((row) =>
           row.deletedAt === null
             ? Option.some({ projectId: row.projectId, archivedAt: row.archivedAt })
-            : Option.none<{
-                readonly projectId: ProjectId;
-                readonly archivedAt: string | null;
-              }>(),
+            : Option.none<{ readonly projectId: ProjectId; readonly archivedAt: string | null }>(),
         ),
       ),
     );

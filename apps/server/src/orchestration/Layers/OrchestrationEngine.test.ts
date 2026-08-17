@@ -1308,7 +1308,7 @@ describe("OrchestrationEngine", () => {
     await system.dispose();
   });
 
-  it("deduplicates a durable notification after the orchestration runtime restarts", async () => {
+  it("deduplicates a durable notification across restart and destination re-designation", async () => {
     const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-notification-restart-"));
     const dbPath = NodePath.join(baseDir, "state.sqlite");
     const createdAt = now();
@@ -1318,6 +1318,7 @@ describe("OrchestrationEngine", () => {
       type: "thread.notification.deliver",
       commandId: CommandId.make("hermes-delivery-restart-proof"),
       threadId,
+      expectedProviderInstanceId: ProviderInstanceId.make("hermes"),
       messageId: asMessageId("hermes-delivery-restart-proof"),
       deliveryId: "delivery-restart-proof",
       kind: "cron",
@@ -1362,6 +1363,14 @@ describe("OrchestrationEngine", () => {
             createdAt,
           }),
         );
+        await expect(
+          first.run(
+            first.engine.dispatch({
+              ...notification,
+              expectedProviderInstanceId: ProviderInstanceId.make("another-hermes-instance"),
+            }),
+          ),
+        ).rejects.toThrow("is no longer owned by provider instance");
         firstSequence = (await first.run(first.engine.dispatch(notification))).sequence;
       } finally {
         await first.dispose();
@@ -1369,15 +1378,42 @@ describe("OrchestrationEngine", () => {
 
       const second = await createOrchestrationSystem({ baseDir, dbPath });
       try {
-        const retried = await second.run(second.engine.dispatch(notification));
+        const replacementThreadId = ThreadId.make("thread-notification-replacement-home");
+        await second.run(
+          second.engine.dispatch({
+            type: "thread.create",
+            commandId: CommandId.make("cmd-notification-replacement-home"),
+            threadId: replacementThreadId,
+            projectId,
+            title: "Replacement Home",
+            modelSelection: {
+              instanceId: ProviderInstanceId.make("hermes"),
+              model: "hermes",
+            },
+            interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+            runtimeMode: "approval-required",
+            branch: null,
+            worktreePath: null,
+            createdAt,
+          }),
+        );
+        const retried = await second.run(
+          second.engine.dispatch({ ...notification, threadId: replacementThreadId }),
+        );
         expect(retried.sequence).toBe(firstSequence);
 
         const readModel = await second.readModel();
         const thread = readModel.threads.find((candidate) => candidate.id === threadId);
+        const replacement = readModel.threads.find(
+          (candidate) => candidate.id === replacementThreadId,
+        );
         const delivered = thread?.messages.filter(
           (message) => message.id === notification.messageId,
         );
         expect(delivered).toHaveLength(1);
+        expect(
+          replacement?.messages.filter((message) => message.id === notification.messageId),
+        ).toHaveLength(0);
         expect(delivered?.[0]?.text).toBe("> Cron: restart proof\n\nPersist exactly once.");
       } finally {
         await second.dispose();

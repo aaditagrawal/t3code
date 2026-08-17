@@ -28,9 +28,28 @@ it.effect("resolves a correlated response and releases the pending entry", () =>
     yield* Effect.yieldNow;
     assert.equal(yield* correlator.pendingCount, 1);
 
-    assert.isTrue(yield* correlator.complete("r1", { requestId: "r1" }));
+    assert.isTrue(yield* correlator.complete(owner, "r1", { requestId: "r1" }));
     assert.deepEqual(yield* Fiber.join(pending), { requestId: "r1" });
     assert.equal(yield* correlator.pendingCount, 0);
+  }),
+);
+
+it.effect("refuses a response from a different owner without consuming the waiter", () =>
+  Effect.gen(function* () {
+    const correlator = yield* makeCorrelator();
+    const pending = yield* correlator
+      .request({ owner, requestId: "r-fenced", method: "test.method", send: Effect.void })
+      .pipe(Effect.forkChild({ startImmediately: true }));
+    yield* Effect.yieldNow;
+
+    assert.isFalse(
+      yield* correlator.complete("stale-owner", "r-fenced", { requestId: "r-fenced" }),
+    );
+    assert.equal(yield* correlator.pendingCount, 1);
+    assert.isUndefined(pending.pollUnsafe());
+
+    assert.isTrue(yield* correlator.complete(owner, "r-fenced", { requestId: "r-fenced" }));
+    assert.deepEqual(yield* Fiber.join(pending), { requestId: "r-fenced" });
   }),
 );
 
@@ -53,11 +72,11 @@ it.effect("rejects a duplicate request id without stranding the original waiter"
     assert.include(duplicate.detail, "already pending");
     assert.equal(yield* correlator.pendingCount, 1);
 
-    yield* correlator.complete("r-duplicate", { requestId: "r-duplicate" });
+    yield* correlator.complete(owner, "r-duplicate", { requestId: "r-duplicate" });
     assert.deepEqual(yield* Fiber.join(first), { requestId: "r-duplicate" });
     assert.equal(yield* correlator.pendingCount, 0);
     assert.isFalse(
-      yield* correlator.complete("r-duplicate", { requestId: "r-duplicate" }),
+      yield* correlator.complete(owner, "r-duplicate", { requestId: "r-duplicate" }),
       "a duplicate or late response must not revive a completed request",
     );
   }),
@@ -189,7 +208,7 @@ it.effect("completes a response that arrives from inside the transport write", (
         requestId: "r-immediate",
         method: "test.method",
         // The transport answers synchronously, before `send` even returns.
-        send: correlator.complete("r-immediate", { requestId: "r-immediate" }).pipe(
+        send: correlator.complete(owner, "r-immediate", { requestId: "r-immediate" }).pipe(
           Effect.flatMap((completed) =>
             completed
               ? Effect.void
@@ -234,7 +253,32 @@ it.effect("fails every request routed over a dead owner", () =>
     assert.include((yield* Effect.flip(Fiber.join(second))).detail, "dropped");
     assert.isUndefined(other.pollUnsafe(), "another owner's request must be untouched");
 
-    yield* correlator.complete("r-own-3", { requestId: "r-own-3" });
+    yield* correlator.complete("owner-b", "r-own-3", { requestId: "r-own-3" });
     assert.deepEqual(yield* Fiber.join(other), { requestId: "r-own-3" });
+  }),
+);
+
+it.effect("sweeps an abandoned request after its maximum age", () =>
+  Effect.gen(function* () {
+    const correlator = yield* makeCorrelator();
+    const pending = yield* correlator
+      .request({
+        owner,
+        requestId: "r-abandoned",
+        method: "test.method",
+        send: Effect.void,
+        timeout: Duration.minutes(10),
+      })
+      .pipe(Effect.result, Effect.forkChild({ startImmediately: true }));
+    yield* Effect.yieldNow;
+    assert.equal(yield* correlator.pendingCount, 1);
+
+    yield* TestClock.adjust(Duration.seconds(91));
+    yield* correlator.sweep;
+
+    const outcome = yield* Fiber.join(pending);
+    assert.equal(outcome._tag, "Failure");
+    if (outcome._tag === "Failure") assert.include(outcome.failure.detail, "abandoned");
+    assert.equal(yield* correlator.pendingCount, 0);
   }),
 );

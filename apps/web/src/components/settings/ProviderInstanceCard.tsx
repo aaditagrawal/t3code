@@ -14,6 +14,7 @@ import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
 import { useState, type ReactNode } from "react";
 import {
+  HERMES_DRIVER_KIND,
   isProviderDriverKind,
   type ProviderInstanceConfig,
   type ProviderInstanceEnvironmentVariable,
@@ -777,7 +778,7 @@ export function ProviderInstanceCard({
               />
             ) : null}
 
-            {instance.driver === "hermes" ? (
+            {instance.driver === HERMES_DRIVER_KIND ? (
               <HermesCompanionSection
                 environmentId={environmentId}
                 instanceId={instanceId}

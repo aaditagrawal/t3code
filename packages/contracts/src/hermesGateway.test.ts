@@ -327,7 +327,7 @@ describe("T3 to Hermes messages", () => {
     // The field is about intent, not tolerance: a hello that says nothing is
     // the ordinary live plugin, which must never be read as a throwaway
     // delivery socket.
-    const hello = decodeHello({
+    const frame = {
       type: "connection.hello",
       requestId: "hello-role-default",
       protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
@@ -342,31 +342,11 @@ describe("T3 to Hermes messages", () => {
         attachments: true,
       },
       authentication: { type: "instance-credential", instanceId: "hermes", credential: "secret" },
-    });
+    } as const;
+    const hello = decodeHello(frame);
 
     expect(hello.role).toBe("gateway");
-  });
-
-  it("preserves an explicit delivery connection role", () => {
-    const hello = decodeHello({
-      type: "connection.hello",
-      requestId: "hello-role-delivery",
-      protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
-      pluginVersion: "0.5.0",
-      hermesVersion: "0.19.0",
-      capabilities: {
-        protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
-        streaming: true,
-        activity: true,
-        approvals: true,
-        userInput: true,
-        attachments: true,
-      },
-      authentication: { type: "instance-credential", instanceId: "hermes", credential: "secret" },
-      role: "delivery",
-    });
-
-    expect(hello.role).toBe("delivery");
+    expect(decodeHello({ ...frame, role: "delivery" }).role).toBe("delivery");
   });
 
   it("carries the home thread designation on acceptance", () => {
@@ -433,6 +413,10 @@ describe("Hermes home deliveries", () => {
     expect(() => decodePluginMessage({ ...delivery, kind: "surprise" })).toThrow();
   });
 
+  it("rejects multiline labels that could escape the rendered provenance quote", () => {
+    expect(() => decodePluginMessage({ ...delivery, label: "Cron\nInjected heading" })).toThrow();
+  });
+
   it("rejects empty delivery text", () => {
     expect(() => decodePluginMessage({ ...delivery, text: "" })).toThrow();
   });
@@ -485,7 +469,7 @@ describe("Hermes media deliveries", () => {
   });
 
   it("bounds the base64 payload at the frame ceiling", () => {
-    // One character past the ceiling for a 25MiB file must fail at decode,
+    // One character past the 25MiB ceiling must fail at decode,
     // before anything buffers or writes.
     const overCeiling = "A".repeat(Math.ceil(HERMES_MEDIA_MAX_BYTES / 3) * 4 + 8);
     expect(() => decodePluginMessage({ ...media, data: overCeiling })).toThrow();
