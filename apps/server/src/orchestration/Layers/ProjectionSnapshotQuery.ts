@@ -945,6 +945,23 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
       `,
   });
 
+  const getThreadArchiveStateRowById = SqlSchema.findOneOption({
+    Request: ThreadIdLookupInput,
+    Result: Schema.Struct({
+      archivedAt: Schema.NullOr(Schema.String),
+      deletedAt: Schema.NullOr(Schema.String),
+    }),
+    execute: ({ threadId }) =>
+      sql`
+        SELECT
+          archived_at AS "archivedAt",
+          deleted_at AS "deletedAt"
+        FROM projection_threads
+        WHERE thread_id = ${threadId}
+        LIMIT 1
+      `,
+  });
+
   const getActiveThreadRowById = SqlSchema.findOneOption({
     Request: ThreadIdLookupInput,
     Result: ProjectionThreadDbRowSchema,
@@ -2447,6 +2464,25 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
       });
     });
 
+  const getThreadArchiveStateById: NonNullable<
+    ProjectionSnapshotQueryShape["getThreadArchiveStateById"]
+  > = (threadId) =>
+    getThreadArchiveStateRowById({ threadId }).pipe(
+      Effect.mapError(
+        toPersistenceSqlOrDecodeError(
+          "ProjectionSnapshotQuery.getThreadArchiveStateById:query",
+          "ProjectionSnapshotQuery.getThreadArchiveStateById:decodeRow",
+        ),
+      ),
+      Effect.map(
+        Option.flatMap((row) =>
+          row.deletedAt === null
+            ? Option.some({ archivedAt: row.archivedAt })
+            : Option.none<{ readonly archivedAt: string | null }>(),
+        ),
+      ),
+    );
+
   const getThreadShellById: ProjectionSnapshotQueryShape["getThreadShellById"] = (threadId) =>
     Effect.gen(function* () {
       const [threadRow, latestTurnRow, sessionRow] = yield* Effect.all([
@@ -2855,6 +2891,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
     getThreadCheckpointContext,
     getFullThreadDiffContext,
     getThreadShellById,
+    getThreadArchiveStateById,
     getThreadDetailById,
     getThreadDetailSnapshot,
   } satisfies ProjectionSnapshotQueryShape;

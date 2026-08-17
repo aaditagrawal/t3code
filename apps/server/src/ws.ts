@@ -79,6 +79,7 @@ import {
   observeRpcStreamEffect as instrumentRpcStreamEffect,
 } from "./observability/RpcInstrumentation.ts";
 import * as ProviderRegistry from "./provider/Services/ProviderRegistry.ts";
+import { HermesGatewayBroker } from "./provider/Services/HermesGatewayBroker.ts";
 import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner.ts";
 import * as ServerSelfUpdate from "./cloud/selfUpdate.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
@@ -371,6 +372,7 @@ const makeWsRpcLayer = (
       const previewManager = yield* PreviewManager.PreviewManager;
       const portDiscovery = yield* PortScanner.PortDiscovery;
       const providerRegistry = yield* ProviderRegistry.ProviderRegistry;
+      const hermesGatewayBroker = yield* HermesGatewayBroker;
       const providerMaintenanceRunner = yield* ProviderMaintenanceRunner.ProviderMaintenanceRunner;
       const serverSelfUpdate = yield* ServerSelfUpdate.ServerSelfUpdate;
       const config = yield* ServerConfig.ServerConfig;
@@ -1544,6 +1546,42 @@ const makeWsRpcLayer = (
             {
               "rpc.aggregate": "server",
             },
+          ),
+        [WS_METHODS.hermesGatewayCreateEnrollment]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.hermesGatewayCreateEnrollment,
+            hermesGatewayBroker.createEnrollment(input),
+            { "rpc.aggregate": "provider" },
+          ),
+        [WS_METHODS.hermesGatewayGetInstanceStatus]: ({ instanceId }) =>
+          observeRpcEffect(
+            WS_METHODS.hermesGatewayGetInstanceStatus,
+            hermesGatewayBroker.getInstanceStatus(instanceId),
+            { "rpc.aggregate": "provider" },
+          ),
+        [WS_METHODS.hermesGatewayListInstances]: (_input) =>
+          observeRpcEffect(
+            WS_METHODS.hermesGatewayListInstances,
+            hermesGatewayBroker.listInstances,
+            { "rpc.aggregate": "provider" },
+          ),
+        [WS_METHODS.hermesGatewayRenameInstance]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.hermesGatewayRenameInstance,
+            hermesGatewayBroker.renameInstance(input),
+            { "rpc.aggregate": "provider" },
+          ),
+        [WS_METHODS.hermesGatewayRevokeInstance]: ({ instanceId }) =>
+          observeRpcEffect(
+            WS_METHODS.hermesGatewayRevokeInstance,
+            hermesGatewayBroker.revokeInstance(instanceId),
+            { "rpc.aggregate": "provider" },
+          ),
+        [WS_METHODS.hermesGatewayRemoveInstance]: ({ instanceId }) =>
+          observeRpcEffect(
+            WS_METHODS.hermesGatewayRemoveInstance,
+            hermesGatewayBroker.removeInstance(instanceId),
+            { "rpc.aggregate": "provider" },
           ),
         [WS_METHODS.serverDiscoverSourceControl]: (_input) =>
           observeRpcEffect(
