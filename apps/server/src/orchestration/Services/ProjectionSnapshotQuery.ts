@@ -163,6 +163,14 @@ export interface ProjectionSnapshotQueryShape {
     threadId: ThreadId,
   ) => Effect.Effect<Option.Option<OrchestrationThreadShell>, ProjectionRepositoryError>;
 
+  /** Read ownership and archive state without treating an archived row as deleted. */
+  readonly getThreadArchiveStateById?: (
+    threadId: ThreadId,
+  ) => Effect.Effect<
+    Option.Option<{ readonly projectId: ProjectId; readonly archivedAt: string | null }>,
+    ProjectionRepositoryError
+  >;
+
   /**
    * Read a single active thread detail snapshot by id.
    */

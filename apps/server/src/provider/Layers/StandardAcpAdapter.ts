@@ -1,5 +1,6 @@
 import {
   ApprovalRequestId,
+  type ChatAttachment,
   EventId,
   type ProviderApprovalDecision,
   type ProviderRuntimeEvent,
@@ -28,6 +29,7 @@ import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
+import * as NodeURL from "node:url";
 import * as EffectAcpErrors from "effect-acp/errors";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
@@ -268,6 +270,27 @@ export function standardAcpPromptSettlementBelongsToContext(input: {
     input.liveAcpSessionId === input.expectedAcpSessionId &&
     (input.liveActiveTurnId === input.turnId || input.liveSessionActiveTurnId === input.turnId)
   );
+}
+
+/** Map T3's MIME-typed attachment union to ACP's corresponding content block. */
+export function toAcpAttachmentContentBlock(input: {
+  readonly attachment: ChatAttachment;
+  readonly attachmentPath: string;
+  readonly bytes: Uint8Array;
+}): EffectAcpSchema.ContentBlock {
+  return input.attachment.type === "image"
+    ? {
+        type: "image",
+        data: Buffer.from(input.bytes).toString("base64"),
+        mimeType: input.attachment.mimeType,
+      }
+    : {
+        type: "resource_link",
+        uri: NodeURL.pathToFileURL(input.attachmentPath).href,
+        name: input.attachment.name,
+        mimeType: input.attachment.mimeType,
+        size: input.bytes.byteLength,
+      };
 }
 
 export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded = never>(
@@ -1025,7 +1048,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
               });
 
               const text = input.input?.trim();
-              const imagePromptParts = yield* Effect.forEach(
+              const attachmentPromptParts = yield* Effect.forEach(
                 input.attachments ?? [],
                 (attachment) =>
                   Effect.gen(function* () {
@@ -1051,16 +1074,12 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                           }),
                       ),
                     );
-                    return {
-                      type: "image",
-                      data: Buffer.from(bytes).toString("base64"),
-                      mimeType: attachment.mimeType,
-                    } satisfies EffectAcpSchema.ContentBlock;
+                    return toAcpAttachmentContentBlock({ attachment, attachmentPath, bytes });
                   }),
               );
               const promptParts: Array<EffectAcpSchema.ContentBlock> = [
                 ...(text ? [{ type: "text" as const, text }] : []),
-                ...imagePromptParts,
+                ...attachmentPromptParts,
               ];
 
               if (promptParts.length === 0) {

@@ -329,6 +329,15 @@ function makeMutableServerSettingsService(
           yield* PubSub.publish(changes, next);
           return next;
         }),
+      updateSettingsWith: (update) =>
+        Effect.gen(function* () {
+          const current = yield* Ref.get(settingsRef);
+          const next = applyServerSettingsPatch(current, update(current));
+          encodeServerSettings(next);
+          yield* Ref.set(settingsRef, next);
+          yield* PubSub.publish(changes, next);
+          return next;
+        }),
       get streamChanges() {
         return Stream.fromPubSub(changes);
       },

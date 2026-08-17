@@ -141,30 +141,39 @@ const makeOrchestrationEngine = Effect.gen(function* () {
           commandId: envelope.command.commandId,
         });
         if (Option.isSome(existingReceipt)) {
-          // A receipt only proves this exact command was handled. Replaying it
-          // for a command aimed at another aggregate would report success for
-          // work that never happened.
-          if (
-            existingReceipt.value.aggregateKind !== aggregateRef.aggregateKind ||
-            existingReceipt.value.aggregateId !== aggregateRef.aggregateId
-          ) {
-            return yield* new OrchestrationCommandIdConflictError({
+          // Notification ownership failures are transient: Home may be
+          // re-designated before the plugin retries. Only an accepted receipt
+          // is terminal for that command type; a later successful attempt
+          // replaces its rejected receipt.
+          const retryRejectedNotification =
+            envelope.command.type === "thread.notification.deliver" &&
+            existingReceipt.value.status === "rejected";
+          if (!retryRejectedNotification) {
+            // A receipt only proves this exact command was handled. Durable
+            // notifications are the exception: their identity belongs to the
+            // source delivery and intentionally survives destination changes.
+            const aggregateMismatch =
+              existingReceipt.value.aggregateKind !== aggregateRef.aggregateKind ||
+              existingReceipt.value.aggregateId !== aggregateRef.aggregateId;
+            if (envelope.command.type !== "thread.notification.deliver" && aggregateMismatch) {
+              return yield* new OrchestrationCommandIdConflictError({
+                commandId: envelope.command.commandId,
+                receiptAggregateKind: existingReceipt.value.aggregateKind,
+                receiptAggregateId: existingReceipt.value.aggregateId,
+                commandAggregateKind: aggregateRef.aggregateKind,
+                commandAggregateId: aggregateRef.aggregateId,
+              });
+            }
+            if (existingReceipt.value.status === "accepted") {
+              return {
+                sequence: existingReceipt.value.resultSequence,
+              };
+            }
+            return yield* new OrchestrationCommandPreviouslyRejectedError({
               commandId: envelope.command.commandId,
-              receiptAggregateKind: existingReceipt.value.aggregateKind,
-              receiptAggregateId: existingReceipt.value.aggregateId,
-              commandAggregateKind: aggregateRef.aggregateKind,
-              commandAggregateId: aggregateRef.aggregateId,
+              detail: existingReceipt.value.error ?? "Previously rejected.",
             });
           }
-          if (existingReceipt.value.status === "accepted") {
-            return {
-              sequence: existingReceipt.value.resultSequence,
-            };
-          }
-          return yield* new OrchestrationCommandPreviouslyRejectedError({
-            commandId: envelope.command.commandId,
-            detail: existingReceipt.value.error ?? "Previously rejected.",
-          });
         }
 
         const eventBase = yield* decideOrchestrationCommand({

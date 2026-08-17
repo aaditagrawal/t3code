@@ -11,6 +11,41 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  hermes_plugin:
+    name: Hermes Companion Plugin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout's persist-credentials:false cleanup currently fails on
+      # the read-only vendored gitlinks that intentionally have no root
+      # .gitmodules entry. Fetch with a process-local auth header instead: the
+      # token is available only to this step and never lands in Git config.
+      - name: Checkout without persisted credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          auth_header=$(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 | tr -d '\n')
+          git -c "http.${GITHUB_SERVER_URL}/.extraheader=AUTHORIZATION: basic ${auth_header}" \
+            fetch --no-tags --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach --force FETCH_HEAD
+          git remote remove origin
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Lint
+        run: pipx run ruff==0.16.3 check integrations/hermes-t3-gateway
+
+      - name: Test
+        run: python -m unittest discover -s integrations/hermes-t3-gateway/tests -v
+
   check:
     name: Check
     runs-on: ubuntu-24.04

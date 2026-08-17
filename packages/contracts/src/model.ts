@@ -132,11 +132,13 @@ const CLAUDE_DRIVER_KIND = ProviderDriverKind.make("claudeAgent");
 const CURSOR_DRIVER_KIND = ProviderDriverKind.make("cursor");
 const DROID_DRIVER_KIND = ProviderDriverKind.make("droid");
 const GROK_DRIVER_KIND = ProviderDriverKind.make("grok");
-const HERMES_DRIVER_KIND = ProviderDriverKind.make("hermes");
+export const HERMES_DRIVER_KIND = ProviderDriverKind.make("hermes");
 const OPENCODE_DRIVER_KIND = ProviderDriverKind.make("opencode");
 const PI_DRIVER_KIND = ProviderDriverKind.make("pi");
 
 export const DEFAULT_MODEL = "gpt-5.6-sol";
+/** Stable ACP model slug for synthetic Hermes Home threads. */
+export const DEFAULT_HERMES_MODEL = "default";
 
 /**
  * Codex default-model preference, most preferred first. The provider snapshot
@@ -156,6 +158,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Partial<Record<ProviderDriverKind, strin
   [CURSOR_DRIVER_KIND]: "composer-2.5",
   [DROID_DRIVER_KIND]: "default",
   [GROK_DRIVER_KIND]: "grok-build",
+  [HERMES_DRIVER_KIND]: DEFAULT_HERMES_MODEL,
   [OPENCODE_DRIVER_KIND]: "openai/gpt-5",
 };
 

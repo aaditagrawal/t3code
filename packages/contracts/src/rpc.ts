@@ -180,6 +180,20 @@ import {
 import { UsageReadError, UsageSummary, UsageSummaryInput } from "./usage.ts";
 import { ServerSettings, ServerSettingsError, ServerSettingsPatch } from "./settings.ts";
 import {
+  HermesGatewayCreateEnrollmentInput,
+  HermesGatewayEnrollmentResult,
+  HermesGatewayGetInstanceStatusInput,
+  HermesGatewayInstanceStatus,
+  HermesGatewayListInstancesResult,
+  HermesGatewayManagementError,
+  HermesGatewayRemoveInstanceInput,
+  HermesGatewayRemoveInstanceResult,
+  HermesGatewayRenameInstanceInput,
+  HermesGatewayRenameInstanceResult,
+  HermesGatewayRevokeInstanceInput,
+  HermesGatewayRevokeInstanceResult,
+} from "./hermesGateway.ts";
+import {
   SourceControlCloneRepositoryInput,
   SourceControlCloneRepositoryResult,
   SourceControlDiscoveryResult,
@@ -271,6 +285,14 @@ export const WS_METHODS = {
   serverReportHostPowerState: "server.reportHostPowerState",
   serverGetBackgroundPolicy: "server.getBackgroundPolicy",
   serverGetUsageSummary: "server.getUsageSummary",
+
+  // Optional Hermes companion management. Ordinary Hermes turns remain ACP.
+  hermesGatewayCreateEnrollment: "hermesGateway.createEnrollment",
+  hermesGatewayGetInstanceStatus: "hermesGateway.getInstanceStatus",
+  hermesGatewayListInstances: "hermesGateway.listInstances",
+  hermesGatewayRenameInstance: "hermesGateway.renameInstance",
+  hermesGatewayRevokeInstance: "hermesGateway.revokeInstance",
+  hermesGatewayRemoveInstance: "hermesGateway.removeInstance",
 
   // Cloud environment methods
   cloudGetRelayClientStatus: "cloud.getRelayClientStatus",
@@ -382,6 +404,48 @@ export const WsServerUpdateSettingsRpc = Rpc.make(WS_METHODS.serverUpdateSetting
   payload: Schema.Struct({ patch: ServerSettingsPatch }),
   success: ServerSettings,
   error: Schema.Union([ServerSettingsError, EnvironmentAuthorizationError]),
+});
+
+export const WsHermesGatewayCreateEnrollmentRpc = Rpc.make(
+  WS_METHODS.hermesGatewayCreateEnrollment,
+  {
+    payload: HermesGatewayCreateEnrollmentInput,
+    success: HermesGatewayEnrollmentResult,
+    error: Schema.Union([HermesGatewayManagementError, EnvironmentAuthorizationError]),
+  },
+);
+
+export const WsHermesGatewayGetInstanceStatusRpc = Rpc.make(
+  WS_METHODS.hermesGatewayGetInstanceStatus,
+  {
+    payload: HermesGatewayGetInstanceStatusInput,
+    success: HermesGatewayInstanceStatus,
+    error: Schema.Union([HermesGatewayManagementError, EnvironmentAuthorizationError]),
+  },
+);
+
+export const WsHermesGatewayListInstancesRpc = Rpc.make(WS_METHODS.hermesGatewayListInstances, {
+  payload: Schema.Struct({}),
+  success: HermesGatewayListInstancesResult,
+  error: Schema.Union([HermesGatewayManagementError, EnvironmentAuthorizationError]),
+});
+
+export const WsHermesGatewayRenameInstanceRpc = Rpc.make(WS_METHODS.hermesGatewayRenameInstance, {
+  payload: HermesGatewayRenameInstanceInput,
+  success: HermesGatewayRenameInstanceResult,
+  error: Schema.Union([HermesGatewayManagementError, EnvironmentAuthorizationError]),
+});
+
+export const WsHermesGatewayRevokeInstanceRpc = Rpc.make(WS_METHODS.hermesGatewayRevokeInstance, {
+  payload: HermesGatewayRevokeInstanceInput,
+  success: HermesGatewayRevokeInstanceResult,
+  error: Schema.Union([HermesGatewayManagementError, EnvironmentAuthorizationError]),
+});
+
+export const WsHermesGatewayRemoveInstanceRpc = Rpc.make(WS_METHODS.hermesGatewayRemoveInstance, {
+  payload: HermesGatewayRemoveInstanceInput,
+  success: HermesGatewayRemoveInstanceResult,
+  error: Schema.Union([HermesGatewayManagementError, EnvironmentAuthorizationError]),
 });
 
 export const WsServerDiscoverSourceControlRpc = Rpc.make(WS_METHODS.serverDiscoverSourceControl, {
@@ -984,6 +1048,12 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerRemoveKeybindingRpc,
   WsServerGetSettingsRpc,
   WsServerUpdateSettingsRpc,
+  WsHermesGatewayCreateEnrollmentRpc,
+  WsHermesGatewayGetInstanceStatusRpc,
+  WsHermesGatewayListInstancesRpc,
+  WsHermesGatewayRenameInstanceRpc,
+  WsHermesGatewayRevokeInstanceRpc,
+  WsHermesGatewayRemoveInstanceRpc,
   WsServerDiscoverSourceControlRpc,
   WsServerGetTraceDiagnosticsRpc,
   WsServerGetProcessDiagnosticsRpc,

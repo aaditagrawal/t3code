@@ -1,7 +1,12 @@
 import { expect, it } from "@effect/vitest";
 import { describe } from "vite-plus/test";
 
-import { assetResponseHeaders, isLoopbackHostname, resolveDevRedirectUrl } from "./http.ts";
+import {
+  assetResponseHeaders,
+  assetResponseOptions,
+  isLoopbackHostname,
+  resolveDevRedirectUrl,
+} from "./http.ts";
 
 describe("http dev routing", () => {
   it("treats localhost and loopback addresses as local", () => {
@@ -42,6 +47,26 @@ describe("assetResponseHeaders", () => {
     expect(assetResponseHeaders("/attachments/user-image.png")).toEqual({
       "Cache-Control": "private, max-age=3600",
       "X-Content-Type-Options": "nosniff",
+    });
+  });
+
+  it("serves opaque attachments with their signed MIME and safe download disposition", () => {
+    expect(
+      assetResponseOptions({
+        kind: "file",
+        path: "/attachments/opaque.bin",
+        contentType: "application/pdf",
+        downloadName: 'release "notes".pdf',
+      }),
+    ).toEqual({
+      status: 200,
+      contentType: "application/pdf",
+      headers: {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition":
+          "attachment; filename=\"attachment\"; filename*=UTF-8''release%20%22notes%22.pdf",
+      },
     });
   });
 });
