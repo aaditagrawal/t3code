@@ -158,7 +158,7 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
               `hermes-handoff-unarchive-${deliveryUuid({
                 instanceId: input.registration.instanceId,
                 threadId: input.requestedThreadId,
-                deliveryId: String(thread.updatedAt),
+                deliveryId: thread.archivedAt,
                 purpose: "unarchive",
               })}`,
             ),
