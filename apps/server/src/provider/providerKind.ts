@@ -13,10 +13,13 @@ const PROVIDER_KINDS = [
   "claudeAgent",
   "cursor",
   "droid",
+  "grok",
+  "hermes",
   "opencode",
   "geminiCli",
   "amp",
   "kilo",
+  "pi",
 ] as const;
 
 export type ProviderKind = (typeof PROVIDER_KINDS)[number];

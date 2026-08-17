@@ -84,7 +84,7 @@ const APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS = {
   geminiCli: "customGeminiCliModels",
   amp: "customAmpModels",
   kilo: "customKiloModels",
-} as const satisfies Record<ProviderKind, keyof AppSettings>;
+} as const satisfies Partial<Record<ProviderKind, keyof AppSettings>>;
 const MIRRORED_CLIENT_KEYS = new Set<keyof AppSettings>([
   "confirmThreadDelete",
   "diffWordWrap",
@@ -325,7 +325,10 @@ function toUnifiedPatch(patch: Partial<AppSettings>): Partial<UnifiedSettings> {
     };
   }
   const providerModelEntries = Object.entries(APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS) as Array<
-    [ProviderKind, (typeof APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS)[ProviderKind]]
+    [
+      keyof typeof APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS,
+      (typeof APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS)[keyof typeof APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS],
+    ]
   >;
   for (const [provider, settingsKey] of providerModelEntries) {
     const models = patch[settingsKey];

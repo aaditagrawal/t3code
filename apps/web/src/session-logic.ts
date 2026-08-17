@@ -62,6 +62,8 @@ export const PROVIDER_OPTIONS: Array<{
   { value: ProviderDriverKind.make("geminiCli"), label: "Gemini CLI", available: true },
   { value: ProviderDriverKind.make("amp"), label: "AMPcode", available: true },
   { value: ProviderDriverKind.make("kilo"), label: "Kilo", available: true },
+  { value: ProviderDriverKind.make("hermes"), label: "Hermes", available: true },
+  { value: ProviderDriverKind.make("pi"), label: "Pi", available: true },
 ];
 
 export type WorkLogToolLifecycleStatus =

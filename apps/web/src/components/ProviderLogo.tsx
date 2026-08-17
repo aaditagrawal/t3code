@@ -8,11 +8,15 @@ import {
   AmpIcon,
   ClaudeAI,
   CursorIcon,
+  DroidIcon,
   Gemini,
   GitHubIcon,
+  GrokIcon,
+  HermesIcon,
   KiloIcon,
   OpenAI,
   OpenCodeIcon,
+  PiAgentIcon,
 } from "./Icons";
 
 const PROVIDER_ICON_BY_PROVIDER: Record<ProviderKind, Icon> = {
@@ -20,10 +24,14 @@ const PROVIDER_ICON_BY_PROVIDER: Record<ProviderKind, Icon> = {
   copilot: GitHubIcon,
   claudeAgent: ClaudeAI,
   cursor: CursorIcon,
+  droid: DroidIcon,
+  grok: GrokIcon,
   opencode: OpenCodeIcon,
   geminiCli: Gemini,
   amp: AmpIcon,
   kilo: KiloIcon,
+  hermes: HermesIcon,
+  pi: PiAgentIcon,
 };
 
 export type ProviderLogoProps = ComponentProps<Icon> & {

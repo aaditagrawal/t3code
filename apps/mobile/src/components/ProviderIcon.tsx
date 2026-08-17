@@ -12,6 +12,32 @@ export function ProviderIcon(props: ProviderIconProps) {
   const size = props.size ?? 16;
   const mono = isDarkMode ? "#e5e5e5" : "#171717";
 
+  if (props.provider === "pi") {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 800 800" fill="none">
+        <Path
+          fill="#000"
+          d="M160 0h480c88.4 0 160 71.6 160 160v480c0 88.4-71.6 160-160 160H160C71.6 800 0 728.4 0 640V160C0 71.6 71.6 0 160 0Z"
+        />
+        <Path
+          fill="#fff"
+          d="M165.29 165.29h352.07V400H400v117.36H282.65v117.36H165.29Zm117.36 117.36V400H400V282.65ZM517.36 400h117.36v234.72H517.36Z"
+        />
+      </Svg>
+    );
+  }
+
+  if (props.provider === "hermes") {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Path
+          fill={mono}
+          d="M4 5h3v5h10V5h3v14h-3v-6H7v6H4V5Zm-3 2 3 2v3L1 10V7Zm22 0v3l-3 2V9l3-2Z"
+        />
+      </Svg>
+    );
+  }
+
   if (props.provider === "claudeAgent") {
     return (
       <Svg width={size} height={size} viewBox="0 0 256 257" fill="none">
