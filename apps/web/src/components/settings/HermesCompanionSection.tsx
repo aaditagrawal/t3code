@@ -84,6 +84,7 @@ export function HermesCompanionSection(props: {
   const [error, setError] = useState<string | null>(null);
   const connectorUrlHasLocalEdits = useRef(false);
   const refreshGeneration = useRef(0);
+  const foregroundRefreshCount = useRef(0);
   const getStatus = useAtomCommand(serverEnvironment.hermesGatewayGetInstanceStatus, {
     reportFailure: false,
   });
@@ -97,30 +98,39 @@ export function HermesCompanionSection(props: {
   const refresh = useCallback(
     async (quiet = false) => {
       const generation = ++refreshGeneration.current;
-      if (!quiet) setPending(true);
-      const result = await getStatus({
-        environmentId: props.environmentId,
-        input: { instanceId: props.instanceId },
-      });
-      // A management operation or a newer poll superseded this read. Applying
-      // its stale not-enrolled result would hide a just-created enrollment (or
-      // erase the actionable error from a failed operation).
-      if (generation !== refreshGeneration.current) return;
-      if (result._tag === "Success") {
-        setStatus(result.value);
-        if (!connectorUrlHasLocalEdits.current) setConnectorUrl(result.value.connectorUrl);
-        if (!quiet) setError(null);
-      } else {
-        const failure = squashAtomCommandFailure(result);
-        if (isInstanceNotFoundError(failure)) {
-          // A missing gateway record is the normal, never-enrolled state.
-          setStatus(null);
+      if (!quiet) {
+        foregroundRefreshCount.current += 1;
+        setPending(true);
+      }
+      try {
+        const result = await getStatus({
+          environmentId: props.environmentId,
+          input: { instanceId: props.instanceId },
+        });
+        // A management operation or a newer poll superseded this read. Applying
+        // its stale not-enrolled result would hide a just-created enrollment (or
+        // erase the actionable error from a failed operation).
+        if (generation !== refreshGeneration.current) return;
+        if (result._tag === "Success") {
+          setStatus(result.value);
+          if (!connectorUrlHasLocalEdits.current) setConnectorUrl(result.value.connectorUrl);
           if (!quiet) setError(null);
-        } else if (!quiet) {
-          setError(messageFromUnknownError(failure));
+        } else {
+          const failure = squashAtomCommandFailure(result);
+          if (isInstanceNotFoundError(failure)) {
+            // A missing gateway record is the normal, never-enrolled state.
+            setStatus(null);
+            if (!quiet) setError(null);
+          } else if (!quiet) {
+            setError(messageFromUnknownError(failure));
+          }
+        }
+      } finally {
+        if (!quiet) {
+          foregroundRefreshCount.current -= 1;
+          if (foregroundRefreshCount.current === 0) setPending(false);
         }
       }
-      if (!quiet) setPending(false);
     },
     [getStatus, props.environmentId, props.instanceId],
   );
