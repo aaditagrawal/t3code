@@ -79,6 +79,8 @@ const AssetClaimsSchema = Schema.Union([
     version: Schema.Literal(1),
     kind: Schema.Literal("attachment"),
     attachmentId: Schema.String,
+    contentType: Schema.optional(Schema.String),
+    downloadName: Schema.optional(Schema.String),
     expiresAt: Schema.Number,
   }),
   Schema.Struct({
@@ -95,7 +97,22 @@ const AssetClaimsJson = Schema.fromJsonString(AssetClaimsSchema);
 const decodeAssetClaims = Schema.decodeUnknownOption(AssetClaimsJson);
 const encodeAssetClaims = Schema.encodeSync(AssetClaimsJson);
 
-export type ResolvedAsset = { readonly kind: "file"; readonly path: string };
+export type ResolvedAsset = {
+  readonly kind: "file";
+  readonly path: string;
+  readonly contentType?: string;
+  readonly downloadName?: string;
+};
+
+const SAFE_MEDIA_TYPE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i;
+
+/** Normalize signed response metadata before it can reach an HTTP header. */
+function normalizeAttachmentContentType(value: string | undefined): string {
+  const normalized = value?.trim().toLowerCase() ?? "";
+  return normalized.length <= 100 && SAFE_MEDIA_TYPE.test(normalized)
+    ? normalized
+    : "application/octet-stream";
+}
 
 function decodeClaims(encodedPayload: string): AssetClaims | null {
   try {
@@ -273,9 +290,23 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
         version: 1,
         kind: "attachment",
         attachmentId: input.resource.attachmentId,
+        // Generic files deliberately use an opaque `.bin` physical path so
+        // user-controlled names and extensions never influence storage. Carry
+        // their MIME/name as signed response metadata instead. The HTTP route
+        // adds Content-Disposition: attachment, preventing an HTML-like MIME
+        // from executing in T3's origin.
+        ...(attachmentPath.endsWith(".bin")
+          ? {
+              contentType: normalizeAttachmentContentType(input.resource.mimeType),
+              downloadName: input.resource.fileName?.trim() || "attachment",
+            }
+          : {}),
         expiresAt,
       };
-      fileName = path.basename(attachmentPath);
+      fileName =
+        attachmentPath.endsWith(".bin") && input.resource.fileName
+          ? input.resource.fileName
+          : path.basename(attachmentPath);
       break;
     }
     case "project-favicon": {
@@ -428,7 +459,12 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
       Effect.orElseSucceed(() => Option.none()),
     );
     return Option.isSome(info) && info.value.type === "File"
-      ? ({ kind: "file", path: attachmentPath } satisfies ResolvedAsset)
+      ? ({
+          kind: "file",
+          path: attachmentPath,
+          ...(claims.contentType !== undefined ? { contentType: claims.contentType } : {}),
+          ...(claims.downloadName !== undefined ? { downloadName: claims.downloadName } : {}),
+        } satisfies ResolvedAsset)
       : null;
   }
 

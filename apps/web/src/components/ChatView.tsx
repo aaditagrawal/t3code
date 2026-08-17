@@ -1,5 +1,6 @@
 import {
   type ApprovalRequestId,
+  type AssetResource,
   DEFAULT_MODEL,
   defaultInstanceIdForDriver,
   type EnvironmentId,
@@ -2389,22 +2390,29 @@ function ChatViewContent(props: ChatViewProps) {
     });
   }, []);
   const serverMessages = activeThread?.messages;
-  const serverAttachmentIds = useMemo(() => {
-    const attachmentIds = new Set<string>();
+  const serverAttachmentResources = useMemo(() => {
+    const resources = new Map<string, Extract<AssetResource, { readonly _tag: "attachment" }>>();
     for (const message of serverMessages ?? []) {
       for (const attachment of message.attachments ?? []) {
-        attachmentIds.add(attachment.id);
+        if (resources.has(attachment.id)) continue;
+        resources.set(
+          attachment.id,
+          attachment.type === "file"
+            ? {
+                _tag: "attachment",
+                attachmentId: attachment.id,
+                fileName: attachment.name,
+                mimeType: attachment.mimeType,
+              }
+            : { _tag: "attachment", attachmentId: attachment.id },
+        );
       }
     }
-    return [...attachmentIds];
+    return [...resources.values()];
   }, [serverMessages]);
-  const serverAttachmentResources = useMemo(
-    () =>
-      serverAttachmentIds.map((attachmentId) => ({
-        _tag: "attachment" as const,
-        attachmentId,
-      })),
-    [serverAttachmentIds],
+  const serverAttachmentIds = useMemo(
+    () => serverAttachmentResources.map((resource) => resource.attachmentId),
+    [serverAttachmentResources],
   );
   const serverAttachmentUrls = useAssetUrls(environmentId, serverAttachmentResources);
   const serverAttachmentUrlById = useMemo(

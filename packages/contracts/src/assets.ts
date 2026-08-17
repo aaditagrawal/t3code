@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 
 import { ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
-import { ProjectFaviconPath } from "./orchestration.ts";
+import { ChatFileAttachment, ProjectFaviconPath } from "./orchestration.ts";
 
 const ASSET_PATH_MAX_LENGTH = 1024;
 
@@ -12,6 +12,14 @@ export const AssetResource = Schema.Union([
   }),
   Schema.TaggedStruct("attachment", {
     attachmentId: TrimmedNonEmptyString.check(Schema.isMaxLength(256)),
+    /**
+     * Presentation hints for opaque non-image payloads. The server signs
+     * these into the asset capability and always serves hinted files as
+     * downloads, so caller-controlled MIME metadata cannot become executable
+     * same-origin content.
+     */
+    fileName: Schema.optional(ChatFileAttachment.fields.name),
+    mimeType: Schema.optional(ChatFileAttachment.fields.mimeType),
   }),
   Schema.TaggedStruct("project-favicon", {
     cwd: TrimmedNonEmptyString.check(Schema.isMaxLength(ASSET_PATH_MAX_LENGTH)),

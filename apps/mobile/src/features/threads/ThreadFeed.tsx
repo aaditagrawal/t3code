@@ -202,6 +202,8 @@ function MessageAttachmentFile(props: {
   const uri = useAssetUrl(props.environmentId, {
     _tag: "attachment",
     attachmentId: props.attachmentId,
+    fileName: props.name,
+    mimeType: props.mimeType,
   });
   const iconColor = useThemeColor("--color-icon-subtle");
 
