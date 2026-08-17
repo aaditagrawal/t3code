@@ -19,7 +19,6 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
-import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
@@ -60,7 +59,14 @@ import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogg
 const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
 
 const STANDARD_ACP_RESUME_VERSION = 1 as const;
+/** Lets queued ACP events and a pending Stop win prompt-settlement races. */
+const SETTLEMENT_YIELD_ATTEMPTS = 8;
 type StandardAcpAdapterShape = ProviderAdapterShape<ProviderAdapterError>;
+
+interface ThreadLockEntry {
+  readonly semaphore: Semaphore.Semaphore;
+  readonly leases: number;
+}
 
 function encodeJsonStringForDiagnostics(input: unknown): string | undefined {
   const result = encodeUnknownJsonStringExit(input);
@@ -286,7 +292,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
     const makeAcpNativeLoggers = yield* makeAcpNativeLoggerFactory();
 
     const sessions = new Map<ThreadId, StandardAcpSessionContext>();
-    const threadLocksRef = yield* SynchronizedRef.make(new Map<string, Semaphore.Semaphore>());
+    const threadLocksRef = yield* SynchronizedRef.make(new Map<string, ThreadLockEntry>());
     const runtimeEventPubSub = yield* PubSub.unbounded<ProviderRuntimeEvent>();
 
     const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
@@ -317,26 +323,44 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
     const offerRuntimeEvent = (event: ProviderRuntimeEvent) =>
       PubSub.publish(runtimeEventPubSub, event).pipe(Effect.asVoid);
 
-    const getThreadSemaphore = (threadId: string) =>
+    const acquireThreadLock = (threadId: string) =>
       SynchronizedRef.modifyEffect(threadLocksRef, (current) => {
-        const existing: Option.Option<Semaphore.Semaphore> = Option.fromNullishOr(
-          current.get(threadId),
+        const existing = current.get(threadId);
+        if (existing) {
+          const leased = { ...existing, leases: existing.leases + 1 };
+          const next = new Map(current);
+          next.set(threadId, leased);
+          return Effect.succeed([leased, next] as const);
+        }
+        return Semaphore.make(1).pipe(
+          Effect.map((semaphore) => {
+            const entry = { semaphore, leases: 1 } satisfies ThreadLockEntry;
+            const next = new Map(current);
+            next.set(threadId, entry);
+            return [entry, next] as const;
+          }),
         );
-        return Option.match(existing, {
-          onNone: () =>
-            Semaphore.make(1).pipe(
-              Effect.map((semaphore) => {
-                const next = new Map(current);
-                next.set(threadId, semaphore);
-                return [semaphore, next] as const;
-              }),
-            ),
-          onSome: (semaphore) => Effect.succeed([semaphore, current] as const),
-        });
+      });
+
+    const releaseThreadLock = (threadId: string, entry: ThreadLockEntry) =>
+      SynchronizedRef.update(threadLocksRef, (current) => {
+        const live = current.get(threadId);
+        if (!live || live.semaphore !== entry.semaphore) return current;
+        const next = new Map(current);
+        if (live.leases === 1) {
+          next.delete(threadId);
+        } else {
+          next.set(threadId, { ...live, leases: live.leases - 1 });
+        }
+        return next;
       });
 
     const withThreadLock = <A, E, R>(threadId: string, effect: Effect.Effect<A, E, R>) =>
-      Effect.flatMap(getThreadSemaphore(threadId), (semaphore) => semaphore.withPermit(effect));
+      Effect.acquireUseRelease(
+        acquireThreadLock(threadId),
+        (entry) => entry.semaphore.withPermit(effect),
+        (entry) => releaseThreadLock(threadId, entry),
+      );
 
     const settlePromptInFlight = (
       threadId: ThreadId,
@@ -653,60 +677,64 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
               ),
             );
           const started = yield* Effect.gen(function* () {
-            yield* Effect.forEach(
-              config.userInput?.methods ?? [],
-              (method) =>
-                acp.handleExtRequest(method, config.userInput!.schema, (params) =>
-                  mapAcpCallbackFailure(
-                    Effect.gen(function* () {
-                      yield* logNative(input.threadId, method, params);
-                      const requestId = ApprovalRequestId.make(yield* randomUUIDv4);
-                      const runtimeRequestId = RuntimeRequestId.make(requestId);
-                      const resolution = yield* Deferred.make<PendingUserInputResolution>();
-                      const turnId = resolveSessionCallbackTurnId(sessions, input.threadId);
-                      pendingUserInputs.set(requestId, { resolution });
-                      yield* offerRuntimeEvent({
-                        type: "user-input.requested",
-                        ...(yield* makeEventStamp()),
-                        provider: PROVIDER,
-                        threadId: input.threadId,
-                        turnId,
-                        requestId: runtimeRequestId,
-                        payload: { questions: config.userInput!.extractQuestions(params) },
-                        raw: {
-                          source: config.userInput!.source,
-                          method,
-                          payload: params,
-                        },
-                      });
-                      const resolved = yield* Deferred.await(resolution);
-                      pendingUserInputs.delete(requestId);
-                      const resolvedAnswers = resolved._tag === "answered" ? resolved.answers : {};
-                      yield* offerRuntimeEvent({
-                        type: "user-input.resolved",
-                        ...(yield* makeEventStamp()),
-                        provider: PROVIDER,
-                        threadId: input.threadId,
-                        turnId,
-                        requestId: runtimeRequestId,
-                        payload: { answers: resolvedAnswers },
-                        raw: {
-                          source: config.userInput!.source,
-                          method,
-                          payload: params,
-                        },
-                      });
-                      switch (resolved._tag) {
-                        case "answered":
-                          return config.userInput!.makeAnsweredResponse(params, resolved.answers);
-                        case "cancelled":
-                          return config.userInput!.makeCancelledResponse();
-                      }
-                    }),
+            const userInput = config.userInput;
+            if (userInput) {
+              yield* Effect.forEach(
+                userInput.methods,
+                (method) =>
+                  acp.handleExtRequest(method, userInput.schema, (params) =>
+                    mapAcpCallbackFailure(
+                      Effect.gen(function* () {
+                        yield* logNative(input.threadId, method, params);
+                        const requestId = ApprovalRequestId.make(yield* randomUUIDv4);
+                        const runtimeRequestId = RuntimeRequestId.make(requestId);
+                        const resolution = yield* Deferred.make<PendingUserInputResolution>();
+                        const turnId = resolveSessionCallbackTurnId(sessions, input.threadId);
+                        pendingUserInputs.set(requestId, { resolution });
+                        yield* offerRuntimeEvent({
+                          type: "user-input.requested",
+                          ...(yield* makeEventStamp()),
+                          provider: PROVIDER,
+                          threadId: input.threadId,
+                          turnId,
+                          requestId: runtimeRequestId,
+                          payload: { questions: userInput.extractQuestions(params) },
+                          raw: {
+                            source: userInput.source,
+                            method,
+                            payload: params,
+                          },
+                        });
+                        const resolved = yield* Deferred.await(resolution);
+                        pendingUserInputs.delete(requestId);
+                        const resolvedAnswers =
+                          resolved._tag === "answered" ? resolved.answers : {};
+                        yield* offerRuntimeEvent({
+                          type: "user-input.resolved",
+                          ...(yield* makeEventStamp()),
+                          provider: PROVIDER,
+                          threadId: input.threadId,
+                          turnId,
+                          requestId: runtimeRequestId,
+                          payload: { answers: resolvedAnswers },
+                          raw: {
+                            source: userInput.source,
+                            method,
+                            payload: params,
+                          },
+                        });
+                        switch (resolved._tag) {
+                          case "answered":
+                            return userInput.makeAnsweredResponse(params, resolved.answers);
+                          case "cancelled":
+                            return userInput.makeCancelledResponse();
+                        }
+                      }),
+                    ),
                   ),
-                ),
-              { discard: true },
-            );
+                { discard: true },
+              );
+            }
             yield* acp.handleRequestPermission((params) =>
               mapAcpCallbackFailure(
                 Effect.gen(function* () {
@@ -1047,7 +1075,11 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
               const displayModel = currentModelId
                 ? config.normalizeModel(currentModelId)
                 : undefined;
-              for (let yieldAttempt = 0; yieldAttempt < 8; yieldAttempt += 1) {
+              for (
+                let yieldAttempt = 0;
+                yieldAttempt < SETTLEMENT_YIELD_ATTEMPTS;
+                yieldAttempt += 1
+              ) {
                 yield* Effect.yieldNow;
               }
               if (ctx.interruptedTurnIds.has(turnId)) {
@@ -1162,7 +1194,11 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
               // Keep prompt settlement atomic with respect to Stop and steering.
               // interruptTurn marks its target before waiting for this lock, so
               // cancellation can still win while queued ACP events are drained.
-              for (let yieldAttempt = 0; yieldAttempt < 8; yieldAttempt += 1) {
+              for (
+                let yieldAttempt = 0;
+                yieldAttempt < SETTLEMENT_YIELD_ATTEMPTS;
+                yieldAttempt += 1
+              ) {
                 yield* Effect.yieldNow;
               }
               yield* prepared.acp.drainEvents;

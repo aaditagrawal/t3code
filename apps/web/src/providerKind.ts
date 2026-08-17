@@ -18,6 +18,8 @@ export const PROVIDER_KINDS = [
   "copilot",
   "claudeAgent",
   "cursor",
+  "droid",
+  "grok",
   "opencode",
   "geminiCli",
   "amp",

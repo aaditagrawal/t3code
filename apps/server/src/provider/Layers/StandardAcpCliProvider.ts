@@ -66,8 +66,31 @@ function hasMissingCommandCause(cause: unknown, seen = new WeakSet<object>()): b
     return cause.some((entry) => hasMissingCommandCause(entry, seen));
   }
   const record = cause as Record<string, unknown>;
-  if (record._tag === "AcpSpawnError") return true;
+  if (record._tag === "AcpSpawnError") {
+    return hasNotFoundCause(record.cause);
+  }
   return Object.values(record).some((entry) => hasMissingCommandCause(entry, seen));
+}
+
+function hasNotFoundCause(cause: unknown, seen = new WeakSet<object>()): boolean {
+  if (!cause || typeof cause !== "object" || seen.has(cause)) return false;
+  seen.add(cause);
+  if (Array.isArray(cause)) {
+    return cause.some((entry) => hasNotFoundCause(entry, seen));
+  }
+  const record = cause as Record<string, unknown>;
+  if (record.code === "ENOENT") return true;
+  if (record._tag === "PlatformError") {
+    const reason = record.reason;
+    if (
+      reason &&
+      typeof reason === "object" &&
+      (reason as Record<string, unknown>)._tag === "NotFound"
+    ) {
+      return true;
+    }
+  }
+  return Object.values(record).some((entry) => hasNotFoundCause(entry, seen));
 }
 
 export function buildInitialStandardAcpCliProviderSnapshot(
@@ -196,3 +219,6 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
     });
   },
 );
+
+/** Exposed for focused error-classification tests. */
+export const __testing = { hasMissingCommandCause };

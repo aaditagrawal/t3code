@@ -6,6 +6,7 @@ import * as NodeURL from "node:url";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
@@ -58,32 +59,48 @@ it.layer(testLayer)("standard ACP provider adapters", (it) => {
         const providerKind =
           provider === "hermes" ? ProviderDriverKind.make("hermes") : ProviderDriverKind.make("pi");
         const events: ProviderRuntimeEvent[] = [];
+        const turnCompleted = yield* Deferred.make<void>();
         const eventFiber = yield* adapter.streamEvents.pipe(
-          Stream.runForEach((event) => Effect.sync(() => events.push(event))),
+          Stream.runForEach((event) =>
+            Effect.sync(() => events.push(event)).pipe(
+              Effect.andThen(
+                event.type === "turn.completed"
+                  ? Deferred.succeed(turnCompleted, undefined).pipe(Effect.asVoid)
+                  : Effect.void,
+              ),
+            ),
+          ),
           Effect.forkChild,
         );
 
-        const session = yield* adapter.startSession({
-          threadId,
-          provider: providerKind,
-          cwd: process.cwd(),
-          runtimeMode: "full-access",
-        });
-        assert.equal(String(session.provider), provider);
-        assert.deepStrictEqual(session.resumeCursor, {
-          schemaVersion: 1,
-          sessionId: "mock-session-1",
-        });
+        yield* Effect.gen(function* () {
+          const session = yield* adapter.startSession({
+            threadId,
+            provider: providerKind,
+            cwd: process.cwd(),
+            runtimeMode: "full-access",
+          });
+          assert.equal(String(session.provider), provider);
+          assert.deepStrictEqual(session.resumeCursor, {
+            schemaVersion: 1,
+            sessionId: "mock-session-1",
+          });
 
-        yield* adapter.sendTurn({ threadId, input: `hello ${provider}`, attachments: [] });
-        yield* Effect.yieldNow;
+          yield* adapter.sendTurn({ threadId, input: `hello ${provider}`, attachments: [] });
+          yield* Deferred.await(turnCompleted);
 
-        assert.includeMembers(
-          events.map((event) => event.type),
-          ["session.started", "thread.started", "turn.started", "content.delta", "turn.completed"],
-        );
-        yield* adapter.stopSession(threadId);
-        yield* Fiber.interrupt(eventFiber);
+          assert.includeMembers(
+            events.map((event) => event.type),
+            [
+              "session.started",
+              "thread.started",
+              "turn.started",
+              "content.delta",
+              "turn.completed",
+            ],
+          );
+          yield* adapter.stopSession(threadId);
+        }).pipe(Effect.ensuring(Fiber.interrupt(eventFiber)));
       }),
     );
   }

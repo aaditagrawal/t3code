@@ -43,6 +43,7 @@ import {
   resolveAccentColorRgba,
 } from "../accentColor";
 import { resolveTerminalFontFamily } from "../lib/terminalFont";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
 // ─── Ghostty WASM Initialization ────────────────────────────────────────────
 // ghostty-web requires a one-time async init to load the WASM module.
@@ -630,44 +631,67 @@ export default function GhosttyTerminalSplitView({
           <div className="mx-1 h-3.5 w-px bg-border/60" />
 
           {/* Split button */}
-          <button
-            type="button"
-            className={`rounded p-1 text-muted-foreground transition-colors ${
-              canSplit
-                ? "hover:bg-accent/60 hover:text-foreground"
-                : "cursor-not-allowed opacity-40"
-            }`}
-            onClick={handleSplit}
-            disabled={!canSplit}
-            title={canSplit ? `Split (max ${MAX_PANES})` : `Max ${MAX_PANES} panes`}
-          >
-            <Split className="size-3" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  className={`rounded p-1 text-muted-foreground transition-colors ${
+                    canSplit
+                      ? "hover:bg-accent/60 hover:text-foreground"
+                      : "cursor-not-allowed opacity-40"
+                  }`}
+                  onClick={handleSplit}
+                  disabled={!canSplit}
+                  aria-label="Split terminal pane"
+                />
+              }
+            >
+              <Split className="size-3" />
+            </TooltipTrigger>
+            <TooltipPopup>
+              {canSplit ? `Split (max ${MAX_PANES})` : `Max ${MAX_PANES} panes`}
+            </TooltipPopup>
+          </Tooltip>
 
           {/* Add new pane */}
-          <button
-            type="button"
-            className={`rounded p-1 text-muted-foreground transition-colors ${
-              canSplit
-                ? "hover:bg-accent/60 hover:text-foreground"
-                : "cursor-not-allowed opacity-40"
-            }`}
-            onClick={handleSplit}
-            disabled={!canSplit}
-            title="New pane"
-          >
-            <Plus className="size-3" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  className={`rounded p-1 text-muted-foreground transition-colors ${
+                    canSplit
+                      ? "hover:bg-accent/60 hover:text-foreground"
+                      : "cursor-not-allowed opacity-40"
+                  }`}
+                  onClick={handleSplit}
+                  disabled={!canSplit}
+                  aria-label="New terminal pane"
+                />
+              }
+            >
+              <Plus className="size-3" />
+            </TooltipTrigger>
+            <TooltipPopup>New pane</TooltipPopup>
+          </Tooltip>
 
           {/* Collapse */}
-          <button
-            type="button"
-            className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
-            onClick={() => setIsCollapsed(true)}
-            title="Collapse"
-          >
-            <Minimize2 className="size-3" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                  onClick={() => setIsCollapsed(true)}
+                  aria-label="Collapse terminal split view"
+                />
+              }
+            >
+              <Minimize2 className="size-3" />
+            </TooltipTrigger>
+            <TooltipPopup>Collapse</TooltipPopup>
+          </Tooltip>
         </div>
       </div>
 
