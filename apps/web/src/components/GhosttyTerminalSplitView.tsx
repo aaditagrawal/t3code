@@ -634,20 +634,26 @@ export default function GhosttyTerminalSplitView({
           <Tooltip>
             <TooltipTrigger
               render={
-                <button
-                  type="button"
-                  className={`rounded p-1 text-muted-foreground transition-colors ${
-                    canSplit
-                      ? "hover:bg-accent/60 hover:text-foreground"
-                      : "cursor-not-allowed opacity-40"
-                  }`}
-                  onClick={handleSplit}
-                  disabled={!canSplit}
-                  aria-label="Split terminal pane"
+                <span
+                  className="inline-flex"
+                  tabIndex={canSplit ? undefined : 0}
+                  aria-label={canSplit ? undefined : `Max ${MAX_PANES} terminal panes`}
                 />
               }
             >
-              <Split className="size-3" />
+              <button
+                type="button"
+                className={`rounded p-1 text-muted-foreground transition-colors ${
+                  canSplit
+                    ? "hover:bg-accent/60 hover:text-foreground"
+                    : "cursor-not-allowed opacity-40"
+                }`}
+                onClick={handleSplit}
+                disabled={!canSplit}
+                aria-label="Split terminal pane"
+              >
+                <Split className="size-3" />
+              </button>
             </TooltipTrigger>
             <TooltipPopup>
               {canSplit ? `Split (max ${MAX_PANES})` : `Max ${MAX_PANES} panes`}
@@ -658,22 +664,28 @@ export default function GhosttyTerminalSplitView({
           <Tooltip>
             <TooltipTrigger
               render={
-                <button
-                  type="button"
-                  className={`rounded p-1 text-muted-foreground transition-colors ${
-                    canSplit
-                      ? "hover:bg-accent/60 hover:text-foreground"
-                      : "cursor-not-allowed opacity-40"
-                  }`}
-                  onClick={handleSplit}
-                  disabled={!canSplit}
-                  aria-label="New terminal pane"
+                <span
+                  className="inline-flex"
+                  tabIndex={canSplit ? undefined : 0}
+                  aria-label={canSplit ? undefined : `Max ${MAX_PANES} terminal panes`}
                 />
               }
             >
-              <Plus className="size-3" />
+              <button
+                type="button"
+                className={`rounded p-1 text-muted-foreground transition-colors ${
+                  canSplit
+                    ? "hover:bg-accent/60 hover:text-foreground"
+                    : "cursor-not-allowed opacity-40"
+                }`}
+                onClick={handleSplit}
+                disabled={!canSplit}
+                aria-label="New terminal pane"
+              >
+                <Plus className="size-3" />
+              </button>
             </TooltipTrigger>
-            <TooltipPopup>New pane</TooltipPopup>
+            <TooltipPopup>{canSplit ? "New pane" : `Max ${MAX_PANES} panes`}</TooltipPopup>
           </Tooltip>
 
           {/* Collapse */}
