@@ -171,6 +171,7 @@ export function HermesCompanionSection(props: {
         input: { instanceId: props.instanceId },
       });
       if (result._tag === "Success") {
+        refreshGeneration.current += 1;
         setEnrollment(null);
         setStatus(result.value);
       } else {
@@ -182,6 +183,7 @@ export function HermesCompanionSection(props: {
         input: { instanceId: props.instanceId },
       });
       if (result._tag === "Success") {
+        refreshGeneration.current += 1;
         setEnrollment(null);
         setStatus(null);
       } else {

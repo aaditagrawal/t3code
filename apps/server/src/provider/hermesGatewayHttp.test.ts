@@ -115,12 +115,14 @@ const makeHarness = (options?: {
     const queryLayer = Layer.mock(ProjectionSnapshotQuery)({
       // The home thread is designated in settings and exists, so home-thread
       // resolution takes the fast path without dispatching a thread.create.
-      getThreadArchiveStateById: () =>
+      getThreadArchiveStateById: (threadId) =>
         Effect.succeed(
-          Option.some({
-            projectId: AGENT_PROJECT_ID,
-            archivedAt: options?.homeThreadArchivedAt ?? null,
-          }),
+          threadId === HOME_THREAD_ID
+            ? Option.some({
+                projectId: AGENT_PROJECT_ID,
+                archivedAt: options?.homeThreadArchivedAt ?? null,
+              })
+            : Option.none(),
         ),
       getThreadShellById: (threadId) =>
         Effect.succeed(
