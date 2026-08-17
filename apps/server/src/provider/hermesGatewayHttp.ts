@@ -116,10 +116,14 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
       });
       const active = yield* projection.getThreadShellById(input.requestedThreadId);
       const thread = Option.isSome(active)
-        ? active.value
-        : (yield* projection.getArchivedShellSnapshot()).threads.find(
-            (candidate) => candidate.id === input.requestedThreadId,
-          );
+        ? { projectId: active.value.projectId, archivedAt: active.value.archivedAt }
+        : projection.getThreadArchiveStateById !== undefined
+          ? Option.getOrUndefined(
+              yield* projection.getThreadArchiveStateById(input.requestedThreadId),
+            )
+          : (yield* projection.getArchivedShellSnapshot()).threads.find(
+              (candidate) => candidate.id === input.requestedThreadId,
+            );
       if (thread?.projectId !== project.id) {
         return yield* new ProviderAdapterRequestError({
           provider: "hermes",
@@ -135,7 +139,7 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
               `hermes-handoff-unarchive-${deliveryUuid({
                 instanceId: input.registration.instanceId,
                 threadId: input.requestedThreadId,
-                deliveryId: String(thread.updatedAt),
+                deliveryId: String(thread.archivedAt),
                 purpose: "unarchive",
               })}`,
             ),
@@ -390,22 +394,30 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
   ) =>
     Effect.gen(function* () {
       if (registration.role !== "gateway") {
-        return yield* new ProviderAdapterRequestError({
-          provider: "hermes",
-          method: "handoff.create",
-          detail: "A delivery-only connection cannot create handoff threads.",
+        yield* transport.send({
+          type: "protocol.error",
+          protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
+          requestId: message.requestId,
+          code: "invalid-message",
+          message: "A delivery-only connection cannot create handoff threads.",
+          recoverable: false,
         });
+        return;
       }
       const homeThreadId = yield* getOrCreateHomeThread({
         instanceId: registration.instanceId,
         title: registration.accepted.nickname,
       });
       if (message.parentThreadId !== homeThreadId) {
-        return yield* new ProviderAdapterRequestError({
-          provider: "hermes",
-          method: "handoff.create",
-          detail: "A Hermes handoff must start from the instance's Home thread.",
+        yield* transport.send({
+          type: "protocol.error",
+          protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
+          requestId: message.requestId,
+          code: "invalid-message",
+          message: "A Hermes handoff must start from the instance's Home thread.",
+          recoverable: false,
         });
+        return;
       }
       const project = yield* getOrCreateAgentProject({
         instanceId: registration.instanceId,

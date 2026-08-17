@@ -82,7 +82,9 @@ const hermesInstance = (config: Record<string, unknown>) => ({
  */
 const makeQueryLayer = (
   threads: Ref.Ref<ReadonlyArray<Option.Option<OrchestrationThreadShell>>>,
-  archiveStates?: ReadonlyArray<Option.Option<{ readonly archivedAt: string | null }>>,
+  archiveStates?: ReadonlyArray<
+    Option.Option<{ readonly projectId: ProjectId; readonly archivedAt: string | null }>
+  >,
 ) =>
   Layer.succeed(ProjectionSnapshotQuery, {
     getCommandReadModel: () => Effect.die("unused"),
@@ -102,7 +104,10 @@ const makeQueryLayer = (
         // Default: mirror the shell queue, since a thread visible to the shell
         // query is also present. Tests about archiving pass this explicitly.
         const queue = yield* Ref.get(threads);
-        return Option.map(queue[0] ?? Option.none(), () => ({ archivedAt: null }));
+        return Option.map(queue[0] ?? Option.none(), (thread) => ({
+          projectId: thread.projectId,
+          archivedAt: null,
+        }));
       }),
     getThreadShellById: () =>
       Effect.gen(function* () {
@@ -173,7 +178,9 @@ const testLayer = (input: {
    * a test can model "archived, therefore invisible to the shell query but
    * still very much present" — the case that used to mint a second Home.
    */
-  readonly archiveStates?: ReadonlyArray<Option.Option<{ readonly archivedAt: string | null }>>;
+  readonly archiveStates?: ReadonlyArray<
+    Option.Option<{ readonly projectId: ProjectId; readonly archivedAt: string | null }>
+  >;
 }) =>
   Layer.mergeAll(
     makeQueryLayer(input.threads, input.archiveStates),
@@ -403,7 +410,12 @@ it.effect("keeps an archived Home rather than minting a replacement", () =>
         testLayer({
           threads,
           dispatched,
-          archiveStates: [Option.some({ archivedAt: "2026-01-02T00:00:00.000Z" })],
+          archiveStates: [
+            Option.some({
+              projectId: agentProject.id,
+              archivedAt: "2026-01-02T00:00:00.000Z",
+            }),
+          ],
           providerInstances: {
             [INSTANCE_ID]: hermesInstance({ homeThreadId: HOME_THREAD_ID }),
           },
@@ -442,7 +454,7 @@ it.effect("does not un-archive a Home that was never archived", () =>
         testLayer({
           threads,
           dispatched,
-          archiveStates: [Option.some({ archivedAt: null })],
+          archiveStates: [Option.some({ projectId: agentProject.id, archivedAt: null })],
           providerInstances: {
             [INSTANCE_ID]: hermesInstance({ homeThreadId: HOME_THREAD_ID }),
           },

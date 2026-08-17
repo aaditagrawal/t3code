@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
 import pathlib
@@ -59,6 +60,33 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
         )
         with self.assertRaises(ValueError):
             connection.websocket_url("ftp://invalid.example")
+
+    async def test_disconnect_cancels_and_drains_in_flight_handlers(self):
+        started = asyncio.Event()
+        cancelled = asyncio.Event()
+        never_finishes = asyncio.Event()
+
+        async def on_message(_message):
+            started.set()
+            try:
+                await never_finishes.wait()
+            finally:
+                cancelled.set()
+
+        conn = connection.T3GatewayConnection(
+            url="ws://t3.example/api/hermes-gateway/ws",
+            instance_id="provider-instance",
+            credential="secret",
+            hermes_version="0.19.0",
+            on_message=on_message,
+        )
+        conn._spawn_handler({"type": "turn.start", "requestId": "turn-1"})
+        await asyncio.wait_for(started.wait(), timeout=1)
+
+        await conn.disconnect()
+
+        self.assertTrue(cancelled.is_set())
+        self.assertEqual(conn._handlers, set())
 
     async def test_enrollment_handshake_returns_credential(self):
         socket = FakeSocket(

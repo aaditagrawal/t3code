@@ -8,6 +8,7 @@ import importlib.util
 import pathlib
 import sys
 import tempfile
+import threading
 import types
 import unittest
 import unittest.mock
@@ -1994,6 +1995,21 @@ class HomeDeliveryTests(unittest.IsolatedAsyncioTestCase):
             }
         )
         self.assertEqual(self.queue.entries(), [])
+
+    async def test_delivery_queue_io_runs_off_the_gateway_event_loop(self):
+        event_loop_thread = threading.get_ident()
+
+        def append_in_worker(frame):
+            self.assertNotEqual(threading.get_ident(), event_loop_thread)
+            return True
+
+        with unittest.mock.patch.object(
+            self.queue, "append", side_effect=append_in_worker
+        ):
+            result = await self.adapter.send(self.HOME, "Non-blocking queue write")
+
+        self.assertTrue(result.success)
+        self.assertEqual(self.connection.messages[0]["type"], "home.deliver")
 
     async def test_a_delivery_survives_a_dead_socket_and_flushes_on_reconnect(self):
         """Offline delivery: nothing is lost across either side restarting."""

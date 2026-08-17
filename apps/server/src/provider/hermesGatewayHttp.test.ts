@@ -70,6 +70,7 @@ const mediaFrame = (
 
 const makeHarness = (options?: {
   readonly trackedThreadId?: ThreadId;
+  readonly trackedThreadArchivedAt?: string;
   readonly failDispatch?: boolean;
   /** Archive state of the designated home thread, as the projection sees it. */
   readonly homeThreadArchivedAt?: string;
@@ -115,11 +116,23 @@ const makeHarness = (options?: {
     const queryLayer = Layer.mock(ProjectionSnapshotQuery)({
       // The home thread is designated in settings and exists, so home-thread
       // resolution takes the fast path without dispatching a thread.create.
-      getThreadArchiveStateById: () =>
-        Effect.succeed(Option.some({ archivedAt: options?.homeThreadArchivedAt ?? null })),
+      getThreadArchiveStateById: (threadId) =>
+        Effect.succeed(
+          threadId === HOME_THREAD_ID
+            ? Option.some({
+                projectId: AGENT_PROJECT_ID,
+                archivedAt: options?.homeThreadArchivedAt ?? null,
+              })
+            : options?.trackedThreadId === threadId && options.trackedThreadArchivedAt
+              ? Option.some({
+                  projectId: AGENT_PROJECT_ID,
+                  archivedAt: options.trackedThreadArchivedAt,
+                })
+              : Option.none(),
+        ),
       getThreadShellById: (threadId) =>
         Effect.succeed(
-          options?.trackedThreadId === threadId
+          options?.trackedThreadId === threadId && !options.trackedThreadArchivedAt
             ? Option.some({
                 id: threadId,
                 projectId: AGENT_PROJECT_ID,
@@ -253,6 +266,33 @@ it.effect("refuses a forged handoff parent without creating a thread", () =>
     assert.equal(harness.sent[0]?.type, "protocol.error");
     if (harness.sent[0]?.type === "protocol.error") {
       assert.equal(harness.sent[0].requestId, "handoff-forged-parent");
+      assert.equal(harness.sent[0].code, "invalid-message");
+      assert.equal(harness.sent[0].recoverable, false);
+      assert.include(harness.sent[0].message, "Home thread");
+    }
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+it.effect("reports an unexpected handoff dispatch failure as recoverable", () =>
+  Effect.gen(function* () {
+    const harness = yield* makeHarness({ failDispatch: true });
+    yield* harness.createHandoffThread(
+      registration,
+      {
+        type: "handoff.create",
+        protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
+        requestId: HermesGatewayRequestId.make("handoff-dispatch-failure"),
+        parentThreadId: HOME_THREAD_ID,
+        name: "Retry later",
+      },
+      harness.transport,
+    );
+
+    assert.equal(harness.sent.length, 1);
+    assert.equal(harness.sent[0]?.type, "protocol.error");
+    if (harness.sent[0]?.type === "protocol.error") {
+      assert.equal(harness.sent[0].requestId, "handoff-dispatch-failure");
+      assert.equal(harness.sent[0].code, "internal-error");
       assert.equal(harness.sent[0].recoverable, true);
     }
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
@@ -280,6 +320,39 @@ it.effect("allows handoff delivery only into a thread owned by the instance agen
     const delivery = dispatchedDeliveries(yield* Ref.get(harness.dispatched))[0]!;
     assert.equal(delivery.threadId, handoffThreadId);
     assert.equal(delivery.kind, "handoff");
+    assert.equal(harness.sent[0]?.type, "home.deliver.ack");
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+it.effect("resolves and reopens an archived handoff destination with a narrow lookup", () =>
+  Effect.gen(function* () {
+    const handoffThreadId = ThreadId.make("hermes-handoff-archived");
+    const harness = yield* makeHarness({
+      trackedThreadId: handoffThreadId,
+      trackedThreadArchivedAt: "2026-08-17T20:00:00.000Z",
+    });
+    yield* harness.deliverHomeNotification(
+      registration,
+      {
+        type: "home.deliver",
+        protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
+        deliveryId: HermesGatewayDeliveryId.make("handoff-delivery-archived"),
+        threadId: handoffThreadId,
+        kind: "handoff",
+        label: "Handoff",
+        text: "Resume in the archived thread.",
+        createdAt: CREATED_AT,
+      },
+      harness.transport,
+    );
+
+    const commands = yield* Ref.get(harness.dispatched);
+    assert.isTrue(
+      commands.some(
+        (command) => command.type === "thread.unarchive" && command.threadId === handoffThreadId,
+      ),
+    );
+    assert.equal(dispatchedDeliveries(commands)[0]?.threadId, handoffThreadId);
     assert.equal(harness.sent[0]?.type, "home.deliver.ack");
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );

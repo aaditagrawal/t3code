@@ -1250,9 +1250,8 @@ export const makeHermesGatewayBroker = Effect.gen(function* () {
             return yield* authorizationError(registration, "connection is no longer authorized.");
           }
         }
-        return yield* effect;
       }),
-    );
+    ).pipe(Effect.andThen(effect));
 
   const receive = (registration: HermesGatewayConnectionRegistration, message: PluginMessage) =>
     withAuthorizedConnection(

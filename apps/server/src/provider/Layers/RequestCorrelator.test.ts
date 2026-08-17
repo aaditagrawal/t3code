@@ -150,6 +150,33 @@ it.effect("times out a request whose transport write stalls", () =>
   }),
 );
 
+it.effect("sweeps an abandoned request after its maximum age", () =>
+  Effect.gen(function* () {
+    const correlator = yield* makeRequestCorrelator<string, { readonly requestId: string }>({
+      provider: "test",
+      timeout: Duration.minutes(5),
+      maxAge: Duration.seconds(90),
+    });
+    const pending = yield* correlator
+      .request({
+        owner,
+        requestId: "r-abandoned",
+        method: "test.method",
+        send: Effect.void,
+      })
+      .pipe(Effect.forkChild({ startImmediately: true }));
+    yield* Effect.yieldNow;
+    assert.equal(yield* correlator.pendingCount, 1);
+
+    yield* TestClock.adjust(Duration.seconds(91));
+    yield* correlator.sweep;
+
+    const failure = yield* Effect.flip(Fiber.join(pending));
+    assert.include(failure.detail, "abandoned");
+    assert.equal(yield* correlator.pendingCount, 0);
+  }),
+);
+
 // A response can land the instant the write completes. Registration happens
 // uninterruptibly before the send, so `complete` always finds an entry —
 // moving the send inside `restore` must not have opened that window.

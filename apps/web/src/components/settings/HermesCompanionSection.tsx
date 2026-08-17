@@ -164,17 +164,26 @@ export function HermesCompanionSection(props: {
     refreshGeneration.current += 1;
     setPending(true);
     setError(null);
-    const command = action === "revoke" ? revoke : remove;
-    const result = await command({
+    const target = {
       environmentId: props.environmentId,
       input: { instanceId: props.instanceId },
-    });
-    if (result._tag === "Success") {
-      setEnrollment(null);
-      if (action === "revoke") setStatus(result.value as HermesGatewayInstanceStatus);
-      else setStatus(null);
+    };
+    if (action === "revoke") {
+      const result = await revoke(target);
+      if (result._tag === "Success") {
+        setEnrollment(null);
+        setStatus(result.value);
+      } else {
+        setError(messageFromUnknownError(squashAtomCommandFailure(result)));
+      }
     } else {
-      setError(messageFromUnknownError(squashAtomCommandFailure(result)));
+      const result = await remove(target);
+      if (result._tag === "Success") {
+        setEnrollment(null);
+        setStatus(null);
+      } else {
+        setError(messageFromUnknownError(squashAtomCommandFailure(result)));
+      }
     }
     setPending(false);
   };

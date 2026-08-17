@@ -448,19 +448,24 @@ it.effect("does not resurrect a credential for an enrollment superseded mid-hand
       "the superseded enrollment's credential must not survive the replacement",
     );
     // ...and cannot be replayed to authenticate.
-    if (registered._tag === "Success" && registered.success.accepted.credential) {
-      const replayed = yield* Effect.flip(
-        broker.registerConnection(
-          hello({
-            type: "instance-credential",
-            instanceId,
-            credential: registered.success.accepted.credential,
-          }),
-          recordingTransport().transport,
-        ),
-      );
-      assert.equal(replayed.code, "invalid-authentication");
+    if (registered._tag === "Failure") {
+      return yield* Effect.die(new Error("the superseded handshake unexpectedly failed"));
     }
+    const credential = registered.success.accepted.credential;
+    if (!credential) {
+      return yield* Effect.die(new Error("the superseded handshake issued no credential"));
+    }
+    const replayed = yield* Effect.flip(
+      broker.registerConnection(
+        hello({
+          type: "instance-credential",
+          instanceId,
+          credential,
+        }),
+        recordingTransport().transport,
+      ),
+    );
+    assert.equal(replayed.code, "invalid-authentication");
   }).pipe(Effect.provide(testLayer)),
 );
 
@@ -1381,5 +1386,38 @@ it.effect("a delivery connection never displaces the live gateway connection", (
       broker.withAuthorizedConnection(delivery, Effect.void),
     );
     assert.include(revokedDelivery.detail, "no longer authorized");
+  }).pipe(Effect.provide(testLayer)),
+);
+
+it.effect("does not hold the instance lifecycle lock while authorized work runs", () =>
+  Effect.gen(function* () {
+    const broker = yield* makeBroker(makeSecretStore());
+    const enrollment = yield* enroll(broker, instanceId, "Remote Hermes");
+    const registration = yield* broker.registerConnection(
+      hello({ type: "enrollment-token", token: enrollment.oneTimeToken }),
+      recordingTransport().transport,
+    );
+    const workStarted = yield* Deferred.make<void>();
+    const releaseWork = yield* Deferred.make<void>();
+    const inFlight = yield* broker
+      .withAuthorizedConnection(
+        registration,
+        Deferred.succeed(workStarted, undefined).pipe(Effect.andThen(Deferred.await(releaseWork))),
+      )
+      .pipe(Effect.forkChild({ startImmediately: true }));
+    yield* Deferred.await(workStarted);
+
+    const revoked = yield* broker
+      .revokeInstance(instanceId)
+      .pipe(Effect.forkChild({ startImmediately: true }));
+    yield* Effect.yieldNow;
+    assert.isDefined(
+      revoked.pollUnsafe(),
+      "an authorized delivery must not block revocation or liveness for the instance",
+    );
+
+    yield* Deferred.succeed(releaseWork, undefined);
+    yield* Fiber.join(inFlight);
+    yield* Fiber.join(revoked);
   }).pipe(Effect.provide(testLayer)),
 );

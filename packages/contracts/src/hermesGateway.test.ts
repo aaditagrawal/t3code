@@ -9,6 +9,7 @@ import {
 } from "./model.ts";
 import {
   HERMES_GATEWAY_PROTOCOL_VERSION,
+  HERMES_MEDIA_MAX_BYTES,
   HermesGatewayCapabilities,
   HermesGatewayConnectionHello,
   HermesGatewayCreateEnrollmentInput,
@@ -346,6 +347,28 @@ describe("T3 to Hermes messages", () => {
     expect(hello.role).toBe("gateway");
   });
 
+  it("preserves an explicit delivery connection role", () => {
+    const hello = decodeHello({
+      type: "connection.hello",
+      requestId: "hello-role-delivery",
+      protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
+      pluginVersion: "0.5.0",
+      hermesVersion: "0.19.0",
+      capabilities: {
+        protocolVersion: HERMES_GATEWAY_PROTOCOL_VERSION,
+        streaming: true,
+        activity: true,
+        approvals: true,
+        userInput: true,
+        attachments: true,
+      },
+      authentication: { type: "instance-credential", instanceId: "hermes", credential: "secret" },
+      role: "delivery",
+    });
+
+    expect(hello.role).toBe("delivery");
+  });
+
   it("carries the home thread designation on acceptance", () => {
     const accepted = decodeT3Message({
       type: "connection.accepted",
@@ -462,9 +485,9 @@ describe("Hermes media deliveries", () => {
   });
 
   it("bounds the base64 payload at the frame ceiling", () => {
-    // One character past the ceiling for a 25MB file must fail at decode,
+    // One character past the ceiling for a 25MiB file must fail at decode,
     // before anything buffers or writes.
-    const overCeiling = "A".repeat(Math.ceil((25 * 1024 * 1024) / 3) * 4 + 8);
+    const overCeiling = "A".repeat(Math.ceil(HERMES_MEDIA_MAX_BYTES / 3) * 4 + 8);
     expect(() => decodePluginMessage({ ...media, data: overCeiling })).toThrow();
   });
 });

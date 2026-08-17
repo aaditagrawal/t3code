@@ -948,12 +948,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
   const getThreadArchiveStateRowById = SqlSchema.findOneOption({
     Request: ThreadIdLookupInput,
     Result: Schema.Struct({
+      projectId: ProjectId,
       archivedAt: Schema.NullOr(Schema.String),
       deletedAt: Schema.NullOr(Schema.String),
     }),
     execute: ({ threadId }) =>
       sql`
         SELECT
+          project_id AS "projectId",
           archived_at AS "archivedAt",
           deleted_at AS "deletedAt"
         FROM projection_threads
@@ -2477,8 +2479,11 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
       Effect.map(
         Option.flatMap((row) =>
           row.deletedAt === null
-            ? Option.some({ archivedAt: row.archivedAt })
-            : Option.none<{ readonly archivedAt: string | null }>(),
+            ? Option.some({ projectId: row.projectId, archivedAt: row.archivedAt })
+            : Option.none<{
+                readonly projectId: ProjectId;
+                readonly archivedAt: string | null;
+              }>(),
         ),
       ),
     );

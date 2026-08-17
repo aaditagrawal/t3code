@@ -15,9 +15,13 @@ jobs:
     name: Hermes Companion Plugin
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -25,7 +29,7 @@ jobs:
           python-version: "3.12"
 
       - name: Lint
-        run: pipx run ruff check integrations/hermes-t3-gateway
+        run: pipx run ruff==0.16.3 check integrations/hermes-t3-gateway
 
       - name: Test
         run: python -m unittest discover -s integrations/hermes-t3-gateway/tests -v

@@ -551,7 +551,7 @@ class T3PlatformAdapter(BasePlatformAdapter):
         # socket dies between here and the ack, the entry survives to be
         # replayed on the next connect, and T3's `deliveryId` dedupe makes the
         # replay harmless.
-        queued = self._home_queue.append(delivery)
+        queued = await asyncio.to_thread(self._home_queue.append, delivery)
         sent = True
         try:
             await self._send_frame(delivery)
@@ -607,7 +607,7 @@ class T3PlatformAdapter(BasePlatformAdapter):
         the upgrade. The delivery fields themselves are version-stable (the
         v3→v4 change only added frame types), so restamping is honest.
         """
-        pending = self._home_queue.entries()
+        pending = await asyncio.to_thread(self._home_queue.entries)
         if not pending:
             return
         logger.info("Flushing %d queued T3 home deliver(y|ies)", len(pending))
@@ -640,7 +640,7 @@ class T3PlatformAdapter(BasePlatformAdapter):
         delivery_id_value = str(message.get("deliveryId") or "").strip()
         if not delivery_id_value:
             raise ValueError("a delivery ack requires a deliveryId")
-        self._home_queue.purge(delivery_id_value)
+        await asyncio.to_thread(self._home_queue.purge, delivery_id_value)
 
     # ── outbound media ─────────────────────────────────────────────────
 
@@ -778,7 +778,7 @@ class T3PlatformAdapter(BasePlatformAdapter):
         The same durable lifecycle as `_deliver_to_home`: persist BEFORE
         sending, report success once queued, purge only on the ack. The one
         divergence is a payload that cannot be built at all — unreadable file,
-        empty, over the 25MB ceiling — which fails the send immediately
+        empty, over the 25MiB ceiling — which fails the send immediately
         instead of queueing a frame T3 would reject on every future flush.
 
         **An unscopeable file goes to Home rather than being dropped.** When
@@ -837,7 +837,7 @@ class T3PlatformAdapter(BasePlatformAdapter):
             logger.warning("T3 media delivery for %s failed to build: %s", path, exc)
             return SendResult(success=False, error=str(exc))
         delivery_id_value = str(delivery["deliveryId"])
-        queued = self._home_queue.append(delivery)
+        queued = await asyncio.to_thread(self._home_queue.append, delivery)
         sent = True
         try:
             await self._send_frame(delivery)

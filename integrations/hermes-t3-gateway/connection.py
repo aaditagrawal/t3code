@@ -64,7 +64,7 @@ async def _open_socket(url: str):
         ping_timeout=20,
         close_timeout=5,
         # Protocol v4 turn frames may carry inline base64 attachments up to
-        # 25MB raw (~34MB encoded, `protocol.MAX_MEDIA_BYTES`). 64MB leaves
+        # 25MiB raw (~34MiB encoded, `protocol.MAX_MEDIA_BYTES`). 64MiB leaves
         # room for the JSON envelope and T3's per-turn total while still
         # bounding a pathological frame.
         max_size=64 * 1024 * 1024,
@@ -219,6 +219,16 @@ class T3GatewayConnection:
             with suppress(asyncio.CancelledError):
                 await self._supervisor
             self._supervisor = None
+        current = asyncio.current_task()
+        handlers, self._handlers = self._handlers, set()
+        for handler in handlers:
+            if handler is not current:
+                handler.cancel()
+        for handler in handlers:
+            if handler is current:
+                continue
+            with suppress(asyncio.CancelledError, Exception):
+                await handler
         await self._notify_state(False, None)
 
     async def send(self, message: dict[str, Any]) -> None:

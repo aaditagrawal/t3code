@@ -27,7 +27,7 @@ export const HERMES_GATEWAY_PROTOCOL_VERSION = 4 as const;
 /**
  * Base64 payload ceiling for a single media frame, both directions.
  *
- * 25MB of raw bytes is ~34MB of base64; the schema bound is on the encoded
+ * 25MiB of raw bytes is ~34MiB of base64; the schema bound is on the encoded
  * string so an oversized frame fails at decode rather than after buffering.
  * Deliberately no chunking protocol — a file that does not fit does not
  * send, with a clear error. Chunking is the escape hatch if that ceiling
@@ -128,7 +128,7 @@ export type HermesGatewayConnectionState = typeof HermesGatewayConnectionState.T
 /**
  * Public instance state used by settings and provider-picker surfaces.
  *
- * `protocolVersion` is not restricted to v2 here so the UI can report the
+ * `protocolVersion` is not restricted to v4 here so the UI can report the
  * unsupported version observed from a plugin that needs an upgrade.
  */
 export const HermesGatewayInstanceStatus = Schema.Struct({
@@ -309,7 +309,7 @@ export const HermesGatewayConnectionHello = Schema.Struct({
   model: Schema.optional(TrimmedNonEmptyString),
   /**
    * Defaults to `"gateway"` on decode so the field stays honest about intent
-   * rather than making every caller repeat the common case. v3 requires both
+   * rather than making every caller repeat the common case. v4 requires both
    * sides updated regardless, so this default is ergonomics, not tolerance.
    */
   role: HermesGatewayConnectionRole.pipe(Schema.withDecodingDefault(Effect.succeed("gateway"))),

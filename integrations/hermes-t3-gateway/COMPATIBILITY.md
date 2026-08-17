@@ -261,14 +261,14 @@ fail-closed.
 - Attachments are part of protocol v4; the capability is fixed to `true`
   (T3's schema pins the literal, so a plugin that cannot handle them is a v3
   plugin and is rejected at the version gate). Inbound, `turn.start` /
-  `turn.steer` may carry inline base64 files (≤25MB each): turn-start files
+  `turn.steer` may carry inline base64 files (≤25MiB each): turn-start files
   are written to private temp files and ride `MessageEvent.media_urls` /
   `media_types` into Hermes' own enrichment pipeline; steer files are
   appended to the injected `/steer` text as path notes, because Hermes'
   steer handler injects only text between tool iterations
   (`gateway/run.py:11254`). Outbound, the adapter overrides
   `send_image_file` / `send_video` / `send_voice` / `send_document` to emit
-  `media.deliver` frames (raw bytes ≤25MB, base64 on the wire) with the same
+  `media.deliver` frames (raw bytes ≤25MiB, base64 on the wire) with the same
   durable queue-then-ack lifecycle as `home.deliver`; the
   `standalone_sender_fn` sends `media_files` the same way, and
   `force_document` remains signature parity only — T3 derives rendering from
@@ -465,13 +465,14 @@ Resolving through that accessor rather than `~/.hermes` makes the queue
 profile-scoped: a second profile cannot replay another profile's deliveries
 into its own home thread.
 
-Correctness rests on one rule: an entry is removed **only** on its
-`home.deliver.ack`. Everything else — a socket that dropped mid-send, a server
+Correctness rests on one rule: a `home.deliver` entry is removed **only** on its
+`home.deliver.ack`, and a `media.deliver` entry is removed **only** on its
+`media.deliver.ack`. Everything else — a socket that dropped mid-send, a server
 that died before writing, a plugin restart — leaves the entry to be replayed,
-which is safe because T3 dedupes on `deliveryId`. Acking before the durable
-write on the server side would break this. The queue is capped at 300 entries
-and 256MiB total, dropping oldest-first with a logged warning. One flush replays
-at most 50 entries or 100MiB so a reconnect does not stall live traffic.
+which is safe because T3 dedupes on `deliveryId`. Acking before the durable write
+on the server side would break this. The queue is capped at 300 entries and
+256MiB total, dropping oldest-first with a logged warning. One flush replays at
+most 50 entries or 100MiB so a reconnect does not stall live traffic.
 
 ### Cron tool-hook misattribution
 
