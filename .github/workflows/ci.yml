@@ -18,10 +18,22 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          persist-credentials: false
+      # actions/checkout's persist-credentials:false cleanup currently fails on
+      # the read-only vendored gitlinks that intentionally have no root
+      # .gitmodules entry. Fetch with a process-local auth header instead: the
+      # token is available only to this step and never lands in Git config.
+      - name: Checkout without persisted credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          auth_header=$(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 | tr -d '\n')
+          git -c "http.${GITHUB_SERVER_URL}/.extraheader=AUTHORIZATION: basic ${auth_header}" \
+            fetch --no-tags --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach --force FETCH_HEAD
+          git remote remove origin
 
       - name: Setup Python
         uses: actions/setup-python@v5
