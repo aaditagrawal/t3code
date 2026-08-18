@@ -2,7 +2,7 @@
 
 T3 Code is a minimal web GUI for coding agents made by [Pingdotgg](https://github.com/pingdotgg). This project is a downstream fork of the original [T3 Code](https://github.com/pingdotgg/t3code), maintained in [aaditagrawal/t3code](https://github.com/aaditagrawal/t3code).
 
-This fork focuses on expanding provider support, keeping usage and limit monitoring visible, improving persistence layers, and refining provider management across the app. The current branded release is [T3 Code v0.0.35 — Hermes Edition](https://github.com/aaditagrawal/t3code/releases/tag/v0.0.35).
+This fork focuses on expanding provider support, keeping usage and limit monitoring visible, improving persistence layers, and refining provider management across the app. The current branded release is [T3 Code v0.0.36 — ACP Edition](https://github.com/aaditagrawal/t3code/releases/tag/v0.0.36).
 
 It supports Codex, Claude Code, Cursor, Droid, OpenCode, Copilot, Gemini CLI, Amp, Kilo,
 Hermes Agent, Pi, and configurable stdio ACP agents.
