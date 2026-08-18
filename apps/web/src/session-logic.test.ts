@@ -1763,6 +1763,7 @@ describe("PROVIDER_OPTIONS", () => {
     const geminiCli = PROVIDER_OPTIONS.find((option) => option.value === "geminiCli");
     const amp = PROVIDER_OPTIONS.find((option) => option.value === "amp");
     expect(PROVIDER_OPTIONS).toEqual([
+      { value: "acp", label: "ACP Agent", available: true, pickerSidebarBadge: "new" },
       { value: "codex", label: "Codex", available: true },
       { value: "copilot", label: "GitHub Copilot", available: true },
       { value: "claudeAgent", label: "Claude Code", available: true },

@@ -719,6 +719,40 @@ export const PiSettings = makeAcpCliProviderSettingsSchema({
 });
 export type PiSettings = typeof PiSettings.Type;
 
+export const AcpSettings = makeProviderSettingsSchema(
+  {
+    enabled: Schema.Boolean.pipe(
+      Schema.withDecodingDefault(Effect.succeed(true)),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+    binaryPath: makeBinaryPathSetting("acp-agent").pipe(
+      Schema.annotateKey({
+        title: "ACP executable",
+        description: "Path to any stdio ACP agent executable.",
+        providerSettingsForm: { placeholder: "goose", clearWhenEmpty: "omit" },
+      }),
+    ),
+    arguments: TrimmedString.pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Arguments",
+        description: "Optional command arguments, one argument per line.",
+        providerSettingsForm: {
+          control: "textarea",
+          placeholder: "acp",
+          clearWhenEmpty: "omit",
+        },
+      }),
+    ),
+    customModels: Schema.Array(Schema.String).pipe(
+      Schema.withDecodingDefault(Effect.succeed([])),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+  },
+  { order: ["binaryPath", "arguments"] },
+);
+export type AcpSettings = typeof AcpSettings.Type;
+
 export const GenericProviderSettings = Schema.Struct({
   enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   customModels: Schema.Array(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed([]))),

@@ -52,6 +52,13 @@ export const makeStandardAcpCliRuntime = (
     );
   });
 
+export function parseStandardAcpCliArguments(value: string | undefined): ReadonlyArray<string> {
+  return (value ?? "")
+    .split(/\r?\n/u)
+    .map((argument) => argument.trim())
+    .filter(Boolean);
+}
+
 export function firstAdvertisedAuthMethod(
   initializeResult: EffectAcpSchema.InitializeResponse,
   excludedIds: ReadonlySet<string> = new Set(),

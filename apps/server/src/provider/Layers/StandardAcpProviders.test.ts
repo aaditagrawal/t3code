@@ -14,6 +14,7 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
 import {
+  AcpSettings,
   HermesSettings,
   PiSettings,
   ProviderDriverKind,
@@ -22,11 +23,13 @@ import {
 } from "@t3tools/contracts";
 
 import { ServerConfig } from "../../config.ts";
+import { makeAcpAdapter } from "./AcpAdapter.ts";
 import { makeHermesAdapter } from "./HermesAdapter.ts";
 import { makePiAdapter } from "./PiAdapter.ts";
 
 const decodeHermesSettings = Schema.decodeUnknownEffect(HermesSettings);
 const decodePiSettings = Schema.decodeUnknownEffect(PiSettings);
+const decodeAcpSettings = Schema.decodeUnknownEffect(AcpSettings);
 
 const __dirname = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
 const mockAgentPath = NodePath.join(__dirname, "../../../scripts/acp-mock-agent.ts");
@@ -48,16 +51,20 @@ const testLayer = ServerConfig.layerTest(process.cwd(), {
 }).pipe(Layer.provideMerge(NodeServices.layer));
 
 it.layer(testLayer)("standard ACP provider adapters", (it) => {
-  for (const provider of ["hermes", "pi"] as const) {
+  for (const provider of ["acp", "hermes", "pi"] as const) {
     it.effect(`${provider} starts, streams a prompt, and stops`, () =>
       Effect.gen(function* () {
         const binaryPath = yield* Effect.promise(makeMockAcpWrapper);
-        const adapter = yield* provider === "hermes"
-          ? decodeHermesSettings({ binaryPath }).pipe(Effect.flatMap(makeHermesAdapter))
-          : decodePiSettings({ binaryPath }).pipe(Effect.flatMap(makePiAdapter));
+        const adapter = yield* provider === "acp"
+          ? decodeAcpSettings({
+              binaryPath: process.execPath,
+              arguments: `${mockAgentPath}\n--generic-acp-test`,
+            }).pipe(Effect.flatMap(makeAcpAdapter))
+          : provider === "hermes"
+            ? decodeHermesSettings({ binaryPath }).pipe(Effect.flatMap(makeHermesAdapter))
+            : decodePiSettings({ binaryPath }).pipe(Effect.flatMap(makePiAdapter));
         const threadId = ThreadId.make(`${provider}-mock-thread`);
-        const providerKind =
-          provider === "hermes" ? ProviderDriverKind.make("hermes") : ProviderDriverKind.make("pi");
+        const providerKind = ProviderDriverKind.make(provider);
         const events: ProviderRuntimeEvent[] = [];
         const turnCompleted = yield* Deferred.make<void>();
         const eventFiber = yield* adapter.streamEvents.pipe(

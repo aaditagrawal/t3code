@@ -30,6 +30,7 @@ export interface StandardAcpCliProviderConfig {
   readonly provider: ProviderDriverKind;
   readonly displayName: string;
   readonly command: string;
+  readonly args?: ReadonlyArray<string>;
   readonly enabled: boolean;
   readonly customModels: ReadonlyArray<string>;
   readonly environment: NodeJS.ProcessEnv;
@@ -163,6 +164,7 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
     const discovery = yield* makeStandardAcpCliRuntime({
       childProcessSpawner,
       command: config.command,
+      ...(config.args ? { args: config.args } : {}),
       cwd: process.cwd(),
       environment: config.environment,
       clientInfo: { name: "t3-code-provider-probe", version: "0.0.0" },
