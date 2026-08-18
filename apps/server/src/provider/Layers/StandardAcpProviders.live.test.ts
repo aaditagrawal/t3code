@@ -31,6 +31,23 @@ interface LiveAcpCase {
   readonly expectedModel?: string;
 }
 
+function makeLiveAdapter(testCase: LiveAcpCase, environment: NodeJS.ProcessEnv) {
+  if (testCase.kind === "hermes") {
+    return Schema.decodeUnknown(HermesSettings)({ binaryPath: testCase.command }).pipe(
+      Effect.flatMap((settings) => makeHermesAdapter(settings, { environment })),
+    );
+  }
+  if (testCase.kind === "pi") {
+    return Schema.decodeUnknown(PiSettings)({ binaryPath: testCase.command }).pipe(
+      Effect.flatMap((settings) => makePiAdapter(settings, { environment })),
+    );
+  }
+  return Schema.decodeUnknown(AcpSettings)({
+    binaryPath: testCase.command,
+    arguments: testCase.args?.join("\n") ?? "",
+  }).pipe(Effect.flatMap((settings) => makeAcpAdapter(settings, { environment })));
+}
+
 function readLiveCases(): ReadonlyArray<LiveAcpCase> {
   const encoded = process.env.T3_LIVE_ACP_CASES;
   if (!encoded) return [];
@@ -53,21 +70,7 @@ it.layer(testLayer)("live standard ACP providers", (it) => {
     it.effect(`${testCase.name} completes a real turn`, () =>
       Effect.gen(function* () {
         const environment = { ...process.env, ...testCase.environment };
-        const adapter = yield* testCase.kind === "hermes"
-          ? makeHermesAdapter(Schema.decodeSync(HermesSettings)({ binaryPath: testCase.command }), {
-              environment,
-            })
-          : testCase.kind === "pi"
-            ? makePiAdapter(Schema.decodeSync(PiSettings)({ binaryPath: testCase.command }), {
-                environment,
-              })
-            : makeAcpAdapter(
-                Schema.decodeSync(AcpSettings)({
-                  binaryPath: testCase.command,
-                  arguments: testCase.args?.join("\n") ?? "",
-                }),
-                { environment },
-              );
+        const adapter = yield* makeLiveAdapter(testCase, environment);
         const threadId = ThreadId.make(`live-${testCase.name}`);
         const completed = yield* Deferred.make<void>();
         const events: ProviderRuntimeEvent[] = [];
@@ -105,7 +108,10 @@ it.layer(testLayer)("live standard ACP providers", (it) => {
             .map((event) => event.payload.delta)
             .join("");
           assert.include(assistantText, expectedText);
-        }).pipe(Effect.ensuring(Fiber.interrupt(eventFiber)), Effect.ensuring(adapter.stopAll()));
+        }).pipe(
+          Effect.ensuring(Fiber.interrupt(eventFiber)),
+          Effect.ensuring(adapter.stopAll().pipe(Effect.orDie)),
+        );
       }),
     );
   }
