@@ -2,9 +2,9 @@
 
 T3 Code is a minimal web GUI for coding agents made by [Pingdotgg](https://github.com/pingdotgg). This project is a downstream fork of the original [T3 Code](https://github.com/pingdotgg/t3code), maintained in [aaditagrawal/t3code](https://github.com/aaditagrawal/t3code).
 
-This fork focuses on expanding provider support, keeping usage and limit monitoring visible, improving persistence layers, and refining provider management across the app.
+This fork focuses on expanding provider support, keeping usage and limit monitoring visible, improving persistence layers, and refining provider management across the app. The current branded release is [T3 Code v0.0.35 — Hermes Edition](https://github.com/aaditagrawal/t3code/releases/tag/v0.0.35).
 
-It supports Codex, Claude Code, Cursor, Droid, OpenCode, Copilot, Gemini CLI, Amp, and Kilo.
+It supports Codex, Claude Code, Cursor, Droid, OpenCode, Copilot, Gemini CLI, Amp, Kilo, Hermes Agent, and Pi.
 
 (NOTE: Amp /mode free is not supported, as Amp Code doesn't support it in headless mode - since they need to show ads for that business model to work.)
 
@@ -29,6 +29,10 @@ Adds full provider adapters (server managers, service layers, runtime layers) fo
 | GitHub Copilot | Adapter + CLI binary resolution + text generation layer                   |
 | Gemini CLI     | **Enhanced:** Adapter + `geminiCliServerManager` with full test coverage  |
 | Kilo           | Adapter + `kiloServerManager` + OpenCode-style server URL config          |
+| Hermes Agent   | ACP chats plus an optional companion for Home, cron, handoffs, and media  |
+| Pi             | ACP integration through `pi-acp`, with shared model and session handling  |
+
+Hermes uses `hermes-acp` for ordinary interactive conversations. Its optional [T3 companion plugin](integrations/hermes-t3-gateway/README.md) adds enrollment, proactive Home and cron delivery, handoffs, and media without replacing the standard ACP path. Pi stays on the shared ACP transport through `pi-acp`.
 
 ### Persistence & Orchestration Improvements
 
@@ -89,6 +93,8 @@ bun run dev
 - [Amp](https://ampcode.com)
 - [Kilo](https://kilo.dev)
 - [OpenCode](https://opencode.ai)
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent) (`hermes-acp`; run `hermes-acp --setup` after installation)
+- [Pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) (install it together with `pi-acp`, then authenticate with `pi`)
 
 ## Notes
 
