@@ -33,16 +33,16 @@ interface LiveAcpCase {
 
 function makeLiveAdapter(testCase: LiveAcpCase, environment: NodeJS.ProcessEnv) {
   if (testCase.kind === "hermes") {
-    return Schema.decodeUnknown(HermesSettings)({ binaryPath: testCase.command }).pipe(
+    return Schema.decodeUnknownEffect(HermesSettings)({ binaryPath: testCase.command }).pipe(
       Effect.flatMap((settings) => makeHermesAdapter(settings, { environment })),
     );
   }
   if (testCase.kind === "pi") {
-    return Schema.decodeUnknown(PiSettings)({ binaryPath: testCase.command }).pipe(
+    return Schema.decodeUnknownEffect(PiSettings)({ binaryPath: testCase.command }).pipe(
       Effect.flatMap((settings) => makePiAdapter(settings, { environment })),
     );
   }
-  return Schema.decodeUnknown(AcpSettings)({
+  return Schema.decodeUnknownEffect(AcpSettings)({
     binaryPath: testCase.command,
     arguments: testCase.args?.join("\n") ?? "",
   }).pipe(Effect.flatMap((settings) => makeAcpAdapter(settings, { environment })));

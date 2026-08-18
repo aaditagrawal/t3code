@@ -23,6 +23,27 @@ describe("Pi OpenRouter compatibility extension", () => {
     ).toEqual({ model: "dots-studio/dots-3-note-preview:free", stream: true });
   });
 
+  it("omits the alternate near-context output limit field", () => {
+    expect(
+      omitUnsafeOpenRouterMaxTokens(
+        { model: "example/model", max_tokens: 507_887, stream: true },
+        affectedModel as never,
+      ),
+    ).toEqual({ model: "example/model", stream: true });
+  });
+
+  it.each(["max_completion_tokens", "max_tokens"])(
+    "preserves an explicit %s request limit",
+    (field) => {
+      expect(
+        omitUnsafeOpenRouterMaxTokens(
+          { model: "example/model", [field]: 128, stream: true },
+          affectedModel as never,
+        ),
+      ).toBeUndefined();
+    },
+  );
+
   it("leaves normal output limits unchanged", () => {
     expect(
       omitUnsafeOpenRouterMaxTokens({ model: "example/model", max_completion_tokens: 16_384 }, {

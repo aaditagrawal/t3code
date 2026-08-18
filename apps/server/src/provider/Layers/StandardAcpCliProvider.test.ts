@@ -1,6 +1,33 @@
-import { describe, expect, it } from "@effect/vitest";
+// @effect-diagnostics nodeBuiltinImport:off
+import * as NodeFSP from "node:fs/promises";
+import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
+import * as NodeURL from "node:url";
 
-import { __testing } from "./StandardAcpCliProvider.ts";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import { describe, expect, it } from "@effect/vitest";
+import { ProviderDriverKind } from "@t3tools/contracts";
+import * as Effect from "effect/Effect";
+
+import {
+  __testing,
+  checkStandardAcpCliProviderStatus,
+  type StandardAcpCliProviderConfig,
+} from "./StandardAcpCliProvider.ts";
+
+const __dirname = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
+const mockAgentPath = NodePath.join(__dirname, "../../../scripts/acp-mock-agent.ts");
+
+const providerConfig = {
+  provider: ProviderDriverKind.make("acp"),
+  displayName: "ACP Agent",
+  command: process.execPath,
+  enabled: true,
+  customModels: [],
+  environment: process.env,
+  setupHint: "Configure the ACP agent.",
+  missingCommandMessage: "ACP agent not found.",
+} satisfies StandardAcpCliProviderConfig;
 
 describe("standard ACP CLI provider errors", () => {
   it("classifies platform not-found spawn errors as missing commands", () => {
@@ -38,4 +65,38 @@ describe("standard ACP CLI provider errors", () => {
       }),
     ).toBe(false);
   });
+});
+
+it.layer(NodeServices.layer)("standard ACP CLI provider arguments", (it) => {
+  it.effect("forwards configured arguments during provider discovery", () =>
+    Effect.gen(function* () {
+      const provider = yield* checkStandardAcpCliProviderStatus({
+        ...providerConfig,
+        args: [mockAgentPath, "--model", "dots/model:free"],
+      });
+      expect(provider.status).toBe("ready");
+    }),
+  );
+
+  it.effect("starts commands with no configured arguments", () =>
+    Effect.gen(function* () {
+      const dir = yield* Effect.acquireRelease(
+        Effect.promise(() => NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "acp-probe-test-"))),
+        (path) => Effect.promise(() => NodeFSP.rm(path, { recursive: true, force: true })),
+      );
+      const wrapper = NodePath.join(dir, "acp-agent");
+      yield* Effect.promise(() =>
+        NodeFSP.writeFile(
+          wrapper,
+          `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(mockAgentPath)}\n`,
+          { encoding: "utf8", mode: 0o755 },
+        ),
+      );
+      const provider = yield* checkStandardAcpCliProviderStatus({
+        ...providerConfig,
+        command: wrapper,
+      });
+      expect(provider.status).toBe("ready");
+    }).pipe(Effect.scoped),
+  );
 });
