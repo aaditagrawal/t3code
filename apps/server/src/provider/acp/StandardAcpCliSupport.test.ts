@@ -7,9 +7,18 @@ import {
   applyStandardAcpModelSelection,
   firstAdvertisedAuthMethod,
   normalizeStandardAcpModel,
+  parseStandardAcpCliArguments,
 } from "./StandardAcpCliSupport.ts";
 
 describe("standard ACP CLI support", () => {
+  it("parses one executable argument per non-empty line", () => {
+    expect(parseStandardAcpCliArguments(" acp\n\n--model\r\ndots/model:free ")).toEqual([
+      "acp",
+      "--model",
+      "dots/model:free",
+    ]);
+  });
+
   it("selects advertised auth while excluding interactive setup methods", () => {
     const selected = firstAdvertisedAuthMethod(
       {

@@ -18,6 +18,7 @@ import { ServerConfig } from "../../config.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import type { TextGenerationShape } from "../../textGeneration/TextGeneration.ts";
 import { ProviderDriverError } from "../Errors.ts";
+import { parseStandardAcpCliArguments } from "../acp/StandardAcpCliSupport.ts";
 import type { StandardAcpAdapterLiveOptions } from "../Layers/StandardAcpAdapter.ts";
 import {
   buildInitialStandardAcpCliProviderSnapshot,
@@ -40,6 +41,7 @@ const SNAPSHOT_REFRESH_INTERVAL = Duration.minutes(5);
 export interface StandardAcpCliSettings {
   readonly enabled: boolean;
   readonly binaryPath: string;
+  readonly arguments?: string;
   readonly customModels: ReadonlyArray<string>;
 }
 
@@ -133,6 +135,9 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           provider: driverConfig.driverKind,
           displayName: driverConfig.displayName,
           command: effectiveConfig.binaryPath || driverConfig.defaultBinary,
+          ...(effectiveConfig.arguments
+            ? { args: parseStandardAcpCliArguments(effectiveConfig.arguments) }
+            : {}),
           enabled: effectiveConfig.enabled,
           customModels: effectiveConfig.customModels,
           environment: processEnv,

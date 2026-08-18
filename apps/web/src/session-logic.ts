@@ -32,6 +32,12 @@ export const PROVIDER_OPTIONS: Array<{
   /** Shown on the model picker sidebar when relevant */
   pickerSidebarBadge?: "new" | "soon";
 }> = [
+  {
+    value: ProviderDriverKind.make("acp"),
+    label: "ACP Agent",
+    available: true,
+    pickerSidebarBadge: "new",
+  },
   { value: ProviderDriverKind.make("codex"), label: "Codex", available: true },
   { value: ProviderDriverKind.make("copilot"), label: "GitHub Copilot", available: true },
   { value: ProviderDriverKind.make("claudeAgent"), label: "Claude Code", available: true },

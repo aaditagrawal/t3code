@@ -14,6 +14,7 @@
  */
 
 export const PROVIDER_KINDS = [
+  "acp",
   "codex",
   "copilot",
   "claudeAgent",

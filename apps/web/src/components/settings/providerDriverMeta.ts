@@ -1,4 +1,5 @@
 import {
+  AcpSettings,
   AmpSettings,
   ClaudeSettings,
   CodexSettings,
@@ -15,6 +16,7 @@ import {
 } from "@t3tools/contracts";
 import type * as Schema from "effect/Schema";
 import {
+  ACPRegistryIcon,
   AmpIcon,
   ClaudeAI,
   CopilotIcon,
@@ -56,6 +58,13 @@ export interface ProviderClientDefinition {
 }
 
 export const PROVIDER_CLIENT_DEFINITIONS: readonly ProviderClientDefinition[] = [
+  {
+    value: ProviderDriverKind.make("acp"),
+    label: "ACP Agent",
+    icon: ACPRegistryIcon,
+    settingsSchema: AcpSettings,
+    badgeLabel: "Early Access",
+  },
   {
     value: ProviderDriverKind.make("codex"),
     label: "Codex",

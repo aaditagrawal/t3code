@@ -5,6 +5,7 @@ import { cn } from "../lib/utils";
 import type { ProviderKind } from "../providerKind";
 import {
   type Icon,
+  ACPRegistryIcon,
   AmpIcon,
   ClaudeAI,
   CursorIcon,
@@ -20,6 +21,7 @@ import {
 } from "./Icons";
 
 const PROVIDER_ICON_BY_PROVIDER: Record<ProviderKind, Icon> = {
+  acp: ACPRegistryIcon,
   codex: OpenAI,
   copilot: GitHubIcon,
   claudeAgent: ClaudeAI,
