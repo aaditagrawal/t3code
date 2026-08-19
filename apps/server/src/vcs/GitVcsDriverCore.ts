@@ -91,6 +91,7 @@ const NON_REPOSITORY_STATUS_DETAILS = Object.freeze<GitVcsDriver.GitStatusDetail
 });
 const NON_REPOSITORY_REMOTE_STATUS_DETAILS = Object.freeze<GitVcsDriver.GitRemoteStatusDetails>({
   isRepo: false,
+  defaultBranch: null,
   isDefaultBranch: false,
   branch: null,
   upstreamRef: null,
@@ -1552,6 +1553,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
 
     return {
       isRepo: true,
+      defaultBranch,
       isDefaultBranch,
       branch,
       upstreamRef,
