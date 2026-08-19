@@ -27,6 +27,7 @@ import { CodexDriver, type CodexDriverEnv } from "./Drivers/CodexDriver.ts";
 import { CopilotDriver, type CopilotDriverEnv } from "./Drivers/CopilotDriver.ts";
 import { CursorDriver, type CursorDriverEnv } from "./Drivers/CursorDriver.ts";
 import { DroidDriver, type DroidDriverEnv } from "./Drivers/DroidDriver.ts";
+import { FxDriver, type FxDriverEnv } from "./Drivers/FxDriver.ts";
 import { GeminiCliDriver, type GeminiCliDriverEnv } from "./Drivers/GeminiCliDriver.ts";
 import { GrokDriver, type GrokDriverEnv } from "./Drivers/GrokDriver.ts";
 import { HermesDriver, type HermesDriverEnv } from "./Drivers/HermesDriver.ts";
@@ -46,6 +47,7 @@ export type BuiltInDriversEnv =
   | CodexDriverEnv
   | CursorDriverEnv
   | DroidDriverEnv
+  | FxDriverEnv
   | GrokDriverEnv
   | HermesDriverEnv
   | OpenCodeDriverEnv
@@ -69,6 +71,7 @@ export const BUILT_IN_DRIVERS: ReadonlyArray<AnyProviderDriver<BuiltInDriversEnv
   ClaudeDriver,
   CursorDriver,
   DroidDriver,
+  FxDriver,
   GrokDriver,
   OpenCodeDriver,
   AmpDriver,

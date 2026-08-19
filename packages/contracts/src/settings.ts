@@ -719,6 +719,12 @@ export const PiSettings = makeAcpCliProviderSettingsSchema({
 });
 export type PiSettings = typeof PiSettings.Type;
 
+export const FxSettings = makeAcpCliProviderSettingsSchema({
+  defaultBinary: "fx",
+  description: "Path to the Fx CLI executable. T3 Code starts it with the `acp` command.",
+});
+export type FxSettings = typeof FxSettings.Type;
+
 export const AcpSettings = makeProviderSettingsSchema(
   {
     enabled: Schema.Boolean.pipe(
@@ -903,6 +909,7 @@ export const ServerSettings = Schema.Struct({
     copilot: CopilotSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     cursor: CursorSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     droid: DroidSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    fx: FxSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     grok: GrokSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     opencode: OpenCodeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     geminiCli: GeminiCliSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
@@ -1067,6 +1074,7 @@ export const ServerSettingsPatch = Schema.Struct({
       copilot: Schema.optionalKey(GenericProviderSettingsPatch),
       cursor: Schema.optionalKey(CursorSettingsPatch),
       droid: Schema.optionalKey(DroidSettingsPatch),
+      fx: Schema.optionalKey(GenericProviderSettingsPatch),
       grok: Schema.optionalKey(GrokSettingsPatch),
       opencode: Schema.optionalKey(OpenCodeSettingsPatch),
       geminiCli: Schema.optionalKey(GenericProviderSettingsPatch),

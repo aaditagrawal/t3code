@@ -904,6 +904,17 @@ export const PiAgentIcon: Icon = ({ className, ...props }) => (
   </svg>
 );
 
+// Fx — compact monochrome f(x) mark for provider surfaces.
+export const FxIcon: Icon = ({ className, ...props }) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" className={cn(className)}>
+    <rect width="24" height="24" rx="5" fill="currentColor" />
+    <path
+      d="M5.5 18V9.2c0-2.1 1.25-3.2 3.35-3.2H10v2H9c-.8 0-1.2.4-1.2 1.2V11H10v2H7.8v5H5.5Zm5.3 0 3.05-4.15L11 10h2.65l1.55 2.2 1.55-2.2h2.55l-2.85 3.85L19.5 18h-2.65l-1.7-2.4-1.75 2.4h-2.6Z"
+      fill="var(--background, white)"
+    />
+  </svg>
+);
+
 // Hermes — original winged-H glyph, kept monochrome to match provider chrome.
 export const HermesIcon: Icon = ({ className, ...props }) => (
   <svg {...props} viewBox="0 0 24 24" fill="none" className={cn(className)}>

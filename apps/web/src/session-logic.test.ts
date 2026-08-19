@@ -1770,6 +1770,7 @@ describe("PROVIDER_OPTIONS", () => {
       { value: "cursor", label: "Cursor Agent", available: true, pickerSidebarBadge: "new" },
       { value: "opencode", label: "OpenCode", available: true, pickerSidebarBadge: "new" },
       { value: "droid", label: "Droid", available: true, pickerSidebarBadge: "new" },
+      { value: "fx", label: "Fx", available: true, pickerSidebarBadge: "new" },
       { value: "grok", label: "Grok", available: true, pickerSidebarBadge: "new" },
       { value: "geminiCli", label: "Gemini CLI", available: true },
       { value: "amp", label: "AMPcode", available: true },

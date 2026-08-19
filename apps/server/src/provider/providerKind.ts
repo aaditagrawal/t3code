@@ -13,6 +13,7 @@ const PROVIDER_KINDS = [
   "claudeAgent",
   "cursor",
   "droid",
+  "fx",
   "grok",
   "hermes",
   "opencode",

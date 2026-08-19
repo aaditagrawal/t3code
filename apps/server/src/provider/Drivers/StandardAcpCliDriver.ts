@@ -61,6 +61,7 @@ export interface StandardAcpCliDriverConfig<Settings extends StandardAcpCliSetti
   readonly defaultBinary: string;
   readonly settingsSchema: Schema.Codec<Settings, unknown>;
   readonly defaultSettings: () => Settings;
+  readonly launchArgs?: ReadonlyArray<string>;
   readonly makeAdapter: (
     settings: Settings,
     options: StandardAcpAdapterLiveOptions,
@@ -131,13 +132,14 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           accentColor,
           continuationGroupKey: continuationIdentity.continuationKey,
         });
+        const launchArgs = effectiveConfig.arguments
+          ? parseStandardAcpCliArguments(effectiveConfig.arguments)
+          : driverConfig.launchArgs;
         const providerConfig: StandardAcpCliProviderConfig = {
           provider: driverConfig.driverKind,
           displayName: driverConfig.displayName,
           command: effectiveConfig.binaryPath || driverConfig.defaultBinary,
-          ...(effectiveConfig.arguments
-            ? { args: parseStandardAcpCliArguments(effectiveConfig.arguments) }
-            : {}),
+          ...(launchArgs?.length ? { args: launchArgs } : {}),
           enabled: effectiveConfig.enabled,
           customModels: effectiveConfig.customModels,
           environment: processEnv,

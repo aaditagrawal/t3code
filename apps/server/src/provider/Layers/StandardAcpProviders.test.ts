@@ -15,6 +15,7 @@ import * as Stream from "effect/Stream";
 
 import {
   AcpSettings,
+  FxSettings,
   HermesSettings,
   PiSettings,
   ProviderDriverKind,
@@ -24,11 +25,13 @@ import {
 
 import { ServerConfig } from "../../config.ts";
 import { makeAcpAdapter } from "./AcpAdapter.ts";
+import { makeFxAdapter } from "./FxAdapter.ts";
 import { makeHermesAdapter } from "./HermesAdapter.ts";
 import { makePiAdapter } from "./PiAdapter.ts";
 
 const decodeHermesSettings = Schema.decodeUnknownEffect(HermesSettings);
 const decodePiSettings = Schema.decodeUnknownEffect(PiSettings);
+const decodeFxSettings = Schema.decodeUnknownEffect(FxSettings);
 const decodeAcpSettings = Schema.decodeUnknownEffect(AcpSettings);
 
 const __dirname = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
@@ -51,7 +54,7 @@ const testLayer = ServerConfig.layerTest(process.cwd(), {
 }).pipe(Layer.provideMerge(NodeServices.layer));
 
 it.layer(testLayer)("standard ACP provider adapters", (it) => {
-  for (const provider of ["acp", "hermes", "pi"] as const) {
+  for (const provider of ["acp", "fx", "hermes", "pi"] as const) {
     it.effect(`${provider} starts, streams a prompt, and stops`, () =>
       Effect.gen(function* () {
         const binaryPath = yield* Effect.promise(makeMockAcpWrapper);
@@ -60,9 +63,11 @@ it.layer(testLayer)("standard ACP provider adapters", (it) => {
               binaryPath: process.execPath,
               arguments: `${mockAgentPath}\n--generic-acp-test`,
             }).pipe(Effect.flatMap(makeAcpAdapter))
-          : provider === "hermes"
-            ? decodeHermesSettings({ binaryPath }).pipe(Effect.flatMap(makeHermesAdapter))
-            : decodePiSettings({ binaryPath }).pipe(Effect.flatMap(makePiAdapter));
+          : provider === "fx"
+            ? decodeFxSettings({ binaryPath }).pipe(Effect.flatMap(makeFxAdapter))
+            : provider === "hermes"
+              ? decodeHermesSettings({ binaryPath }).pipe(Effect.flatMap(makeHermesAdapter))
+              : decodePiSettings({ binaryPath }).pipe(Effect.flatMap(makePiAdapter));
         const threadId = ThreadId.make(`${provider}-mock-thread`);
         const providerKind = ProviderDriverKind.make(provider);
         const events: ProviderRuntimeEvent[] = [];

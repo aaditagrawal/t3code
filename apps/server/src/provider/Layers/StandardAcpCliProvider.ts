@@ -17,6 +17,7 @@ import {
   makeStandardAcpCliRuntime,
   normalizeStandardAcpModel,
 } from "../acp/StandardAcpCliSupport.ts";
+import { collectSessionConfigOptionValues } from "../acp/AcpRuntimeModel.ts";
 import {
   buildServerProvider,
   providerModelsFromSettings,
@@ -57,6 +58,20 @@ function modelsFromSessionState(
         capabilities: EMPTY_CAPABILITIES,
       } satisfies ServerProviderModel,
     ];
+  });
+}
+
+function modelsFromConfigOptions(
+  options: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null | undefined,
+  provider: ProviderDriverKind,
+): ReadonlyArray<ServerProviderModel> {
+  const modelOption = options?.find(
+    (option) => option.category === "model" || option.id.trim() === "model",
+  );
+  if (!modelOption || modelOption.type !== "select") return [];
+  return collectSessionConfigOptionValues(modelOption).flatMap((modelId) => {
+    const slug = normalizeStandardAcpModel(modelId, provider);
+    return slug ? [{ slug, name: slug, isCustom: false, capabilities: EMPTY_CAPABILITIES }] : [];
   });
 }
 
@@ -176,9 +191,12 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
         : {}),
     }).pipe(
       Effect.flatMap((runtime) => runtime.start()),
-      Effect.map((started) =>
-        modelsFromSessionState(started.sessionSetupResult.models, config.provider),
-      ),
+      Effect.map((started) => {
+        const models = modelsFromSessionState(started.sessionSetupResult.models, config.provider);
+        return models.length > 0
+          ? models
+          : modelsFromConfigOptions(started.sessionSetupResult.configOptions, config.provider);
+      }),
       Effect.scoped,
       Effect.timeoutOption(MODEL_DISCOVERY_TIMEOUT_MS),
       Effect.exit,
@@ -222,5 +240,5 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
   },
 );
 
-/** Exposed for focused error-classification tests. */
-export const __testing = { hasMissingCommandCause };
+/** Exposed for focused provider-discovery and error-classification tests. */
+export const __testing = { hasMissingCommandCause, modelsFromConfigOptions };

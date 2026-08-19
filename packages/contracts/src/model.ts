@@ -131,6 +131,7 @@ const CODEX_DRIVER_KIND = ProviderDriverKind.make("codex");
 const CLAUDE_DRIVER_KIND = ProviderDriverKind.make("claudeAgent");
 const CURSOR_DRIVER_KIND = ProviderDriverKind.make("cursor");
 const DROID_DRIVER_KIND = ProviderDriverKind.make("droid");
+const FX_DRIVER_KIND = ProviderDriverKind.make("fx");
 const GROK_DRIVER_KIND = ProviderDriverKind.make("grok");
 const ACP_DRIVER_KIND = ProviderDriverKind.make("acp");
 export const HERMES_DRIVER_KIND = ProviderDriverKind.make("hermes");
@@ -235,6 +236,7 @@ export const PROVIDER_DISPLAY_NAMES: Partial<Record<ProviderDriverKind, string>>
   [CLAUDE_DRIVER_KIND]: "Claude",
   [CURSOR_DRIVER_KIND]: "Cursor",
   [DROID_DRIVER_KIND]: "Droid",
+  [FX_DRIVER_KIND]: "Fx",
   [GROK_DRIVER_KIND]: "Grok",
   [HERMES_DRIVER_KIND]: "Hermes Agent",
   [OPENCODE_DRIVER_KIND]: "OpenCode",

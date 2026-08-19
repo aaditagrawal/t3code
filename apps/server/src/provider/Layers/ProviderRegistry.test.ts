@@ -1769,6 +1769,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
                 "copilot",
                 "cursor",
                 "droid",
+                "fx",
                 "geminiCli",
                 "grok",
                 "hermes",

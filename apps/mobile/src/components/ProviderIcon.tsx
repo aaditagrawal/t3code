@@ -12,6 +12,21 @@ export function ProviderIcon(props: ProviderIconProps) {
   const size = props.size ?? 16;
   const mono = isDarkMode ? "#e5e5e5" : "#171717";
 
+  if (props.provider === "fx") {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Path
+          fill={mono}
+          d="M5 0h14a5 5 0 0 1 5 5v14a5 5 0 0 1-5 5H5a5 5 0 0 1-5-5V5a5 5 0 0 1 5-5Z"
+        />
+        <Path
+          fill={isDarkMode ? "#171717" : "#fff"}
+          d="M5.5 18V9.2C5.5 7.1 6.75 6 8.85 6H10v2H9c-.8 0-1.2.4-1.2 1.2V11H10v2H7.8v5H5.5Zm5.3 0 3.05-4.15L11 10h2.65l1.55 2.2 1.55-2.2h2.55l-2.85 3.85L19.5 18h-2.65l-1.7-2.4-1.75 2.4h-2.6Z"
+        />
+      </Svg>
+    );
+  }
+
   if (props.provider === "pi") {
     return (
       <Svg width={size} height={size} viewBox="0 0 800 800" fill="none">

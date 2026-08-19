@@ -67,6 +67,31 @@ describe("standard ACP CLI provider errors", () => {
   });
 });
 
+describe("standard ACP CLI model discovery", () => {
+  it("discovers models advertised through a model config option", () => {
+    expect(
+      __testing
+        .modelsFromConfigOptions(
+          [
+            {
+              id: "model",
+              name: "Model",
+              category: "model",
+              type: "select",
+              currentValue: "anthropic/claude-sonnet-4.6",
+              options: [
+                { name: "Claude Sonnet 4.6", value: "anthropic/claude-sonnet-4.6" },
+                { name: "GPT-5", value: "openai/gpt-5" },
+              ],
+            },
+          ],
+          ProviderDriverKind.make("fx"),
+        )
+        .map((model) => model.slug),
+    ).toEqual(["anthropic/claude-sonnet-4.6", "openai/gpt-5"]);
+  });
+});
+
 it.layer(NodeServices.layer)("standard ACP CLI provider arguments", (it) => {
   it.effect("forwards configured arguments during provider discovery", () =>
     Effect.gen(function* () {
