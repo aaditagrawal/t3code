@@ -806,7 +806,6 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
     snapshot: changeRequestSnapshot,
     retainTerminalOnBranchMismatch,
   });
-  const prState = pr?.state ?? null;
 
   // Same semantics as v1 (never-visited counts as read): flipping the beta
   // flag must not light up every historical thread as unread.
@@ -824,7 +823,10 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
   const isWoke =
     wokeAtDate !== null &&
     (lastVisitedDate === null || lastVisitedDate < wokeAtDate) &&
-    !changeRequestAutoSettles(prState, props.autoSettleOnMerge);
+    !changeRequestAutoSettles(pr, {
+      autoSettleOnMerge: props.autoSettleOnMerge,
+      thread,
+    });
   // In-flight rows (working, or waiting on approval/input) fade as a whole:
   // there is nothing for the user to do yet, so prominence is reserved for
   // rows that need a human — done (unread), read-but-unsettled, failed, and
@@ -1425,7 +1427,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
                     isWokeStatus
                       ? "pointer-events-auto"
                       : "pointer-events-none group-has-[:focus-visible]/v2-status-slot:absolute group-has-[:focus-visible]/v2-status-slot:right-0 group-has-[:focus-visible]/v2-status-slot:opacity-0 group-hover/v2-row:absolute group-hover/v2-row:right-0 group-hover/v2-row:opacity-0",
-                    "self-center justify-self-end tabular-nums text-secondary-label transition-opacity",
+                    "flex items-center self-center justify-self-end tabular-nums text-secondary-label transition-opacity",
                     snoozeMenuOpen && "pointer-events-none absolute right-0 opacity-0",
                   )}
                 >
@@ -2071,9 +2073,9 @@ export default function SidebarV2() {
         serverConfigs.get(thread.environmentId)?.environment.capabilities.threadSnooze === true;
       const threadKey = scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
       const snapshot = changeRequestSnapshotByKey.get(threadKey);
-      const changeRequestState =
+      const changeRequest =
         snapshot != null && (thread.worktreePath === null || snapshot.branch === thread.branch)
-          ? snapshot.pr.state
+          ? snapshot.pr
           : null;
       // Snooze outranks everything, including a pin: "hide until Tuesday"
       // temporarily suspends "keep on top". The pin survives underneath —
@@ -2095,7 +2097,7 @@ export default function SidebarV2() {
           now,
           autoSettleAfterDays,
           autoSettleOnMerge,
-          changeRequestState,
+          changeRequest,
         })
       ) {
         settled.push(thread);
