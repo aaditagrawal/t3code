@@ -2,6 +2,7 @@ import { HermesSettings, ProviderDriverKind } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 
 import { makeHermesAdapter } from "../Layers/HermesAdapter.ts";
+import { discoverHermesSkills } from "./HermesSkills.ts";
 import { makeStandardAcpCliDriver, type StandardAcpCliDriverEnv } from "./StandardAcpCliDriver.ts";
 
 const DRIVER_KIND = ProviderDriverKind.make("hermes");
@@ -19,5 +20,5 @@ export const HermesDriver = makeStandardAcpCliDriver({
   excludedAuthMethodIds: new Set(["hermes-setup"]),
   setupHint: "Run `hermes-acp --setup` to configure Hermes credentials.",
   missingCommandMessage: "Hermes Agent (`hermes-acp`) is not installed or not on PATH.",
-  homeEnvVarName: "HERMES_HOME",
+  discoverSkills: discoverHermesSkills,
 });

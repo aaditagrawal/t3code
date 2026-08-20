@@ -26,7 +26,6 @@ import {
   providerModelsFromSettings,
   type ServerProviderDraft,
 } from "../providerSnapshot.ts";
-import { discoverAcpCliSkills } from "../Drivers/StandardAcpCliSkills.ts";
 
 const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
 const EMPTY_CAPABILITIES: ModelCapabilities = createModelCapabilities({ optionDescriptors: [] });
@@ -42,10 +41,11 @@ export interface StandardAcpCliProviderConfig {
   readonly setupHint: string;
   readonly missingCommandMessage: string;
   readonly excludedAuthMethodIds?: ReadonlySet<string>;
-  /** Optional override for the provider home directory used for skills discovery. */
-  readonly homePath?: string | undefined;
-  /** Environment variable name carrying the provider home (defaults to HERMES_HOME). */
-  readonly homeEnvVarName?: string | undefined;
+  readonly discoverSkills?: Effect.Effect<
+    ReadonlyArray<ServerProviderSkill>,
+    never,
+    FileSystem.FileSystem | Path.Path
+  >;
 }
 
 function modelsFromSessionState(
@@ -212,11 +212,9 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
 
     if (Exit.isSuccess(discovery) && Option.isSome(discovery.value)) {
       const discoveredModels = discovery.value.value;
-      const skills = yield* discoverAcpCliSkills(
-        { homePath: config.homePath },
-        config.environment,
-        config.homeEnvVarName,
-      ).pipe(Effect.catchCause(() => Effect.succeed([] as ReadonlyArray<ServerProviderSkill>)));
+      const skills = yield* (config.discoverSkills ?? Effect.succeed([])).pipe(
+        Effect.catchCause(() => Effect.succeed<ReadonlyArray<ServerProviderSkill>>([])),
+      );
       return buildServerProvider({
         presentation,
         enabled: true,

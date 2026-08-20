@@ -17,6 +17,7 @@ import {
 
 const __dirname = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
 const mockAgentPath = NodePath.join(__dirname, "../../../scripts/acp-mock-agent.ts");
+const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
 
 const providerConfig = {
   provider: ProviderDriverKind.make("acp"),
@@ -113,7 +114,7 @@ it.layer(NodeServices.layer)("standard ACP CLI provider arguments", (it) => {
       yield* Effect.promise(() =>
         NodeFSP.writeFile(
           wrapper,
-          `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(mockAgentPath)}\n`,
+          `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(mockAgentPath)}\n`,
           { encoding: "utf8", mode: 0o755 },
         ),
       );

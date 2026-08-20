@@ -1,6 +1,7 @@
 import {
   type ProviderDriverKind,
   type ServerProvider,
+  type ServerProviderSkill,
   TextGenerationError,
 } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
@@ -43,7 +44,6 @@ export interface StandardAcpCliSettings {
   readonly binaryPath: string;
   readonly arguments?: string;
   readonly customModels: ReadonlyArray<string>;
-  readonly homePath?: string | undefined;
 }
 
 export type StandardAcpCliDriverEnv =
@@ -70,7 +70,9 @@ export interface StandardAcpCliDriverConfig<Settings extends StandardAcpCliSetti
   readonly setupHint: string;
   readonly missingCommandMessage: string;
   readonly excludedAuthMethodIds?: ReadonlySet<string>;
-  readonly homeEnvVarName?: string;
+  readonly discoverSkills?: (
+    environment: NodeJS.ProcessEnv,
+  ) => Effect.Effect<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path>;
 }
 
 function makeUnsupportedTextGeneration(displayName: string): TextGenerationShape {
@@ -152,10 +154,9 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           ...(driverConfig.excludedAuthMethodIds
             ? { excludedAuthMethodIds: driverConfig.excludedAuthMethodIds }
             : {}),
-          ...(effectiveConfig.homePath?.trim()
-            ? { homePath: effectiveConfig.homePath.trim() }
+          ...(driverConfig.discoverSkills
+            ? { discoverSkills: driverConfig.discoverSkills(processEnv) }
             : {}),
-          ...(driverConfig.homeEnvVarName ? { homeEnvVarName: driverConfig.homeEnvVarName } : {}),
         };
 
         const eventLoggers = yield* ProviderEventLoggers;
