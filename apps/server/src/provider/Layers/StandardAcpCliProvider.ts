@@ -2,6 +2,7 @@ import type {
   ModelCapabilities,
   ProviderDriverKind,
   ServerProviderModel,
+  ServerProviderSlashCommand,
 } from "@t3tools/contracts";
 import { createModelCapabilities } from "@t3tools/shared/model";
 import * as Crypto from "effect/Crypto";
@@ -17,7 +18,11 @@ import {
   makeStandardAcpCliRuntime,
   normalizeStandardAcpModel,
 } from "../acp/StandardAcpCliSupport.ts";
-import { collectSessionConfigOptionValues } from "../acp/AcpRuntimeModel.ts";
+import {
+  collectSessionConfigOptionValues,
+  type AcpAvailableCommand,
+} from "../acp/AcpRuntimeModel.ts";
+import type * as AcpSessionRuntime from "../acp/AcpSessionRuntime.ts";
 import {
   buildServerProvider,
   providerModelsFromSettings,
@@ -25,6 +30,7 @@ import {
 } from "../providerSnapshot.ts";
 
 const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
+const COMMAND_DISCOVERY_TIMEOUT_MS = 1_500;
 const EMPTY_CAPABILITIES: ModelCapabilities = createModelCapabilities({ optionDescriptors: [] });
 
 export interface StandardAcpCliProviderConfig {
@@ -74,6 +80,46 @@ function modelsFromConfigOptions(
     return slug ? [{ slug, name: slug, isCustom: false, capabilities: EMPTY_CAPABILITIES }] : [];
   });
 }
+
+/** Convert ACP available commands into T3 provider slash-command snapshot entries. */
+function slashCommandsFromAcpCommands(
+  commands: ReadonlyArray<AcpAvailableCommand>,
+): ReadonlyArray<ServerProviderSlashCommand> {
+  const seen = new Set<string>();
+  const result: Array<ServerProviderSlashCommand> = [];
+  for (const command of commands) {
+    const name = command.name.trim().replace(/^\//, "");
+    if (!name || seen.has(name)) {
+      continue;
+    }
+    seen.add(name);
+    result.push({
+      name,
+      ...(command.description ? { description: command.description } : {}),
+      ...(command.inputHint ? { input: { hint: command.inputHint } } : {}),
+    });
+  }
+  return result;
+}
+
+/**
+ * Poll the ACP runtime's advertised-commands ref for up to
+ * `COMMAND_DISCOVERY_TIMEOUT_MS`, returning whatever commands have arrived.
+ * A provider that never advertises commands yields an empty list without
+ * blocking on the live event stream.
+ */
+const pollAvailableCommands = Effect.fn("pollAvailableCommands")(function* (
+  runtime: Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "getAvailableCommands">,
+): Effect.fn.Return<ReadonlyArray<AcpAvailableCommand>, never, never> {
+  // The runtime's own consumer populates the ref shortly after the session
+  // starts. Yield a few times to let it land, then read once. Reading the ref
+  // does not subscribe to the live event stream, so the probe never holds the
+  // scope open waiting for a command that may not arrive.
+  for (let i = 0; i < 5; i += 1) {
+    yield* Effect.yieldNow;
+  }
+  return yield* runtime.getAvailableCommands;
+});
 
 function hasMissingCommandCause(cause: unknown, seen = new WeakSet<object>()): boolean {
   if (!cause || typeof cause !== "object" || seen.has(cause)) return false;
@@ -190,20 +236,32 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
           }
         : {}),
     }).pipe(
-      Effect.flatMap((runtime) => runtime.start()),
-      Effect.map((started) => {
-        const models = modelsFromSessionState(started.sessionSetupResult.models, config.provider);
-        return models.length > 0
-          ? models
-          : modelsFromConfigOptions(started.sessionSetupResult.configOptions, config.provider);
-      }),
+      Effect.flatMap((runtime) =>
+        Effect.gen(function* () {
+          const started = yield* runtime.start();
+          const models = modelsFromSessionState(started.sessionSetupResult.models, config.provider);
+          const resolvedModels =
+            models.length > 0
+              ? models
+              : modelsFromConfigOptions(started.sessionSetupResult.configOptions, config.provider);
+          // Hermes advertises its slash commands via an `available_commands_update`
+          // notification shortly after session setup. The runtime's own consumer
+          // updates a ref when it parses that notification. Poll the ref for a
+          // short window so the probe resolves with an empty list when the
+          // provider never advertises commands, without subscribing to the live
+          // event stream (which would hold the session scope open).
+          const commands = yield* pollAvailableCommands(runtime);
+          return { models: resolvedModels, commands };
+        }),
+      ),
       Effect.scoped,
       Effect.timeoutOption(MODEL_DISCOVERY_TIMEOUT_MS),
       Effect.exit,
     );
 
     if (Exit.isSuccess(discovery) && Option.isSome(discovery.value)) {
-      const discoveredModels = discovery.value.value;
+      const discovered = discovery.value.value;
+      const discoveredModels = discovered.models;
       return buildServerProvider({
         presentation,
         enabled: true,
@@ -212,6 +270,9 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
           discoveredModels.length > 0
             ? providerModelsFromSettings(discoveredModels, config.customModels, EMPTY_CAPABILITIES)
             : fallbackModels,
+        slashCommands: slashCommandsFromAcpCommands(
+          discovered.commands as ReadonlyArray<AcpAvailableCommand>,
+        ),
         probe: {
           installed: true,
           version: null,

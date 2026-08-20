@@ -80,6 +80,12 @@ export interface AcpPermissionRequest {
   readonly toolCall?: AcpToolCallState;
 }
 
+export interface AcpAvailableCommand {
+  readonly name: string;
+  readonly description?: string | undefined;
+  readonly inputHint?: string | undefined;
+}
+
 export type AcpParsedSessionEvent =
   | {
       readonly _tag: "ModeChanged";
@@ -107,6 +113,11 @@ export type AcpParsedSessionEvent =
       readonly _tag: "ContentDelta";
       readonly itemId?: string;
       readonly text: string;
+      readonly rawPayload: unknown;
+    }
+  | {
+      readonly _tag: "CommandsUpdated";
+      readonly commands: ReadonlyArray<AcpAvailableCommand>;
       readonly rawPayload: unknown;
     };
 
@@ -570,6 +581,30 @@ export function parseSessionUpdateEvent(params: EffectAcpSchema.SessionNotificat
         events.push({
           _tag: "ContentDelta",
           text: upd.content.text,
+          rawPayload: params,
+        });
+      }
+      break;
+    }
+    case "available_commands_update": {
+      const commands: Array<AcpAvailableCommand> = [];
+      for (const command of upd.availableCommands) {
+        const name = command.name.trim();
+        if (!name) {
+          continue;
+        }
+        const description = command.description?.trim() || undefined;
+        const inputHint = command.input?.hint.trim() || undefined;
+        commands.push({
+          name,
+          ...(description ? { description } : {}),
+          ...(inputHint ? { inputHint } : {}),
+        });
+      }
+      if (commands.length > 0) {
+        events.push({
+          _tag: "CommandsUpdated",
+          commands,
           rawPayload: params,
         });
       }
