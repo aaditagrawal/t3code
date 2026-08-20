@@ -31,6 +31,7 @@ import {
   sessionUpdateIsReplay,
   waitForSessionLoadReplayIdle,
   type SessionLoadGate,
+  type AcpAvailableCommand,
   type AcpParsedSessionEvent,
   type AcpSessionModeState,
   type AcpToolCallState,
@@ -196,6 +197,10 @@ export class AcpSessionRuntime extends Context.Service<
     readonly getModeState: Effect.Effect<AcpSessionModeState | undefined>;
     /** Latest configuration options observed from session setup and configuration writes. */
     readonly getConfigOptions: Effect.Effect<ReadonlyArray<EffectAcpSchema.SessionConfigOption>>;
+    /** Latest slash commands advertised by the agent via `available_commands_update`. */
+    readonly getAvailableCommands: Effect.Effect<ReadonlyArray<AcpAvailableCommand>>;
+    /** Waits for the first complete slash-command update, including an empty update. */
+    readonly awaitAvailableCommands: Effect.Effect<ReadonlyArray<AcpAvailableCommand>>;
     /**
      * Sends a prompt turn to the active session.
      * @see https://agentclientprotocol.com/protocol/schema#session/prompt
@@ -300,6 +305,8 @@ export const make = (
     );
     const assistantSegmentRef = yield* Ref.make<AcpAssistantSegmentState>({ nextSegmentIndex: 0 });
     const configOptionsRef = yield* Ref.make(sessionConfigOptionsFromSetup(undefined));
+    const availableCommandsRef = yield* Ref.make<ReadonlyArray<AcpAvailableCommand>>([]);
+    const availableCommandsReady = yield* Deferred.make<ReadonlyArray<AcpAvailableCommand>>();
     const startStateRef = yield* Ref.make<AcpStartState>({ _tag: "NotStarted" });
     const promptStartCancelSemaphore = yield* Semaphore.make(1);
     const activePromptFibersRef = yield* Ref.make<
@@ -399,7 +406,16 @@ export const make = (
         if (sessionUpdateIsReplay(notification)) {
           return;
         }
+        const parsed = parseSessionUpdateEvent(notification);
         const startState = yield* Ref.get(startStateRef);
+        if (startState._tag === "Starting") {
+          yield* recordAvailableCommands({
+            events: parsed.events,
+            availableCommandsRef,
+            availableCommandsReady,
+          });
+          return;
+        }
         // One runtime projects one root ACP session. Child-session updates need
         // explicit lineage routing and must never be flattened into this stream.
         if (
@@ -414,7 +430,10 @@ export const make = (
           toolCallsRef,
           assistantSegmentRef,
           assistantItemRuntimeId,
-          params: notification,
+          availableCommandsRef,
+          availableCommandsReady,
+          parsed,
+          sessionId: notification.sessionId,
         });
       }),
     );
@@ -738,6 +757,8 @@ export const make = (
       }),
       getModeState: Ref.get(modeStateRef),
       getConfigOptions: Ref.get(configOptionsRef),
+      getAvailableCommands: Ref.get(availableCommandsRef),
+      awaitAvailableCommands: Deferred.await(availableCommandsReady),
       prompt: (payload) =>
         Effect.gen(function* () {
           const started = yield* getStartedState;
@@ -877,23 +898,37 @@ const handleSessionUpdate = ({
   toolCallsRef,
   assistantSegmentRef,
   assistantItemRuntimeId,
-  params,
+  availableCommandsRef,
+  availableCommandsReady,
+  parsed,
+  sessionId,
 }: {
   readonly queue: Queue.Queue<AcpSessionRuntimeEvent>;
   readonly modeStateRef: Ref.Ref<AcpSessionModeState | undefined>;
   readonly toolCallsRef: Ref.Ref<Map<string, AcpToolCallState>>;
   readonly assistantSegmentRef: Ref.Ref<AcpAssistantSegmentState>;
   readonly assistantItemRuntimeId: string;
-  readonly params: EffectAcpSchema.SessionNotification;
+  readonly availableCommandsRef: Ref.Ref<ReadonlyArray<AcpAvailableCommand>>;
+  readonly availableCommandsReady: Deferred.Deferred<ReadonlyArray<AcpAvailableCommand>>;
+  readonly parsed: ReturnType<typeof parseSessionUpdateEvent>;
+  readonly sessionId: string;
 }): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const parsed = parseSessionUpdateEvent(params);
     if (parsed.modeId) {
       yield* Ref.update(modeStateRef, (current) =>
         current === undefined ? current : updateModeState(current, parsed.modeId!),
       );
     }
     for (const event of parsed.events) {
+      if (event._tag === "CommandsUpdated") {
+        yield* recordAvailableCommands({
+          events: [event],
+          availableCommandsRef,
+          availableCommandsReady,
+        });
+        yield* Queue.offer(queue, event);
+        continue;
+      }
       if (event._tag === "ToolCallUpdated") {
         yield* closeActiveAssistantSegment({
           queue,
@@ -930,7 +965,7 @@ const handleSessionUpdate = ({
         const itemId = yield* ensureActiveAssistantSegment({
           queue,
           assistantSegmentRef,
-          sessionId: params.sessionId,
+          sessionId,
           assistantItemRuntimeId,
         });
         yield* Queue.offer(queue, {
@@ -942,6 +977,22 @@ const handleSessionUpdate = ({
       yield* Queue.offer(queue, event);
     }
   });
+
+const recordAvailableCommands = Effect.fn("AcpSessionRuntime.recordAvailableCommands")(function* ({
+  events,
+  availableCommandsRef,
+  availableCommandsReady,
+}: {
+  readonly events: ReadonlyArray<AcpParsedSessionEvent>;
+  readonly availableCommandsRef: Ref.Ref<ReadonlyArray<AcpAvailableCommand>>;
+  readonly availableCommandsReady: Deferred.Deferred<ReadonlyArray<AcpAvailableCommand>>;
+}) {
+  for (const event of events) {
+    if (event._tag !== "CommandsUpdated") continue;
+    yield* Ref.set(availableCommandsRef, event.commands);
+    yield* Deferred.succeed(availableCommandsReady, event.commands).pipe(Effect.asVoid);
+  }
+});
 
 function updateModeState(modeState: AcpSessionModeState, nextModeId: string): AcpSessionModeState {
   const normalized = nextModeId.trim();

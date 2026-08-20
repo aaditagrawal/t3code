@@ -336,6 +336,63 @@ describe("AcpRuntimeModel", () => {
     ]);
   });
 
+  it("parses available_commands_update into a CommandsUpdated event", () => {
+    const result = parseSessionUpdateEvent({
+      sessionId: "session-1",
+      update: {
+        sessionUpdate: "available_commands_update",
+        availableCommands: [
+          { name: "/help", description: "List available commands" },
+          { name: "model", description: "Show or switch model", input: { hint: "model name" } },
+          { name: "queue", description: "Queue a prompt", input: { hint: "prompt to run" } },
+          { name: "steer", description: "Inject guidance" },
+        ],
+      },
+    } satisfies EffectAcpSchema.SessionNotification);
+
+    expect(result.events).toEqual([
+      {
+        _tag: "CommandsUpdated",
+        commands: [
+          { name: "/help", description: "List available commands" },
+          { name: "model", description: "Show or switch model", inputHint: "model name" },
+          { name: "queue", description: "Queue a prompt", inputHint: "prompt to run" },
+          { name: "steer", description: "Inject guidance" },
+        ],
+        rawPayload: {
+          sessionId: "session-1",
+          update: {
+            sessionUpdate: "available_commands_update",
+            availableCommands: [
+              { name: "/help", description: "List available commands" },
+              { name: "model", description: "Show or switch model", input: { hint: "model name" } },
+              { name: "queue", description: "Queue a prompt", input: { hint: "prompt to run" } },
+              { name: "steer", description: "Inject guidance" },
+            ],
+          },
+        },
+      },
+    ]);
+  });
+
+  it("preserves an empty available_commands_update", () => {
+    const notification = {
+      sessionId: "session-1",
+      update: {
+        sessionUpdate: "available_commands_update",
+        availableCommands: [],
+      },
+    } satisfies EffectAcpSchema.SessionNotification;
+
+    expect(parseSessionUpdateEvent(notification).events).toEqual([
+      {
+        _tag: "CommandsUpdated",
+        commands: [],
+        rawPayload: notification,
+      },
+    ]);
+  });
+
   it("keeps permission request parsing compatible with loose extension payloads", () => {
     const request = parsePermissionRequest({
       sessionId: "session-1",

@@ -3,6 +3,7 @@
 import * as NodeFS from "node:fs";
 
 import * as Effect from "effect/Effect";
+import * as Scope from "effect/Scope";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
@@ -21,6 +22,9 @@ const emitAskQuestion = process.env.T3_ACP_EMIT_ASK_QUESTION === "1";
 const emitXAiAskUserQuestion = process.env.T3_ACP_EMIT_XAI_ASK_USER_QUESTION === "1";
 const emitXAiPromptCompleteThenHang = process.env.T3_ACP_EMIT_XAI_PROMPT_COMPLETE_THEN_HANG === "1";
 const emitForeignSessionUpdates = process.env.T3_ACP_EMIT_FOREIGN_SESSION_UPDATES === "1";
+const availableCommandsTiming = process.env.T3_ACP_AVAILABLE_COMMANDS_TIMING;
+const availableCommandsDelayMs = Number(process.env.T3_ACP_AVAILABLE_COMMANDS_DELAY_MS ?? "25");
+const emitEmptyAvailableCommands = process.env.T3_ACP_EMPTY_AVAILABLE_COMMANDS === "1";
 const hangPromptForever = process.env.T3_ACP_HANG_PROMPT_FOREVER === "1";
 const hangFirstPromptForever = process.env.T3_ACP_HANG_FIRST_PROMPT_FOREVER === "1";
 const emitLateUpdateAfterCancel = process.env.T3_ACP_EMIT_LATE_UPDATE_AFTER_CANCEL === "1";
@@ -295,6 +299,7 @@ function modelState(): AcpSchema.SessionModelState {
 
 const program = Effect.gen(function* () {
   const agent = yield* EffectAcpAgent.AcpAgent;
+  const programScope = yield* Scope.Scope;
 
   yield* agent.handleInitialize((request) =>
     Effect.sync(() => {
@@ -309,12 +314,37 @@ const program = Effect.gen(function* () {
 
   yield* agent.handleAuthenticate(() => Effect.succeed({}));
 
+  const availableCommandsUpdate = {
+    sessionId,
+    update: {
+      sessionUpdate: "available_commands_update",
+      availableCommands: emitEmptyAvailableCommands
+        ? []
+        : [
+            { name: "/help", description: "List available commands" },
+            { name: "model", description: "Switch model", input: { hint: "model name" } },
+          ],
+    },
+  } satisfies AcpSchema.SessionNotification;
+
   yield* agent.handleCreateSession(() =>
-    Effect.succeed({
-      sessionId,
-      modes: modeState(),
-      models: modelState(),
-      configOptions: configOptions(),
+    Effect.gen(function* () {
+      if (availableCommandsTiming === "before-response") {
+        yield* Effect.sync(() => {
+          writeJsonRpcNotification("session/update", availableCommandsUpdate);
+        });
+      }
+      if (availableCommandsTiming === "after-response") {
+        yield* agent.client
+          .sessionUpdate(availableCommandsUpdate)
+          .pipe(Effect.delay(availableCommandsDelayMs), Effect.forkIn(programScope));
+      }
+      return {
+        sessionId,
+        modes: modeState(),
+        models: modelState(),
+        configOptions: configOptions(),
+      };
     }),
   );
 
