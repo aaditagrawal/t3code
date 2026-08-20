@@ -19,4 +19,5 @@ export const HermesDriver = makeStandardAcpCliDriver({
   excludedAuthMethodIds: new Set(["hermes-setup"]),
   setupHint: "Run `hermes-acp --setup` to configure Hermes credentials.",
   missingCommandMessage: "Hermes Agent (`hermes-acp`) is not installed or not on PATH.",
+  homeEnvVarName: "HERMES_HOME",
 });

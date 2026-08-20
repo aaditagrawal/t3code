@@ -2,13 +2,16 @@ import type {
   ModelCapabilities,
   ProviderDriverKind,
   ServerProviderModel,
+  ServerProviderSkill,
 } from "@t3tools/contracts";
 import { createModelCapabilities } from "@t3tools/shared/model";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
@@ -23,6 +26,7 @@ import {
   providerModelsFromSettings,
   type ServerProviderDraft,
 } from "../providerSnapshot.ts";
+import { discoverAcpCliSkills } from "../Drivers/StandardAcpCliSkills.ts";
 
 const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
 const EMPTY_CAPABILITIES: ModelCapabilities = createModelCapabilities({ optionDescriptors: [] });
@@ -38,6 +42,10 @@ export interface StandardAcpCliProviderConfig {
   readonly setupHint: string;
   readonly missingCommandMessage: string;
   readonly excludedAuthMethodIds?: ReadonlySet<string>;
+  /** Optional override for the provider home directory used for skills discovery. */
+  readonly homePath?: string | undefined;
+  /** Environment variable name carrying the provider home (defaults to HERMES_HOME). */
+  readonly homeEnvVarName?: string | undefined;
 }
 
 function modelsFromSessionState(
@@ -148,7 +156,7 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
   ): Effect.fn.Return<
     ServerProviderDraft,
     never,
-    ChildProcessSpawner.ChildProcessSpawner | Crypto.Crypto
+    ChildProcessSpawner.ChildProcessSpawner | Crypto.Crypto | FileSystem.FileSystem | Path.Path
   > {
     const checkedAt = DateTime.formatIso(yield* DateTime.now);
     const fallbackModels = providerModelsFromSettings([], config.customModels, EMPTY_CAPABILITIES);
@@ -204,6 +212,11 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
 
     if (Exit.isSuccess(discovery) && Option.isSome(discovery.value)) {
       const discoveredModels = discovery.value.value;
+      const skills = yield* discoverAcpCliSkills(
+        { homePath: config.homePath },
+        config.environment,
+        config.homeEnvVarName,
+      ).pipe(Effect.catchCause(() => Effect.succeed([] as ReadonlyArray<ServerProviderSkill>)));
       return buildServerProvider({
         presentation,
         enabled: true,
@@ -212,6 +225,7 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
           discoveredModels.length > 0
             ? providerModelsFromSettings(discoveredModels, config.customModels, EMPTY_CAPABILITIES)
             : fallbackModels,
+        skills,
         probe: {
           installed: true,
           version: null,

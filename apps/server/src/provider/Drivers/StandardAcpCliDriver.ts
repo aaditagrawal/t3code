@@ -43,6 +43,7 @@ export interface StandardAcpCliSettings {
   readonly binaryPath: string;
   readonly arguments?: string;
   readonly customModels: ReadonlyArray<string>;
+  readonly homePath?: string | undefined;
 }
 
 export type StandardAcpCliDriverEnv =
@@ -69,6 +70,7 @@ export interface StandardAcpCliDriverConfig<Settings extends StandardAcpCliSetti
   readonly setupHint: string;
   readonly missingCommandMessage: string;
   readonly excludedAuthMethodIds?: ReadonlySet<string>;
+  readonly homeEnvVarName?: string;
 }
 
 function makeUnsupportedTextGeneration(displayName: string): TextGenerationShape {
@@ -120,6 +122,8 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
       Effect.gen(function* () {
         const crypto = yield* Crypto.Crypto;
         const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
         const processEnv = mergeProviderInstanceEnvironment(environment);
         const effectiveConfig = { ...config, enabled } satisfies Settings;
         const continuationIdentity = defaultProviderContinuationIdentity({
@@ -148,6 +152,10 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           ...(driverConfig.excludedAuthMethodIds
             ? { excludedAuthMethodIds: driverConfig.excludedAuthMethodIds }
             : {}),
+          ...(effectiveConfig.homePath?.trim()
+            ? { homePath: effectiveConfig.homePath.trim() }
+            : {}),
+          ...(driverConfig.homeEnvVarName ? { homeEnvVarName: driverConfig.homeEnvVarName } : {}),
         };
 
         const eventLoggers = yield* ProviderEventLoggers;
@@ -160,6 +168,8 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           Effect.map(stampIdentity),
           Effect.provideService(Crypto.Crypto, crypto),
           Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+          Effect.provideService(FileSystem.FileSystem, fileSystem),
+          Effect.provideService(Path.Path, path),
         );
         const snapshot = yield* makeManagedServerProvider<StandardAcpCliProviderConfig>({
           maintenanceCapabilities,
