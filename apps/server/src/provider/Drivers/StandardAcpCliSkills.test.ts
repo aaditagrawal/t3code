@@ -82,7 +82,7 @@ it.layer(NodeServices.layer)("discoverAcpCliSkills", (it) => {
         ["---", "name: env-skill", "description: From env home.", "---"].join("\n"),
       );
 
-      const skills = yield* discoverAcpCliSkills({}, { HERMES_HOME: envHome });
+      const skills = yield* discoverAcpCliSkills({}, { HERMES_HOME: envHome }, "HERMES_HOME");
 
       assert.deepEqual(
         skills.map((s) => s.name),
@@ -119,6 +119,27 @@ it.layer(NodeServices.layer)("discoverAcpCliSkills", (it) => {
         skills.map((s) => s.name),
         ["explicit-skill"],
       );
+    }),
+  );
+
+  it.effect("returns no skills when no home is declared (opt-in)", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-acp-cli-skills-" });
+      const home = path.join(tempDir, "some-home");
+
+      yield* writeSkill(
+        path.join(home, "skills"),
+        "skill",
+        ["---", "name: skill", "---"].join("\n"),
+      );
+
+      // Even with skills on disk, a provider that declares neither homePath nor
+      // a home env var gets no discovery — we don't guess where it keeps skills.
+      const skills = yield* discoverAcpCliSkills({}, { HERMES_HOME: home, PI_HOME: home });
+
+      assert.deepEqual(skills, []);
     }),
   );
 

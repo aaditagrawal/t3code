@@ -94,14 +94,24 @@ export const resolveAcpCliHomePath = Effect.fn("resolveAcpCliHomePath")(function
  * Enumerate ACP CLI provider skills from `<home>/skills`, recursing into
  * category folders. Best-effort: unreadable roots and malformed entries are
  * skipped, and later entries win on name collisions.
+ *
+ * Discovery is opt-in: it only scans when the provider declares a home —
+ * either an explicit `homePath` or a `homeEnvVarName` env var. Providers
+ * without a declared home (no known `skills/` layout) yield an empty list
+ * instead of guessing a directory, so they never scan the wrong location.
  */
 export const discoverAcpCliSkills = Effect.fn("discoverAcpCliSkills")(function* (
   config: StandardAcpCliSkillsConfig,
   environment: NodeJS.ProcessEnv = process.env,
-  envVarName = "HERMES_HOME",
+  envVarName?: string,
 ): Effect.fn.Return<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path> {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+  // Opt-in: no explicit home and no declared env var means we don't know where
+  // this provider keeps skills, so don't guess.
+  if (!config.homePath?.trim() && !envVarName?.trim()) {
+    return [];
+  }
   const home = yield* resolveAcpCliHomePath(config, environment, envVarName);
   const skillsRoot = path.join(home, "skills");
 
