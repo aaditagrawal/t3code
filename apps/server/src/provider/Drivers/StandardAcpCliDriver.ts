@@ -1,6 +1,7 @@
 import {
   type ProviderDriverKind,
   type ServerProvider,
+  type ServerProviderSkill,
   TextGenerationError,
 } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
@@ -69,6 +70,9 @@ export interface StandardAcpCliDriverConfig<Settings extends StandardAcpCliSetti
   readonly setupHint: string;
   readonly missingCommandMessage: string;
   readonly excludedAuthMethodIds?: ReadonlySet<string>;
+  readonly discoverSkills?: (
+    environment: NodeJS.ProcessEnv,
+  ) => Effect.Effect<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path>;
 }
 
 function makeUnsupportedTextGeneration(displayName: string): TextGenerationShape {
@@ -120,6 +124,8 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
       Effect.gen(function* () {
         const crypto = yield* Crypto.Crypto;
         const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
         const processEnv = mergeProviderInstanceEnvironment(environment);
         const effectiveConfig = { ...config, enabled } satisfies Settings;
         const continuationIdentity = defaultProviderContinuationIdentity({
@@ -148,6 +154,9 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           ...(driverConfig.excludedAuthMethodIds
             ? { excludedAuthMethodIds: driverConfig.excludedAuthMethodIds }
             : {}),
+          ...(driverConfig.discoverSkills
+            ? { discoverSkills: driverConfig.discoverSkills(processEnv) }
+            : {}),
         };
 
         const eventLoggers = yield* ProviderEventLoggers;
@@ -160,6 +169,8 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           Effect.map(stampIdentity),
           Effect.provideService(Crypto.Crypto, crypto),
           Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+          Effect.provideService(FileSystem.FileSystem, fileSystem),
+          Effect.provideService(Path.Path, path),
         );
         const snapshot = yield* makeManagedServerProvider<StandardAcpCliProviderConfig>({
           maintenanceCapabilities,

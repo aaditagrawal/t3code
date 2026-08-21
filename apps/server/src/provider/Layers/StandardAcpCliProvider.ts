@@ -2,13 +2,16 @@ import type {
   ModelCapabilities,
   ProviderDriverKind,
   ServerProviderModel,
+  ServerProviderSkill,
 } from "@t3tools/contracts";
 import { createModelCapabilities } from "@t3tools/shared/model";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
@@ -38,6 +41,11 @@ export interface StandardAcpCliProviderConfig {
   readonly setupHint: string;
   readonly missingCommandMessage: string;
   readonly excludedAuthMethodIds?: ReadonlySet<string>;
+  readonly discoverSkills?: Effect.Effect<
+    ReadonlyArray<ServerProviderSkill>,
+    never,
+    FileSystem.FileSystem | Path.Path
+  >;
 }
 
 function modelsFromSessionState(
@@ -148,7 +156,7 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
   ): Effect.fn.Return<
     ServerProviderDraft,
     never,
-    ChildProcessSpawner.ChildProcessSpawner | Crypto.Crypto
+    ChildProcessSpawner.ChildProcessSpawner | Crypto.Crypto | FileSystem.FileSystem | Path.Path
   > {
     const checkedAt = DateTime.formatIso(yield* DateTime.now);
     const fallbackModels = providerModelsFromSettings([], config.customModels, EMPTY_CAPABILITIES);
@@ -204,6 +212,9 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
 
     if (Exit.isSuccess(discovery) && Option.isSome(discovery.value)) {
       const discoveredModels = discovery.value.value;
+      const skills = yield* (config.discoverSkills ?? Effect.succeed([])).pipe(
+        Effect.catchCause(() => Effect.succeed<ReadonlyArray<ServerProviderSkill>>([])),
+      );
       return buildServerProvider({
         presentation,
         enabled: true,
@@ -212,6 +223,7 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
           discoveredModels.length > 0
             ? providerModelsFromSettings(discoveredModels, config.customModels, EMPTY_CAPABILITIES)
             : fallbackModels,
+        skills,
         probe: {
           installed: true,
           version: null,
