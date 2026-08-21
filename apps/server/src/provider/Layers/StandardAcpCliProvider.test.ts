@@ -7,7 +7,11 @@ import * as NodeURL from "node:url";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
 import { ProviderDriverKind } from "@t3tools/contracts";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Option from "effect/Option";
+import * as TestClock from "effect/testing/TestClock";
 
 import {
   __testing,
@@ -25,7 +29,11 @@ const providerConfig = {
   command: process.execPath,
   enabled: true,
   customModels: [],
-  environment: process.env,
+  environment: {
+    ...process.env,
+    T3_ACP_AVAILABLE_COMMANDS_TIMING: "before-response",
+    T3_ACP_EMPTY_AVAILABLE_COMMANDS: "1",
+  },
   setupHint: "Configure the ACP agent.",
   missingCommandMessage: "ACP agent not found.",
 } satisfies StandardAcpCliProviderConfig;
@@ -93,7 +101,83 @@ describe("standard ACP CLI model discovery", () => {
   });
 });
 
+describe("standard ACP CLI command discovery", () => {
+  it.effect("waits for the first command update", () =>
+    Effect.gen(function* () {
+      const commands = [{ name: "help", description: "Show help" }];
+      const update = yield* Deferred.make<typeof commands>();
+      const fiber = yield* __testing
+        .waitForAvailableCommands({ awaitAvailableCommands: Deferred.await(update) })
+        .pipe(Effect.forkChild);
+
+      yield* Deferred.succeed(update, commands);
+
+      expect(yield* Fiber.join(fiber)).toEqual(Option.some(commands));
+    }),
+  );
+
+  it.effect("treats an empty command update as ready", () =>
+    Effect.gen(function* () {
+      const update = yield* Deferred.make<ReadonlyArray<never>>();
+      yield* Deferred.succeed(update, []);
+
+      const result = yield* __testing.waitForAvailableCommands({
+        awaitAvailableCommands: Deferred.await(update),
+      });
+
+      expect(result).toEqual(Option.some([]));
+    }),
+  );
+
+  it.effect("stops waiting after the command discovery window", () =>
+    Effect.gen(function* () {
+      const fiber = yield* __testing
+        .waitForAvailableCommands({ awaitAvailableCommands: Effect.never })
+        .pipe(Effect.forkChild);
+
+      yield* TestClock.adjust("1500 millis");
+
+      expect(yield* Fiber.join(fiber)).toEqual(Option.none());
+    }),
+  );
+
+  it("normalizes names, inputs, and duplicates", () => {
+    expect(
+      __testing.slashCommandsFromAcpCommands([
+        { name: "/help", description: "Show help" },
+        { name: "help", description: "Duplicate" },
+        { name: "model", inputHint: "model name" },
+      ]),
+    ).toEqual([
+      { name: "help", description: "Show help" },
+      { name: "model", input: { hint: "model name" } },
+    ]);
+  });
+});
+
 it.layer(NodeServices.layer)("standard ACP CLI provider arguments", (it) => {
+  for (const timing of ["before-response", "after-response"] as const) {
+    it.effect(`captures commands sent ${timing}`, () =>
+      Effect.gen(function* () {
+        const provider = yield* checkStandardAcpCliProviderStatus({
+          ...providerConfig,
+          args: [mockAgentPath],
+          environment: {
+            ...providerConfig.environment,
+            T3_ACP_AVAILABLE_COMMANDS_TIMING: timing,
+            T3_ACP_AVAILABLE_COMMANDS_DELAY_MS: "50",
+            T3_ACP_EMPTY_AVAILABLE_COMMANDS: "0",
+          },
+        });
+
+        expect(provider.slashCommands).toEqual([
+          { name: "help", description: "List available commands" },
+          { name: "model", description: "Switch model", input: { hint: "model name" } },
+        ]);
+      }),
+    );
+  }
+
   it.effect("forwards configured arguments during provider discovery", () =>
     Effect.gen(function* () {
       const provider = yield* checkStandardAcpCliProviderStatus({
