@@ -72,6 +72,9 @@ import Migration0043 from "./Migrations/040_ProjectionThreadsPinOrderKey.ts";
 // New upstream migrations continue after the fork-preserving migration sequence.
 import Migration0044 from "./Migrations/039_ProjectionProjectsDefaultThreadEnvMode.ts";
 import Migration0045 from "./Migrations/040_ProjectionProjectFaviconPath.ts";
+// Upstream AuthSessionClientConnection was runtime ID 41. The fork already
+// deployed IDs 41-45, so it must be appended without reusing an applied ID.
+import Migration0046 from "./Migrations/046_AuthSessionClientConnection.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -129,6 +132,7 @@ export const migrationEntries = [
   [43, "ProjectionThreadsPinOrderKey", Migration0043],
   [44, "ProjectionProjectsDefaultThreadEnvMode", Migration0044],
   [45, "ProjectionProjectFaviconPath", Migration0045],
+  [46, "AuthSessionClientConnection", Migration0046],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

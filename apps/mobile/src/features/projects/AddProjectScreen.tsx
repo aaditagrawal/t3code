@@ -10,6 +10,8 @@ import {
   getCloneDestinationBrowsePath,
   getCloneDestinationPath,
   getCloneDirectoryName,
+  getDefaultCloneUrl,
+  normalizePastedCloneUrl,
   resolveAddProjectPath,
   sortAddProjectProviderSources,
   type AddProjectRemoteSource,
@@ -671,7 +673,7 @@ export function AddProjectRepositoryScreen(props: {
     setIsSubmitting(true);
     const provider = addProjectRemoteSourceProvider(source);
     if (!provider) {
-      const remoteUrl = repositoryInput.trim();
+      const remoteUrl = normalizePastedCloneUrl(repositoryInput);
       navigation.dispatch(
         StackActions.push("AddProjectDestination", {
           environmentId: environment.environmentId,
@@ -701,7 +703,7 @@ export function AddProjectRepositoryScreen(props: {
         StackActions.push("AddProjectDestination", {
           environmentId: environment.environmentId,
           source,
-          remoteUrl: repository.sshUrl,
+          remoteUrl: getDefaultCloneUrl(repository),
           repositoryTitle: repository.nameWithOwner,
           incomingShareId,
           repositoryName: getCloneDirectoryName(repository.nameWithOwner),

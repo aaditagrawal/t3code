@@ -16,7 +16,7 @@ type UsageProviderPresentation = {
 export const PROVIDER_PRESENTATION = {
   codex: {
     label: "Codex",
-    color: "var(--foreground)",
+    color: "var(--contrast-foreground)",
     mark: OpenAI,
   },
   claude: {
@@ -26,5 +26,5 @@ export const PROVIDER_PRESENTATION = {
   },
 } satisfies Record<UsageProviderKind, UsageProviderPresentation>;
 
-/** The chart layers every series from zero, so order only controls how it is read. */
+/** Stable provider reading order across charts, summaries, tables, and hover rows. */
 export const PROVIDER_ORDER = Object.keys(PROVIDER_PRESENTATION) as UsageProviderKind[];
