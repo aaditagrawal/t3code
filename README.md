@@ -4,8 +4,8 @@ T3 Code is a minimal web GUI for coding agents made by [Pingdotgg](https://githu
 
 This fork focuses on expanding provider support, keeping usage and limit monitoring visible, improving persistence layers, and refining provider management across the app. The current branded release is [T3 Code v0.0.36 — ACP Edition](https://github.com/aaditagrawal/t3code/releases/tag/v0.0.36).
 
-It supports Codex, Claude Code, Cursor, Droid, OpenCode, Copilot, Gemini CLI, Amp, Kilo,
-Hermes Agent, Pi, and configurable stdio ACP agents.
+It supports configurable stdio ACP agents, Codex, Claude Code, Cursor, Droid, Fx, Grok Build,
+OpenCode, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, and Pi.
 
 (NOTE: Amp /mode free is not supported, as Amp Code doesn't support it in headless mode - since they need to show ads for that business model to work.)
 
@@ -25,16 +25,19 @@ Adds full provider adapters (server managers, service layers, runtime layers) fo
 | Claude Code    | Full adapter with permission mode, thinking token limits, and SDK typings  |
 | Cursor         | TypeScript SDK adapter + SDK model discovery + usage-dashboard tracking    |
 | Droid          | Factory Droid SDK runtime integration                                      |
+| Fx             | ACP integration through `fx acp`                                           |
+| Grok Build     | ACP adapter with xAI protocol extensions                                   |
 | OpenCode       | Adapter with hostname/port/workspace config                                |
 | Amp            | Adapter + `ampServerManager` for headless Amp sessions                     |
 | GitHub Copilot | Adapter + CLI binary resolution + text generation layer                    |
 | Gemini CLI     | **Enhanced:** Adapter + `geminiCliServerManager` with full test coverage   |
 | Kilo           | Adapter + `kiloServerManager` + OpenCode-style server URL config           |
 | Hermes Agent   | ACP chats plus an optional companion for Home, cron, handoffs, and media   |
+| Oh My Pi       | ACP integration through the built-in `omp acp` mode                        |
 | Pi             | ACP integration through `pi-acp`, with shared model and session handling   |
 | ACP Agent      | Configurable executable and argument list for any stdio ACP implementation |
 
-Hermes uses `hermes-acp` for ordinary interactive conversations. Its optional [T3 companion plugin](integrations/hermes-t3-gateway/README.md) adds enrollment, proactive Home and cron delivery, handoffs, and media without replacing the standard ACP path. Pi stays on the shared ACP transport through `pi-acp`.
+Hermes uses `hermes-acp` for ordinary interactive conversations. Its optional [T3 companion plugin](integrations/hermes-t3-gateway/README.md) adds enrollment, proactive Home and cron delivery, handoffs, and media without replacing the standard ACP path. Oh My Pi runs its native ACP server through `omp acp`, while Pi stays on the shared transport through `pi-acp`.
 
 ### Configurable ACP agents
 
@@ -54,8 +57,8 @@ harness for:
 | fast-agent   | `fast-agent-acp` | Configure the model with its CLI or config |
 | Docker Agent | `docker-agent`   | `serve`<br>`acp`<br>`/path/to/agent.yaml`  |
 
-Hermes and Pi remain available as branded presets because Hermes has companion capabilities and Pi
-needs a separate `pi-acp` process. For Pi models whose OpenRouter metadata advertises maximum output
+Hermes, Oh My Pi, and Pi remain available as branded presets because Hermes has companion
+capabilities and the two Pi-family agents have distinct install and launch paths. For Pi models whose OpenRouter metadata advertises maximum output
 equal to the entire context window, install the [T3 Pi compatibility extension](integrations/pi-openrouter-compat/README.md).
 It omits the unsafe request field rather than imposing a replacement token cap.
 
@@ -118,12 +121,15 @@ bun run dev
 - [Claude Code](https://github.com/anthropics/claude-code)
 - [Cursor](https://cursor.sh)
 - [Droid](https://factory.ai)
+- [Fx](https://fx.sh) (`fx acp`)
+- [Grok Build](https://x.ai/cli)
 - [Codex CLI](https://github.com/openai/codex) (requires v0.37.0 or later)
 - [Copilot](https://github.com/features/copilot)
 - [Amp](https://ampcode.com)
 - [Kilo](https://kilo.dev)
 - [OpenCode](https://opencode.ai)
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) (`hermes-acp`; run `hermes-acp --setup` after installation)
+- [Oh My Pi](https://github.com/can1357/oh-my-pi) (install `@oh-my-pi/pi-coding-agent`; T3 Code launches `omp acp`)
 - [Pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) (install it together with `pi-acp`, then authenticate with `pi`)
 - Any stdio [Agent Client Protocol agent](https://agentclientprotocol.com/get-started/agents) through the configurable **ACP Agent** driver
 

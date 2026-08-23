@@ -2053,6 +2053,7 @@ describe("PROVIDER_OPTIONS", () => {
       { value: "kilo", label: "Kilo", available: true },
       { value: "hermes", label: "Hermes", available: true },
       { value: "pi", label: "Pi", available: true },
+      { value: "ohMyPi", label: "Oh My Pi", available: true },
     ]);
     expect(copilot).toEqual({
       value: "copilot",

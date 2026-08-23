@@ -20,6 +20,7 @@ const PROVIDER_KINDS = [
   "geminiCli",
   "amp",
   "kilo",
+  "ohMyPi",
   "pi",
 ] as const;
 

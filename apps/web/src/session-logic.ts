@@ -76,6 +76,7 @@ export const PROVIDER_OPTIONS: Array<{
   { value: ProviderDriverKind.make("kilo"), label: "Kilo", available: true },
   { value: ProviderDriverKind.make("hermes"), label: "Hermes", available: true },
   { value: ProviderDriverKind.make("pi"), label: "Pi", available: true },
+  { value: ProviderDriverKind.make("ohMyPi"), label: "Oh My Pi", available: true },
 ];
 
 export type WorkLogToolLifecycleStatus =

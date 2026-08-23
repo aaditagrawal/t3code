@@ -6,6 +6,7 @@ import {
   GrokIcon,
   HermesIcon,
   Icon,
+  OhMyPiIcon,
   OpenAI,
   OpenCodeIcon,
   PiAgentIcon,
@@ -21,6 +22,7 @@ export const PROVIDER_ICON_BY_PROVIDER: Partial<Record<ProviderDriverKind, Icon>
   [ProviderDriverKind.make("grok")]: GrokIcon,
   [ProviderDriverKind.make("hermes")]: HermesIcon,
   [ProviderDriverKind.make("pi")]: PiAgentIcon,
+  [ProviderDriverKind.make("ohMyPi")]: OhMyPiIcon,
 };
 
 function isAvailableProviderOption(option: (typeof PROVIDER_OPTIONS)[number]): option is {

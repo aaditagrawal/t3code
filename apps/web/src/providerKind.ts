@@ -28,6 +28,7 @@ export const PROVIDER_KINDS = [
   "kilo",
   "hermes",
   "pi",
+  "ohMyPi",
 ] as const;
 
 export type ProviderKind = (typeof PROVIDER_KINDS)[number];

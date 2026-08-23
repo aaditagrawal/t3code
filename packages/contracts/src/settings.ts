@@ -739,6 +739,12 @@ export const PiSettings = makeAcpCliProviderSettingsSchema({
 });
 export type PiSettings = typeof PiSettings.Type;
 
+export const OhMyPiSettings = makeAcpCliProviderSettingsSchema({
+  defaultBinary: "omp",
+  description: "Path to the Oh My Pi CLI. T3 Code starts it with the `acp` command.",
+});
+export type OhMyPiSettings = typeof OhMyPiSettings.Type;
+
 export const FxSettings = makeAcpCliProviderSettingsSchema({
   defaultBinary: "fx",
   description: "Path to the Fx CLI executable. T3 Code starts it with the `acp` command.",
@@ -936,6 +942,7 @@ export const ServerSettings = Schema.Struct({
     amp: AmpSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     hermes: HermesSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     kilo: KiloSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    ohMyPi: OhMyPiSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     pi: PiSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   }).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   // New driver-agnostic instance map. Keyed by `ProviderInstanceId`; values
@@ -1097,6 +1104,12 @@ const DroidSettingsPatch = Schema.Struct({
   customModels: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 
+const OhMyPiSettingsPatch = Schema.Struct({
+  enabled: Schema.optionalKey(Schema.Boolean),
+  binaryPath: Schema.optionalKey(TrimmedString),
+  customModels: Schema.optionalKey(Schema.Array(Schema.String)),
+});
+
 export const ServerSettingsPatch = Schema.Struct({
   // Server settings
   enableLegacyTokenStreaming: Schema.optionalKey(Schema.Boolean),
@@ -1145,6 +1158,7 @@ export const ServerSettingsPatch = Schema.Struct({
       amp: Schema.optionalKey(GenericProviderSettingsPatch),
       hermes: Schema.optionalKey(GenericProviderSettingsPatch),
       kilo: Schema.optionalKey(GenericProviderSettingsPatch),
+      ohMyPi: Schema.optionalKey(OhMyPiSettingsPatch),
       pi: Schema.optionalKey(GenericProviderSettingsPatch),
     }),
   ),

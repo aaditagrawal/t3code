@@ -12,7 +12,7 @@ import * as AcpSessionRuntime from "./AcpSessionRuntime.ts";
 
 export interface StandardAcpCliRuntimeInput extends Omit<
   AcpSessionRuntime.AcpSessionRuntimeOptions,
-  "authMethodId" | "clientCapabilities" | "spawn"
+  "authMethodId" | "spawn"
 > {
   readonly childProcessSpawner: ChildProcessSpawner.ChildProcessSpawner["Service"];
   readonly command: string;
@@ -84,6 +84,18 @@ export function currentStandardAcpModelFromSetup(
   return setup.models?.currentModelId?.trim() || undefined;
 }
 
+export function currentStandardAcpConfigOptionModelFromSetup(
+  setup:
+    | EffectAcpSchema.LoadSessionResponse
+    | EffectAcpSchema.NewSessionResponse
+    | EffectAcpSchema.ResumeSessionResponse,
+): string | undefined {
+  const modelOption = setup.configOptions?.find(
+    (option) => option.category === "model" || option.id.trim() === "model",
+  );
+  return modelOption?.type === "select" ? modelOption.currentValue.trim() || undefined : undefined;
+}
+
 export function applyStandardAcpModelSelection<E>(input: {
   readonly runtime: Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "setSessionModel">;
   readonly currentModelId: string | undefined;
@@ -95,5 +107,19 @@ export function applyStandardAcpModelSelection<E>(input: {
   }
   return input.runtime
     .setSessionModel(input.requestedModelId)
+    .pipe(Effect.mapError(input.mapError), Effect.as(input.requestedModelId));
+}
+
+export function applyStandardAcpConfigOptionModelSelection<E>(input: {
+  readonly runtime: Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "setModel">;
+  readonly currentModelId: string | undefined;
+  readonly requestedModelId: string | undefined;
+  readonly mapError: (cause: EffectAcpErrors.AcpError) => E;
+}): Effect.Effect<string | undefined, E> {
+  if (input.requestedModelId === undefined || input.requestedModelId === input.currentModelId) {
+    return Effect.succeed(input.currentModelId);
+  }
+  return input.runtime
+    .setModel(input.requestedModelId)
     .pipe(Effect.mapError(input.mapError), Effect.as(input.requestedModelId));
 }

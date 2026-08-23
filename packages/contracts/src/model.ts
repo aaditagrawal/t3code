@@ -136,6 +136,7 @@ const GROK_DRIVER_KIND = ProviderDriverKind.make("grok");
 const ACP_DRIVER_KIND = ProviderDriverKind.make("acp");
 export const HERMES_DRIVER_KIND = ProviderDriverKind.make("hermes");
 const OPENCODE_DRIVER_KIND = ProviderDriverKind.make("opencode");
+const OH_MY_PI_DRIVER_KIND = ProviderDriverKind.make("ohMyPi");
 const PI_DRIVER_KIND = ProviderDriverKind.make("pi");
 
 export const DEFAULT_MODEL = "gpt-5.6-sol";
@@ -240,5 +241,6 @@ export const PROVIDER_DISPLAY_NAMES: Partial<Record<ProviderDriverKind, string>>
   [GROK_DRIVER_KIND]: "Grok",
   [HERMES_DRIVER_KIND]: "Hermes Agent",
   [OPENCODE_DRIVER_KIND]: "OpenCode",
+  [OH_MY_PI_DRIVER_KIND]: "Oh My Pi",
   [PI_DRIVER_KIND]: "Pi",
 };

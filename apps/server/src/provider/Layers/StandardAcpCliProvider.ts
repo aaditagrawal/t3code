@@ -13,6 +13,8 @@ import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import * as PlatformError from "effect/PlatformError";
+import * as Scope from "effect/Scope";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
@@ -51,6 +53,14 @@ export interface StandardAcpCliProviderConfig {
     ReadonlyArray<ServerProviderSkill>,
     never,
     FileSystem.FileSystem | Path.Path
+  >;
+}
+
+export interface StandardAcpCliProviderCheckOptions {
+  readonly prepareArgs?: Effect.Effect<
+    ReadonlyArray<string>,
+    PlatformError.PlatformError,
+    FileSystem.FileSystem | Scope.Scope
   >;
 }
 
@@ -112,6 +122,10 @@ function slashCommandsFromAcpCommands(
 const waitForAvailableCommands = (
   runtime: Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "awaitAvailableCommands">,
 ) => runtime.awaitAvailableCommands.pipe(Effect.timeoutOption(COMMAND_DISCOVERY_TIMEOUT_MS));
+
+function agentVersionFromInitialize(result: EffectAcpSchema.InitializeResponse): string | null {
+  return result.agentInfo?.version?.trim() || null;
+}
 
 function hasMissingCommandCause(cause: unknown, seen = new WeakSet<object>()): boolean {
   if (!cause || typeof cause !== "object" || seen.has(cause)) return false;
@@ -183,6 +197,7 @@ export function buildInitialStandardAcpCliProviderSnapshot(
 export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliProviderStatus")(
   function* (
     config: StandardAcpCliProviderConfig,
+    options?: StandardAcpCliProviderCheckOptions,
   ): Effect.fn.Return<
     ServerProviderDraft,
     never,
@@ -214,38 +229,37 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
     }
 
     const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-    const discovery = yield* makeStandardAcpCliRuntime({
-      childProcessSpawner,
-      command: config.command,
-      ...(config.args ? { args: config.args } : {}),
-      cwd: process.cwd(),
-      environment: config.environment,
-      clientInfo: { name: "t3-code-provider-probe", version: "0.0.0" },
-      ...(config.excludedAuthMethodIds
-        ? {
-            resolveAuthMethodId: (initializeResult) =>
-              firstAdvertisedAuthMethod(initializeResult, config.excludedAuthMethodIds),
-          }
-        : {}),
-    }).pipe(
-      Effect.flatMap((runtime) =>
-        Effect.gen(function* () {
-          const started = yield* runtime.start();
-          const models = modelsFromSessionState(started.sessionSetupResult.models, config.provider);
-          const resolvedModels =
-            models.length > 0
-              ? models
-              : modelsFromConfigOptions(started.sessionSetupResult.configOptions, config.provider);
-          const commands = yield* waitForAvailableCommands(runtime).pipe(
-            Effect.map(Option.getOrElse((): ReadonlyArray<AcpAvailableCommand> => [])),
-          );
-          return { models: resolvedModels, commands };
-        }),
-      ),
-      Effect.scoped,
-      Effect.timeoutOption(MODEL_DISCOVERY_TIMEOUT_MS),
-      Effect.exit,
-    );
+    const discovery = yield* Effect.gen(function* () {
+      const args = options?.prepareArgs ? yield* options.prepareArgs : config.args;
+      const runtime = yield* makeStandardAcpCliRuntime({
+        childProcessSpawner,
+        command: config.command,
+        ...(args ? { args } : {}),
+        cwd: process.cwd(),
+        environment: config.environment,
+        clientInfo: { name: "t3-code-provider-probe", version: "0.0.0" },
+        ...(config.excludedAuthMethodIds
+          ? {
+              resolveAuthMethodId: (initializeResult) =>
+                firstAdvertisedAuthMethod(initializeResult, config.excludedAuthMethodIds),
+            }
+          : {}),
+      });
+      const started = yield* runtime.start();
+      const models = modelsFromSessionState(started.sessionSetupResult.models, config.provider);
+      const resolvedModels =
+        models.length > 0
+          ? models
+          : modelsFromConfigOptions(started.sessionSetupResult.configOptions, config.provider);
+      const commands = yield* waitForAvailableCommands(runtime).pipe(
+        Effect.map(Option.getOrElse((): ReadonlyArray<AcpAvailableCommand> => [])),
+      );
+      return {
+        models: resolvedModels,
+        commands,
+        version: agentVersionFromInitialize(started.initializeResult),
+      };
+    }).pipe(Effect.scoped, Effect.timeoutOption(MODEL_DISCOVERY_TIMEOUT_MS), Effect.exit);
 
     if (Exit.isSuccess(discovery) && Option.isSome(discovery.value)) {
       const discovered = discovery.value.value;
@@ -265,7 +279,7 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
         slashCommands: slashCommandsFromAcpCommands(discovered.commands),
         probe: {
           installed: true,
-          version: null,
+          version: discovered.version,
           status: "ready",
           auth: { status: "unknown" },
         },
@@ -294,6 +308,7 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
 /** Exposed for focused provider-discovery and error-classification tests. */
 export const __testing = {
   hasMissingCommandCause,
+  agentVersionFromInitialize,
   modelsFromConfigOptions,
   slashCommandsFromAcpCommands,
   waitForAvailableCommands,

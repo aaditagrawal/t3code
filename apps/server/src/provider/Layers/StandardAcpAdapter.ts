@@ -31,6 +31,7 @@ import * as SynchronizedRef from "effect/SynchronizedRef";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
 import * as NodeURL from "node:url";
 import * as EffectAcpErrors from "effect-acp/errors";
+import { ElicitationRequest as ElicitationRequestSchema } from "effect-acp/schema";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
@@ -44,6 +45,12 @@ import {
   ProviderAdapterValidationError,
 } from "../Errors.ts";
 import { mapAcpToAdapterError } from "../acp/AcpAdapterSupport.ts";
+import {
+  extractStandardAcpFormQuestions,
+  makeStandardAcpFormAcceptedResponse,
+  makeStandardAcpFormCancelledResponse,
+  makeStandardAcpFormDeclinedResponse,
+} from "../acp/AcpFormElicitation.ts";
 import type * as AcpSessionRuntime from "../acp/AcpSessionRuntime.ts";
 import {
   makeAcpAssistantItemEvent,
@@ -59,6 +66,7 @@ import type { ProviderAdapterShape } from "../Services/ProviderAdapter.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 
 const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
+const decodeElicitationRequest = Schema.decodeUnknownEffect(ElicitationRequestSchema);
 
 const STANDARD_ACP_RESUME_VERSION = 1 as const;
 /** Lets queued ACP events and a pending Stop win prompt-settlement races. */
@@ -100,6 +108,7 @@ export interface StandardAcpAdapterConfig<UserInputParams = never, UserInputEnco
     readonly cwd: string;
     readonly resumeSessionId?: string;
     readonly clientInfo: { readonly name: string; readonly version: string };
+    readonly clientCapabilities?: EffectAcpSchema.InitializeRequest["clientCapabilities"];
     readonly mcpServers?: ReadonlyArray<EffectAcpSchema.McpServer>;
     readonly requestLogger?: NonNullable<
       AcpSessionRuntime.AcpSessionRuntimeOptions["requestLogger"]
@@ -125,10 +134,12 @@ export interface StandardAcpAdapterConfig<UserInputParams = never, UserInputEnco
     readonly requestedModelId: string | undefined;
     readonly mapError: (cause: EffectAcpErrors.AcpError) => E;
   }) => Effect.Effect<string | undefined, E>;
+  readonly modelSelectionMethod?: string;
   readonly promptStopReason?: (
     response: EffectAcpSchema.PromptResponse,
   ) => EffectAcpSchema.StopReason | null;
   readonly userInput?: StandardAcpUserInputRegistration<UserInputParams, UserInputEncoded>;
+  readonly formElicitation?: boolean;
 }
 
 interface PendingApproval {
@@ -667,6 +678,9 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
               cwd,
               ...(resumeSessionId ? { resumeSessionId } : {}),
               clientInfo: { name: "t3-code", version: "0.0.0" },
+              ...(config.formElicitation
+                ? { clientCapabilities: { elicitation: { form: {} } } }
+                : {}),
               ...(mcpSession
                 ? {
                     mcpServers: [
@@ -728,8 +742,13 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                             payload: params,
                           },
                         });
-                        const resolved = yield* Deferred.await(resolution);
-                        pendingUserInputs.delete(requestId);
+                        const resolved = yield* Deferred.await(resolution).pipe(
+                          Effect.ensuring(
+                            Effect.sync(() => pendingUserInputs.delete(requestId)).pipe(
+                              Effect.asVoid,
+                            ),
+                          ),
+                        );
                         const resolvedAnswers =
                           resolved._tag === "answered" ? resolved.answers : {};
                         yield* offerRuntimeEvent({
@@ -756,6 +775,86 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                     ),
                   ),
                 { discard: true },
+              );
+            }
+            if (config.formElicitation) {
+              const handleFormElicitation = (
+                params: EffectAcpSchema.ElicitationRequest,
+                method: "elicitation/create" | "session/elicitation",
+                rawParams: unknown = params,
+              ) =>
+                mapAcpCallbackFailure(
+                  Effect.gen(function* () {
+                    yield* logNative(input.threadId, method, rawParams);
+                    if (params.mode !== "form") {
+                      return makeStandardAcpFormDeclinedResponse();
+                    }
+                    const questions = extractStandardAcpFormQuestions(params, rawParams);
+                    if (questions.length === 0) {
+                      return makeStandardAcpFormDeclinedResponse();
+                    }
+                    const requestId = ApprovalRequestId.make(yield* randomUUIDv4);
+                    const runtimeRequestId = RuntimeRequestId.make(requestId);
+                    const resolution = yield* Deferred.make<PendingUserInputResolution>();
+                    const turnId = resolveSessionCallbackTurnId(sessions, input.threadId);
+                    pendingUserInputs.set(requestId, { resolution });
+                    yield* offerRuntimeEvent({
+                      type: "user-input.requested",
+                      ...(yield* makeEventStamp()),
+                      provider: PROVIDER,
+                      threadId: input.threadId,
+                      turnId,
+                      requestId: runtimeRequestId,
+                      payload: { questions },
+                      raw: {
+                        source: "acp.jsonrpc",
+                        method,
+                        payload: rawParams,
+                      },
+                    });
+                    const resolved = yield* Deferred.await(resolution).pipe(
+                      Effect.ensuring(
+                        Effect.sync(() => pendingUserInputs.delete(requestId)).pipe(Effect.asVoid),
+                      ),
+                    );
+                    const resolvedAnswers = resolved._tag === "answered" ? resolved.answers : {};
+                    yield* offerRuntimeEvent({
+                      type: "user-input.resolved",
+                      ...(yield* makeEventStamp()),
+                      provider: PROVIDER,
+                      threadId: input.threadId,
+                      turnId,
+                      requestId: runtimeRequestId,
+                      payload: { answers: resolvedAnswers },
+                      raw: {
+                        source: "acp.jsonrpc",
+                        method,
+                        payload: rawParams,
+                      },
+                    });
+                    return resolved._tag === "answered"
+                      ? makeStandardAcpFormAcceptedResponse(params, resolved.answers)
+                      : makeStandardAcpFormCancelledResponse();
+                  }),
+                );
+              yield* acp.handleElicitation((params) =>
+                handleFormElicitation(params, "session/elicitation"),
+              );
+              // OhMyPi implements the original unstable ACP spelling and flat
+              // response action. Keep both spellings behind the same opt-in.
+              yield* acp.handleExtRequest("elicitation/create", Schema.Unknown, (rawParams) =>
+                decodeElicitationRequest(rawParams).pipe(
+                  Effect.mapError((cause) =>
+                    EffectAcpErrors.AcpRequestError.invalidExtensionPayload(
+                      "elicitation/create",
+                      cause,
+                    ),
+                  ),
+                  Effect.flatMap((params) =>
+                    handleFormElicitation(params, "elicitation/create", rawParams),
+                  ),
+                  Effect.map((response) => response.action),
+                ),
               );
             }
             yield* acp.handleRequestPermission((params) =>
@@ -838,7 +937,12 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
             currentModelId: config.currentModelFromSetup(started.sessionSetupResult),
             requestedModelId: requestedStartModelId,
             mapError: (cause) =>
-              mapAcpToAdapterError(PROVIDER, input.threadId, "session/set_model", cause),
+              mapAcpToAdapterError(
+                PROVIDER,
+                input.threadId,
+                config.modelSelectionMethod ?? "session/set_model",
+                cause,
+              ),
           });
 
           const now = yield* nowIso;
@@ -1044,7 +1148,12 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                 currentModelId: ctx.currentModelId,
                 requestedModelId: requestedTurnModelId,
                 mapError: (cause) =>
-                  mapAcpToAdapterError(PROVIDER, input.threadId, "session/set_model", cause),
+                  mapAcpToAdapterError(
+                    PROVIDER,
+                    input.threadId,
+                    config.modelSelectionMethod ?? "session/set_model",
+                    cause,
+                  ),
               });
 
               const text = input.input?.trim();
@@ -1491,7 +1600,9 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
         if (!pending) {
           return yield* new ProviderAdapterRequestError({
             provider: PROVIDER,
-            method: config.userInput?.methods[0] ?? "session/user_input",
+            method:
+              config.userInput?.methods[0] ??
+              (config.formElicitation ? "session/elicitation" : "session/user_input"),
             detail: `Unknown pending user-input request: ${requestId}`,
           });
         }

@@ -7,6 +7,7 @@ import {
   ClientSettingsPatch,
   DEFAULT_SERVER_SETTINGS,
   defaultEnabledForDriver,
+  OhMyPiSettings,
   resolveProviderInstanceEnabled,
   ServerSettings,
   ServerSettingsPatch,
@@ -17,6 +18,7 @@ const decodeClientSettingsPatch = Schema.decodeUnknownSync(ClientSettingsPatch);
 const decodeServerSettings = Schema.decodeUnknownSync(ServerSettings);
 const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
+const decodeOhMyPiSettings = Schema.decodeUnknownSync(OhMyPiSettings);
 
 describe("ClientSettings word wrap", () => {
   it("defaults word wrap on", () => {
@@ -233,6 +235,81 @@ describe("provider enabled defaults", () => {
     expect(
       resolveProviderInstanceEnabled({ driver: codex, enabled: false, config: { enabled: true } }),
     ).toBe(false);
+  });
+});
+
+describe("OhMyPiSettings", () => {
+  it("defaults the branded ACP preset to the omp binary", () => {
+    expect(decodeOhMyPiSettings({})).toEqual({
+      enabled: true,
+      binaryPath: "omp",
+      customModels: [],
+    });
+    expect(decodeOhMyPiSettings({ binaryPath: "   " }).binaryPath).toBe("omp");
+    expect(decodeServerSettings({}).providers.ohMyPi).toEqual({
+      enabled: true,
+      binaryPath: "omp",
+      customModels: [],
+    });
+    expect(defaultEnabledForDriver(ProviderDriverKind.make("ohMyPi"))).toBe(true);
+  });
+
+  it("decodes legacy settings and trims custom binary patches", () => {
+    const settings = decodeServerSettings({
+      providers: {
+        ohMyPi: {
+          enabled: false,
+          binaryPath: "  /opt/oh-my-pi/bin/omp  ",
+          customModels: ["anthropic/claude-sonnet-4-6"],
+        },
+      },
+    });
+    expect(settings.providers.ohMyPi).toEqual({
+      enabled: false,
+      binaryPath: "/opt/oh-my-pi/bin/omp",
+      customModels: ["anthropic/claude-sonnet-4-6"],
+    });
+
+    const patch = decodeServerSettingsPatch({
+      providers: {
+        ohMyPi: {
+          enabled: true,
+          binaryPath: "  ~/.local/bin/omp  ",
+          customModels: ["openai/gpt-5.6"],
+        },
+      },
+    });
+    expect(patch.providers?.ohMyPi).toEqual({
+      enabled: true,
+      binaryPath: "~/.local/bin/omp",
+      customModels: ["openai/gpt-5.6"],
+    });
+  });
+
+  it("preserves custom binary and environment state on an Oh My Pi instance", () => {
+    const settings = decodeServerSettings({
+      providerInstances: {
+        oh_my_pi_work: {
+          driver: "ohMyPi",
+          displayName: "Oh My Pi (work)",
+          environment: [
+            { name: "OMP_PROFILE", value: "work", sensitive: false },
+            { name: "ANTHROPIC_API_KEY", value: "secret", sensitive: true },
+          ],
+          config: {
+            binaryPath: "/opt/oh-my-pi/bin/omp",
+          },
+        },
+      },
+    });
+    const instance = settings.providerInstances[ProviderInstanceId.make("oh_my_pi_work")];
+
+    expect(instance?.driver).toBe("ohMyPi");
+    expect(instance?.config).toEqual({ binaryPath: "/opt/oh-my-pi/bin/omp" });
+    expect(instance?.environment).toEqual([
+      { name: "OMP_PROFILE", value: "work", sensitive: false },
+      { name: "ANTHROPIC_API_KEY", value: "secret", sensitive: true },
+    ]);
   });
 });
 
