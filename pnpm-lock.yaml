@@ -38,6 +38,14 @@ catalogs:
       version: 0.2.2
 
 overrides:
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-darwin-arm64': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-darwin-x64': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-arm64': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-arm64-musl': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-x64': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-x64-musl': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-arm64': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-x64': '-'
   '@clerk/backend': 3.14.0
   '@clerk/clerk-js': 6.29.2
   '@clerk/clerk-js>@base-org/account': '-'
@@ -46,8 +54,8 @@ overrides:
   '@clerk/clerk-js>@solana/wallet-adapter-react': '-'
   '@clerk/clerk-js>@solana/wallet-standard': '-'
   '@clerk/clerk-js>@wallet-standard/core': '-'
-  '@clerk/electron': 0.0.34-canary.v20260819050620
-  '@clerk/electron-passkeys': 0.0.4-canary.v20260819050620
+  '@clerk/electron': 0.0.34
+  '@clerk/electron-passkeys': 0.0.3
   '@clerk/expo': 4.2.0
   '@clerk/react': 6.14.4
   '@clerk/shared': 4.29.2
@@ -114,11 +122,11 @@ importers:
   apps/desktop:
     dependencies:
       '@clerk/electron':
-        specifier: 0.0.34-canary.v20260819050620
-        version: 0.0.34-canary.v20260819050620(@clerk/electron-passkeys@0.0.4-canary.v20260819050620)(electron-store@8.2.0)(electron@41.5.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 0.0.34
+        version: 0.0.34(@clerk/electron-passkeys@0.0.3)(electron-store@8.2.0)(electron@41.5.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@clerk/electron-passkeys':
-        specifier: 0.0.4-canary.v20260819050620
-        version: 0.0.4-canary.v20260819050620
+        specifier: 0.0.3
+        version: 0.0.3
       '@effect/platform-node':
         specifier: 4.0.0-beta.103
         version: 4.0.0-beta.103(bufferutil@4.1.0)(effect@4.0.0-beta.103(patch_hash=af36b7948b6f9c56623074662b51dade5699880c1a7c71245de73e13c3185fb6))(ioredis@5.11.0)(utf-8-validate@6.0.6)
@@ -538,8 +546,8 @@ importers:
         specifier: 6.29.2
         version: 6.29.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@clerk/electron':
-        specifier: 0.0.34-canary.v20260819050620
-        version: 0.0.34-canary.v20260819050620(@clerk/electron-passkeys@0.0.4-canary.v20260819050620)(electron-store@8.2.0)(electron@41.5.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 0.0.34
+        version: 0.0.34(@clerk/electron-passkeys@0.0.3)(electron-store@8.2.0)(electron@41.5.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@clerk/react':
         specifier: 6.14.4
         version: 6.14.4(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -983,50 +991,6 @@ packages:
 
   '@alchemy.run/node-utils@0.0.5':
     resolution: {integrity: sha512-5agdhQxWBodxa5hDRyjnpx91RTU3g+qd5fxYB7uNDCaOzB0XC47UU/KHR6zf6jhz/NXf61gJS+vhYwn8NHeRoQ==}
-
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.170':
-    resolution: {integrity: sha512-rwfgArIa5WI0QPNqFsRBgvtSI0mrtpynUm0oK6+l6/KX4hcgnYGEzciZR1bOeD9/7sSZlTdIgt+T9alKeZmXcg==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.170':
-    resolution: {integrity: sha512-0e58h8UQMtsQxLGIv9r4foxfBFWKZ7NeDtoplLhuD7EwQonehomw1sBXCch77t/IfUS+q5vQ5zv+fOGmap5nLQ==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.170':
-    resolution: {integrity: sha512-SRYfQcsXlOq+CD/FqkQBTSHbaD++w73GnnO+NUV9adLYrca3kfetRwWT1iguY1cNS0l34dCR3rlzCPq78vg1Jg==}
-    cpu: [arm64]
-    os: [linux]
-    libc: [musl]
-
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.170':
-    resolution: {integrity: sha512-gLbaFqcGppFJQd4DLNV4IXoeahejT/p2/M8bSSvRDbla9GOsBr1AxV5XLRyBn1e7xFGozZIAIQr3+1chp7NJgQ==}
-    cpu: [arm64]
-    os: [linux]
-    libc: [glibc]
-
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.170':
-    resolution: {integrity: sha512-m4+I0qBEk7cxRKS+pL+eoWXbXTFOAo83fQ0tQvap4z/mDMm06IWJtEPoYTaMBwsp32GJWLkHWKbZSBCHZnp2DQ==}
-    cpu: [x64]
-    os: [linux]
-    libc: [musl]
-
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.170':
-    resolution: {integrity: sha512-Xl/m7TaSC3T5IDBdHrZQ9fCQYyDmPELN34CL+MoyPIf7uSmuZnjE9fUOqDh2Rv26JxWssi1M6X+BBvVuKd6Cpg==}
-    cpu: [x64]
-    os: [linux]
-    libc: [glibc]
-
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.170':
-    resolution: {integrity: sha512-IG+8isJNNJKbnnhO7m+PGhfVCg+XoQ/MDxGde5eigFI0WsEfitjuWSWwx82bT9ghxI1aa6qNvI+UPgPcZuo5Fg==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.170':
-    resolution: {integrity: sha512-7cuqSKbHVItPGVwRbd3A0BEJwcNtc7Fhoh6qHN4C6yrmjSrvdYYx3MLvq/VI768/RoG7mAMDxb+j7WfEfoP9BA==}
-    cpu: [x64]
-    os: [win32]
 
   '@anthropic-ai/claude-agent-sdk@0.3.170':
     resolution: {integrity: sha512-pAvhfk+iTodXZ6RF18Kz7BEUWFjL7EcR3tKuhUNdPpE1NAYCR3mSHGbafi72JsrNwKEDIs7FU31z3fqhwy8QzA==}
@@ -1742,35 +1706,35 @@ packages:
     resolution: {integrity: sha512-4i4RE+ZQ0hKDDFSRKCISQPBy07SfFeFAhBUhNj2j01Nx2n4pqV+5iyg2Vf27+NKFNkgq7kdmZGvtug24D++8WQ==}
     engines: {node: '>=20.9.0'}
 
-  '@clerk/electron-passkeys-darwin-arm64@0.0.4-canary.v20260819050620':
-    resolution: {integrity: sha512-avxygtEfWBD3YPkxws4lB5mL/75SQvVBMQCg+b1gjFsQInnVOgAqAv4wHR8wgUsEbXY2zEkvqaYjFSnEveC0VA==}
+  '@clerk/electron-passkeys-darwin-arm64@0.0.3':
+    resolution: {integrity: sha512-oAlrd+GLqP0oREP3hNRc6yNZhXGaQgJss9iCWRQqXjpw1yZD1ZU+L+E2Gfg84vMj/NSUhxbU0Djy0RXhmeUwgg==}
     cpu: [arm64]
     os: [darwin]
 
-  '@clerk/electron-passkeys-darwin-x64@0.0.4-canary.v20260819050620':
-    resolution: {integrity: sha512-clShldbwDcC2ek6gJT85QKsMfaPyOhEgfz61u2n3YKivbeui33XjJu261d+LO20mqDjXZy3flLGPTIh/Kii80g==}
+  '@clerk/electron-passkeys-darwin-x64@0.0.3':
+    resolution: {integrity: sha512-0UPAWQEni7o8gjWwd2sP97fPshJmT2w5b8eV/jOPVSP8NqIcFCm5yIFSEx1SfB53LGfzB01A4iEGi2pxiCHqyQ==}
     cpu: [x64]
     os: [darwin]
 
-  '@clerk/electron-passkeys-win32-arm64-msvc@0.0.4-canary.v20260819050620':
-    resolution: {integrity: sha512-alIfXJSxyeulnNeHoT4X7+qO0o9/EBhiRWMhCXwKJIbWfwzqnnVrRH1P7HfYRnDepKhqRzsUaBuYTqQzisHG+A==}
+  '@clerk/electron-passkeys-win32-arm64-msvc@0.0.3':
+    resolution: {integrity: sha512-bbRvifm9A/gfPkwC1UyMyF9sYGEs0aen7J2kCcaOIW3K0PXcAbHtsR/gnx4dT0bjFdd21vSa2zlIdERvHc1BiA==}
     cpu: [arm64]
     os: [win32]
 
-  '@clerk/electron-passkeys-win32-x64-msvc@0.0.4-canary.v20260819050620':
-    resolution: {integrity: sha512-QSKKMCdV9AhOt74ls8ExdwR+2ikoLGgN2LdWIjBgNk6epJVs2L1FXVZOM0ZqfVHFSl5y7vLmlOACR6WyJ2eoLg==}
+  '@clerk/electron-passkeys-win32-x64-msvc@0.0.3':
+    resolution: {integrity: sha512-gFaVqKlOKTF2SJ3lMwkZ0oonycQn93p1qSrp5kzzeZBeQ+tGB3gQnjXecrhQy21AzDUyWqVJJ8KrP2HRAwifWg==}
     cpu: [x64]
     os: [win32]
 
-  '@clerk/electron-passkeys@0.0.4-canary.v20260819050620':
-    resolution: {integrity: sha512-zOoFEsvOrArv7p4ERNAdkGbYoD86ragDhysLG1NdxJm2jnfw+AfwxUv0FkOPZ7iNuQ0rbJaR/urxdvEwVcuKRA==}
+  '@clerk/electron-passkeys@0.0.3':
+    resolution: {integrity: sha512-OHhIe88qDL+FxyBalXdXNHAS5eEramr6Rerp+6iNkfkjqT8rx4hHNmfpmjg5/T1/am8QfknbOBZkqoXZlCrjPg==}
     engines: {node: '>=20.9.0'}
 
-  '@clerk/electron@0.0.34-canary.v20260819050620':
-    resolution: {integrity: sha512-sfKWkH2SigKcxtR+h36G1NGnmMI5xOlwvqHpr3JYcacS/uokQbeAjCCQzEeV/9zqWYtRL4et5wCD13+gWv4b6w==}
+  '@clerk/electron@0.0.34':
+    resolution: {integrity: sha512-ZY6v8G1ArieIWvutMEt5HBJtpHN4ys4F4newNlOTElv//cpW29zaeZ65M8WuKttKr7fB+MH6wzzCoX/Ha+fiSg==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
-      '@clerk/electron-passkeys': 0.0.4-canary.v20260819050620
+      '@clerk/electron-passkeys': 0.0.3
       electron: '>=28'
       electron-store: ^8.2.0
       react: ^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0
@@ -10699,44 +10663,11 @@ snapshots:
 
   '@alchemy.run/node-utils@0.0.5': {}
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.170':
-    optional: true
-
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.170':
-    optional: true
-
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.170':
-    optional: true
-
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.170':
-    optional: true
-
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.170':
-    optional: true
-
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.170':
-    optional: true
-
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.170':
-    optional: true
-
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.170':
-    optional: true
-
   '@anthropic-ai/claude-agent-sdk@0.3.170(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.93.0(zod@4.4.3)
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.4.3)
       zod: 4.4.3
-    optionalDependencies:
-      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.170
-      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.170
-      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.170
-      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.170
-      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.170
-      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.170
-      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.170
-      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.170
 
   '@anthropic-ai/sdk@0.93.0(zod@4.4.3)':
     dependencies:
@@ -11724,26 +11655,26 @@ snapshots:
       - react
       - react-dom
 
-  '@clerk/electron-passkeys-darwin-arm64@0.0.4-canary.v20260819050620':
+  '@clerk/electron-passkeys-darwin-arm64@0.0.3':
     optional: true
 
-  '@clerk/electron-passkeys-darwin-x64@0.0.4-canary.v20260819050620':
+  '@clerk/electron-passkeys-darwin-x64@0.0.3':
     optional: true
 
-  '@clerk/electron-passkeys-win32-arm64-msvc@0.0.4-canary.v20260819050620':
+  '@clerk/electron-passkeys-win32-arm64-msvc@0.0.3':
     optional: true
 
-  '@clerk/electron-passkeys-win32-x64-msvc@0.0.4-canary.v20260819050620':
+  '@clerk/electron-passkeys-win32-x64-msvc@0.0.3':
     optional: true
 
-  '@clerk/electron-passkeys@0.0.4-canary.v20260819050620':
+  '@clerk/electron-passkeys@0.0.3':
     optionalDependencies:
-      '@clerk/electron-passkeys-darwin-arm64': 0.0.4-canary.v20260819050620
-      '@clerk/electron-passkeys-darwin-x64': 0.0.4-canary.v20260819050620
-      '@clerk/electron-passkeys-win32-arm64-msvc': 0.0.4-canary.v20260819050620
-      '@clerk/electron-passkeys-win32-x64-msvc': 0.0.4-canary.v20260819050620
+      '@clerk/electron-passkeys-darwin-arm64': 0.0.3
+      '@clerk/electron-passkeys-darwin-x64': 0.0.3
+      '@clerk/electron-passkeys-win32-arm64-msvc': 0.0.3
+      '@clerk/electron-passkeys-win32-x64-msvc': 0.0.3
 
-  '@clerk/electron@0.0.34-canary.v20260819050620(@clerk/electron-passkeys@0.0.4-canary.v20260819050620)(electron-store@8.2.0)(electron@41.5.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@clerk/electron@0.0.34(@clerk/electron-passkeys@0.0.3)(electron-store@8.2.0)(electron@41.5.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
       '@clerk/clerk-js': 6.29.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@clerk/react': 6.14.4(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -11752,7 +11683,7 @@ snapshots:
       react: 19.2.6
       tslib: 2.8.1
     optionalDependencies:
-      '@clerk/electron-passkeys': 0.0.4-canary.v20260819050620
+      '@clerk/electron-passkeys': 0.0.3
       electron-store: 8.2.0
       react-dom: 19.2.6(react@19.2.6)
 

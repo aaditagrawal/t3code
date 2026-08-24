@@ -3,6 +3,7 @@ import { defineConfig } from "vite-plus";
 import * as NodeURL from "node:url";
 
 export default defineConfig({
+  assetsInclude: ["**/*.wasm"],
   resolve: {
     alias: {
       "~": NodeURL.fileURLToPath(new URL("./apps/web/src", import.meta.url)),
@@ -16,6 +17,7 @@ export default defineConfig({
       "**/dist/**",
       "**/dist-electron/**",
       "**/.{idea,git,cache,output,temp}/**",
+      ".github/scripts/thread-transfer-report.test.cjs",
     ],
     hookTimeout: 60_000,
     testTimeout: 60_000,
@@ -28,7 +30,6 @@ export default defineConfig({
     ignorePatterns: [
       ".reference",
       ".repos/**",
-      ".plans",
       ".alchemy",
       "dist",
       "dist-electron",

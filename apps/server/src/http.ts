@@ -56,6 +56,7 @@ export function assetResponseHeaders(
   filePath: string,
   downloadName?: string,
 ): Record<string, string> {
+  const lowerPath = filePath.toLowerCase();
   return {
     "Cache-Control": "private, max-age=3600",
     "X-Content-Type-Options": "nosniff",
@@ -64,7 +65,10 @@ export function assetResponseHeaders(
           "Content-Disposition": `attachment; filename="attachment"; filename*=UTF-8''${encodeContentDispositionFileName(downloadName)}`,
         }
       : {}),
-    ...(filePath.toLowerCase().endsWith(".svg")
+    ...(lowerPath.endsWith(".html") || lowerPath.endsWith(".htm")
+      ? { "Content-Type": "text/html; charset=utf-8" }
+      : {}),
+    ...(lowerPath.endsWith(".svg")
       ? { "Content-Security-Policy": SVG_CONTENT_SECURITY_POLICY }
       : {}),
   };

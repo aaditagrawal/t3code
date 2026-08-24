@@ -25,8 +25,8 @@ allowBuilds:
 catalog:
   "@clerk/backend": 3.14.0
   "@clerk/clerk-js": 6.29.2
-  "@clerk/electron": 0.0.34-canary.v20260819050620
-  "@clerk/electron-passkeys": 0.0.4-canary.v20260819050620
+  "@clerk/electron": 0.0.34
+  "@clerk/electron-passkeys": 0.0.3
   "@clerk/expo": 4.2.0
   "@clerk/react": 6.14.4
   "@clerk/shared": 4.29.2
@@ -55,8 +55,7 @@ catalog:
 minimumReleaseAgeExclude:
   - "@clerk/backend@3.14.0"
   - "@clerk/clerk-js@6.29.2"
-  - "@clerk/electron@0.0.34-canary.v20260819050620"
-  - "@clerk/electron-passkeys@0.0.4-canary.v20260819050620"
+  - "@clerk/electron@0.0.34"
   - "@clerk/expo@4.2.0"
   - "@clerk/react@6.14.4"
   - "@clerk/shared@4.29.2"
@@ -77,12 +76,17 @@ minimumReleaseAgeExclude:
   - alchemy@2.0.0-beta.65
   - effect@4.0.0-beta.103
   - "@legendapp/list@3.3.5"
-  - "@clerk/electron-passkeys-darwin-arm64@0.0.4-canary.v20260819050620"
-  - "@clerk/electron-passkeys-darwin-x64@0.0.4-canary.v20260819050620"
-  - "@clerk/electron-passkeys-win32-arm64-msvc@0.0.4-canary.v20260819050620"
-  - "@clerk/electron-passkeys-win32-x64-msvc@0.0.4-canary.v20260819050620"
 
 overrides:
+  # The SDK always receives the user's Claude executable, so its bundled binaries are unused.
+  "@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-darwin-arm64": "-"
+  "@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-darwin-x64": "-"
+  "@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-arm64": "-"
+  "@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-arm64-musl": "-"
+  "@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-x64": "-"
+  "@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-x64-musl": "-"
+  "@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-arm64": "-"
+  "@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-x64": "-"
   "@clerk/backend": "catalog:"
   "@clerk/clerk-js": "catalog:"
   "@clerk/clerk-js>@base-org/account": "-"

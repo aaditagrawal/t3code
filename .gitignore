@@ -26,11 +26,13 @@ squashfs-root/
 .vercel
 .claude/worktrees/
 .gstack/
+.plans/
 dist-electron/
 .electron-runtime/
 .showcase/
 apps/mobile/.showcase/
 artifacts/app-store/screenshots/
+.github/pr-assets/
 native/**/target/
 node_modules/
 .alchemy/

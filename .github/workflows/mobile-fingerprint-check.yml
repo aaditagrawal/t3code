@@ -32,7 +32,9 @@ concurrency:
 jobs:
   fingerprint:
     name: Native fingerprint diff
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # The fork does not provision upstream's Blacksmith runners. Keep this
+    # advisory check runnable on the same GitHub-hosted fleet as the main CI.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       issues: write
