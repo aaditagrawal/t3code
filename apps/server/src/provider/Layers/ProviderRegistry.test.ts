@@ -1395,6 +1395,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
                   cursor: { enabled: false },
                   grok: { enabled: false },
                   hermes: { enabled: false },
+                  ohMyPi: { enabled: false },
                   opencode: { enabled: false },
                   pi: { enabled: false },
                 },
@@ -1778,6 +1779,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
                 "grok",
                 "hermes",
                 "kilo",
+                "ohMyPi",
                 "opencode",
                 "pi",
               ]);

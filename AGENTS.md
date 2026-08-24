@@ -19,7 +19,7 @@
 
 When syncing upstream, preserve these fork features unless the user explicitly asks to remove them:
 
-1. Multi-provider runtime support for the built-in drivers: Codex CLI, Claude Code, Cursor, Droid, OpenCode, Amp, Copilot, Gemini CLI, and Kilo.
+1. Multi-provider runtime support for the built-in drivers: configurable ACP, Codex CLI, Claude Code, Cursor, Droid, Fx, Grok Build, OpenCode, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, and Pi.
 2. Usage and limit monitoring, including token/context usage snapshots, provider usage events, Codex account rate-limit streams, and the web rate-limit banner/panel UX.
 3. Provider management UX, including custom provider instances, per-instance environment/config/model state, custom model slugs, and provider-scoped traits such as reasoning, context window, fast mode, and agent selection.
 4. Provider-neutral orchestration reliability, including SQLite event persistence, command receipts, replay/live stream ordering, session restart/reconnect behavior, and projection consistency.
@@ -39,17 +39,23 @@ When syncing upstream, preserve these fork features unless the user explicitly a
 
 ## Project Snapshot
 
-T3 Code is a multi-provider web GUI for coding agents. This fork supports 9 built-in provider drivers:
+T3 Code is a multi-provider web GUI for coding agents. This fork supports 15 built-in provider drivers. `BUILT_IN_DRIVERS` in `apps/server/src/provider/builtInDrivers.ts` is the source of truth:
 
+- **ACP Agent** — configurable executable and arguments for any stdio ACP implementation
 - **Codex CLI** (v0.37.0+) — JSON-RPC over stdio
 - **Claude Code** — Claude Agent SDK with thinking tokens and permission modes
 - **Cursor** — TypeScript SDK with local agents, SDK model discovery, and usage-dashboard tracking
 - **Droid** — Factory Droid SDK runtime
+- **Fx** — `fx acp` over stdio
+- **Grok Build** — ACP over stdio with xAI protocol extensions
 - **OpenCode** — SDK CLI server
+- **Amp** — Amp Code headless mode (no `/mode free`)
 - **Copilot** — GitHub Copilot CLI
 - **Gemini CLI** — Google Gemini CLI with persistent JSON
-- **Amp** — Amp Code headless mode (no `/mode free`)
+- **Hermes Agent** — `hermes-acp` over stdio
 - **Kilo** — HTTP SSE transport
+- **Oh My Pi** — `omp acp` over stdio
+- **Pi** — `pi-acp` over stdio
 
 This repository is a VERY EARLY WIP. Proposing sweeping changes that improve long-term maintainability is encouraged.
 

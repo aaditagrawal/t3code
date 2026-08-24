@@ -11,6 +11,7 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
+import * as PlatformError from "effect/PlatformError";
 import * as TestClock from "effect/testing/TestClock";
 
 import {
@@ -77,6 +78,16 @@ describe("standard ACP CLI provider errors", () => {
 });
 
 describe("standard ACP CLI model discovery", () => {
+  it("uses the initialized agent version for the provider snapshot", () => {
+    expect(
+      __testing.agentVersionFromInitialize({
+        protocolVersion: 1,
+        agentCapabilities: {},
+        agentInfo: { name: "Oh My Pi", version: " 18.0.3 " },
+      }),
+    ).toBe("18.0.3");
+  });
+
   it("discovers models advertised through a model config option", () => {
     expect(
       __testing
@@ -156,6 +167,25 @@ describe("standard ACP CLI command discovery", () => {
 });
 
 it.layer(NodeServices.layer)("standard ACP CLI provider arguments", (it) => {
+  it.effect("turns probe-argument preparation failures into an error snapshot", () =>
+    Effect.gen(function* () {
+      const provider = yield* checkStandardAcpCliProviderStatus(providerConfig, {
+        prepareArgs: Effect.fail(
+          new PlatformError.PlatformError(
+            new PlatformError.BadArgument({
+              module: "FileSystem",
+              method: "makeTempDirectoryScoped",
+              description: "temporary session directory unavailable",
+            }),
+          ),
+        ),
+      });
+
+      expect(provider.status).toBe("error");
+      expect(provider.message).toContain("ACP startup failed or timed out");
+    }),
+  );
+
   for (const timing of ["before-response", "after-response"] as const) {
     it.effect(`captures commands sent ${timing}`, () =>
       Effect.gen(function* () {

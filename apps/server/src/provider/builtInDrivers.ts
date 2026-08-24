@@ -33,6 +33,7 @@ import { GrokDriver, type GrokDriverEnv } from "./Drivers/GrokDriver.ts";
 import { HermesDriver, type HermesDriverEnv } from "./Drivers/HermesDriver.ts";
 import { KiloDriver, type KiloDriverEnv } from "./Drivers/KiloDriver.ts";
 import { OpenCodeDriver, type OpenCodeDriverEnv } from "./Drivers/OpenCodeDriver.ts";
+import { OhMyPiDriver, type OhMyPiDriverEnv } from "./Drivers/OhMyPiDriver.ts";
 import { PiDriver, type PiDriverEnv } from "./Drivers/PiDriver.ts";
 import type { AnyProviderDriver } from "./ProviderDriver.ts";
 
@@ -51,6 +52,7 @@ export type BuiltInDriversEnv =
   | GrokDriverEnv
   | HermesDriverEnv
   | OpenCodeDriverEnv
+  | OhMyPiDriverEnv
   | AmpDriverEnv
   | CopilotDriverEnv
   | GeminiCliDriverEnv
@@ -79,5 +81,6 @@ export const BUILT_IN_DRIVERS: ReadonlyArray<AnyProviderDriver<BuiltInDriversEnv
   GeminiCliDriver,
   HermesDriver,
   KiloDriver,
+  OhMyPiDriver,
   PiDriver,
 ];

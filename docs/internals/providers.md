@@ -7,20 +7,25 @@ orchestration layer does not know which one is behind a thread.
 
 ## Built-in drivers
 
-[`builtInDrivers.ts`][drivers] exports `BUILT_IN_DRIVERS` with ten entries, in registration order:
+[`builtInDrivers.ts`][drivers] exports `BUILT_IN_DRIVERS` with fifteen entries, in registration order:
 
 | Driver kind   | Driver source                             |
 | ------------- | ----------------------------------------- |
+| `acp`         | [`Drivers/AcpDriver.ts`][acp]             |
 | `codex`       | [`Drivers/CodexDriver.ts`][codex]         |
 | `claudeAgent` | [`Drivers/ClaudeDriver.ts`][claude]       |
 | `cursor`      | [`Drivers/CursorDriver.ts`][cursor]       |
 | `droid`       | [`Drivers/DroidDriver.ts`][droid]         |
+| `fx`          | [`Drivers/FxDriver.ts`][fx]               |
 | `grok`        | [`Drivers/GrokDriver.ts`][grok]           |
 | `opencode`    | [`Drivers/OpenCodeDriver.ts`][opencode]   |
 | `amp`         | [`Drivers/AmpDriver.ts`][amp]             |
 | `copilot`     | [`Drivers/CopilotDriver.ts`][copilot]     |
 | `geminiCli`   | [`Drivers/GeminiCliDriver.ts`][geminicli] |
+| `hermes`      | [`Drivers/HermesDriver.ts`][hermes]       |
 | `kilo`        | [`Drivers/KiloDriver.ts`][kilo]           |
+| `ohMyPi`      | [`Drivers/OhMyPiDriver.ts`][ohmypi]       |
+| `pi`          | [`Drivers/PiDriver.ts`][pi]               |
 
 Each driver declares its `driverKind`, a `configSchema`, and a `create` function that builds an
 adapter in a child scope. Adapter implementations live beside them in
@@ -81,16 +86,21 @@ when a request opens (approval) or user input is requested, via
 `flushBufferedAssistantMessagesForTurn`.
 
 [drivers]: ../../apps/server/src/provider/builtInDrivers.ts
+[acp]: ../../apps/server/src/provider/Drivers/AcpDriver.ts
 [codex]: ../../apps/server/src/provider/Drivers/CodexDriver.ts
 [claude]: ../../apps/server/src/provider/Drivers/ClaudeDriver.ts
 [cursor]: ../../apps/server/src/provider/Drivers/CursorDriver.ts
 [droid]: ../../apps/server/src/provider/Drivers/DroidDriver.ts
+[fx]: ../../apps/server/src/provider/Drivers/FxDriver.ts
 [grok]: ../../apps/server/src/provider/Drivers/GrokDriver.ts
 [opencode]: ../../apps/server/src/provider/Drivers/OpenCodeDriver.ts
 [amp]: ../../apps/server/src/provider/Drivers/AmpDriver.ts
 [copilot]: ../../apps/server/src/provider/Drivers/CopilotDriver.ts
 [geminicli]: ../../apps/server/src/provider/Drivers/GeminiCliDriver.ts
+[hermes]: ../../apps/server/src/provider/Drivers/HermesDriver.ts
 [kilo]: ../../apps/server/src/provider/Drivers/KiloDriver.ts
+[ohmypi]: ../../apps/server/src/provider/Drivers/OhMyPiDriver.ts
+[pi]: ../../apps/server/src/provider/Drivers/PiDriver.ts
 [adapter]: ../../apps/server/src/provider/Services/ProviderAdapter.ts
 [instances]: ../../apps/server/src/provider/Services/ProviderInstanceRegistry.ts
 [registry]: ../../apps/server/src/provider/Services/ProviderAdapterRegistry.ts

@@ -9,6 +9,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
+import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
@@ -73,6 +74,13 @@ export interface StandardAcpCliDriverConfig<Settings extends StandardAcpCliSetti
   readonly discoverSkills?: (
     environment: NodeJS.ProcessEnv,
   ) => Effect.Effect<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path>;
+  readonly makeProbeArgs?: (
+    args: ReadonlyArray<string>,
+  ) => Effect.Effect<
+    ReadonlyArray<string>,
+    PlatformError.PlatformError,
+    FileSystem.FileSystem | Scope.Scope
+  >;
 }
 
 function makeUnsupportedTextGeneration(displayName: string): TextGenerationShape {
@@ -165,7 +173,13 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           environment: processEnv,
           ...(eventLoggers.native ? { nativeEventLogger: eventLoggers.native } : {}),
         });
-        const checkProvider = checkStandardAcpCliProviderStatus(providerConfig).pipe(
+        const checkProvider = Effect.gen(function* () {
+          const prepareArgs = driverConfig.makeProbeArgs?.(providerConfig.args ?? []);
+          return yield* checkStandardAcpCliProviderStatus(
+            providerConfig,
+            prepareArgs ? { prepareArgs } : undefined,
+          );
+        }).pipe(
           Effect.map(stampIdentity),
           Effect.provideService(Crypto.Crypto, crypto),
           Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),

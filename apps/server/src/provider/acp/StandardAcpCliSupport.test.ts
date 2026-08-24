@@ -4,7 +4,9 @@ import * as Effect from "effect/Effect";
 import { ProviderDriverKind } from "@t3tools/contracts";
 
 import {
+  applyStandardAcpConfigOptionModelSelection,
   applyStandardAcpModelSelection,
+  currentStandardAcpConfigOptionModelFromSetup,
   firstAdvertisedAuthMethod,
   normalizeStandardAcpModel,
   parseStandardAcpCliArguments,
@@ -65,6 +67,39 @@ describe("standard ACP CLI support", () => {
       expect(selected).toBe("new");
       expect(unchanged).toBe("new");
       expect(calls).toEqual(["new"]);
+    }),
+  );
+
+  it.effect("selects config-option models with session/set_config_option", () =>
+    Effect.gen(function* () {
+      const calls: string[] = [];
+      const setup = {
+        sessionId: "omp-session",
+        configOptions: [
+          {
+            id: "model",
+            name: "Model",
+            category: "model",
+            type: "select" as const,
+            currentValue: "openai/gpt-5",
+            options: [{ name: "Claude", value: "anthropic/claude-sonnet" }],
+          },
+        ],
+      };
+      const selected = yield* applyStandardAcpConfigOptionModelSelection({
+        runtime: {
+          setModel: (modelId: string) =>
+            Effect.sync(() => {
+              calls.push(modelId);
+              return setup.configOptions;
+            }),
+        },
+        currentModelId: currentStandardAcpConfigOptionModelFromSetup(setup),
+        requestedModelId: "anthropic/claude-sonnet",
+        mapError: String,
+      });
+      expect(selected).toBe("anthropic/claude-sonnet");
+      expect(calls).toEqual(["anthropic/claude-sonnet"]);
     }),
   );
 });

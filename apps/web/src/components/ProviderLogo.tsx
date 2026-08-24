@@ -16,6 +16,7 @@ import {
   GrokIcon,
   HermesIcon,
   KiloIcon,
+  OhMyPiIcon,
   OpenAI,
   OpenCodeIcon,
   PiAgentIcon,
@@ -36,6 +37,7 @@ const PROVIDER_ICON_BY_PROVIDER: Record<ProviderKind, Icon> = {
   kilo: KiloIcon,
   hermes: HermesIcon,
   pi: PiAgentIcon,
+  ohMyPi: OhMyPiIcon,
 };
 
 export type ProviderLogoProps = ComponentProps<Icon> & {
