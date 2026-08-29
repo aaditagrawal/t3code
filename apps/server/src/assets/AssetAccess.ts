@@ -37,7 +37,7 @@ import {
   timingSafeEqualBase64Url,
 } from "../auth/utils.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
-import { resolveAttachmentPathById } from "../attachmentStore.ts";
+import { parseAttachmentFileExtension, resolveAttachmentPathById } from "../attachmentStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as ProjectFaviconResolver from "../project/ProjectFaviconResolver.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
@@ -79,8 +79,17 @@ const AssetClaimsSchema = Schema.Union([
     version: Schema.Literal(1),
     kind: Schema.Literal("attachment"),
     attachmentId: Schema.String,
-    contentType: Schema.optional(Schema.String),
-    downloadName: Schema.optional(Schema.String),
+    // Keep decoding fork-issued capabilities during rolling upgrades while
+    // also accepting the equivalent upstream claim names.
+    contentType: Schema.optionalKey(Schema.String),
+    downloadName: Schema.optionalKey(Schema.String),
+    /** Decided at mint time. Absent tokens (from before this field) serve
+        inline, which is only ever the image case. */
+    download: Schema.optionalKey(Schema.Boolean),
+    /** Display name and mime the caller supplied at mint time; drive the
+        download filename and Content-Type. */
+    fileName: Schema.optionalKey(Schema.String),
+    mimeType: Schema.optionalKey(Schema.String),
     expiresAt: Schema.Number,
   }),
   Schema.Struct({
@@ -108,6 +117,7 @@ export type ResolvedAsset = {
   readonly path: string;
   readonly contentType?: string;
   readonly downloadName?: string;
+  readonly download?: boolean;
 };
 
 const SAFE_MEDIA_TYPE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i;
@@ -303,6 +313,12 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
           resource: input.resource,
         });
       }
+      // The fork stores generic files at an opaque `.bin` path. Also recognize
+      // upstream extension-bearing IDs so files created by either build remain
+      // downloadable during a rolling upgrade.
+      const isGenericFile =
+        attachmentPath.endsWith(".bin") ||
+        parseAttachmentFileExtension(input.resource.attachmentId) !== null;
       claims = {
         version: 1,
         kind: "attachment",
@@ -312,16 +328,18 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
         // their MIME/name as signed response metadata instead. The HTTP route
         // adds Content-Disposition: attachment, preventing an HTML-like MIME
         // from executing in T3's origin.
-        ...(attachmentPath.endsWith(".bin")
+        ...(isGenericFile
           ? {
               contentType: normalizeAttachmentContentType(input.resource.mimeType),
-              downloadName: input.resource.fileName?.trim() || "attachment",
+              ...(input.resource.fileName?.trim()
+                ? { downloadName: input.resource.fileName.trim() }
+                : { download: true }),
             }
           : {}),
         expiresAt,
       };
       fileName =
-        attachmentPath.endsWith(".bin") && input.resource.fileName
+        isGenericFile && input.resource.fileName
           ? input.resource.fileName
           : path.basename(attachmentPath);
       break;
@@ -494,12 +512,17 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
       ),
       Effect.orElseSucceed(() => Option.none()),
     );
+    const downloadName = claims.downloadName ?? (claims.download ? claims.fileName : undefined);
+    const contentType =
+      claims.contentType ??
+      (claims.download ? normalizeAttachmentContentType(claims.mimeType) : undefined);
     return Option.isSome(info) && info.value.type === "File"
       ? ({
           kind: "file",
           path: attachmentPath,
-          ...(claims.contentType !== undefined ? { contentType: claims.contentType } : {}),
-          ...(claims.downloadName !== undefined ? { downloadName: claims.downloadName } : {}),
+          ...(contentType !== undefined ? { contentType } : {}),
+          ...(downloadName !== undefined ? { downloadName } : {}),
+          ...(claims.download && downloadName === undefined ? { download: true } : {}),
         } satisfies ResolvedAsset)
       : null;
   }

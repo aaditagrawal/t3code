@@ -15,8 +15,9 @@ const ATTACHMENT_FILENAME_EXTENSIONS = [...SAFE_IMAGE_FILE_EXTENSIONS, ".bin"];
 const ATTACHMENT_ID_THREAD_SEGMENT_MAX_CHARS = 80;
 const ATTACHMENT_ID_THREAD_SEGMENT_PATTERN = "[a-z0-9_]+(?:-[a-z0-9_]+)*";
 const ATTACHMENT_ID_UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+const ATTACHMENT_ID_FILE_EXTENSION_PATTERN = "[a-z0-9]{1,10}";
 const ATTACHMENT_ID_PATTERN = new RegExp(
-  `^(${ATTACHMENT_ID_THREAD_SEGMENT_PATTERN})-(${ATTACHMENT_ID_UUID_PATTERN})$`,
+  `^(${ATTACHMENT_ID_THREAD_SEGMENT_PATTERN})-(${ATTACHMENT_ID_UUID_PATTERN})(?:-(${ATTACHMENT_ID_FILE_EXTENSION_PATTERN}))?$`,
   "i",
 );
 
@@ -39,8 +40,27 @@ export function toSafeThreadAttachmentSegment(threadId: string): string | null {
   return segment === PENDING_ATTACHMENT_THREAD_SEGMENT ? "_pending" : segment;
 }
 
-export function createPendingAttachmentId(): string {
-  return `${PENDING_ATTACHMENT_THREAD_SEGMENT}-${NodeCrypto.randomUUID()}`;
+export function attachmentFileExtension(_fileName: string): ".bin" {
+  // Generic files deliberately use an opaque physical extension. Their
+  // caller-provided name and MIME type live only in signed asset metadata.
+  return ".bin";
+}
+
+function attachmentIdExtensionSuffix(extension: string | undefined): string {
+  if (!extension) {
+    return "";
+  }
+  const normalized = extension.replace(/^\./, "").toLowerCase();
+  if (normalized === "bin") {
+    return "";
+  }
+  return new RegExp(`^${ATTACHMENT_ID_FILE_EXTENSION_PATTERN}$`).test(normalized)
+    ? `-${normalized}`
+    : "-bin";
+}
+
+export function createPendingAttachmentId(extension?: string): string {
+  return `${PENDING_ATTACHMENT_THREAD_SEGMENT}-${NodeCrypto.randomUUID()}${attachmentIdExtensionSuffix(extension)}`;
 }
 
 export function parseAttachmentUuid(attachmentId: string): string | null {
@@ -51,15 +71,29 @@ export function parseAttachmentUuid(attachmentId: string): string | null {
   return normalizedId.match(ATTACHMENT_ID_PATTERN)?.[2]?.toLowerCase() ?? null;
 }
 
+export function parseAttachmentFileExtension(attachmentId: string): string | null {
+  const normalizedId = normalizeAttachmentRelativePath(attachmentId);
+  if (!normalizedId || normalizedId.includes("/") || normalizedId.includes(".")) {
+    return null;
+  }
+  return normalizedId.match(ATTACHMENT_ID_PATTERN)?.[3]?.toLowerCase() ?? null;
+}
+
 export function createAttachmentId(
   threadId: string,
-  uniqueId: string = NodeCrypto.randomUUID(),
+  uniqueIdOrExtension: string = NodeCrypto.randomUUID(),
 ): string | null {
   const threadSegment = toSafeThreadAttachmentSegment(threadId);
   if (!threadSegment) {
     return null;
   }
-  return `${threadSegment}-${uniqueId}`;
+  // Fork providers pass a deterministic UUID as the second argument. Upstream
+  // passes an extension while claiming an upload. Support both shapes so
+  // provider delivery IDs remain stable without exposing user filenames.
+  const isUniqueId = new RegExp(`^${ATTACHMENT_ID_UUID_PATTERN}$`, "i").test(uniqueIdOrExtension);
+  const uniqueId = isUniqueId ? uniqueIdOrExtension : NodeCrypto.randomUUID();
+  const extension = isUniqueId ? undefined : uniqueIdOrExtension;
+  return `${threadSegment}-${uniqueId}${attachmentIdExtensionSuffix(extension)}`;
 }
 
 export function parseThreadSegmentFromAttachmentId(attachmentId: string): string | null {
@@ -74,7 +108,8 @@ export function parseThreadSegmentFromAttachmentId(attachmentId: string): string
   return match[1]?.toLowerCase() ?? null;
 }
 
-export function attachmentRelativePath(attachment: ChatAttachment): string {
+/** Null for attachment types this build does not know; callers skip those. */
+export function attachmentRelativePath(attachment: ChatAttachment): string | null {
   switch (attachment.type) {
     case "image": {
       const extension = inferImageExtension({
@@ -83,10 +118,14 @@ export function attachmentRelativePath(attachment: ChatAttachment): string {
       });
       return `${attachment.id}${extension}`;
     }
-    case "file":
-      // Keep user-controlled names and MIME-derived extensions out of paths.
-      // The asset service supplies safe download semantics for this opaque file.
-      return `${attachment.id}.bin`;
+    case "file": {
+      // New files stay opaque. The suffix fallback only preserves files that
+      // an upstream build already stored with a server-issued extension ID.
+      const existingExtension = parseAttachmentFileExtension(attachment.id);
+      return `${attachment.id}.${existingExtension ?? "bin"}`;
+    }
+    default:
+      return null;
   }
 }
 
@@ -94,9 +133,13 @@ export function resolveAttachmentPath(input: {
   readonly attachmentsDir: string;
   readonly attachment: ChatAttachment;
 }): string | null {
+  const relativePath = attachmentRelativePath(input.attachment);
+  if (!relativePath) {
+    return null;
+  }
   return resolveAttachmentRelativePath({
     attachmentsDir: input.attachmentsDir,
-    relativePath: attachmentRelativePath(input.attachment),
+    relativePath,
   });
 }
 
@@ -107,6 +150,14 @@ export function resolveAttachmentPathById(input: {
   const normalizedId = normalizeAttachmentRelativePath(input.attachmentId);
   if (!normalizedId || normalizedId.includes("/") || normalizedId.includes(".")) {
     return null;
+  }
+  const fileExtension = parseAttachmentFileExtension(normalizedId);
+  if (fileExtension) {
+    const filePath = resolveAttachmentRelativePath({
+      attachmentsDir: input.attachmentsDir,
+      relativePath: `${normalizedId}.${fileExtension.toLowerCase()}`,
+    });
+    return filePath && NodeFS.existsSync(filePath) ? filePath : null;
   }
   for (const extension of ATTACHMENT_FILENAME_EXTENSIONS) {
     const maybePath = resolveAttachmentRelativePath({
@@ -154,7 +205,8 @@ export function planAttachmentClaim(input: {
   if (!currentPath) {
     return { ok: false, reason: "attachment not found (removed or expired)" };
   }
-  const finalId = createAttachmentId(input.threadId);
+  const fileExtension = parseAttachmentFileExtension(input.attachmentId) ?? undefined;
+  const finalId = createAttachmentId(input.threadId, fileExtension);
   if (!finalId) {
     return { ok: false, reason: "failed to create attachment id" };
   }
