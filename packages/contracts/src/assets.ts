@@ -2,7 +2,7 @@ import * as Schema from "effect/Schema";
 
 import { NonNegativeInt, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import {
-  ChatFileAttachment,
+  PROVIDER_SEND_TURN_MAX_FILE_BYTES,
   PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
   PROVIDER_SEND_TURN_SUPPORTED_IMAGE_MIME_TYPES,
   ProjectFaviconPath,
@@ -17,14 +17,12 @@ export const AssetResource = Schema.Union([
   }),
   Schema.TaggedStruct("attachment", {
     attachmentId: TrimmedNonEmptyString.check(Schema.isMaxLength(256)),
-    /**
-     * Presentation hints for opaque non-image payloads. The server signs
-     * these into the asset capability and always serves hinted files as
-     * downloads, so caller-controlled MIME metadata cannot become executable
-     * same-origin content.
-     */
-    fileName: Schema.optional(ChatFileAttachment.fields.name),
-    mimeType: Schema.optional(ChatFileAttachment.fields.mimeType),
+    /** Display name and mime from the `ChatAttachment` the caller holds. The
+        server bakes both into the signed URL so downloads carry the real
+        filename and Content-Type. Absent on older clients, which fall back to
+        an octet-stream download without a filename. */
+    fileName: Schema.optionalKey(TrimmedNonEmptyString.check(Schema.isMaxLength(255))),
+    mimeType: Schema.optionalKey(TrimmedNonEmptyString.check(Schema.isMaxLength(100))),
   }),
   Schema.TaggedStruct("project-favicon", {
     cwd: TrimmedNonEmptyString.check(Schema.isMaxLength(ASSET_PATH_MAX_LENGTH)),
@@ -51,7 +49,8 @@ export type AssetCreateUrlResult = typeof AssetCreateUrlResult.Type;
 
 export const ATTACHMENT_UPLOAD_URL_TTL_MS = 10 * 60_000;
 
-export const AttachmentCreateUploadUrlInput = Schema.Struct({
+const ImageAttachmentCreateUploadUrlInput = Schema.Struct({
+  type: Schema.optionalKey(Schema.Literal("image")),
   name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
   mimeType: Schema.Literals(PROVIDER_SEND_TURN_SUPPORTED_IMAGE_MIME_TYPES),
   sizeBytes: NonNegativeInt.check(
@@ -59,6 +58,21 @@ export const AttachmentCreateUploadUrlInput = Schema.Struct({
     Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES),
   ),
 });
+
+const FileAttachmentCreateUploadUrlInput = Schema.Struct({
+  type: Schema.Literal("file"),
+  name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
+  mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100)),
+  sizeBytes: NonNegativeInt.check(
+    Schema.isGreaterThanOrEqualTo(1),
+    Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_FILE_BYTES),
+  ),
+});
+
+export const AttachmentCreateUploadUrlInput = Schema.Union([
+  ImageAttachmentCreateUploadUrlInput,
+  FileAttachmentCreateUploadUrlInput,
+]);
 export type AttachmentCreateUploadUrlInput = typeof AttachmentCreateUploadUrlInput.Type;
 
 export const AttachmentCreateUploadUrlResult = Schema.Struct({

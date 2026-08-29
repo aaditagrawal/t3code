@@ -9,7 +9,7 @@ import { usePreviewBridge } from "~/components/preview/usePreviewBridge";
 import { cn } from "~/lib/utils";
 
 import { resolveBrowserSurfacePanelRect, useBrowserSurfaceStore } from "./browserSurfaceStore";
-import { reconcileLockedAspectRatio } from "./browserDeviceToolbarState";
+import { useActiveBrowserRecordingTabIds } from "./browserRecording";
 import {
   browserViewportSettingKey,
   resolveBrowserViewportLayout,
@@ -48,16 +48,18 @@ export function HostedBrowserWebview(props: {
   readonly runtimeTabId: string;
   readonly initialUrl: string | null;
   readonly viewport: PreviewViewportSetting;
+  readonly pictureInPicture: boolean;
   readonly zoomFactor: number;
 }) {
-  const { threadRef, tabId, runtimeTabId, initialUrl, viewport, zoomFactor } = props;
+  const { threadRef, tabId, runtimeTabId, initialUrl, viewport, pictureInPicture, zoomFactor } =
+    props;
   const config = usePreviewWebviewConfig(threadRef.environmentId);
   const [initialSrc] = useState(() => initialUrl ?? "about:blank");
   const tabLeaseRef = useRef<AcquiredDesktopTab | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const webviewRef = useRef<ElectronWebview | null>(null);
   const crashRecoveryRef = useRef<WebviewCrashRecoveryState>(INITIAL_WEBVIEW_CRASH_RECOVERY_STATE);
-  const [lockedAspectRatio, setLockedAspectRatio] = useState<number | null>(null);
+  const [aspectRatioLocked, setAspectRatioLocked] = useState(false);
   const presentation = useBrowserSurfaceStore(
     useShallow((state) => {
       const current = state.byTabId[runtimeTabId];
@@ -71,6 +73,10 @@ export function HostedBrowserWebview(props: {
       };
     }),
   );
+  const backgroundActivity = useBrowserSurfaceStore(
+    (state) => (state.activityByTabId[runtimeTabId] ?? 0) > 0,
+  );
+  const recordingActive = useActiveBrowserRecordingTabIds().has(runtimeTabId);
   usePreviewBridge({ threadRef, tabId, runtimeTabId });
 
   useEffect(() => {
@@ -93,7 +99,6 @@ export function HostedBrowserWebview(props: {
 
   const setWebviewRef = useCallback((node: HTMLElement | null) => {
     webviewRef.current = node as ElectronWebview | null;
-    if (node && !node.hasAttribute("allowpopups")) node.setAttribute("allowpopups", "true");
   }, []);
 
   useEffect(() => {
@@ -154,9 +159,11 @@ export function HostedBrowserWebview(props: {
   const viewportHeight = viewport._tag === "fill" ? null : viewport.height;
   const viewportAspectRatio =
     viewportWidth === null || viewportHeight === null ? null : viewportWidth / viewportHeight;
-  useEffect(() => {
-    setLockedAspectRatio((current) => reconcileLockedAspectRatio(current, viewportAspectRatio));
-  }, [viewportAspectRatio]);
+  const lockedAspectRatio =
+    aspectRatioLocked && viewportAspectRatio !== null ? viewportAspectRatio : null;
+  const handleAspectRatioChange = useCallback((aspectRatio: number | null) => {
+    setAspectRatioLocked(aspectRatio !== null);
+  }, []);
   const hiddenContentSize = presentation.content
     ? {
         width: presentation.content.width / presentation.content.scale,
@@ -230,8 +237,10 @@ export function HostedBrowserWebview(props: {
 
   if (!config) return null;
 
+  const renderingActive = active || backgroundActivity || pictureInPicture || recordingActive;
   const wrapperStyle = resolveHostedBrowserWebviewWrapperStyle({
     active,
+    renderingActive,
     cornerRadius: presentation.cornerRadius,
     rect: lastRect,
     hiddenSize,
@@ -243,6 +252,7 @@ export function HostedBrowserWebview(props: {
       className="fixed overflow-hidden bg-muted/35"
       style={{ ...wrapperStyle, overscrollBehavior: "contain" }}
       onScroll={syncContentPresentation}
+      data-preview-rendering={renderingActive ? "active" : "suspended"}
       data-preview-viewport={runtimeTabId}
     >
       <div className="relative" style={{ width: layout.canvasWidth, height: layout.canvasHeight }}>
@@ -251,13 +261,19 @@ export function HostedBrowserWebview(props: {
             setting={effectiveViewport}
             width={Math.max(1, Math.round(containerSize.width))}
             aspectRatio={lockedAspectRatio}
-            onAspectRatioChange={setLockedAspectRatio}
+            onAspectRatioChange={handleAspectRatioChange}
             onChange={commitViewportChange}
           />
         ) : null}
         <webview
           key={webviewGeneration}
           ref={setWebviewRef}
+          // Must be an attribute on the element itself: Electron reads it when the
+          // guest attaches, so setting it from the ref callback lands too late and
+          // the guest attaches with popups disabled. React types `allowpopups` as a
+          // boolean, but react-dom drops boolean values for unrecognized attributes,
+          // so the literal string has to be spread past the type.
+          {...({ allowpopups: "true" } as unknown as { readonly allowpopups?: boolean })}
           src={webviewGeneration === 0 ? initialSrc : recoverySrc}
           partition={config.partition}
           webpreferences={config.webPreferences}

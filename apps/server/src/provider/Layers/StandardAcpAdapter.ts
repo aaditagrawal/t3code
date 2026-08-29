@@ -2,26 +2,31 @@ import {
   ApprovalRequestId,
   type ChatAttachment,
   EventId,
+  type ModelSelection,
   type ProviderApprovalDecision,
   type ProviderRuntimeEvent,
   type ProviderSession,
   type ProviderUserInputAnswers,
   ProviderDriverKind,
   ProviderInstanceId,
+  type RuntimeMode,
   RuntimeRequestId,
   type ThreadId,
   TurnId,
   type UserInputQuestion,
 } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
+import * as Clock from "effect/Clock";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as PubSub from "effect/PubSub";
+import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
@@ -35,6 +40,8 @@ import { ElicitationRequest as ElicitationRequestSchema } from "effect-acp/schem
 import type * as EffectAcpSchema from "effect-acp/schema";
 
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
+import { HostProcessEnvironment, HostProcessPlatform } from "@t3tools/shared/hostProcess";
+import { stableStringify } from "@t3tools/shared/relaySigning";
 import { ServerConfig } from "../../config.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import {
@@ -69,6 +76,7 @@ const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonStri
 const decodeElicitationRequest = Schema.decodeUnknownEffect(ElicitationRequestSchema);
 
 const STANDARD_ACP_RESUME_VERSION = 1 as const;
+const NANOS_PER_MILLI = 1_000_000n;
 /** Lets queued ACP events and a pending Stop win prompt-settlement races. */
 const SETTLEMENT_YIELD_ATTEMPTS = 8;
 type StandardAcpAdapterShape = ProviderAdapterShape<ProviderAdapterError>;
@@ -83,11 +91,21 @@ function encodeJsonStringForDiagnostics(input: unknown): string | undefined {
   return Exit.isSuccess(result) ? result.value : undefined;
 }
 
+function normalizeTimeout(value: number | undefined): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(1, Math.floor(value))
+    : undefined;
+}
+
 export interface StandardAcpAdapterLiveOptions {
   readonly environment?: NodeJS.ProcessEnv;
   readonly nativeEventLogPath?: string;
   readonly nativeEventLogger?: EventNdjsonLogger;
   readonly instanceId?: ProviderInstanceId;
+  /** Optional provider-specific deadline after observable ACP progress. */
+  readonly turnInactivityTimeoutMs?: number;
+  /** Optional longer deadline while an ACP tool remains active. */
+  readonly activeToolInactivityTimeoutMs?: number;
 }
 
 export interface StandardAcpUserInputRegistration<Params, Encoded> {
@@ -96,6 +114,26 @@ export interface StandardAcpUserInputRegistration<Params, Encoded> {
   readonly extractQuestions: (params: Params) => ReadonlyArray<UserInputQuestion>;
   readonly makeAnsweredResponse: (params: Params, answers: ProviderUserInputAnswers) => unknown;
   readonly makeCancelledResponse: () => unknown;
+  readonly source: `acp.${string}.extension`;
+}
+
+export interface StandardAcpProposedPlanRegistration<Params, Encoded> {
+  readonly methods: ReadonlyArray<string>;
+  readonly schema: Schema.Codec<Params, Encoded>;
+  readonly extractExitMarkdown: (params: Params, fallback?: string) => string;
+  readonly makeExitResponse: () => unknown;
+  readonly nextModeActive: (
+    active: boolean,
+    toolCall: {
+      readonly title?: string;
+      readonly status?: "pending" | "inProgress" | "completed" | "failed";
+      readonly data: Record<string, unknown>;
+    },
+  ) => boolean;
+  readonly extractToolMarkdown: (
+    data: Record<string, unknown> | undefined,
+    host: { readonly platform: NodeJS.Platform; readonly environment: NodeJS.ProcessEnv },
+  ) => string | undefined;
   readonly source: `acp.${string}.extension`;
 }
 
@@ -110,6 +148,7 @@ export interface StandardAcpAdapterConfig<UserInputParams = never, UserInputEnco
     readonly clientInfo: { readonly name: string; readonly version: string };
     readonly clientCapabilities?: EffectAcpSchema.InitializeRequest["clientCapabilities"];
     readonly mcpServers?: ReadonlyArray<EffectAcpSchema.McpServer>;
+    readonly runtimeMode: RuntimeMode;
     readonly requestLogger?: NonNullable<
       AcpSessionRuntime.AcpSessionRuntimeOptions["requestLogger"]
     >;
@@ -128,10 +167,21 @@ export interface StandardAcpAdapterConfig<UserInputParams = never, UserInputEnco
       | EffectAcpSchema.NewSessionResponse
       | EffectAcpSchema.ResumeSessionResponse,
   ) => string | undefined;
+  readonly currentModelOptionsFromSetup?: (
+    setup:
+      | EffectAcpSchema.LoadSessionResponse
+      | EffectAcpSchema.NewSessionResponse
+      | EffectAcpSchema.ResumeSessionResponse,
+  ) => Readonly<Record<string, string | undefined>>;
+  readonly requestedModelOptionsFromSelection?: (
+    selection: ModelSelection | undefined,
+  ) => Readonly<Record<string, string | undefined>>;
   readonly applyModelSelection: <E>(input: {
     readonly runtime: AcpSessionRuntime.AcpSessionRuntime["Service"];
     readonly currentModelId: string | undefined;
     readonly requestedModelId: string | undefined;
+    readonly currentModelOptions: Readonly<Record<string, string | undefined>>;
+    readonly requestedModelOptions: Readonly<Record<string, string | undefined>>;
     readonly mapError: (cause: EffectAcpErrors.AcpError) => E;
   }) => Effect.Effect<string | undefined, E>;
   readonly modelSelectionMethod?: string;
@@ -139,6 +189,8 @@ export interface StandardAcpAdapterConfig<UserInputParams = never, UserInputEnco
     response: EffectAcpSchema.PromptResponse,
   ) => EffectAcpSchema.StopReason | null;
   readonly userInput?: StandardAcpUserInputRegistration<UserInputParams, UserInputEncoded>;
+  readonly proposedPlan?: StandardAcpProposedPlanRegistration<unknown, unknown>;
+  readonly rememberSessionApprovals?: boolean;
   readonly formElicitation?: boolean;
 }
 
@@ -165,6 +217,9 @@ interface StandardAcpSessionContext {
   readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
   turns: Array<{ id: TurnId; items: Array<unknown> }>;
   lastPlanFingerprint: string | undefined;
+  lastProposedPlanMarkdown: string | undefined;
+  lastProposedPlanTurnId: TurnId | undefined;
+  planModeActive: boolean;
   activeTurnId: TurnId | undefined;
   /** Turns already interrupted; late prompt RPCs must not resurrect them. */
   interruptedTurnIds: Set<TurnId>;
@@ -173,6 +228,11 @@ interface StandardAcpSessionContext {
    * continues it, and only the last remaining prompt settles the turn. */
   promptsInFlight: number;
   currentModelId: string | undefined;
+  currentModelOptions: Readonly<Record<string, string | undefined>>;
+  readonly livenessSignals: Queue.Queue<TurnId>;
+  livenessTurnId: TurnId | undefined;
+  lastTurnActivityAtNanos: bigint | undefined;
+  readonly activeToolCallIds: Set<string>;
   stopped: boolean;
 }
 
@@ -248,7 +308,14 @@ function selectPermissionOptionId(
         ? "allow_once"
         : "reject_once";
   const option = request.options.find((entry) => entry.kind === kind);
-  return option?.optionId.trim() || undefined;
+  const optionId = option?.optionId.trim();
+  if (optionId) return optionId;
+  if (decision === "acceptForSession") {
+    return (
+      request.options.find((entry) => entry.kind === "allow_once")?.optionId.trim() || undefined
+    );
+  }
+  return undefined;
 }
 
 function selectAutoApprovedPermissionOption(
@@ -258,6 +325,22 @@ function selectAutoApprovedPermissionOption(
     selectPermissionOptionId(request, "acceptForSession") ??
     selectPermissionOptionId(request, "accept")
   );
+}
+
+function permissionApprovalKey(
+  request: EffectAcpSchema.RequestPermissionRequest,
+): string | undefined {
+  const parsed = parsePermissionRequest(request);
+  const command = parsed.toolCall?.command;
+  const { kind, title, rawInput, locations } = request.toolCall;
+  let operationInput = rawInput;
+  if (isRecord(rawInput) && rawInput.variant === "Bash") {
+    const { description: _description, ...shellInput } = rawInput;
+    operationInput = shellInput;
+  }
+  return command || (isRecord(rawInput) && Object.keys(rawInput).length > 0)
+    ? stableStringify({ kind, title, command, input: operationInput, locations })
+    : undefined;
 }
 
 function completedStopReasonFromPromptResponse(
@@ -328,6 +411,10 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
     const sessions = new Map<ThreadId, StandardAcpSessionContext>();
     const threadLocksRef = yield* SynchronizedRef.make(new Map<string, ThreadLockEntry>());
     const runtimeEventPubSub = yield* PubSub.unbounded<ProviderRuntimeEvent>();
+    const hostPlatform = yield* HostProcessPlatform;
+    const hostEnvironment = yield* HostProcessEnvironment;
+    const turnInactivityTimeoutMs = normalizeTimeout(options?.turnInactivityTimeoutMs);
+    const activeToolInactivityTimeoutMs = normalizeTimeout(options?.activeToolInactivityTimeoutMs);
 
     const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
     const randomUUIDv4 = crypto.randomUUIDv4.pipe(
@@ -356,6 +443,53 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
 
     const offerRuntimeEvent = (event: ProviderRuntimeEvent) =>
       PubSub.publish(runtimeEventPubSub, event).pipe(Effect.asVoid);
+
+    const signalTurnLiveness = (ctx: StandardAcpSessionContext, turnId: TurnId) =>
+      Queue.offer(ctx.livenessSignals, turnId).pipe(Effect.asVoid);
+
+    const recordTurnActivity = Effect.fn("StandardAcpAdapter.recordTurnActivity")(function* (
+      ctx: StandardAcpSessionContext,
+      turnId: TurnId,
+      event: AcpSessionRuntime.AcpSessionRuntimeEvent,
+    ) {
+      if (
+        event._tag === "EventStreamBarrier" ||
+        event._tag === "ModeChanged" ||
+        event._tag === "CommandsUpdated"
+      ) {
+        return;
+      }
+      if (
+        turnInactivityTimeoutMs === undefined ||
+        ctx.livenessTurnId !== turnId ||
+        (event._tag === "ContentDelta" && event.text.length === 0)
+      ) {
+        return;
+      }
+      if (event._tag === "ToolCallUpdated") {
+        if (event.toolCall.status === "completed" || event.toolCall.status === "failed") {
+          ctx.activeToolCallIds.delete(event.toolCall.toolCallId);
+        } else {
+          ctx.activeToolCallIds.add(event.toolCall.toolCallId);
+        }
+      }
+      ctx.lastTurnActivityAtNanos = yield* Clock.monotonicTimeNanos;
+      yield* signalTurnLiveness(ctx, turnId);
+    });
+
+    const refreshTurnLiveness = Effect.fn("StandardAcpAdapter.refreshTurnLiveness")(function* (
+      threadId: ThreadId,
+      turnId: TurnId | undefined,
+      startIfMissing = false,
+    ) {
+      if (turnInactivityTimeoutMs === undefined || turnId === undefined) return;
+      const ctx = sessions.get(threadId);
+      if (!ctx || ctx.livenessTurnId !== turnId) return;
+      if (startIfMissing || ctx.lastTurnActivityAtNanos !== undefined) {
+        ctx.lastTurnActivityAtNanos = yield* Clock.monotonicTimeNanos;
+      }
+      yield* signalTurnLiveness(ctx, turnId);
+    });
 
     const acquireThreadLock = (threadId: string) =>
       SynchronizedRef.modifyEffect(threadLocksRef, (current) => {
@@ -499,6 +633,12 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
           options?.completedStopReason !== undefined && canEmitTurnCompletion;
         const { activeTurnId: _activeTurnId, ...readySession } = liveCtx.session;
         liveCtx.activeTurnId = undefined;
+        liveCtx.livenessTurnId = undefined;
+        liveCtx.lastTurnActivityAtNanos = undefined;
+        liveCtx.activeToolCallIds.clear();
+        liveCtx.lastProposedPlanMarkdown = undefined;
+        liveCtx.lastProposedPlanTurnId = undefined;
+        liveCtx.planModeActive = false;
         liveCtx.session = {
           ...readySession,
           status: "ready",
@@ -533,6 +673,81 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
           });
         }
       });
+
+    const runTurnLivenessWatchdog = Effect.fn("StandardAcpAdapter.runTurnLivenessWatchdog")(
+      function* (ctx: StandardAcpSessionContext) {
+        if (turnInactivityTimeoutMs === undefined) return;
+        while (!ctx.stopped) {
+          const turnId = ctx.livenessTurnId;
+          const live =
+            turnId !== undefined &&
+            ctx.promptsInFlight > 0 &&
+            ctx.activeTurnId === turnId &&
+            ctx.session.activeTurnId === turnId &&
+            (ctx.session.status === "running" || ctx.session.status === "connecting");
+          if (
+            !live ||
+            turnId === undefined ||
+            ctx.interruptedTurnIds.has(turnId) ||
+            ctx.pendingApprovals.size > 0 ||
+            ctx.pendingUserInputs.size > 0 ||
+            ctx.lastTurnActivityAtNanos === undefined
+          ) {
+            yield* Queue.take(ctx.livenessSignals);
+            continue;
+          }
+
+          const timeoutMs =
+            ctx.activeToolCallIds.size > 0
+              ? (activeToolInactivityTimeoutMs ?? turnInactivityTimeoutMs)
+              : turnInactivityTimeoutMs;
+          const timeoutNanos = BigInt(timeoutMs) * NANOS_PER_MILLI;
+          const remaining =
+            timeoutNanos - ((yield* Clock.monotonicTimeNanos) - ctx.lastTurnActivityAtNanos);
+          const wake =
+            remaining <= 0n
+              ? "timeout"
+              : yield* Effect.raceFirst(
+                  Effect.sleep(Duration.nanos(remaining)).pipe(Effect.as("timeout" as const)),
+                  Queue.take(ctx.livenessSignals).pipe(Effect.as("activity" as const)),
+                );
+          if (wake !== "timeout") continue;
+
+          yield* withThreadLock(
+            ctx.threadId,
+            Effect.gen(function* () {
+              const current = sessions.get(ctx.threadId);
+              if (
+                current !== ctx ||
+                ctx.stopped ||
+                ctx.livenessTurnId !== turnId ||
+                ctx.interruptedTurnIds.has(turnId) ||
+                ctx.pendingApprovals.size > 0 ||
+                ctx.pendingUserInputs.size > 0 ||
+                ctx.lastTurnActivityAtNanos === undefined ||
+                (yield* Clock.monotonicTimeNanos) - ctx.lastTurnActivityAtNanos < timeoutNanos
+              ) {
+                return;
+              }
+              ctx.interruptedTurnIds.add(turnId);
+              yield* Effect.ignore(
+                ctx.acp.cancel.pipe(
+                  Effect.mapError((error) =>
+                    mapAcpToAdapterError(PROVIDER, ctx.threadId, "session/cancel", error),
+                  ),
+                ),
+              );
+              yield* Effect.ignore(ctx.acp.drainEvents);
+              yield* settlePromptInFlight(ctx.threadId, turnId, ctx.acpSessionId, {
+                errorMessage: `${config.label} ACP turn stalled without content or tool progress for ${timeoutMs}ms.`,
+                settleAllPrompts: true,
+              });
+            }),
+          );
+        }
+      },
+      Effect.catch(() => Effect.void),
+    );
 
     const logNative = (threadId: ThreadId, method: string, payload: unknown) =>
       Effect.gen(function* () {
@@ -597,6 +812,39 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
         );
       });
 
+    const emitProposedPlan = (
+      ctx: StandardAcpSessionContext,
+      turnId: TurnId | undefined,
+      planMarkdown: string,
+      raw: { readonly method: string; readonly payload: unknown },
+    ) =>
+      Effect.gen(function* () {
+        const trimmed = planMarkdown.trim();
+        if (trimmed.length === 0) {
+          ctx.lastProposedPlanMarkdown = "";
+          ctx.lastProposedPlanTurnId = turnId;
+          return;
+        }
+        if (ctx.lastProposedPlanMarkdown === trimmed && ctx.lastProposedPlanTurnId === turnId) {
+          return;
+        }
+        ctx.lastProposedPlanMarkdown = trimmed;
+        ctx.lastProposedPlanTurnId = turnId;
+        yield* offerRuntimeEvent({
+          type: "turn.proposed.completed",
+          ...(yield* makeEventStamp()),
+          provider: PROVIDER,
+          threadId: ctx.threadId,
+          turnId,
+          payload: { planMarkdown: trimmed },
+          raw: {
+            source: config.proposedPlan?.source ?? "acp.jsonrpc",
+            method: raw.method,
+            payload: raw.payload,
+          },
+        });
+      });
+
     const requireSession = (
       threadId: ThreadId,
     ): Effect.Effect<StandardAcpSessionContext, ProviderAdapterSessionNotFoundError> => {
@@ -658,6 +906,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
 
           const pendingApprovals = new Map<ApprovalRequestId, PendingApproval>();
           const pendingUserInputs = new Map<ApprovalRequestId, PendingUserInput>();
+          const sessionApprovedOperations = new Set<string>();
           const sessionScope = yield* Scope.make("sequential");
           let sessionScopeTransferred = false;
           yield* Effect.addFinalizer(() =>
@@ -676,6 +925,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
             .makeRuntime({
               childProcessSpawner,
               cwd,
+              runtimeMode: input.runtimeMode,
               ...(resumeSessionId ? { resumeSessionId } : {}),
               clientInfo: { name: "t3-code", version: "0.0.0" },
               ...(config.formElicitation
@@ -728,6 +978,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                         const resolution = yield* Deferred.make<PendingUserInputResolution>();
                         const turnId = resolveSessionCallbackTurnId(sessions, input.threadId);
                         pendingUserInputs.set(requestId, { resolution });
+                        yield* refreshTurnLiveness(input.threadId, turnId, true);
                         yield* offerRuntimeEvent({
                           type: "user-input.requested",
                           ...(yield* makeEventStamp()),
@@ -751,6 +1002,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                         );
                         const resolvedAnswers =
                           resolved._tag === "answered" ? resolved.answers : {};
+                        yield* refreshTurnLiveness(input.threadId, turnId, true);
                         yield* offerRuntimeEvent({
                           type: "user-input.resolved",
                           ...(yield* makeEventStamp()),
@@ -798,6 +1050,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                     const resolution = yield* Deferred.make<PendingUserInputResolution>();
                     const turnId = resolveSessionCallbackTurnId(sessions, input.threadId);
                     pendingUserInputs.set(requestId, { resolution });
+                    yield* refreshTurnLiveness(input.threadId, turnId, true);
                     yield* offerRuntimeEvent({
                       type: "user-input.requested",
                       ...(yield* makeEventStamp()),
@@ -818,6 +1071,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                       ),
                     );
                     const resolvedAnswers = resolved._tag === "answered" ? resolved.answers : {};
+                    yield* refreshTurnLiveness(input.threadId, turnId, true);
                     yield* offerRuntimeEvent({
                       type: "user-input.resolved",
                       ...(yield* makeEventStamp()),
@@ -857,6 +1111,45 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                 ),
               );
             }
+            const proposedPlan = config.proposedPlan;
+            if (proposedPlan) {
+              yield* Effect.forEach(
+                proposedPlan.methods,
+                (method) =>
+                  acp.handleExtRequest(method, proposedPlan.schema, (params) =>
+                    mapAcpCallbackFailure(
+                      Effect.gen(function* () {
+                        yield* logNative(input.threadId, method, params);
+                        const turnId = resolveSessionCallbackTurnId(sessions, input.threadId);
+                        const ctx = sessions.get(input.threadId);
+                        const markdown = proposedPlan.extractExitMarkdown(
+                          params,
+                          ctx?.lastProposedPlanMarkdown,
+                        );
+                        if (ctx) {
+                          yield* emitProposedPlan(ctx, turnId, markdown, {
+                            method,
+                            payload: params,
+                          });
+                          ctx.planModeActive = false;
+                        } else {
+                          yield* offerRuntimeEvent({
+                            type: "turn.proposed.completed",
+                            ...(yield* makeEventStamp()),
+                            provider: PROVIDER,
+                            threadId: input.threadId,
+                            turnId,
+                            payload: { planMarkdown: markdown },
+                            raw: { source: proposedPlan.source, method, payload: params },
+                          });
+                        }
+                        return proposedPlan.makeExitResponse();
+                      }),
+                    ),
+                  ),
+                { discard: true },
+              );
+            }
             yield* acp.handleRequestPermission((params) =>
               mapAcpCallbackFailure(
                 Effect.gen(function* () {
@@ -873,11 +1166,26 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                     }
                   }
                   const permissionRequest = parsePermissionRequest(params);
+                  const approvalKey = config.rememberSessionApprovals
+                    ? permissionApprovalKey(params)
+                    : undefined;
+                  if (approvalKey && sessionApprovedOperations.has(approvalKey)) {
+                    const approvedOptionId = selectPermissionOptionId(params, "accept");
+                    if (approvedOptionId) {
+                      return {
+                        outcome: {
+                          outcome: "selected" as const,
+                          optionId: approvedOptionId,
+                        },
+                      };
+                    }
+                  }
                   const requestId = ApprovalRequestId.make(yield* randomUUIDv4);
                   const runtimeRequestId = RuntimeRequestId.make(requestId);
                   const decision = yield* Deferred.make<ProviderApprovalDecision>();
                   const turnId = resolveSessionCallbackTurnId(sessions, input.threadId);
                   pendingApprovals.set(requestId, { decision });
+                  yield* refreshTurnLiveness(input.threadId, turnId, true);
                   yield* offerRuntimeEvent(
                     makeAcpRequestOpenedEvent({
                       stamp: yield* makeEventStamp(),
@@ -898,6 +1206,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                   );
                   const resolved = yield* Deferred.await(decision);
                   pendingApprovals.delete(requestId);
+                  yield* refreshTurnLiveness(input.threadId, turnId, true);
                   yield* offerRuntimeEvent(
                     makeAcpRequestResolvedEvent({
                       stamp: yield* makeEventStamp(),
@@ -911,6 +1220,13 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                   );
                   const selectedOptionId =
                     resolved === "cancel" ? undefined : selectPermissionOptionId(params, resolved);
+                  if (
+                    resolved === "acceptForSession" &&
+                    selectedOptionId !== undefined &&
+                    approvalKey !== undefined
+                  ) {
+                    sessionApprovedOperations.add(approvalKey);
+                  }
                   return {
                     outcome: selectedOptionId
                       ? {
@@ -932,10 +1248,16 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
           const requestedStartModelId = modelSelection?.model
             ? config.normalizeModel(modelSelection.model)
             : undefined;
+          const currentStartModelOptions =
+            config.currentModelOptionsFromSetup?.(started.sessionSetupResult) ?? {};
+          const requestedStartModelOptions =
+            config.requestedModelOptionsFromSelection?.(modelSelection) ?? {};
           const boundModelId = yield* config.applyModelSelection({
             runtime: acp,
             currentModelId: config.currentModelFromSetup(started.sessionSetupResult),
             requestedModelId: requestedStartModelId,
+            currentModelOptions: currentStartModelOptions,
+            requestedModelOptions: requestedStartModelOptions,
             mapError: (cause) =>
               mapAcpToAdapterError(
                 PROVIDER,
@@ -973,10 +1295,21 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
             pendingUserInputs,
             turns: [],
             lastPlanFingerprint: undefined,
+            lastProposedPlanMarkdown: undefined,
+            lastProposedPlanTurnId: undefined,
+            planModeActive: false,
             activeTurnId: undefined,
             interruptedTurnIds: new Set(),
             promptsInFlight: 0,
             currentModelId: boundModelId,
+            currentModelOptions: {
+              ...currentStartModelOptions,
+              ...requestedStartModelOptions,
+            },
+            livenessSignals: yield* Queue.sliding<TurnId>(1),
+            livenessTurnId: undefined,
+            lastTurnActivityAtNanos: undefined,
+            activeToolCallIds: new Set(),
             stopped: false,
           };
 
@@ -1006,6 +1339,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                 ) {
                   return;
                 }
+                yield* recordTurnActivity(ctx, notificationTurnId, event);
                 const stamp = yield* makeEventStamp();
 
                 switch (event._tag) {
@@ -1043,7 +1377,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                       "session/update",
                     );
                     return;
-                  case "ToolCallUpdated":
+                  case "ToolCallUpdated": {
                     yield* offerRuntimeEvent(
                       makeAcpToolCallEvent({
                         stamp,
@@ -1054,7 +1388,27 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                         rawPayload: event.rawPayload,
                       }),
                     );
+                    const proposedPlan = config.proposedPlan;
+                    if (proposedPlan) {
+                      ctx.planModeActive = proposedPlan.nextModeActive(
+                        ctx.planModeActive,
+                        event.toolCall,
+                      );
+                      if (ctx.planModeActive) {
+                        const markdown = proposedPlan.extractToolMarkdown(event.toolCall.data, {
+                          platform: hostPlatform,
+                          environment: options?.environment ?? hostEnvironment,
+                        });
+                        if (markdown !== undefined) {
+                          yield* emitProposedPlan(ctx, notificationTurnId, markdown, {
+                            method: "session/update",
+                            payload: event.rawPayload,
+                          });
+                        }
+                      }
+                    }
                     return;
+                  }
                   case "ContentDelta":
                     yield* offerRuntimeEvent(
                       makeAcpContentDeltaEvent({
@@ -1082,6 +1436,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
 
           ctx.notificationFiber = nf;
           sessions.set(input.threadId, ctx);
+          yield* runTurnLivenessWatchdog(ctx).pipe(Effect.forkIn(ctx.scope), Effect.asVoid);
           sessionScopeTransferred = true;
 
           yield* offerRuntimeEvent({
@@ -1147,6 +1502,9 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                 runtime: ctx.acp,
                 currentModelId: ctx.currentModelId,
                 requestedModelId: requestedTurnModelId,
+                currentModelOptions: ctx.currentModelOptions,
+                requestedModelOptions:
+                  config.requestedModelOptionsFromSelection?.(turnModelSelection) ?? {},
                 mapError: (cause) =>
                   mapAcpToAdapterError(
                     PROVIDER,
@@ -1200,6 +1558,10 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
               }
 
               ctx.currentModelId = currentModelId;
+              ctx.currentModelOptions = {
+                ...ctx.currentModelOptions,
+                ...config.requestedModelOptionsFromSelection?.(turnModelSelection),
+              };
               const displayModel = currentModelId
                 ? config.normalizeModel(currentModelId)
                 : undefined;
@@ -1232,6 +1594,18 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                 updatedAt: yield* nowIso,
                 ...(displayModel ? { model: displayModel } : {}),
               };
+
+              if (steeringTurnId === undefined) {
+                ctx.livenessTurnId = turnId;
+                ctx.lastTurnActivityAtNanos = undefined;
+                ctx.activeToolCallIds.clear();
+                ctx.lastProposedPlanMarkdown = undefined;
+                ctx.lastProposedPlanTurnId = undefined;
+                ctx.planModeActive = false;
+              } else {
+                yield* refreshTurnLiveness(input.threadId, turnId);
+              }
+              yield* signalTurnLiveness(ctx, turnId);
 
               if (steeringTurnId === undefined) {
                 yield* offerRuntimeEvent({

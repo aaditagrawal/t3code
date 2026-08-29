@@ -876,6 +876,9 @@ export function makeCursorAdapter(
       const text = input.input?.trim() ?? "";
       const images: Array<Exclude<CursorSdkUserMessage["images"], undefined>[number]> = [];
       for (const attachment of input.attachments ?? []) {
+        if (attachment.type !== "image") {
+          continue;
+        }
         const attachmentPath = resolveAttachmentPath({
           attachmentsDir: serverConfig.attachmentsDir,
           attachment,
