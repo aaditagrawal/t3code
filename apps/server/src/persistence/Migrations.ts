@@ -75,6 +75,9 @@ import Migration0045 from "./Migrations/040_ProjectionProjectFaviconPath.ts";
 // Upstream AuthSessionClientConnection was runtime ID 41. The fork already
 // deployed IDs 41-45, so it must be appended without reusing an applied ID.
 import Migration0046 from "./Migrations/046_AuthSessionClientConnection.ts";
+// Upstream ProjectionThreadLinkedPullRequest was runtime ID 42. The fork has
+// already deployed through ID 46, so append it without reusing an applied ID.
+import Migration0047 from "./Migrations/047_ProjectionThreadLinkedPullRequest.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -133,6 +136,7 @@ export const migrationEntries = [
   [44, "ProjectionProjectsDefaultThreadEnvMode", Migration0044],
   [45, "ProjectionProjectFaviconPath", Migration0045],
   [46, "AuthSessionClientConnection", Migration0046],
+  [47, "ProjectionThreadLinkedPullRequest", Migration0047],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

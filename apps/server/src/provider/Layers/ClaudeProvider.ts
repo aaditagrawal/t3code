@@ -145,7 +145,6 @@ const CURRENT_CLAUDE_MODELS = new Set(["claude-fable-5", "claude-opus-5", "claud
 export function isLegacyClaudeModel(model: string): boolean {
   return !CURRENT_CLAUDE_MODELS.has(model);
 }
-
 const CLAUDE_MODEL_CATALOG: ReadonlyArray<ServerProviderModel> = [
   {
     slug: "claude-fable-5",
@@ -393,6 +392,8 @@ function withClaudeSonnet5ContextWindowSelector(
   });
 }
 
+// Legacy classification happens at the driver boundary via `applyModelManifest`,
+// while direct provider helpers retain the bundled fallback classification.
 const BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = CLAUDE_MODEL_CATALOG.map((model) =>
   isLegacyClaudeModel(model.slug) ? { ...model, isLegacy: true } : model,
 );
@@ -1016,7 +1017,13 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     ? yield* resolveCapabilities(claudeSettings).pipe(Effect.orElseSucceed(() => undefined))
     : undefined;
   const skills = yield* discoverClaudeSkills(claudeSettings, cwd, resolvedEnvironment);
-  const slashCommands = capabilities?.slashCommands ?? [];
+  const slashCommands = [
+    {
+      name: "compact",
+      description: "Summarize the conversation and reduce context usage",
+    },
+    ...(capabilities?.slashCommands ?? []),
+  ];
   const dedupedSlashCommands = dedupeSlashCommands(slashCommands);
 
   if (!capabilities) {

@@ -193,6 +193,14 @@ package. GitHub Releases still wait for the `quality` and `build` jobs, while `p
 skipped placeholder. Do not describe remote automatic server updates as release-supported until the
 fork has a separately named package and the client update command targets it.
 
+Before enabling a future fork-owned package, validate exact-version publishing and update a server
+from the previous version. When a release adds database migrations, snapshot the database first,
+verify that the remote update applies the migrations and reconnects, and restore the snapshot plus
+the previous server after a failed trial. If the installed launcher does not support the target
+protocol, verify that the update stops before restart and document the one-time fork-scoped CLI
+update command. Also test the manual and desktop-managed guidance when those environments are
+available.
+
 ## Desktop auto-update notes
 
 - Updater runtime: `apps/desktop/src/updates/DesktopUpdates.ts`.
@@ -353,7 +361,7 @@ Checklist:
    - preflight passes
    - release quality checks pass
    - all matrix builds pass
-   - `publish_cli` publishes the exact release version before the release job
+   - `publish_cli` remains skipped for the upstream-owned package
    - release job uploads expected files
 6. Smoke test downloaded artifacts.
 

@@ -286,6 +286,7 @@ function approvalDecisionToPermissionResult(
   switch (decision) {
     case "accept":
     case "acceptForSession":
+    case "acceptAlways":
       return { kind: "approved" };
     case "decline":
     case "cancel":
