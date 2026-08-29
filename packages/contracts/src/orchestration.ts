@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+import * as SchemaIssue from "effect/SchemaIssue";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import * as Struct from "effect/Struct";
 import { ProviderOptionSelections } from "./model.ts";
@@ -156,8 +157,8 @@ export type ProviderUserInputAnswers = typeof ProviderUserInputAnswers.Type;
 export const PROVIDER_SEND_TURN_MAX_INPUT_CHARS = 120_000;
 export const PROVIDER_SEND_TURN_MAX_ATTACHMENTS = 8;
 export const PROVIDER_SEND_TURN_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-export const PROVIDER_SEND_TURN_MAX_FILE_BYTES = 10 * 1024 * 1024;
-/** Companion deliveries may persist one file up to the Hermes wire ceiling. */
+export const PROVIDER_SEND_TURN_MAX_FILE_BYTES = 50 * 1024 * 1024;
+/** Companion deliveries remain bounded to the Hermes wire ceiling. */
 export const CHAT_ATTACHMENT_MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const PROVIDER_SEND_TURN_SUPPORTED_IMAGE_MIME_TYPES = [
   "image/gif",
@@ -174,6 +175,7 @@ export function isProviderSendTurnSupportedImageMimeType(mimeType: string): bool
   return PROVIDER_SEND_TURN_SUPPORTED_IMAGE_MIME_TYPE_SET.has(mimeType.toLowerCase());
 }
 const PROVIDER_SEND_TURN_MAX_IMAGE_DATA_URL_CHARS = 14_000_000;
+const CHAT_ATTACHMENT_MAX_FILE_DATA_URL_CHARS = 35_000_000;
 const CHAT_ATTACHMENT_ID_MAX_CHARS = 128;
 // Correlation id is command id by design in this model.
 export const CorrelationId = CommandId;
@@ -194,6 +196,40 @@ export const ChatImageAttachment = Schema.Struct({
 });
 export type ChatImageAttachment = typeof ChatImageAttachment.Type;
 
+export const ChatFileAttachment = Schema.Struct({
+  type: Schema.Literal("file"),
+  id: ChatAttachmentId,
+  name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
+  mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100)),
+  sizeBytes: NonNegativeInt.check(
+    Schema.isGreaterThanOrEqualTo(1),
+    Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_FILE_BYTES),
+  ),
+});
+export type ChatFileAttachment = typeof ChatFileAttachment.Type;
+
+/**
+ * Catch-all for attachment types this build does not know. Attachments ride on
+ * persisted events and thread streams, so a newer server or client must be able
+ * to introduce a type without making older readers fail to decode the whole
+ * message. Decoders keep the shared base fields; consumers skip these or render
+ * them as unsupported. Mirrors how `OrchestrationThreadActivity` keeps `kind`
+ * open. The known discriminators are excluded so a malformed image or file
+ * attachment fails its own schema instead of sliding through here with its
+ * size and mime constraints unchecked.
+ */
+export const ChatUnknownAttachment = Schema.Struct({
+  type: TrimmedNonEmptyString.check(
+    Schema.isMaxLength(50),
+    Schema.isPattern(/^(?!(?:image|file)$)/),
+  ),
+  id: ChatAttachmentId,
+  name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
+  mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100)),
+  sizeBytes: NonNegativeInt,
+});
+export type ChatUnknownAttachment = typeof ChatUnknownAttachment.Type;
+
 const UploadChatImageAttachment = Schema.Struct({
   type: Schema.Literal("image"),
   name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
@@ -205,28 +241,23 @@ const UploadChatImageAttachment = Schema.Struct({
 });
 export type UploadChatImageAttachment = typeof UploadChatImageAttachment.Type;
 
-/** A non-image attachment. Rendering behavior is derived from its MIME type. */
-export const ChatFileAttachment = Schema.Struct({
-  type: Schema.Literal("file"),
-  id: ChatAttachmentId,
-  name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
-  mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100)),
-  sizeBytes: NonNegativeInt.check(Schema.isLessThanOrEqualTo(CHAT_ATTACHMENT_MAX_FILE_BYTES)),
-});
-export type ChatFileAttachment = typeof ChatFileAttachment.Type;
-
 const UploadChatFileAttachment = Schema.Struct({
   type: Schema.Literal("file"),
   name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
   mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100)),
-  sizeBytes: NonNegativeInt.check(Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_FILE_BYTES)),
-  dataUrl: TrimmedNonEmptyString.check(
-    Schema.isMaxLength(PROVIDER_SEND_TURN_MAX_IMAGE_DATA_URL_CHARS),
+  sizeBytes: NonNegativeInt.check(
+    Schema.isGreaterThanOrEqualTo(1),
+    Schema.isLessThanOrEqualTo(CHAT_ATTACHMENT_MAX_FILE_BYTES),
   ),
+  dataUrl: TrimmedNonEmptyString.check(Schema.isMaxLength(CHAT_ATTACHMENT_MAX_FILE_DATA_URL_CHARS)),
 });
 export type UploadChatFileAttachment = typeof UploadChatFileAttachment.Type;
 
-export const ChatAttachment = Schema.Union([ChatImageAttachment, ChatFileAttachment]);
+export const ChatAttachment = Schema.Union([
+  ChatImageAttachment,
+  ChatFileAttachment,
+  ChatUnknownAttachment,
+]);
 export type ChatAttachment = typeof ChatAttachment.Type;
 const UploadChatAttachment = Schema.Union([UploadChatImageAttachment, UploadChatFileAttachment]);
 export type UploadChatAttachment = typeof UploadChatAttachment.Type;
@@ -411,17 +442,6 @@ export const ThreadTitleRegeneration = Schema.Struct({
 });
 export type ThreadTitleRegeneration = typeof ThreadTitleRegeneration.Type;
 
-/**
- * Why the last regeneration request produced no title.
- *
- * Deliberately a sibling of `titleRegeneration` rather than a field on it:
- * clients — including older ones that predate this field — treat any non-null
- * `titleRegeneration` as "in flight", so a failure recorded there would leave
- * them spinning forever. Keeping the pending record strictly pending means an
- * old client sees a failure exactly as it sees a success (cleared) and simply
- * ignores what it cannot read, while a current client can say why the title
- * did not change. Cleared by the next regeneration request or a manual rename.
- */
 export const ThreadTitleRegenerationFailure = Schema.Struct({
   requestId: CommandId,
   failedAt: IsoDateTime,
@@ -1095,16 +1115,10 @@ const ThreadActivityAppendCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
-/**
- * Durable provider-neutral delivery that appends an assistant message without
- * starting or steering a provider turn. The caller supplies an idempotent
- * command id derived from its durable delivery id.
- */
 const ThreadNotificationDeliverCommand = Schema.Struct({
   type: Schema.Literal("thread.notification.deliver"),
   commandId: CommandId,
   threadId: ThreadId,
-  /** Provider instance that must still own the destination at commit time. */
   expectedProviderInstanceId: ProviderInstanceId,
   messageId: MessageId,
   deliveryId: TrimmedNonEmptyString,
@@ -1130,10 +1144,6 @@ const ThreadTitleRegenerationCompleteCommand = Schema.Struct({
   threadId: ThreadId,
   requestId: CommandId,
   title: Schema.optional(TrimmedNonEmptyString),
-  /**
-   * Why generation produced no title. Mutually exclusive with `title`: a
-   * completion carries either the new title or the reason there is none.
-   */
   error: Schema.optional(TrimmedNonEmptyString),
 });
 
@@ -1313,7 +1323,6 @@ export const ThreadMetaUpdatedPayload = Schema.Struct({
   previousTitle: Schema.optional(TrimmedNonEmptyString),
   /** Pending state shared with clients. Null clears a matching request. */
   titleRegeneration: Schema.optional(Schema.NullOr(ThreadTitleRegeneration)),
-  /** Why the request produced no title. Null clears a recorded failure. */
   titleRegenerationFailure: Schema.optional(Schema.NullOr(ThreadTitleRegenerationFailure)),
   modelSelection: Schema.optional(ModelSelection),
   branch: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
@@ -1631,7 +1640,9 @@ export const TurnCountRange = Schema.Struct({
   Schema.makeFilter(
     (input) =>
       input.fromTurnCount <= input.toTurnCount ||
-      "fromTurnCount must be less than or equal to toTurnCount",
+      new SchemaIssue.InvalidValue({
+        message: "fromTurnCount must be less than or equal to toTurnCount",
+      }),
     { identifier: "OrchestrationTurnDiffRange" },
   ),
 );

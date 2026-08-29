@@ -1,5 +1,6 @@
 import type {
   ChatAttachment as ContractChatAttachment,
+  ChatFileAttachment as ContractChatFileAttachment,
   ChatImageAttachment as ContractChatImageAttachment,
   OrchestrationCheckpointFile,
   OrchestrationCheckpointSummary,
@@ -36,7 +37,26 @@ export interface ChatImageAttachment extends ContractChatImageAttachment {
   readonly previewUrl?: string;
 }
 
-export type ChatAttachment = ContractChatAttachment & { readonly previewUrl?: string };
+export interface ChatFileAttachment extends ContractChatFileAttachment {
+  readonly previewUrl?: string;
+}
+
+// Known image and file members can carry a client-only preview URL. Unknown
+// members pass through unchanged so persisted events from newer builds replay.
+export type ChatAttachment =
+  | ChatImageAttachment
+  | ChatFileAttachment
+  | Exclude<ContractChatAttachment, ContractChatImageAttachment | ContractChatFileAttachment>;
+
+// The union has an open member (`type: string`), so literal comparisons do not
+// narrow known members. Use these guards before reading preview-only fields.
+export function isImageAttachment(attachment: ChatAttachment): attachment is ChatImageAttachment {
+  return attachment.type === "image";
+}
+
+export function isFileAttachment(attachment: ChatAttachment): attachment is ChatFileAttachment {
+  return attachment.type === "file";
+}
 
 export interface ChatMessage extends Omit<OrchestrationMessage, "attachments"> {
   readonly attachments?: ReadonlyArray<ChatAttachment> | undefined;
