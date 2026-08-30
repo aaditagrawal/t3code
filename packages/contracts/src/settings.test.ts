@@ -104,7 +104,7 @@ describe("ClientSettings environment identification", () => {
   it("defaults to artwork and accepts each presentation mode", () => {
     expect(decodeClientSettings({}).environmentIdentificationMode).toBe("artwork");
 
-    for (const mode of ["artwork", "pill", "none"] as const) {
+    for (const mode of ["artwork", "nightly-artwork", "pill", "none"] as const) {
       expect(
         decodeClientSettingsPatch({ environmentIdentificationMode: mode })
           .environmentIdentificationMode,

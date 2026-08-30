@@ -71,9 +71,10 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "environment-identification",
-    title: "Environment identification",
+    title: "Sidebar artwork",
     to: "/settings/appearance",
-    // The setting is stage-dependent, so its parent section is the stable destination.
+    // The theme cards can change artwork compatibility, so the parent section
+    // remains the stable destination.
     targetId: "appearance",
   },
   {

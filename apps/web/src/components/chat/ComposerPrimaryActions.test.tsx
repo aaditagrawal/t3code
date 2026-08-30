@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 const stageArtworkState = vi.hoisted(() => ({
-  mode: "none" as "artwork" | "none",
+  mode: "none" as "artwork" | "nightly-artwork" | "none",
   variant: null as "nightly" | "dev" | null,
 }));
 
@@ -12,7 +12,8 @@ vi.mock("~/hooks/useSettings", () => ({
 }));
 vi.mock("../SidebarStageBackdrop", () => ({
   StageBackdropButtonArt: ({ variant }: { variant: string }) => `stage-${variant}`,
-  useSidebarStageBackdropVariant: (enabled = true) => (enabled ? stageArtworkState.variant : null),
+  useSidebarStageBackdropVariant: (mode = "artwork") =>
+    mode === "artwork" || mode === "nightly-artwork" ? stageArtworkState.variant : null,
 }));
 
 import { ComposerPrimaryActions, formatPendingPrimaryActionLabel } from "./ComposerPrimaryActions";
@@ -225,16 +226,19 @@ describe("ComposerPrimaryActions", () => {
     expect(renderStandaloneStop()).not.toContain("sm:size-7");
   });
 
-  it("renders stage artwork inside the send button when artwork identification is active", () => {
-    stageArtworkState.mode = "artwork";
-    stageArtworkState.variant = "nightly";
+  it.each(["artwork", "nightly-artwork"] as const)(
+    "renders stage artwork inside the send button in %s mode",
+    (mode) => {
+      stageArtworkState.mode = mode;
+      stageArtworkState.variant = "nightly";
 
-    const markup = renderSendButton();
+      const markup = renderSendButton();
 
-    expect(markup).toContain("stage-nightly");
-    expect(markup).toContain("bg-transparent text-white");
-    expect(markup).not.toContain("bg-message-action text-message-action-foreground");
-  });
+      expect(markup).toContain("stage-nightly");
+      expect(markup).toContain("bg-transparent text-white");
+      expect(markup).not.toContain("bg-message-action text-message-action-foreground");
+    },
+  );
 
   it("keeps the normal send-button fill when artwork identification is inactive", () => {
     stageArtworkState.variant = "nightly";

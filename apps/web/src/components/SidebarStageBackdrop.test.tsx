@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   resolveEnvironmentIdentificationPillLabel,
+  resolveSidebarArtworkVariant,
   resolveSidebarStageBackdropVariant,
   resolveSidebarStageFocusRingOffsetClass,
   StageBackdropArt,
@@ -22,6 +23,15 @@ describe("SidebarStageBackdrop", () => {
     expect(resolveEnvironmentIdentificationPillLabel("nightly")).toBe("Nightly");
     expect(resolveEnvironmentIdentificationPillLabel("Latest")).toBeNull();
     expect(resolveEnvironmentIdentificationPillLabel("Alpha")).toBeNull();
+  });
+
+  it("can show Nightly artwork without changing the environment stage", () => {
+    expect(resolveSidebarArtworkVariant("Alpha", "nightly-artwork")).toBe("nightly");
+    expect(resolveSidebarArtworkVariant("Latest", "nightly-artwork")).toBe("nightly");
+    expect(resolveSidebarArtworkVariant("Alpha", "artwork")).toBeNull();
+    expect(resolveSidebarArtworkVariant("Nightly", "artwork")).toBe("nightly");
+    expect(resolveSidebarArtworkVariant("Nightly", "pill")).toBeNull();
+    expect(resolveSidebarArtworkVariant("Nightly", "none")).toBeNull();
   });
 
   it("matches the focus-ring offset to each artwork palette", () => {

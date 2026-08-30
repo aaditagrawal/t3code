@@ -81,9 +81,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
     : undefined;
   const environmentIdentificationMode = useEnvironmentIdentificationMode();
   const isSendDisabled = sendDisabledReason !== null;
-  const stageBackdropVariant = useSidebarStageBackdropVariant(
-    environmentIdentificationMode === "artwork",
-  );
+  const stageBackdropVariant = useSidebarStageBackdropVariant(environmentIdentificationMode);
 
   const renderStopGenerationButton = (insidePendingAction: boolean) => (
     <button

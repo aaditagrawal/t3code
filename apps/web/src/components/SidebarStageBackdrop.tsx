@@ -1,4 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
+import type { EnvironmentIdentificationMode } from "@t3tools/contracts/settings";
 import { useId } from "react";
 
 import { APP_STAGE_LABEL } from "../branding";
@@ -21,6 +22,14 @@ export function resolveSidebarStageBackdropVariant(
   if (normalized === "nightly") return "nightly";
   if (normalized === "dev") return "dev";
   return null;
+}
+
+export function resolveSidebarArtworkVariant(
+  stageLabel: string,
+  mode: EnvironmentIdentificationMode,
+): SidebarStageBackdropVariant | null {
+  if (mode === "nightly-artwork") return "nightly";
+  return resolveSidebarStageBackdropVariant(stageLabel, mode === "artwork");
 }
 
 export function resolveSidebarStageFocusRingOffsetClass(
@@ -50,8 +59,10 @@ export function useEnvironmentStageLabel(): string {
   });
 }
 
-export function useSidebarStageBackdropVariant(enabled = true): SidebarStageBackdropVariant | null {
-  return resolveSidebarStageBackdropVariant(useEnvironmentStageLabel(), enabled);
+export function useSidebarStageBackdropVariant(
+  mode: EnvironmentIdentificationMode = "artwork",
+): SidebarStageBackdropVariant | null {
+  return resolveSidebarArtworkVariant(useEnvironmentStageLabel(), mode);
 }
 
 /** Stage-channel header art; palettes mirror the per-channel app icons in `assets/`. */
