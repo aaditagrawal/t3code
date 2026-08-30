@@ -13,7 +13,7 @@ import { cn } from "../../lib/utils";
 import { useEnvironments } from "../../state/environments";
 import {
   resolveEnvironmentIdentificationPillLabel,
-  resolveSidebarStageBackdropVariant,
+  resolveSidebarArtworkVariant,
   resolveSidebarStageFocusRingOffsetClass,
   SidebarStageBackdrop,
   useEnvironmentStageLabel,
@@ -39,10 +39,7 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
 }) {
   const stageLabel = useEnvironmentStageLabel();
   const environmentIdentificationMode = useEnvironmentIdentificationMode();
-  const backdropVariant = resolveSidebarStageBackdropVariant(
-    stageLabel,
-    environmentIdentificationMode === "artwork",
-  );
+  const backdropVariant = resolveSidebarArtworkVariant(stageLabel, environmentIdentificationMode);
   const pillLabel =
     environmentIdentificationMode === "pill"
       ? resolveEnvironmentIdentificationPillLabel(stageLabel)

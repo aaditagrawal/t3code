@@ -18,6 +18,7 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import {
   DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE,
+  DEFAULT_SIDEBAR_ARTWORK_OVERRIDE,
   DEFAULT_UNIFIED_SETTINGS,
   type EnvironmentIdentificationMode,
   MAX_APPEARANCE_CONTRAST,
@@ -50,10 +51,6 @@ import {
 } from "../../components/desktopUpdate.logic";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
-import {
-  resolveEnvironmentIdentificationPillLabel,
-  useEnvironmentStageLabel,
-} from "../SidebarStageBackdrop";
 import { isElectron } from "../../env";
 import { buildHostedChannelSelectionUrl, type HostedAppChannel } from "../../hostedPairing";
 import { useCustomThemes } from "../../hooks/useCustomThemes";
@@ -147,9 +144,12 @@ import {
 import { searchableSetting } from "./settingsSearch";
 import { ProjectFavicon } from "../ProjectFavicon";
 
-const ENVIRONMENT_IDENTIFICATION_LABELS: Record<EnvironmentIdentificationMode, string> = {
-  artwork: "Artwork",
-  pill: "Version pill",
+type SidebarArtworkSelection = EnvironmentIdentificationMode | "nightly-artwork";
+
+const ENVIRONMENT_IDENTIFICATION_LABELS: Record<SidebarArtworkSelection, string> = {
+  artwork: "Automatic",
+  "nightly-artwork": "Night sky",
+  pill: "Stage pill",
   none: "None",
 };
 
@@ -482,7 +482,8 @@ export function useSettingsRestore(onRestored?: () => void) {
         : []),
       ...(settings.glassOpacity !== DEFAULT_UNIFIED_SETTINGS.glassOpacity ? ["Glass opacity"] : []),
       ...(settings.environmentIdentificationMode !==
-      DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode
+        DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode ||
+      settings.sidebarArtworkOverride !== DEFAULT_UNIFIED_SETTINGS.sidebarArtworkOverride
         ? ["Environment identification"]
         : []),
       ...(settings.timestampFormat !== DEFAULT_UNIFIED_SETTINGS.timestampFormat
@@ -565,6 +566,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.newWorktreesStartFromOrigin,
       settings.diffIgnoreWhitespace,
       settings.environmentIdentificationMode,
+      settings.sidebarArtworkOverride,
       settings.fontFamilyCode,
       settings.fontFamilyComposer,
       settings.fontFamilySans,
@@ -658,6 +660,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       diffIgnoreWhitespace: DEFAULT_UNIFIED_SETTINGS.diffIgnoreWhitespace,
       showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
       environmentIdentificationMode: DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode,
+      sidebarArtworkOverride: DEFAULT_SIDEBAR_ARTWORK_OVERRIDE,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       sidebarThreadPreviewCount: DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount,
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
@@ -994,9 +997,6 @@ export function AppearanceSettingsPanel() {
   const [isImportThemeOpen, setIsImportThemeOpen] = useState(false);
   const settings = usePrimarySettings();
   const updateSettings = useUpdatePrimarySettings();
-  const environmentStageLabel = useEnvironmentStageLabel();
-  const showEnvironmentIdentification =
-    resolveEnvironmentIdentificationPillLabel(environmentStageLabel) !== null;
   const glassOpacityRatio =
     (settings.glassOpacity - MIN_GLASS_OPACITY) / (MAX_GLASS_OPACITY - MIN_GLASS_OPACITY);
   const glassOpacitySliderStyle = {
@@ -1124,47 +1124,65 @@ export function AppearanceSettingsPanel() {
           }
         />
 
-        {showEnvironmentIdentification ? (
-          <SettingsRow
-            {...searchableSetting("environment-identification")}
-            description="Choose how Dev and Nightly environments are identified."
-            resetAction={
-              settings.environmentIdentificationMode !== DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE ? (
-                <SettingResetButton
-                  label="environment identification"
-                  onClick={() =>
-                    updateSettings({
-                      environmentIdentificationMode: DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE,
-                    })
+        <SettingsRow
+          {...searchableSetting("environment-identification")}
+          description="Follow the current environment, always show the Night sky, use a stage pill, or keep the sidebar plain."
+          resetAction={
+            settings.environmentIdentificationMode !== DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE ||
+            settings.sidebarArtworkOverride !== DEFAULT_SIDEBAR_ARTWORK_OVERRIDE ? (
+              <SettingResetButton
+                label="sidebar artwork"
+                onClick={() =>
+                  updateSettings({
+                    environmentIdentificationMode: DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE,
+                    sidebarArtworkOverride: DEFAULT_SIDEBAR_ARTWORK_OVERRIDE,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={
+                settings.sidebarArtworkOverride === "nightly"
+                  ? "nightly-artwork"
+                  : settings.environmentIdentificationMode
+              }
+              onValueChange={(value) => {
+                if (value === "artwork" || value === "pill" || value === "none") {
+                  updateSettings({
+                    environmentIdentificationMode: value,
+                    sidebarArtworkOverride: null,
+                  });
+                } else if (value === "nightly-artwork") {
+                  updateSettings({
+                    environmentIdentificationMode: "artwork",
+                    sidebarArtworkOverride: "nightly",
+                  });
+                }
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-40" aria-label="Sidebar artwork">
+                <SelectValue>
+                  {
+                    ENVIRONMENT_IDENTIFICATION_LABELS[
+                      settings.sidebarArtworkOverride === "nightly"
+                        ? "nightly-artwork"
+                        : settings.environmentIdentificationMode
+                    ]
                   }
-                />
-              ) : null
-            }
-            control={
-              <Select
-                value={settings.environmentIdentificationMode}
-                onValueChange={(value) => {
-                  if (value === "artwork" || value === "pill" || value === "none") {
-                    updateSettings({ environmentIdentificationMode: value });
-                  }
-                }}
-              >
-                <SelectTrigger className="w-full sm:w-40" aria-label="Environment identification">
-                  <SelectValue>
-                    {ENVIRONMENT_IDENTIFICATION_LABELS[settings.environmentIdentificationMode]}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectPopup align="end" alignItemWithTrigger={false}>
-                  {Object.entries(ENVIRONMENT_IDENTIFICATION_LABELS).map(([value, label]) => (
-                    <SelectItem hideIndicator key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectPopup>
-              </Select>
-            }
-          />
-        ) : null}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {Object.entries(ENVIRONMENT_IDENTIFICATION_LABELS).map(([value, label]) => (
+                  <SelectItem hideIndicator key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          }
+        />
       </SettingsSection>
 
       <TypographySection />

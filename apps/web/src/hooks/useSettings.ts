@@ -292,12 +292,14 @@ export function useClientSettings<T = ClientSettings>(
 
 export function resolveEnvironmentIdentificationMode(input: {
   mode: EnvironmentIdentificationMode;
+  sidebarArtworkOverride: "nightly" | null;
   settingsHydrated: boolean;
   paletteThemeActive?: boolean;
   paletteThemeAllowsArtwork?: boolean;
-}): EnvironmentIdentificationMode {
+}): EnvironmentIdentificationMode | "nightly-artwork" {
   // Avoid briefly rendering the default artwork before a persisted pill/none choice loads.
   if (!input.settingsHydrated) return "none";
+  if (input.sidebarArtworkOverride === "nightly") return "nightly-artwork";
   // Artwork palettes are maintained for built-ins only. Keep an explicit
   // "none", but use the theme-aware pill for user-controlled palettes.
   return input.paletteThemeActive && !input.paletteThemeAllowsArtwork && input.mode === "artwork"
@@ -305,9 +307,11 @@ export function resolveEnvironmentIdentificationMode(input: {
     : input.mode;
 }
 
-export function useEnvironmentIdentificationMode(): EnvironmentIdentificationMode {
+export function useEnvironmentIdentificationMode():
+  | EnvironmentIdentificationMode
+  | "nightly-artwork" {
   const settingsHydrated = useClientSettingsHydrated();
-  const mode = useClientSettingsValue().environmentIdentificationMode;
+  const settings = useClientSettingsValue();
   const { resolvedTheme, theme, themeHalves } = useTheme();
   const previewSidebarArtwork = useSyncExternalStore(
     subscribeToThemePreview,
@@ -317,7 +321,8 @@ export function useEnvironmentIdentificationMode(): EnvironmentIdentificationMod
   const activeTheme = resolveThemeHalf(theme, themeHalves, resolvedTheme);
   const activeThemeDefinition = getThemeDefinition(activeTheme);
   return resolveEnvironmentIdentificationMode({
-    mode,
+    mode: settings.environmentIdentificationMode,
+    sidebarArtworkOverride: settings.sidebarArtworkOverride,
     settingsHydrated,
     paletteThemeActive: previewSidebarArtwork !== null || activeThemeDefinition !== null,
     paletteThemeAllowsArtwork: previewSidebarArtwork ?? themeAllowsSidebarArtwork(activeTheme),

@@ -1,4 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
+import type { EnvironmentIdentificationMode } from "@t3tools/contracts/settings";
 import { useId } from "react";
 
 import { APP_STAGE_LABEL } from "../branding";
@@ -6,7 +7,8 @@ import { resolveServerBackedAppStageLabel } from "../branding.logic";
 import { primaryServerConfigAtom } from "../state/server";
 
 export type SidebarStageBackdropVariant = "nightly" | "dev";
-export type EnvironmentIdentificationPillLabel = "Dev" | "Nightly";
+export type EnvironmentIdentificationPillLabel = "Alpha" | "Dev" | "Latest" | "Nightly";
+export type SidebarArtworkMode = EnvironmentIdentificationMode | "nightly-artwork";
 
 // A wide viewBox keeps the 96-unit art height at a fixed scale while sidebar resizing reveals
 // more horizontal canvas instead of zooming the scene.
@@ -23,6 +25,14 @@ export function resolveSidebarStageBackdropVariant(
   return null;
 }
 
+export function resolveSidebarArtworkVariant(
+  stageLabel: string,
+  mode: SidebarArtworkMode,
+): SidebarStageBackdropVariant | null {
+  if (mode === "nightly-artwork") return "nightly";
+  return resolveSidebarStageBackdropVariant(stageLabel, mode === "artwork");
+}
+
 export function resolveSidebarStageFocusRingOffsetClass(
   variant: SidebarStageBackdropVariant,
 ): string {
@@ -35,7 +45,9 @@ export function resolveEnvironmentIdentificationPillLabel(
   stageLabel: string,
 ): EnvironmentIdentificationPillLabel | null {
   const normalized = stageLabel.trim().toLowerCase();
+  if (normalized === "alpha") return "Alpha";
   if (normalized === "dev") return "Dev";
+  if (normalized === "latest") return "Latest";
   if (normalized === "nightly") return "Nightly";
   return null;
 }
@@ -50,8 +62,10 @@ export function useEnvironmentStageLabel(): string {
   });
 }
 
-export function useSidebarStageBackdropVariant(enabled = true): SidebarStageBackdropVariant | null {
-  return resolveSidebarStageBackdropVariant(useEnvironmentStageLabel(), enabled);
+export function useSidebarStageBackdropVariant(
+  mode: SidebarArtworkMode = "artwork",
+): SidebarStageBackdropVariant | null {
+  return resolveSidebarArtworkVariant(useEnvironmentStageLabel(), mode);
 }
 
 /** Stage-channel header art; palettes mirror the per-channel app icons in `assets/`. */
