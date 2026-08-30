@@ -18,6 +18,7 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import {
   DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE,
+  DEFAULT_SIDEBAR_ARTWORK_OVERRIDE,
   DEFAULT_UNIFIED_SETTINGS,
   type EnvironmentIdentificationMode,
   MAX_APPEARANCE_CONTRAST,
@@ -143,7 +144,9 @@ import {
 import { searchableSetting } from "./settingsSearch";
 import { ProjectFavicon } from "../ProjectFavicon";
 
-const ENVIRONMENT_IDENTIFICATION_LABELS: Record<EnvironmentIdentificationMode, string> = {
+type SidebarArtworkSelection = EnvironmentIdentificationMode | "nightly-artwork";
+
+const ENVIRONMENT_IDENTIFICATION_LABELS: Record<SidebarArtworkSelection, string> = {
   artwork: "Automatic",
   "nightly-artwork": "Night sky",
   pill: "Stage pill",
@@ -479,7 +482,8 @@ export function useSettingsRestore(onRestored?: () => void) {
         : []),
       ...(settings.glassOpacity !== DEFAULT_UNIFIED_SETTINGS.glassOpacity ? ["Glass opacity"] : []),
       ...(settings.environmentIdentificationMode !==
-      DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode
+        DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode ||
+      settings.sidebarArtworkOverride !== DEFAULT_UNIFIED_SETTINGS.sidebarArtworkOverride
         ? ["Environment identification"]
         : []),
       ...(settings.timestampFormat !== DEFAULT_UNIFIED_SETTINGS.timestampFormat
@@ -562,6 +566,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.newWorktreesStartFromOrigin,
       settings.diffIgnoreWhitespace,
       settings.environmentIdentificationMode,
+      settings.sidebarArtworkOverride,
       settings.fontFamilyCode,
       settings.fontFamilyComposer,
       settings.fontFamilySans,
@@ -655,6 +660,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       diffIgnoreWhitespace: DEFAULT_UNIFIED_SETTINGS.diffIgnoreWhitespace,
       showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
       environmentIdentificationMode: DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode,
+      sidebarArtworkOverride: DEFAULT_SIDEBAR_ARTWORK_OVERRIDE,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       sidebarThreadPreviewCount: DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount,
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
@@ -1122,12 +1128,14 @@ export function AppearanceSettingsPanel() {
           {...searchableSetting("environment-identification")}
           description="Follow the current environment, always show the Night sky, use a stage pill, or keep the sidebar plain."
           resetAction={
-            settings.environmentIdentificationMode !== DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE ? (
+            settings.environmentIdentificationMode !== DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE ||
+            settings.sidebarArtworkOverride !== DEFAULT_SIDEBAR_ARTWORK_OVERRIDE ? (
               <SettingResetButton
                 label="sidebar artwork"
                 onClick={() =>
                   updateSettings({
                     environmentIdentificationMode: DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE,
+                    sidebarArtworkOverride: DEFAULT_SIDEBAR_ARTWORK_OVERRIDE,
                   })
                 }
               />
@@ -1135,21 +1143,34 @@ export function AppearanceSettingsPanel() {
           }
           control={
             <Select
-              value={settings.environmentIdentificationMode}
+              value={
+                settings.sidebarArtworkOverride === "nightly"
+                  ? "nightly-artwork"
+                  : settings.environmentIdentificationMode
+              }
               onValueChange={(value) => {
-                if (
-                  value === "artwork" ||
-                  value === "nightly-artwork" ||
-                  value === "pill" ||
-                  value === "none"
-                ) {
-                  updateSettings({ environmentIdentificationMode: value });
+                if (value === "artwork" || value === "pill" || value === "none") {
+                  updateSettings({
+                    environmentIdentificationMode: value,
+                    sidebarArtworkOverride: null,
+                  });
+                } else if (value === "nightly-artwork") {
+                  updateSettings({
+                    environmentIdentificationMode: "artwork",
+                    sidebarArtworkOverride: "nightly",
+                  });
                 }
               }}
             >
               <SelectTrigger className="w-full sm:w-40" aria-label="Sidebar artwork">
                 <SelectValue>
-                  {ENVIRONMENT_IDENTIFICATION_LABELS[settings.environmentIdentificationMode]}
+                  {
+                    ENVIRONMENT_IDENTIFICATION_LABELS[
+                      settings.sidebarArtworkOverride === "nightly"
+                        ? "nightly-artwork"
+                        : settings.environmentIdentificationMode
+                    ]
+                  }
                 </SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>

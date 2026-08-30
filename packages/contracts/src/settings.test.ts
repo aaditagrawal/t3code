@@ -103,18 +103,41 @@ describe("ClientSettings appearance contrast", () => {
 describe("ClientSettings environment identification", () => {
   it("defaults to artwork and accepts each presentation mode", () => {
     expect(decodeClientSettings({}).environmentIdentificationMode).toBe("artwork");
+    expect(decodeClientSettings({}).sidebarArtworkOverride).toBeNull();
 
-    for (const mode of ["artwork", "nightly-artwork", "pill", "none"] as const) {
+    for (const mode of ["artwork", "pill", "none"] as const) {
       expect(
         decodeClientSettingsPatch({ environmentIdentificationMode: mode })
           .environmentIdentificationMode,
       ).toBe(mode);
     }
+
+    expect(
+      decodeClientSettingsPatch({ sidebarArtworkOverride: "nightly" }).sidebarArtworkOverride,
+    ).toBe("nightly");
   });
 
   it("rejects unsupported presentation modes", () => {
+    expect(() =>
+      decodeClientSettings({ environmentIdentificationMode: "nightly-artwork" }),
+    ).toThrow();
     expect(() => decodeClientSettings({ environmentIdentificationMode: "badge" })).toThrow();
     expect(() => decodeClientSettingsPatch({ environmentIdentificationMode: "badge" })).toThrow();
+  });
+
+  it("keeps the Nightly override safe for older settings schemas", () => {
+    const decodeLegacySettings = Schema.decodeUnknownSync(
+      Schema.Struct({
+        environmentIdentificationMode: Schema.Literals(["artwork", "pill", "none"]),
+      }),
+    );
+
+    expect(
+      decodeLegacySettings({
+        environmentIdentificationMode: "artwork",
+        sidebarArtworkOverride: "nightly",
+      }),
+    ).toEqual({ environmentIdentificationMode: "artwork" });
   });
 });
 

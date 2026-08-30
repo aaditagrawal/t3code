@@ -25,6 +25,7 @@ const clientSettings: ClientSettings = {
   dismissedProviderUpdateNotificationKeys: [],
   diffIgnoreWhitespace: true,
   environmentIdentificationMode: "artwork",
+  sidebarArtworkOverride: null,
   favorites: [],
   fontFamilyCode: "",
   fontFamilyComposer: "",

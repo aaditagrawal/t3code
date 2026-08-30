@@ -8,6 +8,7 @@ import { primaryServerConfigAtom } from "../state/server";
 
 export type SidebarStageBackdropVariant = "nightly" | "dev";
 export type EnvironmentIdentificationPillLabel = "Alpha" | "Dev" | "Latest" | "Nightly";
+export type SidebarArtworkMode = EnvironmentIdentificationMode | "nightly-artwork";
 
 // A wide viewBox keeps the 96-unit art height at a fixed scale while sidebar resizing reveals
 // more horizontal canvas instead of zooming the scene.
@@ -26,7 +27,7 @@ export function resolveSidebarStageBackdropVariant(
 
 export function resolveSidebarArtworkVariant(
   stageLabel: string,
-  mode: EnvironmentIdentificationMode,
+  mode: SidebarArtworkMode,
 ): SidebarStageBackdropVariant | null {
   if (mode === "nightly-artwork") return "nightly";
   return resolveSidebarStageBackdropVariant(stageLabel, mode === "artwork");
@@ -62,7 +63,7 @@ export function useEnvironmentStageLabel(): string {
 }
 
 export function useSidebarStageBackdropVariant(
-  mode: EnvironmentIdentificationMode = "artwork",
+  mode: SidebarArtworkMode = "artwork",
 ): SidebarStageBackdropVariant | null {
   return resolveSidebarArtworkVariant(useEnvironmentStageLabel(), mode);
 }

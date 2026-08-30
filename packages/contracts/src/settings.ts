@@ -120,14 +120,12 @@ export const TerminalFontSize = Schema.Int.check(
 export type TerminalFontSize = typeof TerminalFontSize.Type;
 export const DEFAULT_TERMINAL_FONT_SIZE: TerminalFontSize = 12;
 
-export const EnvironmentIdentificationMode = Schema.Literals([
-  "artwork",
-  "nightly-artwork",
-  "pill",
-  "none",
-]);
+export const EnvironmentIdentificationMode = Schema.Literals(["artwork", "pill", "none"]);
 export type EnvironmentIdentificationMode = typeof EnvironmentIdentificationMode.Type;
 export const DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE: EnvironmentIdentificationMode = "artwork";
+export const SidebarArtworkOverride = Schema.NullOr(Schema.Literal("nightly"));
+export type SidebarArtworkOverride = typeof SidebarArtworkOverride.Type;
+export const DEFAULT_SIDEBAR_ARTWORK_OVERRIDE: SidebarArtworkOverride = null;
 
 /**
  * A user-chosen font family (a single name or a comma-separated list). Empty
@@ -192,6 +190,11 @@ export const ClientSettingsSchema = Schema.Struct({
   diffIgnoreWhitespace: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   environmentIdentificationMode: EnvironmentIdentificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE)),
+  ),
+  // Kept separate from the closed presentation-mode enum so older clients
+  // ignore this preference instead of rejecting the entire settings document.
+  sidebarArtworkOverride: SidebarArtworkOverride.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_ARTWORK_OVERRIDE)),
   ),
   glassOpacity: GlassOpacity.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_GLASS_OPACITY)),
@@ -1238,6 +1241,7 @@ export const ClientSettingsPatch = Schema.Struct({
   confirmThreadUnpin: Schema.optionalKey(Schema.Boolean),
   diffIgnoreWhitespace: Schema.optionalKey(Schema.Boolean),
   environmentIdentificationMode: Schema.optionalKey(EnvironmentIdentificationMode),
+  sidebarArtworkOverride: Schema.optionalKey(SidebarArtworkOverride),
   glassOpacity: Schema.optionalKey(GlassOpacity),
   fontSizeInterface: Schema.optionalKey(InterfaceFontSize),
   fontSizePrompt: Schema.optionalKey(PromptFontSize),

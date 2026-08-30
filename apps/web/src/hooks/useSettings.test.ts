@@ -49,18 +49,37 @@ describe("buildLegacyServerSettingsMigrationPatch", () => {
 
 describe("resolveEnvironmentIdentificationMode", () => {
   it("keeps identification hidden until client settings hydrate", () => {
-    expect(resolveEnvironmentIdentificationMode({ mode: "artwork", settingsHydrated: false })).toBe(
-      "none",
-    );
-    expect(resolveEnvironmentIdentificationMode({ mode: "pill", settingsHydrated: true })).toBe(
-      "pill",
-    );
+    expect(
+      resolveEnvironmentIdentificationMode({
+        mode: "artwork",
+        sidebarArtworkOverride: null,
+        settingsHydrated: false,
+      }),
+    ).toBe("none");
+    expect(
+      resolveEnvironmentIdentificationMode({
+        mode: "pill",
+        sidebarArtworkOverride: null,
+        settingsHydrated: true,
+      }),
+    ).toBe("pill");
+  });
+
+  it("applies the backward-compatible Nightly artwork override", () => {
+    expect(
+      resolveEnvironmentIdentificationMode({
+        mode: "artwork",
+        sidebarArtworkOverride: "nightly",
+        settingsHydrated: true,
+      }),
+    ).toBe("nightly-artwork");
   });
 
   it("uses a pill instead of artwork with a palette theme", () => {
     expect(
       resolveEnvironmentIdentificationMode({
         mode: "artwork",
+        sidebarArtworkOverride: null,
         settingsHydrated: true,
         paletteThemeActive: true,
       }),
@@ -71,6 +90,7 @@ describe("resolveEnvironmentIdentificationMode", () => {
     expect(
       resolveEnvironmentIdentificationMode({
         mode: "none",
+        sidebarArtworkOverride: null,
         settingsHydrated: true,
         paletteThemeActive: true,
       }),
@@ -81,6 +101,7 @@ describe("resolveEnvironmentIdentificationMode", () => {
     expect(
       resolveEnvironmentIdentificationMode({
         mode: "artwork",
+        sidebarArtworkOverride: null,
         settingsHydrated: true,
         paletteThemeActive: true,
         paletteThemeAllowsArtwork: true,
