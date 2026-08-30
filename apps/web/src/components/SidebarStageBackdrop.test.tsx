@@ -21,8 +21,9 @@ describe("SidebarStageBackdrop", () => {
   it("resolves supported environment pill labels", () => {
     expect(resolveEnvironmentIdentificationPillLabel("Dev")).toBe("Dev");
     expect(resolveEnvironmentIdentificationPillLabel("nightly")).toBe("Nightly");
-    expect(resolveEnvironmentIdentificationPillLabel("Latest")).toBeNull();
-    expect(resolveEnvironmentIdentificationPillLabel("Alpha")).toBeNull();
+    expect(resolveEnvironmentIdentificationPillLabel("Latest")).toBe("Latest");
+    expect(resolveEnvironmentIdentificationPillLabel("Alpha")).toBe("Alpha");
+    expect(resolveEnvironmentIdentificationPillLabel("unknown")).toBeNull();
   });
 
   it("can show Nightly artwork without changing the environment stage", () => {

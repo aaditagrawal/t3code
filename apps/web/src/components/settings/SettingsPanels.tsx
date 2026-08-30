@@ -146,7 +146,7 @@ import { ProjectFavicon } from "../ProjectFavicon";
 const ENVIRONMENT_IDENTIFICATION_LABELS: Record<EnvironmentIdentificationMode, string> = {
   artwork: "Automatic",
   "nightly-artwork": "Night sky",
-  pill: "Version pill",
+  pill: "Stage pill",
   none: "None",
 };
 
@@ -1120,7 +1120,7 @@ export function AppearanceSettingsPanel() {
 
         <SettingsRow
           {...searchableSetting("environment-identification")}
-          description="Follow the current environment, always show the Night sky, use a version pill, or keep the sidebar plain."
+          description="Follow the current environment, always show the Night sky, use a stage pill, or keep the sidebar plain."
           resetAction={
             settings.environmentIdentificationMode !== DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE ? (
               <SettingResetButton
