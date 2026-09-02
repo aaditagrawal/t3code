@@ -152,6 +152,7 @@ const makeEngineLayer = (
     streamDomainEvents: Stream.empty,
     subscribeDomainEvents: PubSub.unbounded<OrchestrationEvent>().pipe(
       Effect.flatMap(PubSub.subscribe),
+      Effect.map(Stream.fromSubscription),
     ),
     latestSequence: Effect.succeed(0),
   } as OrchestrationEngine.OrchestrationEngineService["Service"]);

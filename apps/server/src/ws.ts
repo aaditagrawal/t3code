@@ -335,6 +335,10 @@ const SHELL_RESUME_MAX_GAP = 1_000;
 // hundreds of thousands of events behind have OOM-killed servers on large
 // databases. Past this gap the client is reset with a fresh thread snapshot.
 const THREAD_RESUME_MAX_GAP = 1_000;
+// Row count alone does not bound replay memory: a few events with large tool
+// payloads can decode to gigabytes. Before replaying, sum the serialized
+// payload bytes of the range in SQL and reset with a snapshot past this budget.
+const ORCHESTRATION_REPLAY_PAYLOAD_BUDGET_BYTES = 8 * 1024 * 1024;
 
 function toAuthAccessStreamEvent(
   change: PairingGrantStore.BootstrapCredentialChange | SessionStore.SessionCredentialChange,
@@ -515,6 +519,42 @@ const makeWsRpcLayer = (
       const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
       const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
       const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+      const canReplayPersistedRange = Effect.fnUntraced(function* (
+        afterSequence: number,
+        headSequence: number,
+        maxGap: number,
+      ) {
+        const replayGap = headSequence - afterSequence;
+        if (replayGap < 0 || replayGap > maxGap) {
+          return false;
+        }
+        const stats = yield* projectionSnapshotQuery
+          .getEventReplayStats({
+            fromSequenceExclusive: afterSequence,
+            toSequenceInclusive: headSequence,
+          })
+          .pipe(
+            Effect.mapError(
+              (cause) =>
+                new OrchestrationGetSnapshotError({
+                  message: "Failed to measure orchestration replay range",
+                  cause,
+                }),
+            ),
+          );
+        if (stats.payloadBytes > ORCHESTRATION_REPLAY_PAYLOAD_BUDGET_BYTES) {
+          yield* Effect.logDebug("orchestration replay replaced by snapshot", {
+            afterSequence,
+            headSequence,
+            replayGap,
+            eventCount: stats.eventCount,
+            payloadBytes: stats.payloadBytes,
+            payloadBudgetBytes: ORCHESTRATION_REPLAY_PAYLOAD_BUDGET_BYTES,
+          });
+          return false;
+        }
+        return true;
+      });
       const projectSetupScriptRunner = yield* ProjectSetupScriptRunner.ProjectSetupScriptRunner;
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
       const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
@@ -1370,9 +1410,9 @@ const makeWsRpcLayer = (
               // `forkScoped` only schedules the fibre — so an event published
               // between schedule and start would still drop without this.
               const liveBuffer = yield* Queue.unbounded<ShellLiveInput>();
-              const liveSubscription = yield* orchestrationEngine.subscribeDomainEvents;
+              const liveStream = yield* orchestrationEngine.subscribeDomainEvents;
               yield* Effect.forkScoped(
-                Stream.fromSubscription(liveSubscription).pipe(
+                liveStream.pipe(
                   Stream.runForEach((event) =>
                     Queue.offer(liveBuffer, { kind: "event" as const, event }),
                   ),
@@ -1426,7 +1466,13 @@ const makeWsRpcLayer = (
                 // is also invalid, so reset it with a snapshot. Send the snapshot
                 // followed by the buffered live tail, exactly as the
                 // no-afterSequence path does.
-                if (replayGap < 0 || replayGap > SHELL_RESUME_MAX_GAP) {
+                if (
+                  !(yield* canReplayPersistedRange(
+                    afterSequence,
+                    headSequence,
+                    SHELL_RESUME_MAX_GAP,
+                  ))
+                ) {
                   const snapshot = yield* loadSnapshot;
                   return Stream.concat(
                     Stream.make({ kind: "snapshot" as const, snapshot }),
@@ -1500,9 +1546,9 @@ const makeWsRpcLayer = (
               // start would still drop. Same race the provider-registry
               // `subscribeChanges` path closes.
               const liveBuffer = yield* makeThreadLiveEventCoalescer();
-              const liveSubscription = yield* orchestrationEngine.subscribeDomainEvents;
+              const liveStream = yield* orchestrationEngine.subscribeDomainEvents;
               yield* Effect.forkScoped(
-                Stream.fromSubscription(liveSubscription).pipe(
+                liveStream.pipe(
                   Stream.filter(isThisThreadDetailEvent),
                   Stream.map((event) => ({
                     kind: "event" as const,
@@ -1538,7 +1584,9 @@ const makeWsRpcLayer = (
                 const afterSequence = input.afterSequence;
                 const headSequence = yield* orchestrationEngine.latestSequence;
                 const replayGap = headSequence - afterSequence;
-                if (replayGap >= 0 && replayGap <= THREAD_RESUME_MAX_GAP) {
+                if (
+                  yield* canReplayPersistedRange(afterSequence, headSequence, THREAD_RESUME_MAX_GAP)
+                ) {
                   const catchUpStream = orchestrationEngine
                     .readEvents(afterSequence, replayGap)
                     .pipe(
@@ -1688,6 +1736,12 @@ const makeWsRpcLayer = (
                   Effect.forkScoped,
                 ),
             ),
+            { "rpc.aggregate": "server" },
+          ),
+        [WS_METHODS.serverCommitDesktopUpdate]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.serverCommitDesktopUpdate,
+            serverSelfUpdate.commitDesktopUpdate(input.requestId),
             { "rpc.aggregate": "server" },
           ),
         [WS_METHODS.serverUpsertKeybinding]: (rule) =>

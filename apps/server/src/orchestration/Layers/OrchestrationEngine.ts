@@ -233,12 +233,14 @@ const makeOrchestrationEngine = Effect.gen(function* () {
           .withTransaction(
             Effect.gen(function* () {
               const committedEvents: OrchestrationEvent[] = [];
+              const attachmentCleanups: Effect.Effect<void>[] = [];
               let nextCommandReadModel = commandReadModel;
 
               for (const nextEvent of eventBases) {
                 const savedEvent = yield* eventStore.append(nextEvent);
                 nextCommandReadModel = yield* projectEvent(nextCommandReadModel, savedEvent);
-                yield* projectionPipeline.projectEvent(savedEvent);
+                const cleanup = yield* projectionPipeline.projectEventDeferred(savedEvent);
+                attachmentCleanups.push(cleanup);
                 committedEvents.push(savedEvent);
               }
 
@@ -262,6 +264,7 @@ const makeOrchestrationEngine = Effect.gen(function* () {
 
               return {
                 committedEvents,
+                attachmentCleanups,
                 lastSequence: lastSavedEvent.sequence,
                 nextCommandReadModel,
               } as const;
@@ -276,6 +279,9 @@ const makeOrchestrationEngine = Effect.gen(function* () {
           );
 
         commandReadModel = committedCommand.nextCommandReadModel;
+        for (const cleanup of committedCommand.attachmentCleanups) {
+          yield* cleanup;
+        }
         for (const [index, event] of committedCommand.committedEvents.entries()) {
           yield* PubSub.publish(eventPubSub, event);
           if (index === 0) {
@@ -390,19 +396,12 @@ const makeOrchestrationEngine = Effect.gen(function* () {
   return {
     readEvents,
     dispatch,
+    subscribeDomainEvents: PubSub.subscribe(eventPubSub).pipe(Effect.map(Stream.fromSubscription)),
     // Each access creates a fresh PubSub subscription so that multiple
     // consumers (wsServer, ProviderRuntimeIngestion, CheckpointReactor, etc.)
     // each independently receive all domain events.
     get streamDomainEvents(): OrchestrationEngineShape["streamDomainEvents"] {
       return Stream.fromPubSub(eventPubSub);
-    },
-    // Synchronous subscribe — callers that need to consume events from a
-    // forked fibre must acquire the subscription in their own fibre first
-    // (via `yield* engine.subscribeDomainEvents`) and only then fork a
-    // consumer loop on `Stream.fromSubscription(...)`. See the shape docs
-    // for the race this avoids.
-    get subscribeDomainEvents(): OrchestrationEngineShape["subscribeDomainEvents"] {
-      return PubSub.subscribe(eventPubSub);
     },
     // The command read model's snapshotSequence tracks the latest committed
     // event sequence (updated on the worker fiber). A plain property read is a

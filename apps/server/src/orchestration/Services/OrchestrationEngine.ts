@@ -17,7 +17,6 @@ import type {
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
-import type * as PubSub from "effect/PubSub";
 import type * as Scope from "effect/Scope";
 import type * as Stream from "effect/Stream";
 
@@ -76,16 +75,11 @@ export interface OrchestrationEngineShape {
   readonly streamDomainEvents: Stream.Stream<OrchestrationEvent>;
 
   /**
-   * Acquire a subscription to the domain-event channel synchronously in
-   * the caller's fiber. Returns a `PubSub.Subscription` whose lifetime is
-   * scoped to the provided `Scope`. Consumers typically `yield*` this in
-   * the same fiber that forks their consumer loop, then drain with
-   * `Stream.fromSubscription(subscription)`. Because the subscription is
-   * registered with the PubSub before this `yield*` returns, no subsequent
-   * publish can land in a gap.
+   * Acquire a domain-event subscription before starting a consumer.
+   * The subscription is ready when this effect returns and closes with the scope.
    */
   readonly subscribeDomainEvents: Effect.Effect<
-    PubSub.Subscription<OrchestrationEvent>,
+    Stream.Stream<OrchestrationEvent>,
     never,
     Scope.Scope
   >;

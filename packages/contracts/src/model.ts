@@ -160,6 +160,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Partial<Record<ProviderDriverKind, strin
   [CLAUDE_DRIVER_KIND]: "claude-sonnet-5",
   [CURSOR_DRIVER_KIND]: "composer-2.5",
   [DROID_DRIVER_KIND]: "default",
+  // Product slug, not an ACP model id. The Grok adapter treats it as "the session's current model".
   [GROK_DRIVER_KIND]: "grok-build",
   [HERMES_DRIVER_KIND]: DEFAULT_HERMES_MODEL,
   [OPENCODE_DRIVER_KIND]: "openai/gpt-5",

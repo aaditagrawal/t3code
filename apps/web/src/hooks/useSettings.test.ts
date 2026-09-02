@@ -4,6 +4,7 @@ import {
   ProviderInstanceId,
 } from "@t3tools/contracts";
 import { DEFAULT_CLIENT_SETTINGS } from "@t3tools/contracts/settings";
+import { splitSharedServerPatch } from "@t3tools/client-runtime/state/shared-settings";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -11,6 +12,7 @@ import {
   buildLegacyServerSettingsMigrationPatch,
   mergeEnvironmentSettings,
   resolveEnvironmentIdentificationMode,
+  shouldWarnWhenLocalServerSettingsCannotPersist,
 } from "./useSettings";
 
 describe("buildLegacyClientSettingsMigrationPatch", () => {
@@ -153,5 +155,19 @@ describe("mergeEnvironmentSettings", () => {
 
     expect(settings.sidebarAutoSettleAfterDays).toBe(14);
     expect(settings.sidebarAutoSettleOnMerge).toBe(false);
+  });
+});
+
+describe("shouldWarnWhenLocalServerSettingsCannotPersist", () => {
+  it("does not warn when a server patch contains only shared settings", () => {
+    const { localPatch } = splitSharedServerPatch({ sidebarAutoSettleAfterDays: 14 });
+
+    expect(shouldWarnWhenLocalServerSettingsCannotPersist(localPatch, null)).toBe(false);
+  });
+
+  it("warns when local server settings have no target environment", () => {
+    const { localPatch } = splitSharedServerPatch({ providerInstances: {} });
+
+    expect(shouldWarnWhenLocalServerSettingsCannotPersist(localPatch, null)).toBe(true);
   });
 });

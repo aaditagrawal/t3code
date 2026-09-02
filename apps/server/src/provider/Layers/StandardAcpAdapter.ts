@@ -192,6 +192,8 @@ export interface StandardAcpAdapterConfig<UserInputParams = never, UserInputEnco
   readonly proposedPlan?: StandardAcpProposedPlanRegistration<unknown, unknown>;
   readonly rememberSessionApprovals?: boolean;
   readonly formElicitation?: boolean;
+  /** Cancel the active ACP prompt before dispatching a mid-turn replacement. */
+  readonly cancelInFlightPromptOnSteer?: boolean;
 }
 
 interface PendingApproval {
@@ -227,6 +229,12 @@ interface StandardAcpSessionContext {
    * >0 means a turn is actively running, so a new sendTurn is a steer that
    * continues it, and only the last remaining prompt settles the turn. */
   promptsInFlight: number;
+  /** Monotonic id assigned to each sendTurn. Steers discard older epochs. */
+  promptEpoch: number;
+  /** Prompt epochs below this value must not start an ACP session/prompt. */
+  discardBeforeEpoch: number;
+  /** Serializes cancel-then-prompt so a steer cannot miss or hit the wrong RPC. */
+  readonly promptLifecycle: Semaphore.Semaphore;
   currentModelId: string | undefined;
   currentModelOptions: Readonly<Record<string, string | undefined>>;
   readonly livenessSignals: Queue.Queue<TurnId>;
@@ -1301,6 +1309,9 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
             activeTurnId: undefined,
             interruptedTurnIds: new Set(),
             promptsInFlight: 0,
+            promptEpoch: 0,
+            discardBeforeEpoch: 0,
+            promptLifecycle: yield* Semaphore.make(1),
             currentModelId: boundModelId,
             currentModelOptions: {
               ...currentStartModelOptions,
@@ -1480,6 +1491,8 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
             // resolving from here on does not settle the turn; decremented on
             // preparation failure here, and after the prompt below otherwise.
             ctx.promptsInFlight += 1;
+            ctx.promptEpoch += 1;
+            const promptEpoch = ctx.promptEpoch;
             // Bind the turn id before cooperative yields so interruptTurn can
             // settle this prompt even if stop arrives during preparation.
             ctx.activeTurnId = turnId;
@@ -1616,6 +1629,12 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                   turnId,
                   payload: displayModel ? { model: displayModel } : {},
                 });
+              } else if (config.cancelInFlightPromptOnSteer) {
+                // Do not discard the live prompt until the replacement has
+                // completed preparation. A failed steer must leave it intact.
+                yield* settlePendingApprovalsAsCancelled(ctx.pendingApprovals);
+                yield* settlePendingUserInputsAsCancelled(ctx.pendingUserInputs);
+                ctx.discardBeforeEpoch = promptEpoch;
               }
 
               return {
@@ -1624,6 +1643,9 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                 displayModel,
                 promptParts,
                 turnId,
+                promptEpoch,
+                promptLifecycle: ctx.promptLifecycle,
+                steeringTurnId,
               };
             }).pipe(
               Effect.tapCause(() =>
@@ -1650,27 +1672,93 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
         const promptFailureMessageRef = yield* Ref.make<string | undefined>(undefined);
 
         return yield* Effect.gen(function* () {
-          const result = yield* prepared.acp
-            .prompt({
-              prompt: prepared.promptParts,
-            })
-            .pipe(
-              Effect.tap((promptResult) =>
-                Effect.all([
-                  Ref.set(promptRpcSucceeded, true),
-                  Ref.set(promptResultRef, promptResult),
-                ]),
-              ),
-              Effect.tapError((error) =>
-                Ref.set(
-                  promptFailureMessageRef,
-                  mapAcpToAdapterError(PROVIDER, input.threadId, "session/prompt", error).message,
-                ).pipe(Effect.andThen(prepared.acp.drainEvents)),
-              ),
-              Effect.mapError((error) =>
-                mapAcpToAdapterError(PROVIDER, input.threadId, "session/prompt", error),
+          const promptStart = config.cancelInFlightPromptOnSteer
+            ? yield* prepared.promptLifecycle.withPermit(
+                Effect.gen(function* () {
+                  const liveCtx = sessions.get(input.threadId);
+                  const interrupted = liveCtx?.interruptedTurnIds.has(prepared.turnId) === true;
+                  if (
+                    !liveCtx ||
+                    liveCtx.acpSessionId !== prepared.acpSessionId ||
+                    prepared.promptEpoch < liveCtx.discardBeforeEpoch ||
+                    interrupted
+                  ) {
+                    return { _tag: "Skipped" as const, interrupted };
+                  }
+                  if (prepared.steeringTurnId !== undefined) {
+                    yield* Effect.ignore(
+                      liveCtx.acp.cancel.pipe(
+                        Effect.mapError((error) =>
+                          mapAcpToAdapterError(PROVIDER, input.threadId, "session/cancel", error),
+                        ),
+                      ),
+                    );
+                  }
+                  if (liveCtx.interruptedTurnIds.has(prepared.turnId)) {
+                    return { _tag: "Skipped" as const, interrupted: true };
+                  }
+                  const dispatched = yield* Deferred.make<void>();
+                  const fiber = yield* liveCtx.acp
+                    .prompt({ prompt: prepared.promptParts }, { dispatched })
+                    .pipe(Effect.forkChild({ startImmediately: true }));
+                  // Keep the permit until the runtime has registered the RPC,
+                  // ensuring a later cancel targets this exact prompt.
+                  yield* Effect.raceFirst(
+                    Deferred.await(dispatched),
+                    Fiber.await(fiber).pipe(Effect.asVoid),
+                  );
+                  return { _tag: "Started" as const, fiber };
+                }),
+              )
+            : ({ _tag: "Direct" as const } satisfies { readonly _tag: "Direct" });
+
+          if (promptStart._tag === "Skipped") {
+            // Settle after releasing promptLifecycle. Holding both locks
+            // deadlocks the next sendTurn, which takes the thread lock first.
+            yield* withThreadLock(
+              input.threadId,
+              settlePromptInFlight(
+                input.threadId,
+                prepared.turnId,
+                prepared.acpSessionId,
+                promptStart.interrupted
+                  ? {
+                      completedStopReason: "cancelled",
+                      settleAllPrompts: true,
+                    }
+                  : { emitTurnCompletion: false },
               ),
             );
+            yield* Ref.set(promptSettled, true);
+            const liveCtx = sessions.get(input.threadId);
+            return {
+              threadId: input.threadId,
+              turnId: prepared.turnId,
+              resumeCursor: liveCtx?.session.resumeCursor,
+            };
+          }
+
+          const promptEffect =
+            promptStart._tag === "Started"
+              ? Fiber.join(promptStart.fiber)
+              : prepared.acp.prompt({ prompt: prepared.promptParts });
+          const result = yield* promptEffect.pipe(
+            Effect.tap((promptResult) =>
+              Effect.all([
+                Ref.set(promptRpcSucceeded, true),
+                Ref.set(promptResultRef, promptResult),
+              ]),
+            ),
+            Effect.tapError((error) =>
+              Ref.set(
+                promptFailureMessageRef,
+                mapAcpToAdapterError(PROVIDER, input.threadId, "session/prompt", error).message,
+              ).pipe(Effect.andThen(prepared.acp.drainEvents)),
+            ),
+            Effect.mapError((error) =>
+              mapAcpToAdapterError(PROVIDER, input.threadId, "session/prompt", error),
+            ),
+          );
 
           return yield* withThreadLock(
             input.threadId,
