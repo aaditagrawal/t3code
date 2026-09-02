@@ -48,6 +48,7 @@ const SIGNING_SECRET_NAME = "asset-access-signing-key";
 const ASSET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const PROJECT_FAVICON_TOKEN_BUCKET_MS = 30 * 60 * 1000;
 const PROJECT_FAVICON_VERSION_PREFIX = "v";
+const INLINE_VIDEO_MIME_TYPE_PATTERN = /^video\/[\w!#$&^.+-]+$/i;
 const PREVIEW_ASSET_EXTENSIONS = new Set([
   ...WORKSPACE_BROWSER_PREVIEW_EXTENSIONS,
   ...WORKSPACE_IMAGE_PREVIEW_EXTENSIONS,
@@ -319,6 +320,8 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
       const isGenericFile =
         attachmentPath.endsWith(".bin") ||
         parseAttachmentFileExtension(input.resource.attachmentId) !== null;
+      const videoMimeType = input.resource.mimeType?.split(";", 1)[0]?.trim() ?? "";
+      const isVideo = INLINE_VIDEO_MIME_TYPE_PATTERN.test(videoMimeType);
       claims = {
         version: 1,
         kind: "attachment",
@@ -326,15 +329,18 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
         // Generic files deliberately use an opaque `.bin` physical path so
         // user-controlled names and extensions never influence storage. Carry
         // their MIME/name as signed response metadata instead. The HTTP route
-        // adds Content-Disposition: attachment, preventing an HTML-like MIME
-        // from executing in T3's origin.
+        // either a sanitized inline-video MIME or safe download metadata. The
+        // HTTP route adds Content-Disposition for documents, preventing an
+        // HTML-like MIME from executing in T3's origin.
         ...(isGenericFile
-          ? {
-              contentType: normalizeAttachmentContentType(input.resource.mimeType),
-              ...(input.resource.fileName?.trim()
-                ? { downloadName: input.resource.fileName.trim() }
-                : { download: true }),
-            }
+          ? isVideo
+            ? { contentType: videoMimeType }
+            : {
+                contentType: normalizeAttachmentContentType(input.resource.mimeType),
+                ...(input.resource.fileName?.trim()
+                  ? { downloadName: input.resource.fileName.trim() }
+                  : { download: true }),
+              }
           : {}),
         expiresAt,
       };
@@ -513,9 +519,14 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
       Effect.orElseSucceed(() => Option.none()),
     );
     const downloadName = claims.downloadName ?? (claims.download ? claims.fileName : undefined);
+    const legacyMimeType = claims.mimeType?.split(";", 1)[0]?.trim();
     const contentType =
       claims.contentType ??
-      (claims.download ? normalizeAttachmentContentType(claims.mimeType) : undefined);
+      (claims.download
+        ? normalizeAttachmentContentType(claims.mimeType)
+        : legacyMimeType !== undefined && INLINE_VIDEO_MIME_TYPE_PATTERN.test(legacyMimeType)
+          ? legacyMimeType
+          : undefined);
     return Option.isSome(info) && info.value.type === "File"
       ? ({
           kind: "file",
