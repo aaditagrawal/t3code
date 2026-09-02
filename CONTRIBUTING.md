@@ -2,6 +2,11 @@
 
 First off, thank you for considering contributing to this fork! It's people like you that make the open-source community such an amazing place to learn, inspire, and create.
 
+## Developer Setup
+
+See the [maintainer scripts guide](docs/internals/scripts.md#first-checkout) for the initial checkout,
+development commands, tests, and platform-specific desktop packaging prerequisites.
+
 This fork is maintained in [aaditagrawal/t3code](https://github.com/aaditagrawal/t3code) and focuses on expanding provider support, preserving usage and limit monitoring, and improving the core orchestration and persistence layers.
 
 ## Protected Fork Features
@@ -40,8 +45,8 @@ We welcome pull requests! To help us review your PR effectively, please:
 ## Development Setup
 
 1.  Clone the repository: `git clone https://github.com/aaditagrawal/t3code.git`
-2.  Install dependencies: `bun install`
-3.  Run the development server: `bun run dev`
+2.  Install dependencies: `pnpm install --frozen-lockfile`
+3.  Run the development server: `pnpm dev`
 
 ## Code Style
 

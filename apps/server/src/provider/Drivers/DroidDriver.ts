@@ -16,7 +16,9 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import { ServerConfig } from "../../config.ts";
-import type { TextGenerationShape } from "../../textGeneration/TextGeneration.ts";
+import type { TextGeneration } from "../../textGeneration/TextGeneration.ts";
+
+type TextGenerationService = TextGeneration["Service"];
 import { ProviderDriverError } from "../Errors.ts";
 import { makeDroidAdapter } from "../Layers/DroidAdapter.ts";
 import { checkDroidProviderStatus, makePendingDroidProvider } from "../Layers/DroidProvider.ts";
@@ -69,7 +71,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-function makeUnsupportedTextGeneration(): TextGenerationShape {
+function makeUnsupportedTextGeneration(): TextGenerationService {
   const fail = (operation: TextGenerationError["operation"]) =>
     Effect.fail(
       new TextGenerationError({
