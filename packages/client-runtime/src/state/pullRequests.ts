@@ -1,7 +1,10 @@
 import {
   WS_METHODS,
+  type ExecutionEnvironmentCapabilities,
   type PullRequestDetail,
   type PullRequestDiffInput,
+  type PullRequestRef,
+  type PullRequestSummary,
   type VcsStatusResult,
 } from "@t3tools/contracts";
 import * as Data from "effect/Data";
@@ -19,30 +22,45 @@ import {
 import { PullRequestDiffLoader } from "./pullRequestDiffHttp.ts";
 import type { EnvironmentRegistry } from "../connection/registry.ts";
 import { EnvironmentSupervisor } from "../connection/supervisor.ts";
+import { config as environmentConfig, request } from "../rpc/client.ts";
 
-export { PullRequestDiffLoader, pullRequestDiffLoaderLayer } from "./pullRequestDiffHttp.ts";
+export {
+  type PullRequestDiffLoadError,
+  PullRequestDiffCredentialRejectedError,
+  PullRequestDiffLoader,
+  pullRequestDiffLoaderLayer,
+} from "./pullRequestDiffHttp.ts";
 
 export class EnvironmentHttpConnectionNotReadyError extends Data.TaggedError(
   "EnvironmentHttpConnectionNotReadyError",
 )<{ readonly message: string }> {}
 
-export const LINKED_PULL_REQUEST_DETAIL_IDLE_TTL_MS = 5_000;
+export const LINKED_PULL_REQUEST_IDLE_TTL_MS = 5_000;
 
-/** Refresh a linked PR while its thread is visible so merges update the sidebar. */
-export function createLinkedPullRequestDetailAtomFamily<R, E>(
+export function linkedPullRequestRpcTag(capabilities: ExecutionEnvironmentCapabilities) {
+  return capabilities.pullRequestSummary === true
+    ? WS_METHODS.pullRequestsSummary
+    : WS_METHODS.pullRequestsDetail;
+}
+
+/** Refresh only the live fields a linked thread renders. */
+export function createLinkedPullRequestSummaryAtomFamily<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | R, E>,
 ) {
-  return createEnvironmentRpcQueryAtomFamily(runtime, {
-    label: "environment-data:pull-requests:linked-detail",
-    tag: WS_METHODS.pullRequestsDetail,
-    staleTimeMs: 15_000,
-    refreshIntervalMs: 30_000,
-    idleTtlMs: LINKED_PULL_REQUEST_DETAIL_IDLE_TTL_MS,
+  return createEnvironmentQueryAtomFamily(runtime, {
+    label: "environment-data:pull-requests:linked-summary",
+    staleTimeMs: 60_000,
+    refreshIntervalMs: 60_000,
+    idleTtlMs: LINKED_PULL_REQUEST_IDLE_TTL_MS,
+    execute: (input: PullRequestRef) =>
+      Effect.flatMap(environmentConfig, (config) =>
+        request(linkedPullRequestRpcTag(config.environment.capabilities), input),
+      ),
   });
 }
 
 export function pullRequestDetailToVcsStatus(
-  detail: PullRequestDetail,
+  detail: PullRequestDetail | PullRequestSummary,
 ): NonNullable<VcsStatusResult["pr"]> {
   return {
     number: detail.number,
