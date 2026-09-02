@@ -17,7 +17,7 @@ import * as EnvironmentRegistry from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
 import type { RpcSession } from "../rpc/session.ts";
-import { createPullRequestEnvironmentAtoms } from "./pullRequests.ts";
+import { createPullRequestEnvironmentAtoms, linkedPullRequestRpcTag } from "./pullRequests.ts";
 import { PullRequestDiffLoader } from "./pullRequestDiffHttp.ts";
 import { executeAtomQuery } from "./runtime.ts";
 
@@ -26,6 +26,13 @@ const TARGET = new PrimaryConnectionTarget({
   label: "Test environment",
   httpBaseUrl: "https://environment.example.test",
   wsBaseUrl: "wss://environment.example.test",
+});
+
+it("uses detail for older servers and summary only when advertised", () => {
+  expect(linkedPullRequestRpcTag({ repositoryIdentity: true })).toBe(WS_METHODS.pullRequestsDetail);
+  expect(linkedPullRequestRpcTag({ repositoryIdentity: true, pullRequestSummary: true })).toBe(
+    WS_METHODS.pullRequestsSummary,
+  );
 });
 
 function session(client: WsRpcProtocolClient): RpcSession {
