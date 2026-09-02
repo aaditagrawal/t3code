@@ -11,13 +11,16 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private latestContents = "";
   private latestRevision = 0;
+  private confirmedRevision = 0;
   private lastChangeAt = 0;
   private saving = false;
+  private flushAfterSave = false;
   private disposed = false;
 
   constructor(private readonly options: FileSaveCoordinatorOptions<A, E>) {}
 
   change(contents: string): void {
+    if (this.disposed) return;
     this.latestContents = contents;
     this.latestRevision += 1;
     this.lastChangeAt = Date.now();
@@ -28,7 +31,12 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   dispose(): void {
     this.disposed = true;
     this.clearTimer();
-    if (this.latestRevision > 0) void this.persistLatest();
+    if (this.latestRevision === this.confirmedRevision) return;
+    if (this.saving) {
+      this.flushAfterSave = true;
+    } else {
+      void this.persistLatest();
+    }
   }
 
   private schedule(delay: number): void {
@@ -46,7 +54,7 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   }
 
   private async persistLatest(): Promise<void> {
-    if (this.saving || this.latestRevision === 0) return;
+    if (this.saving || this.latestRevision === this.confirmedRevision) return;
 
     this.saving = true;
     const contents = this.latestContents;
@@ -54,12 +62,19 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
     const result = await this.options.persist(contents);
     const succeeded = result._tag === "Success";
     if (succeeded) {
+      this.confirmedRevision = revision;
       this.options.onConfirmed(contents);
     }
 
+    const flushAfterSave = this.flushAfterSave;
+    this.flushAfterSave = false;
     this.saving = false;
     if (revision === this.latestRevision) {
-      if (succeeded) this.options.onPendingChange(false);
+      if (succeeded) {
+        this.options.onPendingChange(false);
+      } else if (flushAfterSave) {
+        void this.persistLatest();
+      }
       return;
     }
 
