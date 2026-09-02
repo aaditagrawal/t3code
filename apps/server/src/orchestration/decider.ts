@@ -277,20 +277,33 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         projectId: command.projectId,
       });
-      const activeThreads = listThreadsByProjectId(readModel, command.projectId).filter(
+      const existingThreads = listThreadsByProjectId(readModel, command.projectId).filter(
         (thread) => thread.deletedAt === null,
       );
-      if (activeThreads.length > 0 && command.force !== true) {
+      if (command.expectedUnarchivedThreadIds !== undefined) {
+        const expectedThreadIds = new Set(command.expectedUnarchivedThreadIds);
+        const unarchivedThreads = existingThreads.filter((thread) => thread.archivedAt === null);
+        const matchesConfirmedThreads =
+          expectedThreadIds.size === command.expectedUnarchivedThreadIds.length &&
+          expectedThreadIds.size === unarchivedThreads.length &&
+          unarchivedThreads.every((thread) => expectedThreadIds.has(thread.id));
+        if (!matchesConfirmedThreads) {
+          return yield* new OrchestrationCommandInvariantError({
+            commandType: command.type,
+            detail: `Project '${command.projectId}' threads changed after deletion was confirmed.`,
+          });
+        }
+      } else if (existingThreads.length > 0 && command.force !== true) {
         return yield* new OrchestrationCommandInvariantError({
           commandType: command.type,
           detail: `Project '${command.projectId}' is not empty and cannot be deleted without force=true.`,
         });
       }
-      if (activeThreads.length > 0) {
+      if (existingThreads.length > 0) {
         return yield* decideCommandSequence({
           readModel,
           commands: [
-            ...activeThreads.map(
+            ...existingThreads.map(
               (thread): Extract<OrchestrationCommand, { type: "thread.delete" }> => ({
                 type: "thread.delete",
                 commandId: command.commandId,
