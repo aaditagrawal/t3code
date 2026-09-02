@@ -214,4 +214,64 @@ it.layer(NodeServices.layer)("decider deletion flows", (it) => {
       expect(normalizeDeleteEvent(forcedResult)).toEqual(normalizeDeleteEvent(sequentialEvents));
     }),
   );
+
+  it.effect("deletes archived threads only when the confirmed unarchived threads still match", () =>
+    Effect.gen(function* () {
+      const readModel = yield* seedReadModel;
+      const archivedResult = yield* decideOrchestrationCommand({
+        command: {
+          type: "thread.archive",
+          commandId: asCommandId("cmd-thread-archive-before-project-delete"),
+          threadId: asThreadId("thread-delete-2"),
+        },
+        readModel,
+      });
+      const archivedEvents = Array.isArray(archivedResult) ? archivedResult : [archivedResult];
+      let archivedReadModel = readModel;
+      let nextSequence = readModel.snapshotSequence;
+      for (const event of archivedEvents) {
+        nextSequence += 1;
+        archivedReadModel = yield* projectEvent(archivedReadModel, {
+          ...event,
+          sequence: nextSequence,
+        });
+      }
+
+      const result = yield* decideOrchestrationCommand({
+        command: {
+          type: "project.delete",
+          commandId: asCommandId("cmd-project-delete-confirmed-threads"),
+          projectId: asProjectId("project-delete"),
+          expectedUnarchivedThreadIds: [asThreadId("thread-delete-1")],
+        },
+        readModel: archivedReadModel,
+      });
+      const events = Array.isArray(result) ? result : [result];
+
+      expect(events.map((event) => event.type)).toEqual([
+        "thread.deleted",
+        "thread.deleted",
+        "project.deleted",
+      ]);
+    }),
+  );
+
+  it.effect("rejects deletion when unarchived threads changed after confirmation", () =>
+    Effect.gen(function* () {
+      const readModel = yield* seedReadModel;
+      const error = yield* Effect.flip(
+        decideOrchestrationCommand({
+          command: {
+            type: "project.delete",
+            commandId: asCommandId("cmd-project-delete-stale-confirmation"),
+            projectId: asProjectId("project-delete"),
+            expectedUnarchivedThreadIds: [asThreadId("thread-delete-1")],
+          },
+          readModel,
+        }),
+      );
+
+      expect(error.message).toContain("threads changed after deletion was confirmed");
+    }),
+  );
 });

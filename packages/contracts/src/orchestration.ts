@@ -757,6 +757,7 @@ const ProjectDeleteCommand = Schema.Struct({
   commandId: CommandId,
   projectId: ProjectId,
   force: Schema.optional(Schema.Boolean),
+  expectedUnarchivedThreadIds: Schema.optional(Schema.Array(ThreadId)),
 });
 
 const ThreadCreateCommand = Schema.Struct({
