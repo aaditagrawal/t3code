@@ -20,6 +20,7 @@ import {
   type ModelUsage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { parseCliArgs } from "@t3tools/shared/cliArgs";
+import { isWorkspaceImagePreviewPath } from "@t3tools/shared/filePreview";
 import {
   ApprovalRequestId,
   type CanonicalItemType,
@@ -33,7 +34,6 @@ import {
   ProviderItemId,
   type ProviderRuntimeEvent,
   type ProviderRuntimeTurnStatus,
-  type ProviderSendTurnInput,
   type ProviderSession,
   type ThreadTokenUsageSnapshot,
   type ProviderUserInputAnswers,
@@ -79,6 +79,8 @@ import { ServerConfig } from "../../config.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import { resolveClaudeSdkExecutablePath } from "../Drivers/ClaudeExecutable.ts";
 import { makeClaudeEnvironment } from "../Drivers/ClaudeHome.ts";
+import { planClaudeSkillDispatch } from "../Drivers/ClaudeSkillDispatch.ts";
+import { discoverClaudeSkills } from "../Drivers/ClaudeSkills.ts";
 import {
   BUNDLED_CLAUDE_MODEL_CATALOG,
   type ClaudeModelCatalog,
@@ -100,6 +102,7 @@ import {
   type ProviderAdapterError,
 } from "../Errors.ts";
 import { type ClaudeAdapterShape } from "../Services/ClaudeAdapter.ts";
+import type { ProviderAdapterSendTurnInput } from "../Services/ProviderAdapter.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
 const decodeUnknownJsonStringExit = Schema.decodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
@@ -711,8 +714,27 @@ function readClaudeResumeState(resumeCursor: unknown): ClaudeResumeState | undef
   };
 }
 
-function classifyToolItemType(toolName: string): CanonicalItemType {
+function readToolImagePath(toolName: string, input: Record<string, unknown>): string | undefined {
+  const normalized = toolName.trim().toLowerCase();
+  if (normalized !== "read" && normalized !== "read file") {
+    return undefined;
+  }
+  const pathValue = input.file_path ?? input.path;
+  if (typeof pathValue !== "string") {
+    return undefined;
+  }
+  const path = pathValue.trim();
+  return path.length > 0 && isWorkspaceImagePreviewPath(path) ? path : undefined;
+}
+
+function classifyToolItemType(
+  toolName: string,
+  input: Record<string, unknown> = {},
+): CanonicalItemType {
   const normalized = toolName.toLowerCase();
+  if (readToolImagePath(toolName, input)) {
+    return "image_view";
+  }
   if (normalized.includes("agent")) {
     return "collab_agent_tool_call";
   }
@@ -1164,6 +1186,11 @@ function workflowAgentStatus(entry: ClaudeWorkflowAgentEntry): RuntimeTaskStatus
 }
 
 function summarizeToolRequest(toolName: string, input: Record<string, unknown>): string {
+  const imagePath = readToolImagePath(toolName, input);
+  if (imagePath) {
+    return imagePath;
+  }
+
   const commandValue = input.command ?? input.cmd;
   const command = typeof commandValue === "string" ? commandValue : undefined;
   if (command && command.trim().length > 0) {
@@ -1225,9 +1252,10 @@ const CLAUDE_SETTING_SOURCES = [
 ] as const satisfies ReadonlyArray<SettingSource>;
 
 function buildPromptText(
-  input: ProviderSendTurnInput,
+  input: ProviderAdapterSendTurnInput,
   boundInstanceId: ProviderInstanceId,
   catalog: ClaudeModelCatalog,
+  promptInput: string | undefined = input.input,
 ): string {
   const rawEffort =
     input.modelSelection?.instanceId === boundInstanceId
@@ -1238,7 +1266,7 @@ function buildPromptText(
   const caps = getClaudeCatalogModelCapabilities(catalog, claudeModel);
 
   const promptEffort = resolvePromptInjectedEffort(caps, rawEffort);
-  return applyClaudePromptEffortPrefix(input.input?.trim() ?? "", promptEffort);
+  return applyClaudePromptEffortPrefix(promptInput?.trim() ?? "", promptEffort);
 }
 
 function buildUserMessage(input: {
@@ -1270,18 +1298,35 @@ function buildClaudeImageContentBlock(input: {
 }
 
 const buildUserMessageEffect = Effect.fn("buildUserMessageEffect")(function* (
-  input: ProviderSendTurnInput,
+  input: ProviderAdapterSendTurnInput,
   dependencies: {
     readonly fileSystem: FileSystem.FileSystem;
     readonly attachmentsDir: string;
     readonly boundInstanceId: ProviderInstanceId;
     readonly modelCatalog: ClaudeModelCatalog;
+    /** Names of the skills Claude Code can run for this session's cwd. */
+    readonly skillNames: ReadonlySet<string>;
   },
 ) {
   const text = buildPromptText(input, dependencies.boundInstanceId, dependencies.modelCatalog);
   const sdkContent: Array<Record<string, unknown>> = [];
 
-  if (text.length > 0) {
+  // Claude Code expands a skill only from the LAST text block, and only when
+  // `/name` is its first character. A `$skill` chip anywhere in the prompt is
+  // therefore split into [leading text, "/name trailing text"] so the CLI
+  // runs it natively and the prose around it survives. See ClaudeSkillDispatch.
+  const skillDispatchText = buildPromptText(
+    input,
+    dependencies.boundInstanceId,
+    dependencies.modelCatalog,
+    input.skillDispatchInput ?? input.input,
+  );
+  const dispatch = planClaudeSkillDispatch(skillDispatchText, dependencies.skillNames, text);
+  if (dispatch) {
+    if (dispatch.leadingText !== undefined) {
+      sdkContent.push({ type: "text", text: dispatch.leadingText });
+    }
+  } else if (text.length > 0) {
     sdkContent.push({ type: "text", text });
   }
 
@@ -1330,6 +1375,12 @@ const buildUserMessageEffect = Effect.fn("buildUserMessageEffect")(function* (
         bytes,
       }),
     );
+  }
+
+  // Images go before the command block: a text block after them still
+  // expands, a command block followed by an image does not.
+  if (dispatch) {
+    sdkContent.push({ type: "text", text: dispatch.commandText });
   }
 
   return buildUserMessage({ sdkContent });
@@ -2510,9 +2561,14 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
 
         const partialInputJson = tool.partialInputJson + event.delta.partial_json;
         const parsedInput = tryParseJsonRecord(partialInputJson);
+        const itemType = parsedInput
+          ? classifyToolItemType(tool.toolName, parsedInput)
+          : tool.itemType;
         const detail = parsedInput ? summarizeToolRequest(tool.toolName, parsedInput) : tool.detail;
         let nextTool: ToolInFlight = {
           ...tool,
+          itemType,
+          title: titleForTool(itemType),
           partialInputJson,
           ...(parsedInput ? { input: parsedInput } : {}),
           ...(detail ? { detail } : {}),
@@ -2617,11 +2673,11 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
       }
 
       const toolName = block.name;
-      const itemType = classifyToolItemType(toolName);
       const toolInput =
         typeof block.input === "object" && block.input !== null
           ? (block.input as Record<string, unknown>)
           : {};
+      const itemType = classifyToolItemType(toolName, toolInput);
       const itemId = block.id;
       const detail = summarizeToolRequest(toolName, toolInput);
       const inputFingerprint =
@@ -4606,11 +4662,29 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
       });
     }
 
+    // Re-scan on every send: skills are added and switched off mid-session,
+    // and the scan is a few directory reads. A skill switched off via
+    // skillOverrides, or reserved for the agent with `user-invocable: false`,
+    // is left as prose: the CLI would answer `/name` with a notice instead of
+    // running it.
+    const skills = yield* discoverClaudeSkills(
+      claudeSettings,
+      context.session.cwd,
+      claudeEnvironment,
+    ).pipe(
+      Effect.provideService(FileSystem.FileSystem, fileSystem),
+      Effect.provideService(Path.Path, path),
+    );
     const message = yield* buildUserMessageEffect(input, {
       fileSystem,
       attachmentsDir: serverConfig.attachmentsDir,
       boundInstanceId,
       modelCatalog,
+      skillNames: new Set(
+        skills
+          .filter((skill) => skill.enabled && skill.userInvocable !== false)
+          .map((skill) => skill.name),
+      ),
     });
 
     yield* Queue.offer(context.promptQueue, {

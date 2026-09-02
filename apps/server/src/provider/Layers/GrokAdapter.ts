@@ -142,6 +142,7 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
         source: "acp.grok.extension",
       },
       rememberSessionApprovals: true,
+      cancelInFlightPromptOnSteer: true,
     },
     {
       ...options,

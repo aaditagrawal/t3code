@@ -193,6 +193,16 @@ export class AcpSessionRuntime extends Context.Service<
      */
     readonly handleExtNotification: EffectAcpClient.AcpClient["Service"]["handleExtNotification"];
     /**
+     * Sends only `initialize` and returns the agent's response. Health probes use this to read
+     * advertised capabilities without authenticating or opening a session, so a probe can never
+     * start an interactive login or boot MCP servers.
+     * @see https://agentclientprotocol.com/protocol/schema#initialize
+     */
+    readonly initialize: () => Effect.Effect<
+      EffectAcpSchema.InitializeResponse,
+      EffectAcpErrors.AcpError
+    >;
+    /**
      * Initializes the ACP connection, authenticates, and loads, resumes, or creates the session.
      * Concurrent calls share the same in-flight startup and a failed startup may be retried.
      */
@@ -210,11 +220,14 @@ export class AcpSessionRuntime extends Context.Service<
     /** Waits for the first complete slash-command update, including an empty update. */
     readonly awaitAvailableCommands: Effect.Effect<ReadonlyArray<AcpAvailableCommand>>;
     /**
-     * Sends a prompt turn to the active session.
+     * Sends a prompt turn to the active session. `options.dispatched` settles once the
+     * `session/prompt` RPC is registered as the active prompt, so a caller that forks this
+     * effect knows when a later `cancel` will target this prompt.
      * @see https://agentclientprotocol.com/protocol/schema#session/prompt
      */
     readonly prompt: (
       payload: Omit<EffectAcpSchema.PromptRequest, "sessionId">,
+      options?: { readonly dispatched?: Deferred.Deferred<void> },
     ) => Effect.Effect<EffectAcpSchema.PromptResponse, EffectAcpErrors.AcpError>;
     /**
      * Sends a real ACP `session/cancel` notification for the active session.
@@ -571,18 +584,19 @@ export const make = (
         ),
       );
 
-    const startOnce = Effect.gen(function* () {
-      const initializePayload = {
-        protocolVersion: 1,
-        clientCapabilities: initializeClientCapabilities,
-        clientInfo: options.clientInfo,
-      } satisfies EffectAcpSchema.InitializeRequest;
+    const initializePayload = {
+      protocolVersion: 1,
+      clientCapabilities: initializeClientCapabilities,
+      clientInfo: options.clientInfo,
+    } satisfies EffectAcpSchema.InitializeRequest;
+    const sendInitialize = runLoggedRequest(
+      "initialize",
+      initializePayload,
+      acp.agent.initialize(initializePayload),
+    );
 
-      const initializeResult = yield* runLoggedRequest(
-        "initialize",
-        initializePayload,
-        acp.agent.initialize(initializePayload),
-      );
+    const startOnce = Effect.gen(function* () {
+      const initializeResult = yield* sendInitialize;
 
       const authMethodId =
         typeof options.authMethodId === "function"
@@ -754,6 +768,7 @@ export const make = (
       handleUnknownExtNotification: acp.handleUnknownExtNotification,
       handleExtRequest: acp.handleExtRequest,
       handleExtNotification: acp.handleExtNotification,
+      initialize: () => sendInitialize,
       start: () => start,
       getEvents: () => Stream.fromQueue(eventQueue),
       drainEvents: Effect.gen(function* () {
@@ -768,7 +783,7 @@ export const make = (
       getConfigOptions: Ref.get(configOptionsRef),
       getAvailableCommands: Ref.get(availableCommandsRef),
       awaitAvailableCommands: Deferred.await(availableCommandsReady),
-      prompt: (payload) =>
+      prompt: (payload, promptOptions?) =>
         Effect.gen(function* () {
           const started = yield* getStartedState;
           yield* closeActiveAssistantSegment({
@@ -793,6 +808,9 @@ export const make = (
               return fiber;
             }),
           );
+          if (promptOptions?.dispatched) {
+            yield* Deferred.succeed(promptOptions.dispatched, undefined);
+          }
           return yield* Fiber.join(promptRpcFiber).pipe(
             Effect.catchCause((cause) =>
               Cause.hasInterruptsOnly(cause)

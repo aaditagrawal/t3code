@@ -24,7 +24,6 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import * as Tracer from "effect/Tracer";
@@ -475,9 +474,7 @@ describe.sequential("signRelayAgentActivityPublishProof", () => {
           readEvents: () => Stream.empty,
           dispatch: () => Effect.succeed({ sequence: 1 }),
           streamDomainEvents: Stream.fromQueue(events),
-          subscribeDomainEvents: Effect.flatMap(PubSub.unbounded<OrchestrationEvent>(), (pubsub) =>
-            PubSub.subscribe(pubsub),
-          ),
+          subscribeDomainEvents: Effect.succeed(Stream.fromQueue(events)),
           latestSequence: Effect.succeed(0),
         } satisfies OrchestrationEngineShape;
 
@@ -670,10 +667,7 @@ describe.sequential("signRelayAgentActivityPublishProof", () => {
             readEvents: () => Stream.empty,
             dispatch: () => Effect.succeed({ sequence: 1 }),
             streamDomainEvents: Stream.fromQueue(events),
-            subscribeDomainEvents: Effect.flatMap(
-              PubSub.unbounded<OrchestrationEvent>(),
-              (pubsub) => PubSub.subscribe(pubsub),
-            ),
+            subscribeDomainEvents: Effect.succeed(Stream.fromQueue(events)),
             latestSequence: Effect.succeed(0),
           } satisfies OrchestrationEngineShape),
           Layer.succeed(ProjectionSnapshotQuery, {

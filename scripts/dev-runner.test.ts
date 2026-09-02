@@ -1011,11 +1011,9 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       });
     });
 
-    // A shared origin means a remote browser, where unbundled dev's
-    // per-module waterfall pays a tailnet round trip per import level. The
-    // runner defaults bundled dev on for the spawned stack, but only
-    // defaults: an explicit T3CODE_BUNDLED_DEV (even "0") must pass through.
-    describe("--share bundled dev default", () => {
+    // Bundled dev remains explicit while its HTML transform path is
+    // experimental. Shared runs preserve an explicit choice but do not opt in.
+    describe("--share bundled dev configuration", () => {
       const shareSpawnedEnv = (input: { readonly ambientBundledDev: string | undefined }) =>
         Effect.gen(function* () {
           let captured: Record<string, string | undefined> | undefined;
@@ -1076,17 +1074,17 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           return captured;
         });
 
-      it.effect("defaults T3CODE_BUNDLED_DEV=1 for a shared run", () =>
+      it.effect("leaves T3CODE_BUNDLED_DEV unset for a shared run", () =>
         Effect.gen(function* () {
           const env = yield* shareSpawnedEnv({ ambientBundledDev: undefined });
-          assert.equal(env?.T3CODE_BUNDLED_DEV, "1");
+          assert.equal(env?.T3CODE_BUNDLED_DEV, undefined);
         }),
       );
 
-      it.effect("keeps an explicit T3CODE_BUNDLED_DEV=0 opt-out", () =>
+      it.effect("keeps an explicit T3CODE_BUNDLED_DEV choice", () =>
         Effect.gen(function* () {
-          const env = yield* shareSpawnedEnv({ ambientBundledDev: "0" });
-          assert.equal(env?.T3CODE_BUNDLED_DEV, "0");
+          const env = yield* shareSpawnedEnv({ ambientBundledDev: "1" });
+          assert.equal(env?.T3CODE_BUNDLED_DEV, "1");
         }),
       );
 

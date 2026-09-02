@@ -25,6 +25,7 @@ import {
   type ProviderRuntimeEvent,
   type ProviderSession,
 } from "@t3tools/contracts";
+import { prepareAssistantCitationsForProvider } from "@t3tools/shared/assistantCitations";
 import { causeErrorTag } from "@t3tools/shared/observability";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -49,7 +50,10 @@ import {
   withMetrics,
 } from "../../observability/Metrics.ts";
 import { type ProviderAdapterError, ProviderValidationError } from "../Errors.ts";
-import type { ProviderAdapterShape } from "../Services/ProviderAdapter.ts";
+import type {
+  ProviderAdapterSendTurnInput,
+  ProviderAdapterShape,
+} from "../Services/ProviderAdapter.ts";
 import * as ProviderAdapterRegistry from "../Services/ProviderAdapterRegistry.ts";
 import * as ProviderService from "../Services/ProviderService.ts";
 import * as ProviderSessionDirectory from "../Services/ProviderSessionDirectory.ts";
@@ -729,6 +733,17 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
       );
     }
 
+    const citationInput =
+      parsed.input === undefined ? undefined : prepareAssistantCitationsForProvider(parsed.input);
+    const inputTextWithCitations = citationInput?.input;
+    if (inputTextWithCitations !== parsed.input) {
+      yield* decodeInputOrValidationError({
+        operation: "ProviderService.sendTurn",
+        schema: ProviderSendTurnInput.fields.input,
+        payload: inputTextWithCitations,
+      });
+    }
+
     // Every attachment gets an on-disk path in the prompt so the model's tools
     // can dereference the actual file. All attachments then go to the adapter,
     // and each adapter decides what its provider ingests natively: OpenCode
@@ -746,16 +761,17 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     });
     const inputTextWithAttachmentPaths =
       attachmentPathLines.length === 0
-        ? parsed.input
-        : [parsed.input, attachmentPathLines.join("\n")]
+        ? inputTextWithCitations
+        : [inputTextWithCitations, attachmentPathLines.join("\n")]
             .filter((part): part is string => typeof part === "string" && part.length > 0)
             .join("\n\n");
 
-    const input = {
+    const input: ProviderAdapterSendTurnInput = {
       ...parsed,
       ...(inputTextWithAttachmentPaths !== undefined
         ? { input: inputTextWithAttachmentPaths }
         : {}),
+      skillDispatchInput: citationInput?.skillDispatchInput ?? "",
     };
     yield* Effect.annotateCurrentSpan({
       "provider.operation": "send-turn",
@@ -996,21 +1012,21 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
         ),
       );
       const activeSessions = sessionsByProvider.flatMap((sessions) => sessions);
-      const persistedBindings = yield* directory.listThreadIds().pipe(
-        Effect.flatMap((threadIds) =>
-          Effect.forEach(
-            threadIds,
-            (threadId) =>
-              directory
-                .getBinding(threadId)
-                .pipe(
-                  Effect.orElseSucceed(() =>
-                    Option.none<ProviderSessionDirectory.ProviderRuntimeBinding>(),
-                  ),
-                ),
-            { concurrency: "unbounded" },
-          ),
-        ),
+      // Only live adapter sessions appear in this response. Resolving every
+      // historical binding here makes each call scale with the full thread
+      // history instead of the active session set.
+      const persistedBindings = yield* Effect.forEach(
+        [...new Set(activeSessions.map((session) => session.threadId))],
+        (threadId) =>
+          directory
+            .getBinding(threadId)
+            .pipe(
+              Effect.orElseSucceed(() =>
+                Option.none<ProviderSessionDirectory.ProviderRuntimeBinding>(),
+              ),
+            ),
+        { concurrency: "unbounded" },
+      ).pipe(
         Effect.orElseSucceed(
           () => [] as Array<Option.Option<ProviderSessionDirectory.ProviderRuntimeBinding>>,
         ),

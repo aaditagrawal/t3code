@@ -1,6 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
-  type OrchestrationEvent,
   type OrchestrationCommand,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -10,7 +9,6 @@ import {
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import * as PubSub from "effect/PubSub";
 import * as Stream from "effect/Stream";
 
 import { OrchestrationCommandInvariantError } from "./orchestration/Errors.ts";
@@ -23,11 +21,6 @@ import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
 
 const providerInstanceId = ProviderInstanceId.make("codex");
 const updatedAt = "2026-08-20T12:00:00.000Z";
-const unusedSubscribeDomainEvents = Effect.flatMap(
-  PubSub.unbounded<OrchestrationEvent>(),
-  (pubsub) => PubSub.subscribe(pubsub),
-);
-
 const makeThread = (
   id: string,
   status: "starting" | "running" | "ready" | "stopped" | "error",
@@ -90,7 +83,7 @@ const runReconciliation = (input: {
       readEvents: () => Stream.empty,
       dispatch: input.dispatch,
       streamDomainEvents: Stream.empty,
-      subscribeDomainEvents: unusedSubscribeDomainEvents,
+      subscribeDomainEvents: Effect.succeed(Stream.empty),
       latestSequence: Effect.succeed(0),
     }),
     Effect.provide(NodeServices.layer),
@@ -296,7 +289,7 @@ it.effect("does not fail startup when the live provider session inventory cannot
       readEvents: () => Stream.empty,
       dispatch: () => Effect.die("unused"),
       streamDomainEvents: Stream.empty,
-      subscribeDomainEvents: unusedSubscribeDomainEvents,
+      subscribeDomainEvents: Effect.succeed(Stream.empty),
       latestSequence: Effect.succeed(0),
     }),
     Effect.provide(NodeServices.layer),

@@ -44,6 +44,11 @@ export interface ProviderThreadSnapshot {
   readonly turns: ReadonlyArray<ProviderThreadTurnSnapshot>;
 }
 
+/** Server-enriched turn input. Generated provider context must not participate in skill dispatch. */
+export interface ProviderAdapterSendTurnInput extends ProviderSendTurnInput {
+  readonly skillDispatchInput?: string;
+}
+
 export interface ProviderAdapterShape<TError> {
   /**
    * Provider kind implemented by this adapter.
@@ -62,7 +67,7 @@ export interface ProviderAdapterShape<TError> {
    * Send a turn to an active provider session.
    */
   readonly sendTurn: (
-    input: ProviderSendTurnInput,
+    input: ProviderAdapterSendTurnInput,
   ) => Effect.Effect<ProviderTurnStartResult, TError>;
 
   /**
