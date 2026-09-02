@@ -2,7 +2,8 @@ import { ProviderDriverKind } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { OhMyPiIcon, OpenAI } from "../Icons";
-import { AVAILABLE_PROVIDER_OPTIONS, PROVIDER_ICON_BY_PROVIDER } from "./providerIconUtils";
+import { PROVIDER_OPTIONS } from "../../session-logic";
+import { PROVIDER_ICON_BY_PROVIDER } from "./providerIconUtils";
 
 describe("Oh My Pi provider presentation", () => {
   it("uses the Oh My Pi mark instead of the Codex fallback", () => {
@@ -13,7 +14,7 @@ describe("Oh My Pi provider presentation", () => {
   });
 
   it("advertises Oh My Pi as an available provider", () => {
-    expect(AVAILABLE_PROVIDER_OPTIONS).toContainEqual({
+    expect(PROVIDER_OPTIONS).toContainEqual({
       value: "ohMyPi",
       label: "Oh My Pi",
       available: true,

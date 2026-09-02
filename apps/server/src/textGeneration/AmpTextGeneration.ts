@@ -2,7 +2,7 @@
  * AmpTextGeneration — Graceful "not supported" text-generation shape for Amp.
  *
  * Amp's CLI does not currently expose a structured-output mode that maps
- * cleanly onto our `TextGenerationShape` contract (commit messages, PR
+ * cleanly onto our text-generation service contract (commit messages, PR
  * titles, branch names, thread titles). Rather than block the driver from
  * registering, this factory returns an implementation that fails every
  * operation with a clear `TextGenerationError`. The user can still pick a
@@ -16,7 +16,9 @@ import * as Effect from "effect/Effect";
 import type { GenericProviderSettings } from "@t3tools/contracts";
 import { TextGenerationError } from "@t3tools/contracts";
 
-import { type TextGenerationShape } from "./TextGeneration.ts";
+import { type TextGeneration } from "./TextGeneration.ts";
+
+type TextGenerationService = TextGeneration["Service"];
 
 const NOT_SUPPORTED_DETAIL =
   "Amp does not expose a structured text-generation API. Use a different provider instance for commit/PR/branch/title generation.";
@@ -33,16 +35,16 @@ export const makeAmpTextGeneration = Effect.fn("makeAmpTextGeneration")(function
   _ampSettings: GenericProviderSettings,
   _environment: NodeJS.ProcessEnv = process.env,
 ) {
-  const generateCommitMessage: TextGenerationShape["generateCommitMessage"] = () =>
+  const generateCommitMessage: TextGenerationService["generateCommitMessage"] = () =>
     fail("generateCommitMessage");
 
-  const generatePrContent: TextGenerationShape["generatePrContent"] = () =>
+  const generatePrContent: TextGenerationService["generatePrContent"] = () =>
     fail("generatePrContent");
 
-  const generateBranchName: TextGenerationShape["generateBranchName"] = () =>
+  const generateBranchName: TextGenerationService["generateBranchName"] = () =>
     fail("generateBranchName");
 
-  const generateThreadTitle: TextGenerationShape["generateThreadTitle"] = () =>
+  const generateThreadTitle: TextGenerationService["generateThreadTitle"] = () =>
     fail("generateThreadTitle");
 
   return {
@@ -50,5 +52,5 @@ export const makeAmpTextGeneration = Effect.fn("makeAmpTextGeneration")(function
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
-  } satisfies TextGenerationShape;
+  } satisfies TextGenerationService;
 });

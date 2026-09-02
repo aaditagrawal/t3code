@@ -1,5 +1,5 @@
 /**
- * GeminiCliTextGeneration — `TextGenerationShape` factory for the Gemini CLI
+ * GeminiCliTextGeneration — text-generation service factory for the Gemini CLI
  * provider.
  *
  * Earlier revisions invoked `gemini -p <prompt> --approval-mode yolo` inside
@@ -23,7 +23,9 @@ import * as Effect from "effect/Effect";
 
 import { type GenericProviderSettings, TextGenerationError } from "@t3tools/contracts";
 
-import { type TextGenerationShape } from "./TextGeneration.ts";
+import { type TextGeneration } from "./TextGeneration.ts";
+
+type TextGenerationService = TextGeneration["Service"];
 
 const UNSUPPORTED_DETAIL =
   "Gemini CLI is not supported for headless text generation (the only non-interactive Gemini mode auto-approves tool calls in the workspace). Pick a different provider for commit / PR / branch / thread title generation.";
@@ -48,13 +50,13 @@ export const makeGeminiCliTextGeneration = Effect.fn("makeGeminiCliTextGeneratio
       }),
     );
 
-  const generateCommitMessage: TextGenerationShape["generateCommitMessage"] = () =>
+  const generateCommitMessage: TextGenerationService["generateCommitMessage"] = () =>
     fail("generateCommitMessage");
-  const generatePrContent: TextGenerationShape["generatePrContent"] = () =>
+  const generatePrContent: TextGenerationService["generatePrContent"] = () =>
     fail("generatePrContent");
-  const generateBranchName: TextGenerationShape["generateBranchName"] = () =>
+  const generateBranchName: TextGenerationService["generateBranchName"] = () =>
     fail("generateBranchName");
-  const generateThreadTitle: TextGenerationShape["generateThreadTitle"] = () =>
+  const generateThreadTitle: TextGenerationService["generateThreadTitle"] = () =>
     fail("generateThreadTitle");
 
   return {
@@ -62,5 +64,5 @@ export const makeGeminiCliTextGeneration = Effect.fn("makeGeminiCliTextGeneratio
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
-  } satisfies TextGenerationShape;
+  } satisfies TextGenerationService;
 });

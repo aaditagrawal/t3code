@@ -26,7 +26,6 @@
     "@cursor/sdk": "^1.0.13",
     "@effect/platform-bun": "catalog:",
     "@effect/platform-node": "catalog:",
-    "@effect/platform-node-shared": "catalog:",
     "@effect/sql-sqlite-bun": "catalog:",
     "@factory/droid-sdk": "^0.2.0",
     "@ff-labs/fff-node": "0.9.4",

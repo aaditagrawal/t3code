@@ -23,7 +23,9 @@ import { KiloServerManager } from "../kiloServerManager.ts";
 import { parseKiloModel, readJsonData } from "../kilo/utils.ts";
 import { createClient } from "../kilo/serverLifecycle.ts";
 import type { KiloProviderOptions, SharedServerState } from "../kilo/types.ts";
-import { type TextGenerationShape } from "./TextGeneration.ts";
+import { type TextGeneration } from "./TextGeneration.ts";
+
+type TextGenerationService = TextGeneration["Service"];
 import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
@@ -197,7 +199,7 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
     );
   });
 
-  const generateCommitMessage: TextGenerationShape["generateCommitMessage"] = Effect.fn(
+  const generateCommitMessage: TextGenerationService["generateCommitMessage"] = Effect.fn(
     "KiloTextGeneration.generateCommitMessage",
   )(function* (input) {
     const { prompt, outputSchema } = buildCommitMessagePrompt({
@@ -223,7 +225,7 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
     };
   });
 
-  const generatePrContent: TextGenerationShape["generatePrContent"] = Effect.fn(
+  const generatePrContent: TextGenerationService["generatePrContent"] = Effect.fn(
     "KiloTextGeneration.generatePrContent",
   )(function* (input) {
     const { prompt, outputSchema } = buildPrContentPrompt({
@@ -247,7 +249,7 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
     };
   });
 
-  const generateBranchName: TextGenerationShape["generateBranchName"] = Effect.fn(
+  const generateBranchName: TextGenerationService["generateBranchName"] = Effect.fn(
     "KiloTextGeneration.generateBranchName",
   )(function* (input) {
     const { prompt, outputSchema } = buildBranchNamePrompt({
@@ -268,7 +270,7 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
     };
   });
 
-  const generateThreadTitle: TextGenerationShape["generateThreadTitle"] = Effect.fn(
+  const generateThreadTitle: TextGenerationService["generateThreadTitle"] = Effect.fn(
     "KiloTextGeneration.generateThreadTitle",
   )(function* (input) {
     const { prompt, outputSchema } = buildThreadTitlePrompt({
@@ -294,5 +296,5 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
-  } satisfies TextGenerationShape;
+  } satisfies TextGenerationService;
 });

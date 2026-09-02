@@ -15,7 +15,9 @@ import {
   type CursorSdkClient,
   type CursorSdkRunResult,
 } from "../provider/cursor/CursorSdkClient.ts";
-import { type ThreadTitleGenerationResult, type TextGenerationShape } from "./TextGeneration.ts";
+import { type TextGeneration, type ThreadTitleGenerationResult } from "./TextGeneration.ts";
+
+type TextGenerationService = TextGeneration["Service"];
 import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
@@ -167,7 +169,7 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
       ),
     );
 
-  const generateCommitMessage: TextGenerationShape["generateCommitMessage"] = Effect.fn(
+  const generateCommitMessage: TextGenerationService["generateCommitMessage"] = Effect.fn(
     "CursorTextGeneration.generateCommitMessage",
   )(function* (input) {
     const { prompt, outputSchema } = buildCommitMessagePrompt({
@@ -195,7 +197,7 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
     };
   });
 
-  const generatePrContent: TextGenerationShape["generatePrContent"] = Effect.fn(
+  const generatePrContent: TextGenerationService["generatePrContent"] = Effect.fn(
     "CursorTextGeneration.generatePrContent",
   )(function* (input) {
     const { prompt, outputSchema } = buildPrContentPrompt({
@@ -222,7 +224,7 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
     };
   });
 
-  const generateBranchName: TextGenerationShape["generateBranchName"] = Effect.fn(
+  const generateBranchName: TextGenerationService["generateBranchName"] = Effect.fn(
     "CursorTextGeneration.generateBranchName",
   )(function* (input) {
     const { prompt, outputSchema } = buildBranchNamePrompt({
@@ -243,7 +245,7 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
     };
   });
 
-  const generateThreadTitle: TextGenerationShape["generateThreadTitle"] = Effect.fn(
+  const generateThreadTitle: TextGenerationService["generateThreadTitle"] = Effect.fn(
     "CursorTextGeneration.generateThreadTitle",
   )(function* (input) {
     const { prompt, outputSchema } = buildThreadTitlePrompt({
@@ -270,5 +272,5 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
-  } satisfies TextGenerationShape;
+  } satisfies TextGenerationService;
 });

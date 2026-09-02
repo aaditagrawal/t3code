@@ -18,7 +18,9 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
 import { ServerConfig } from "../../config.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
-import type { TextGenerationShape } from "../../textGeneration/TextGeneration.ts";
+import type { TextGeneration } from "../../textGeneration/TextGeneration.ts";
+
+type TextGenerationService = TextGeneration["Service"];
 import { ProviderDriverError } from "../Errors.ts";
 import { parseStandardAcpCliArguments } from "../acp/StandardAcpCliSupport.ts";
 import type { StandardAcpAdapterLiveOptions } from "../Layers/StandardAcpAdapter.ts";
@@ -83,7 +85,7 @@ export interface StandardAcpCliDriverConfig<Settings extends StandardAcpCliSetti
   >;
 }
 
-function makeUnsupportedTextGeneration(displayName: string): TextGenerationShape {
+function makeUnsupportedTextGeneration(displayName: string): TextGenerationService {
   const fail = (operation: TextGenerationError["operation"]) =>
     Effect.fail(
       new TextGenerationError({
