@@ -129,6 +129,58 @@ export function assetResponseOptions(asset: ResolvedAsset) {
   };
 }
 
+/** A single byte range for native video readers; unsupported range syntax uses the full file. */
+function assetByteRange(header: string, size: bigint) {
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(header.trim());
+  if (!match || (!match[1] && !match[2])) return null;
+  const first = match[1] ? BigInt(match[1]) : null;
+  const last = match[2] ? BigInt(match[2]) : null;
+  if (first !== null && last !== null && last < first) return null;
+  if (size === 0n || (first !== null && first >= size) || (first === null && last === 0n)) {
+    return { _tag: "Unsatisfiable" as const };
+  }
+  const start = first ?? (last! >= size ? 0n : size - last!);
+  const end = first === null || last === null || last >= size ? size - 1n : last;
+  return {
+    _tag: "Range" as const,
+    offset: start,
+    bytesToRead: end - start + 1n,
+    contentRange: `bytes ${start}-${end}/${size}`,
+  };
+}
+
+export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
+  asset: ResolvedAsset,
+  rangeHeader?: string,
+  ifRangeHeader?: string,
+) {
+  const { headers } = assetResponseOptions(asset);
+  if (headers["Content-Type"]?.toLowerCase().startsWith("video/")) {
+    headers["Accept-Ranges"] = "bytes";
+    // If-Range requires a matching validator. A full response is safe when we cannot validate it.
+    if (rangeHeader && !ifRangeHeader) {
+      const fs = yield* FileSystem.FileSystem;
+      const info = yield* fs.stat(asset.path);
+      const range = assetByteRange(rangeHeader, info.size);
+      if (range?._tag === "Unsatisfiable") {
+        return HttpServerResponse.empty({
+          status: 416,
+          headers: { ...headers, "Content-Range": `bytes */${info.size}` },
+        });
+      }
+      if (range?._tag === "Range") {
+        return yield* HttpServerResponse.file(asset.path, {
+          status: 206,
+          offset: range.offset,
+          bytesToRead: range.bytesToRead,
+          headers: { ...headers, "Content-Range": range.contentRange },
+        });
+      }
+    }
+  }
+  return yield* HttpServerResponse.file(asset.path, { status: 200, headers });
+});
+
 export const httpCompressionLayer = HttpRouter.middleware(HttpMiddleware.compression(), {
   global: true,
 });
@@ -294,7 +346,11 @@ export const assetRouteLayer = HttpRouter.add(
     if (!asset) {
       return HttpServerResponse.text("Not Found", { status: 404 });
     }
-    return yield* HttpServerResponse.file(asset.path, assetResponseOptions(asset)).pipe(
+    return yield* assetFileResponse(
+      asset,
+      request.method === "GET" ? request.headers.range : undefined,
+      request.headers["if-range"],
+    ).pipe(
       Effect.orElseSucceed(() => HttpServerResponse.text("Internal Server Error", { status: 500 })),
     );
   }),

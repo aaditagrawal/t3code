@@ -103,7 +103,7 @@ const collectQueueUntil = Effect.fn("TransferBudget.collectQueueUntil")(function
 
 import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
 import * as ServerConfig from "./config.ts";
-import { makeRoutesLayer } from "./server.ts";
+import { HTTP_ROUTER_CONFIG, makeRoutesLayer } from "./server.ts";
 import {
   isThreadDetailEvent,
   resolveAvailableEditorsForConfig,
@@ -291,6 +291,11 @@ const makeAuthTestLayer = () =>
   EnvironmentAuth.layer.pipe(
     Layer.provide(SqlitePersistenceMemory),
     Layer.provide(ServerSecretStore.layer),
+    Layer.provide(
+      Layer.mock(ServerEnvironment.ServerEnvironmentIdentity)({
+        getEnvironmentId: Effect.succeed(testEnvironmentDescriptor.environmentId),
+      }),
+    ),
   );
 
 const makeBrowserOtlpPayload = (spanName: string) =>
@@ -629,6 +634,7 @@ const buildAppUnderTest = (options?: {
       {
         disableListenLog: true,
         disableLogger: true,
+        routerConfig: HTTP_ROUTER_CONFIG,
       },
     ).pipe(
       Layer.provide(
@@ -1531,6 +1537,41 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
+  it.effect("serves snapshots for MCP handoff thread IDs above the router default", () =>
+    Effect.gen(function* () {
+      const threadId = ThreadId.make(
+        "thread:mcp:abfba0d2-b591-4b7e-aad1-e943d89811fa:handoff%3A0ae5edf4-2ea3-4ee3-ba7c-48de3ac92896%3A2026-08-24T17%3A08%3A52.138Z:0",
+      );
+      const thread = {
+        ...makeDefaultOrchestrationReadModel().threads[0]!,
+        id: threadId,
+      };
+      yield* buildAppUnderTest({
+        layers: {
+          projectionSnapshotQuery: {
+            getThreadDetailSnapshot: (requestedThreadId) =>
+              Effect.succeed(
+                requestedThreadId === threadId
+                  ? Option.some({ snapshotSequence: 1, thread })
+                  : Option.none(),
+              ),
+          },
+        },
+      });
+
+      const response = yield* fetchEffect(
+        yield* getHttpServerUrl(`/api/orchestration/threads/${encodeURIComponent(threadId)}`),
+        { headers: { cookie: yield* getAuthenticatedSessionCookieHeader() } },
+      );
+      const snapshot = yield* responseJsonEffect<{
+        readonly thread: { readonly id: ThreadId };
+      }>(response);
+
+      assert.equal(response.status, 200);
+      assert.equal(snapshot.thread.id, threadId);
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
   it.effect("compresses large JSON responses through the composed routes", () =>
     Effect.gen(function* () {
       const descriptor = {
@@ -1640,6 +1681,48 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       assert.equal(sessionBody.authenticated, true);
       assert.equal(sessionBody.sessionMethod, "browser-session-cookie");
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect("migrates a valid legacy remote-web session cookie", () =>
+    Effect.gen(function* () {
+      yield* buildAppUnderTest({ config: { mode: "web", host: "192.168.1.50" } });
+
+      const { cookie } = yield* bootstrapBrowserSession();
+      const currentCookie = cookie?.split(";")[0] ?? "";
+      const legacyCookie = currentCookie.replace(/^t3_session_[^=]+=/, "t3_session=");
+      const sessionUrl = yield* getHttpServerUrl("/api/auth/session");
+      const response = yield* fetchEffect(sessionUrl, {
+        headers: { cookie: legacyCookie },
+      });
+      const body = yield* responseJsonEffect<{ readonly authenticated: boolean }>(response);
+
+      assert.equal(body.authenticated, true);
+      assert.equal(response.headers["set-cookie"], cookie);
+      assert.equal(response.headers["cache-control"], "no-store");
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect.each(["cookie", "bearer"])(
+    "does not migrate a stale legacy cookie when %s auth succeeds",
+    (source) =>
+      Effect.gen(function* () {
+        yield* buildAppUnderTest({ config: { mode: "web", host: "192.168.1.50" } });
+
+        const { cookie } = yield* bootstrapBrowserSession();
+        const sessionCookie = cookie?.split(";")[0] ?? "";
+        const sessionToken = extractSessionTokenFromSetCookie(cookie ?? "");
+        const sessionUrl = yield* getHttpServerUrl("/api/auth/session");
+        const response = yield* fetchEffect(sessionUrl, {
+          headers:
+            source === "cookie"
+              ? { cookie: `${sessionCookie}; t3_session=stale` }
+              : { authorization: `Bearer ${sessionToken}`, cookie: "t3_session=stale" },
+        });
+        const body = yield* responseJsonEffect<{ readonly authenticated: boolean }>(response);
+
+        assert.equal(body.authenticated, true);
+        assert.isUndefined(response.headers["set-cookie"]);
+      }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
   it.effect("exchanges a bootstrap grant for a scoped bearer access token", () =>

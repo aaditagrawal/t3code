@@ -9,6 +9,7 @@ import {
   type ColorValue,
   Pressable,
   ScrollView,
+  StyleSheet,
   View,
 } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
@@ -16,7 +17,11 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { AppText as Text } from "../../components/AppText";
 import { cn } from "../../lib/cn";
 import type { ThreadFeedActivity } from "../../lib/threadActivity";
-import type { ToolGroupSummaryKind } from "@t3tools/client-runtime/work-log/presentation";
+import {
+  type ToolGroupSummaryKind,
+  workEntryViewedImagePath,
+} from "@t3tools/client-runtime/work-log/presentation";
+import type { MarkdownImageRenderer } from "../../native/SelectableMarkdownText";
 import Animated, {
   cancelAnimation,
   Easing,
@@ -78,7 +83,7 @@ function ShimmerWorkContent(props: {
   );
 }
 
-function ShimmeringWorkContent(props: {
+export function ShimmeringWorkContent(props: {
   readonly icon: AppSymbolName;
   readonly iconSubtleColor: ColorValue;
   readonly label: string;
@@ -143,7 +148,7 @@ function ShimmeringWorkContent(props: {
 
   return (
     <View
-      className="min-w-0 flex-1"
+      className="min-w-0 flex-1 overflow-hidden"
       onLayout={(event) => setAvailableWidth(event.nativeEvent.layout.width)}
     >
       <ShimmerWorkContent
@@ -164,7 +169,7 @@ function ShimmeringWorkContent(props: {
           style={[{ width: SHIMMER_WIDTH }, sweepStyle]}
         >
           <MaskedView
-            className="absolute inset-0"
+            style={StyleSheet.absoluteFill}
             maskElement={
               <Svg width="100%" height="100%">
                 <Defs>
@@ -276,6 +281,7 @@ export function ThreadWorkLog(props: {
   readonly iconSubtleColor: import("react-native").ColorValue;
   readonly onCopyRow: (rowId: string, value: string) => void;
   readonly onToggleRow: (rowId: string) => void;
+  readonly renderImage: MarkdownImageRenderer;
 }) {
   const rows = props.activities.map((activity) => ({
     ...activity,
@@ -293,6 +299,7 @@ export function ThreadWorkLog(props: {
           const expanded = props.expandedRows[row.id] ?? false;
           const canExpand = row.canExpand;
           const fullDetail = expanded ? row.getFullDetail() : null;
+          const viewedImagePath = workEntryViewedImagePath(row.workEntry);
           const displayText = row.detail ?? row.summary;
           const iconIsDestructive = row.icon === "alert" || row.icon === "warning";
           const failed = row.status === "failure";
@@ -392,6 +399,11 @@ export function ThreadWorkLog(props: {
                   layout={WORK_LOG_LAYOUT_TRANSITION}
                   className="ml-7 border-l border-adaptive-neutral-300-a60-white-a12 pb-1 pl-3 pt-0.5"
                 >
+                  {viewedImagePath ? (
+                    <View className="pb-1.5">
+                      {props.renderImage({ href: viewedImagePath, alt: null, title: null })}
+                    </View>
+                  ) : null}
                   <ScrollView
                     nestedScrollEnabled
                     directionalLockEnabled

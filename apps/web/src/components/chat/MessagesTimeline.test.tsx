@@ -520,7 +520,7 @@ describe("MessagesTimeline", () => {
     );
 
     expect(markup).toContain('data-anchor-index="0"');
-    expect(markup).toContain('data-anchor-offset="16"');
+    expect(markup).toContain('data-anchor-offset="24"');
     expect(markup).toContain('data-anchor-on-ready="true"');
     expect(markup).not.toContain("data-anchor-max-size=");
     expect(markup).toContain('data-content-inset-end="144"');
@@ -1358,7 +1358,7 @@ describe("MessagesTimeline", () => {
     expect(markup).not.toContain("tool call failed");
   });
 
-  it("keeps terminal command copy live while the parent turn is active", () => {
+  it("keeps declined command copy visible while thinking continues", () => {
     const turnId = TurnId.make("turn-live");
     const markup = renderToStaticMarkup(
       <MessagesTimeline
@@ -1374,26 +1374,27 @@ describe("MessagesTimeline", () => {
         runningTurnId={turnId}
         timelineEntries={[
           {
-            id: "entry-failed",
+            id: "entry-declined",
             kind: "work",
             createdAt: MESSAGE_CREATED_AT,
             entry: {
-              id: "work-failed",
+              id: "work-declined",
               createdAt: MESSAGE_CREATED_AT,
               turnId,
-              toolCallId: "call-failed",
+              toolCallId: "call-declined",
               label: "Run lint",
               tone: "tool",
               itemType: "command_execution",
               command: "pnpm lint",
-              toolLifecycleStatus: "failed",
+              toolLifecycleStatus: "declined",
             },
           },
         ]}
       />,
     );
 
-    expect(markup).toContain("Running pnpm");
+    expect(markup).toContain("Declined pnpm");
+    expect(markup).toContain("Thinking");
     expect(markup).toContain("tool call failed");
   });
 
