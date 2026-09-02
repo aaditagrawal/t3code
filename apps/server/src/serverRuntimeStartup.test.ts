@@ -81,6 +81,7 @@ it.effect("launchStartupHeartbeat does not block the caller while counts are loa
   Effect.scoped(
     Effect.gen(function* () {
       const releaseCounts = yield* Deferred.make<void, never>();
+      const countsStarted = yield* Deferred.make<void, never>();
 
       yield* ServerRuntimeStartup.launchStartupHeartbeat.pipe(
         Effect.provideService(ProjectionSnapshotQuery.ProjectionSnapshotQuery, {
@@ -90,7 +91,8 @@ it.effect("launchStartupHeartbeat does not block the caller while counts are loa
           getArchivedShellSnapshot: () => Effect.die("unused"),
           getSnapshotSequence: () => Effect.die("unused"),
           getCounts: () =>
-            Deferred.await(releaseCounts).pipe(
+            Deferred.succeed(countsStarted, undefined).pipe(
+              Effect.andThen(Deferred.await(releaseCounts)),
               Effect.as({
                 projectCount: 2,
                 threadCount: 3,
@@ -111,6 +113,13 @@ it.effect("launchStartupHeartbeat does not block the caller while counts are loa
           flush: Effect.void,
         }),
       );
+
+      // The heartbeat is forked, so the caller is already back here while
+      // getCounts is still parked. Awaiting countsStarted proves the forked
+      // work really ran; releaseCounts staying incomplete proves the caller
+      // never waited for it.
+      yield* Deferred.await(countsStarted);
+      assert.equal(yield* Deferred.isDone(releaseCounts), false);
     }),
   ),
 );

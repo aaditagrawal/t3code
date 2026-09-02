@@ -665,7 +665,7 @@ export function ProviderInstanceCard({
               {versionCodeNode}
               {versionAdvisory ? (
                 <span role="img" aria-label="Update available" className="inline-flex shrink-0">
-                  <ArrowUpCircleIcon className="size-3.5 text-update-foreground" />
+                  <ArrowUpCircleIcon className="size-3.5 text-muted-foreground" />
                 </span>
               ) : null}
             </span>
@@ -720,7 +720,7 @@ export function ProviderInstanceCard({
                           "size-5 rounded-sm p-0",
                           versionAdvisory.emphasis === "strong"
                             ? "text-warning hover:text-warning"
-                            : "text-update-foreground hover:text-update-foreground",
+                            : "text-muted-foreground hover:text-foreground",
                         )}
                         aria-label="Update available — view details"
                       >
@@ -753,7 +753,7 @@ export function ProviderInstanceCard({
                         <Button
                           type="button"
                           size="xs"
-                          variant="default"
+                          variant="outline"
                           className="w-full"
                           disabled={isUpdating}
                           onClick={onRunUpdate}

@@ -266,7 +266,9 @@ export function mergeEnvironmentSettings(
   serverSettings: ServerSettings,
   clientSettings: ClientSettings,
 ): UnifiedSettings {
-  return { ...serverSettings, ...clientSettings };
+  // Decode drops retired client keys, but older untyped persistence adapters
+  // can still return them. Server-owned values must always win.
+  return { ...clientSettings, ...serverSettings };
 }
 
 function useMergedSettings<T>(
@@ -414,20 +416,4 @@ export function useUpdateClientSettings() {
       ...patch,
     });
   }, []);
-}
-
-export function __resetClientSettingsPersistenceForTests(): void {
-  clientSettingsHydrationGeneration += 1;
-  clientSettingsSnapshot = DEFAULT_CLIENT_SETTINGS;
-  clientSettingsHydrated = false;
-  clientSettingsHydrationPromise = null;
-  clientSettingsListeners.clear();
-  clientSettingsHydrationListeners.clear();
-}
-
-export function __setClientSettingsForTests(settings: ClientSettings): void {
-  clientSettingsHydrationGeneration += 1;
-  clientSettingsSnapshot = settings;
-  clientSettingsHydrated = true;
-  clientSettingsHydrationPromise = null;
 }
