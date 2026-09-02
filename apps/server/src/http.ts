@@ -29,6 +29,7 @@ import { OtlpTracer } from "effect/unstable/observability";
 
 import * as ServerConfig from "./config.ts";
 import { ASSET_ROUTE_PREFIX, resolveAsset, type ResolvedAsset } from "./assets/AssetAccess.ts";
+import { statMediaFile, streamMediaFile } from "./assets/MediaFile.ts";
 import {
   ATTACHMENT_UPLOAD_ROUTE_PREFIX,
   storeAttachmentUpload,
@@ -113,16 +114,18 @@ export function assetResponseHeaders(
 }
 
 export function assetResponseOptions(asset: ResolvedAsset) {
+  const fileName = asset.downloadName ?? asset.fileName;
+  const mimeType = asset.contentType ?? asset.mimeType;
   const download = asset.download === true || asset.downloadName !== undefined;
   return {
     status: 200 as const,
     headers: assetResponseHeaders(
       asset.path,
-      download || asset.contentType !== undefined
+      download || mimeType !== undefined
         ? {
             ...(download ? { download: true } : {}),
-            ...(asset.downloadName !== undefined ? { fileName: asset.downloadName } : {}),
-            ...(asset.contentType !== undefined ? { mimeType: asset.contentType } : {}),
+            ...(fileName !== undefined ? { fileName } : {}),
+            ...(mimeType !== undefined ? { mimeType } : {}),
           }
         : undefined,
     ),
@@ -141,6 +144,9 @@ function assetByteRange(header: string, size: bigint) {
   }
   const start = first ?? (last! >= size ? 0n : size - last!);
   const end = first === null || last === null || last >= size ? size - 1n : last;
+  if (!Number.isSafeInteger(Number(start)) || !Number.isSafeInteger(Number(end))) {
+    return { _tag: "Unsatisfiable" as const };
+  }
   return {
     _tag: "Range" as const,
     offset: start,
@@ -150,17 +156,29 @@ function assetByteRange(header: string, size: bigint) {
 }
 
 export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
-  asset: ResolvedAsset,
+  asset: Omit<ResolvedAsset, "kind"> & { readonly kind?: "file" },
   rangeHeader?: string,
   ifRangeHeader?: string,
+  method: "GET" | "HEAD" = "GET",
 ) {
-  const { headers } = assetResponseOptions(asset);
-  if (headers["Content-Type"]?.toLowerCase().startsWith("video/")) {
+  const { headers } = assetResponseOptions({ ...asset, kind: "file" });
+  const mediaFile = asset.file;
+  const mediaInfo = mediaFile ? yield* statMediaFile(asset.path, mediaFile) : undefined;
+  const isVideo = headers["Content-Type"]?.toLowerCase().startsWith("video/") === true;
+  if (mediaFile && isVideo) {
+    // Host videos can change in place. Do not invite conditional range requests
+    // with validators that cannot establish byte-for-byte identity.
+    headers["Cache-Control"] = "private, no-store";
+  }
+  let status = 200;
+  let offset = 0n;
+  let bytesToRead: bigint | undefined;
+  if (isVideo) {
     headers["Accept-Ranges"] = "bytes";
     // If-Range requires a matching validator. A full response is safe when we cannot validate it.
-    if (rangeHeader && !ifRangeHeader) {
+    if (method === "GET" && rangeHeader && ifRangeHeader === undefined) {
       const fs = yield* FileSystem.FileSystem;
-      const info = yield* fs.stat(asset.path);
+      const info = mediaInfo ?? (yield* fs.stat(asset.path));
       const range = assetByteRange(rangeHeader, info.size);
       if (range?._tag === "Unsatisfiable") {
         return HttpServerResponse.empty({
@@ -169,16 +187,34 @@ export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
         });
       }
       if (range?._tag === "Range") {
-        return yield* HttpServerResponse.file(asset.path, {
-          status: 206,
-          offset: range.offset,
-          bytesToRead: range.bytesToRead,
-          headers: { ...headers, "Content-Range": range.contentRange },
-        });
+        status = 206;
+        offset = range.offset;
+        bytesToRead = range.bytesToRead;
+        headers["Content-Range"] = range.contentRange;
       }
     }
   }
-  return yield* HttpServerResponse.file(asset.path, { status: 200, headers });
+  if (mediaFile && mediaInfo) {
+    const size = bytesToRead ?? mediaInfo.size;
+    headers["Content-Type"] ??= Mime.getType(asset.path) ?? "application/octet-stream";
+    headers["Content-Length"] = String(size);
+    if (!isVideo) {
+      headers["Last-Modified"] = mediaInfo.mtime.toUTCString();
+      headers.ETag = `W/"${mediaInfo.size.toString(16)}-${mediaInfo.mtimeMs.toString(16)}"`;
+    }
+    if (method === "HEAD" || size === 0n) {
+      return HttpServerResponse.empty({ status, headers });
+    }
+    const body = streamMediaFile(mediaFile, offset, size);
+    if (!body) {
+      return HttpServerResponse.text("File is too large to preview.", { status: 413 });
+    }
+    return HttpServerResponse.stream(body, {
+      status,
+      headers,
+    });
+  }
+  return yield* HttpServerResponse.file(asset.path, { status, offset, bytesToRead, headers });
 });
 
 export const httpCompressionLayer = HttpRouter.middleware(HttpMiddleware.compression(), {
@@ -350,6 +386,7 @@ export const assetRouteLayer = HttpRouter.add(
       asset,
       request.method === "GET" ? request.headers.range : undefined,
       request.headers["if-range"],
+      request.method === "HEAD" ? "HEAD" : "GET",
     ).pipe(
       Effect.orElseSucceed(() => HttpServerResponse.text("Internal Server Error", { status: 500 })),
     );
