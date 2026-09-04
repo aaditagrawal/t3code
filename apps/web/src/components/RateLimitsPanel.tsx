@@ -28,11 +28,7 @@ export default function RateLimitsPanel({
     const timer = setInterval(() => setExpiryTick((tick) => tick + 1), EXPIRY_TICK_MS);
     return () => clearInterval(timer);
   }, []);
-  const rateLimits = useMemo(
-    () => deriveAccountRateLimits(threads),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- expiryTick re-runs the wall-clock filter
-    [threads, expiryTick],
-  );
+  const rateLimits = useMemo(() => deriveAccountRateLimits(threads), [threads, expiryTick]);
   const learnMoreHref = useMemo(() => deriveRateLimitLearnMoreHref(rateLimits), [rateLimits]);
 
   if (rateLimits.length === 0) return null;
