@@ -83,6 +83,12 @@ import Migration0048 from "./Migrations/048_ProjectionThreadsUnsettledAt.ts";
 // Upstream ClearAutomaticProjectModelDefaults was runtime ID 44. The fork has
 // already deployed through ID 48, so append it without reusing an applied ID.
 import Migration0049 from "./Migrations/049_ClearAutomaticProjectModelDefaults.ts";
+// Upstream ProjectionProjectsAutoPull was runtime ID 45. The fork has already
+// deployed through ID 49, so append it without reusing an applied ID.
+import Migration0050 from "./Migrations/050_ProjectionProjectsAutoPull.ts";
+// Upstream RepairAutomaticSettlementTimestamps was runtime ID 46. Append it
+// after auto-pull so deployed fork IDs remain append-only.
+import Migration0051 from "./Migrations/051_RepairAutomaticSettlementTimestamps.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -144,6 +150,8 @@ export const migrationEntries = [
   [47, "ProjectionThreadLinkedPullRequest", Migration0047],
   [48, "ProjectionThreadsUnsettledAt", Migration0048],
   [49, "ClearAutomaticProjectModelDefaults", Migration0049],
+  [50, "ProjectionProjectsAutoPull", Migration0050],
+  [51, "RepairAutomaticSettlementTimestamps", Migration0051],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

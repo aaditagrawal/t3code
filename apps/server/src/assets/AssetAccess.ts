@@ -51,6 +51,14 @@ const ASSET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const PROJECT_FAVICON_TOKEN_BUCKET_MS = 30 * 60 * 1000;
 const PROJECT_FAVICON_VERSION_PREFIX = "v";
 const INLINE_VIDEO_MIME_TYPE_PATTERN = /^video\/[\w!#$&^.+-]+$/i;
+// Extensions a document viewer may request inline. The extension comes from
+// the attachment id the server assigned, never from the client's mime type.
+const INLINE_DOCUMENT_EXTENSIONS = new Set(["pdf", "html", "htm"]);
+const INLINE_DOCUMENT_MIME_TYPES: Record<string, string> = {
+  pdf: "application/pdf",
+  html: "text/html",
+  htm: "text/html",
+};
 const PREVIEW_ASSET_EXTENSIONS = new Set([
   ...WORKSPACE_BROWSER_PREVIEW_EXTENSIONS,
   ...WORKSPACE_IMAGE_PREVIEW_EXTENSIONS,
@@ -376,34 +384,50 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
           resource: input.resource,
         });
       }
-      // The fork stores generic files at an opaque `.bin` path. Also recognize
-      // upstream extension-bearing IDs so files created by either build remain
-      // downloadable during a rolling upgrade.
-      const isGenericFile =
-        attachmentPath.endsWith(".bin") ||
-        parseAttachmentFileExtension(input.resource.attachmentId) !== null;
+      // Generic files carry their extension inside the attachment id (that
+      // shape resolves the on-disk path); images do not. The fork also stores
+      // generic files at an opaque `.bin` path, so either build remains
+      // downloadable during a rolling upgrade. Videos and images render
+      // inline. Other generic files download, unless a document viewer asked
+      // for inline and the stored extension is one a browser can show.
+      const extension = parseAttachmentFileExtension(input.resource.attachmentId);
+      const isGenericFile = attachmentPath.endsWith(".bin") || extension !== null;
       const videoMimeType = input.resource.mimeType?.split(";", 1)[0]?.trim() ?? "";
       const isVideo = INLINE_VIDEO_MIME_TYPE_PATTERN.test(videoMimeType);
+      const inlineDocumentMimeType =
+        input.resource.disposition === "inline" &&
+        extension !== null &&
+        INLINE_DOCUMENT_EXTENSIONS.has(extension)
+          ? INLINE_DOCUMENT_MIME_TYPES[extension]
+          : undefined;
       claims = {
         version: 1,
         kind: "attachment",
         attachmentId: input.resource.attachmentId,
         // Generic files deliberately use an opaque `.bin` physical path so
         // user-controlled names and extensions never influence storage. Carry
-        // their MIME/name as signed response metadata instead. The HTTP route
-        // either a sanitized inline-video MIME or safe download metadata. The
-        // HTTP route adds Content-Disposition for documents, preventing an
-        // HTML-like MIME from executing in T3's origin.
+        // their MIME/name as signed response metadata instead. Inline document
+        // previews skip download. The HTTP route adds Content-Disposition for
+        // other documents, preventing an HTML-like MIME from executing in T3's
+        // origin.
         ...(isGenericFile
           ? isVideo
             ? { contentType: videoMimeType }
-            : {
-                contentType: normalizeAttachmentContentType(input.resource.mimeType),
-                ...(input.resource.fileName?.trim()
-                  ? { downloadName: input.resource.fileName.trim() }
-                  : { download: true }),
-              }
+            : inlineDocumentMimeType !== undefined
+              ? {}
+              : {
+                  contentType: normalizeAttachmentContentType(input.resource.mimeType),
+                  ...(input.resource.fileName?.trim()
+                    ? { downloadName: input.resource.fileName.trim() }
+                    : { download: true }),
+                }
           : {}),
+        ...(input.resource.fileName !== undefined ? { fileName: input.resource.fileName } : {}),
+        ...(inlineDocumentMimeType !== undefined
+          ? { mimeType: inlineDocumentMimeType }
+          : input.resource.mimeType !== undefined
+            ? { mimeType: isVideo ? videoMimeType : input.resource.mimeType }
+            : {}),
         expiresAt,
       };
       fileName =

@@ -146,6 +146,19 @@ function makeSdkMessage(partial: Record<string, unknown>): CursorSdkMessage {
   } as CursorSdkMessage;
 }
 
+function localPermissionState(options: CursorSdkAgentOptions | undefined): {
+  readonly sandboxEnabled: boolean | undefined;
+  readonly autoReview: boolean | undefined;
+} {
+  const local = options?.local as
+    | (NonNullable<CursorSdkAgentOptions["local"]> & { readonly autoReview?: boolean })
+    | undefined;
+  return {
+    sandboxEnabled: local?.sandboxOptions?.enabled,
+    autoReview: local?.autoReview,
+  };
+}
+
 function runTest<A, E>(
   effect: Effect.Effect<
     A,
@@ -372,4 +385,64 @@ describe("CursorAdapter SDK", () => {
       },
     );
   });
+
+  it("disables the SDK sandbox in full-access mode", async () => {
+    const run = new FakeRun("run-full-access", "agent-full-access", []);
+    const agent = new FakeAgent("agent-full-access", run);
+    const fakeClient = new FakeCursorSdkClient(agent);
+
+    await withAdapter(fakeClient, (adapter) =>
+      adapter.startSession({
+        threadId: asThreadId("thread-full-access"),
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      }),
+    );
+
+    expect(localPermissionState(fakeClient.createAgentOptions[0])).toEqual({
+      sandboxEnabled: false,
+      autoReview: undefined,
+    });
+  });
+
+  it("enables Cursor auto-review in auto mode", async () => {
+    const run = new FakeRun("run-auto", "agent-auto", []);
+    const agent = new FakeAgent("agent-auto", run);
+    const fakeClient = new FakeCursorSdkClient(agent);
+
+    await withAdapter(fakeClient, (adapter) =>
+      adapter.startSession({
+        threadId: asThreadId("thread-auto"),
+        cwd: process.cwd(),
+        runtimeMode: "auto",
+      }),
+    );
+
+    expect(localPermissionState(fakeClient.createAgentOptions[0])).toEqual({
+      sandboxEnabled: true,
+      autoReview: true,
+    });
+  });
+
+  it.each(["approval-required", "auto-accept-edits", "medium-access"] as const)(
+    "does not relax approval in %s mode",
+    async (runtimeMode) => {
+      const run = new FakeRun(`run-${runtimeMode}`, `agent-${runtimeMode}`, []);
+      const agent = new FakeAgent(`agent-${runtimeMode}`, run);
+      const fakeClient = new FakeCursorSdkClient(agent);
+
+      await withAdapter(fakeClient, (adapter) =>
+        adapter.startSession({
+          threadId: asThreadId(`thread-${runtimeMode}`),
+          cwd: process.cwd(),
+          runtimeMode,
+        }),
+      );
+
+      expect(localPermissionState(fakeClient.createAgentOptions[0])).toEqual({
+        sandboxEnabled: true,
+        autoReview: undefined,
+      });
+    },
+  );
 });
