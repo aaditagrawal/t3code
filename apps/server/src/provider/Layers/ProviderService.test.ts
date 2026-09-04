@@ -1097,6 +1097,7 @@ routing.layer("ProviderServiceLive routing", (it) => {
       assert.deepEqual(routing.codex.sendTurn.mock.calls.at(-1)?.[0], {
         threadId: codexThreadId,
         continuation: true,
+        skillDispatchInput: "",
       });
 
       const claudeThreadId = asThreadId("thread-promptless-continuation-unsupported");

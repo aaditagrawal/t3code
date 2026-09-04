@@ -7,6 +7,10 @@ vi.mock("react-native-svg", () => ({
   Svg: "Svg",
 }));
 
+vi.mock("expo-image", () => ({
+  Image: "Image",
+}));
+
 vi.mock("../features/settings/appearance/AppearancePreferencesProvider", () => ({
   useAppearancePreferences: () => ({ themeAppearance: "light" }),
 }));
