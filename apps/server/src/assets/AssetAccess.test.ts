@@ -572,6 +572,7 @@ describe("AssetAccess", () => {
         path: attachmentPath,
         contentType: "application/pdf",
         downloadName: "release notes.pdf",
+        download: true,
       });
     }).pipe(Effect.provide(testLayer)),
   );
