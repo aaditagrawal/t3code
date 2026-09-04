@@ -17,6 +17,7 @@ import {
   createAtomCommandScheduler,
   createEnvironmentRpcCommand,
   createEnvironmentRpcQueryAtomFamily,
+  createEnvironmentRpcSubscriptionAtomFamily,
   createEnvironmentQueryAtomFamily,
 } from "./runtime.ts";
 import { PullRequestDiffLoader } from "./pullRequestDiffHttp.ts";
@@ -43,9 +44,19 @@ export function linkedPullRequestRpcTag(capabilities: ExecutionEnvironmentCapabi
     : WS_METHODS.pullRequestsDetail;
 }
 
+function createPullRequestRefreshAtomFamily<R, E>(
+  runtime: Atom.AtomRuntime<EnvironmentRegistry | R, E>,
+) {
+  return createEnvironmentRpcSubscriptionAtomFamily(runtime, {
+    label: "environment-data:pull-requests:turn-refreshes",
+    tag: WS_METHODS.pullRequestsSubscribeRefreshes,
+  });
+}
+
 /** Refresh only the live fields a linked thread renders. */
 export function createLinkedPullRequestSummaryAtomFamily<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | R, E>,
+  refreshes = createPullRequestRefreshAtomFamily(runtime),
 ) {
   return createEnvironmentQueryAtomFamily(runtime, {
     label: "environment-data:pull-requests:linked-summary",
@@ -56,6 +67,7 @@ export function createLinkedPullRequestSummaryAtomFamily<R, E>(
       Effect.flatMap(environmentConfig, (config) =>
         request(linkedPullRequestRpcTag(config.environment.capabilities), input),
       ),
+    refreshTrigger: ({ environmentId }) => refreshes({ environmentId, input: {} }),
   });
 }
 
@@ -69,6 +81,7 @@ export function pullRequestDetailToVcsStatus(
     baseRef: detail.baseBranch,
     headRef: detail.headBranch,
     state: detail.state,
+    ...(detail.isDraft === true ? { isDraft: true } : {}),
     updatedAt: detail.updatedAt,
   };
 }
@@ -81,6 +94,7 @@ export function pullRequestDetailToVcsStatus(
 export function createPullRequestEnvironmentAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | PullRequestDiffLoader | R, E>,
 ) {
+  const refreshes = createPullRequestRefreshAtomFamily(runtime);
   const commandScheduler = createAtomCommandScheduler();
   const serialPerEnvironment = {
     mode: "serial",
@@ -90,12 +104,16 @@ export function createPullRequestEnvironmentAtoms<R, E>(
     label: "environment-data:pull-requests:activity",
     tag: WS_METHODS.pullRequestsActivity,
     staleTimeMs: 15_000,
+    refreshTrigger: ({ environmentId }) => refreshes({ environmentId, input: {} }),
   });
   return {
+    refreshes,
     list: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:pull-requests:list",
       tag: WS_METHODS.pullRequestsList,
       staleTimeMs: 30_000,
+      refreshTrigger: ({ environmentId, input }) =>
+        input.cursors === undefined ? refreshes({ environmentId, input: {} }) : undefined,
     }),
     /**
      * The line counts for rows the listing has already handed over. Its own query because the
@@ -107,11 +125,13 @@ export function createPullRequestEnvironmentAtoms<R, E>(
       label: "environment-data:pull-requests:list-stats",
       tag: WS_METHODS.pullRequestsListStats,
       staleTimeMs: 60_000,
+      refreshTrigger: ({ environmentId }) => refreshes({ environmentId, input: {} }),
     }),
     detail: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:pull-requests:detail",
       tag: WS_METHODS.pullRequestsDetail,
       staleTimeMs: 15_000,
+      refreshTrigger: ({ environmentId }) => refreshes({ environmentId, input: {} }),
     }),
     activity,
     threadComments: createEnvironmentRpcCommand(runtime, {

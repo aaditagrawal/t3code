@@ -959,7 +959,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
     linkedPullRequestStatus,
   });
   const prStatus = prStatusIndicator(pr, prProvider);
-  const settledPrHoverClass = pr ? settledPrHoverColorClass(pr.state) : undefined;
+  const settledPrHoverClass = pr ? settledPrHoverColorClass(pr.state, pr.isDraft) : undefined;
   useEffect(() => {
     const nextSnapshot = nextThreadChangeRequestSnapshot({
       threadBranch: thread.branch,
@@ -1127,7 +1127,8 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
     [onSnooze, threadRef],
   );
   // While the snooze popover is open the pointer leaves the row, which
-  // would fade the hover actions out from under the open menu; pin them.
+  // would fade the hover actions out from under the open menu. Pin them and
+  // suppress the row tooltip so its portal cannot overlap the popover.
   const [snoozeMenuOpenRaw, setSnoozeMenuOpen] = useState(false);
   // Snooze is offered only where it can succeed: capability-gated and never
   // on blocked-on-you work or queued turns (the server rejects both).
@@ -1450,7 +1451,7 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
         sortable?.isDragging && "z-20 opacity-80",
       )}
     >
-      <Tooltip>
+      <Tooltip disabled={snoozeMenuOpen}>
         <TooltipTrigger
           render={
             <div
@@ -1612,7 +1613,9 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
               {thread.branch ? (
                 <>
                   <ThreadWorktreeIndicator thread={thread} />
-                  <span className="min-w-0 flex-1 truncate whitespace-nowrap">{thread.branch}</span>
+                  <span className="min-w-0 flex-1 truncate whitespace-nowrap text-muted-foreground/40">
+                    {thread.branch}
+                  </span>
                 </>
               ) : (
                 <span className="flex-1" />

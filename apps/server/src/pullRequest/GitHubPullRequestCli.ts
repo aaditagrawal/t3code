@@ -468,6 +468,7 @@ export class GitHubPullRequestCli extends Context.Service<
         readonly headBranch: string;
         readonly baseBranch: string;
         readonly state: "open" | "closed" | "merged";
+        readonly isDraft?: boolean;
         readonly updatedAt: string;
       },
       GitHubPullRequestCliError
@@ -804,8 +805,8 @@ function matchesFilters(
   viewer: string,
 ): boolean {
   if (filters === undefined) return true;
-  const labels = item.labels.map((label) => label.name.trim().toLowerCase());
-  const holds = (label: string) => labels.includes(label.trim().toLowerCase());
+  const labels = new Set(item.labels.map((label) => label.name.trim().toLowerCase()));
+  const holds = (label: string) => labels.has(label.trim().toLowerCase());
   return (
     (filters.draft === undefined || item.isDraft === (filters.draft === "only")) &&
     (filters.review === undefined ||
@@ -1650,6 +1651,7 @@ export const make = Effect.gen(function* () {
                   headBranch: summary.headRefName,
                   baseBranch: summary.baseRefName,
                   state: summary.state ?? "open",
+                  ...(summary.isDraft === true ? { isDraft: true } : {}),
                   updatedAt: summary.updatedAt,
                 }),
           ),
