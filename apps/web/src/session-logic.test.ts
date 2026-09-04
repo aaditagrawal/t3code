@@ -2265,6 +2265,7 @@ describe("PROVIDER_OPTIONS", () => {
       { value: "droid", label: "Droid", available: true, pickerSidebarBadge: "new" },
       { value: "fx", label: "Fx", available: true, pickerSidebarBadge: "new" },
       { value: "grok", label: "Grok", available: true, pickerSidebarBadge: "new" },
+      { value: "antigravity", label: "Antigravity", available: true, pickerSidebarBadge: "new" },
       { value: "geminiCli", label: "Gemini CLI", available: true },
       { value: "amp", label: "AMPcode", available: true },
       { value: "kilo", label: "Kilo", available: true },
