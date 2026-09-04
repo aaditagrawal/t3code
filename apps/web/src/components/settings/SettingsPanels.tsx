@@ -20,6 +20,7 @@ import {
   DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE,
   DEFAULT_SIDEBAR_ARTWORK_OVERRIDE,
   DEFAULT_UNIFIED_SETTINGS,
+  type DiffLayout,
   type EnvironmentIdentificationMode,
   MAX_APPEARANCE_CONTRAST,
   MAX_CODE_FONT_SIZE,
@@ -168,6 +169,11 @@ const TIMESTAMP_FORMAT_LABELS = {
   "12-hour": "12-hour",
   "24-hour": "24-hour",
 } as const;
+
+const DIFF_LAYOUT_LABELS: Record<DiffLayout, string> = {
+  stacked: "Stacked",
+  split: "Split",
+};
 
 const QUIT_CONFIRMATION_MODE_LABELS: Record<QuitConfirmationMode, string> = {
   direct: "Direct",
@@ -528,6 +534,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       ...(settings.diffIgnoreWhitespace !== DEFAULT_UNIFIED_SETTINGS.diffIgnoreWhitespace
         ? ["Diff whitespace changes"]
         : []),
+      ...(settings.diffLayout !== DEFAULT_UNIFIED_SETTINGS.diffLayout ? ["Diff layout"] : []),
       ...(settings.proactivePanelsEnabled !== DEFAULT_UNIFIED_SETTINGS.proactivePanelsEnabled
         ? ["Proactive panels"]
         : []),
@@ -583,6 +590,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.browserDefaultZoomFactor,
       settings.browserDefaultAppearance,
       settings.browserRecordingFrameRate,
+      settings.browserLinkTarget,
       settings.browserAutoShowFloatingPreview,
       settings.appearanceContrast,
       settings.enableAgentBrowserAccess,
@@ -594,6 +602,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.defaultThreadEnvMode,
       settings.newWorktreesStartFromOrigin,
       settings.diffIgnoreWhitespace,
+      settings.diffLayout,
       settings.proactivePanelsEnabled,
       settings.environmentIdentificationMode,
       settings.sidebarArtworkOverride,
@@ -691,6 +700,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
       wordWrap: DEFAULT_UNIFIED_SETTINGS.wordWrap,
       diffIgnoreWhitespace: DEFAULT_UNIFIED_SETTINGS.diffIgnoreWhitespace,
+      diffLayout: DEFAULT_UNIFIED_SETTINGS.diffLayout,
       proactivePanelsEnabled: DEFAULT_UNIFIED_SETTINGS.proactivePanelsEnabled,
       showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
       contextWindowMeterEnabled: DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled,
@@ -729,6 +739,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       browserDefaultZoomFactor: DEFAULT_UNIFIED_SETTINGS.browserDefaultZoomFactor,
       browserDefaultAppearance: DEFAULT_UNIFIED_SETTINGS.browserDefaultAppearance,
       browserRecordingFrameRate: DEFAULT_UNIFIED_SETTINGS.browserRecordingFrameRate,
+      browserLinkTarget: DEFAULT_UNIFIED_SETTINGS.browserLinkTarget,
       browserAutoShowFloatingPreview: DEFAULT_UNIFIED_SETTINGS.browserAutoShowFloatingPreview,
       // Re-granted like any other default. The confirmation dialog lists it by
       // name, so a user restoring defaults is told the agent regains access
@@ -2238,6 +2249,41 @@ export function GeneralSettingsPanel() {
         />
 
         <SettingsRow
+          {...searchableSetting("diff-layout")}
+          description="Show diffs stacked or side by side. The toggle in the diff toolbar changes this too."
+          resetAction={
+            settings.diffLayout !== DEFAULT_UNIFIED_SETTINGS.diffLayout ? (
+              <SettingResetButton
+                label="diff layout"
+                onClick={() => updateSettings({ diffLayout: DEFAULT_UNIFIED_SETTINGS.diffLayout })}
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.diffLayout}
+              onValueChange={(value) => {
+                if (value === "stacked" || value === "split") {
+                  updateSettings({ diffLayout: value });
+                }
+              }}
+            >
+              <SelectTrigger size="sm" className="w-full sm:w-40" aria-label="Diff layout">
+                <SelectValue>{DIFF_LAYOUT_LABELS[settings.diffLayout]}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                <SelectItem hideIndicator value="stacked">
+                  {DIFF_LAYOUT_LABELS.stacked}
+                </SelectItem>
+                <SelectItem hideIndicator value="split">
+                  {DIFF_LAYOUT_LABELS.split}
+                </SelectItem>
+              </SelectPopup>
+            </Select>
+          }
+        />
+
+        <SettingsRow
           {...searchableSetting("proactive-panels")}
           description="Automatically open the linked pull request when it appears and the turn diff when agent work finishes."
           resetAction={
@@ -2790,6 +2836,7 @@ export function ArchivedThreadsPanel() {
                 name: project.title,
                 cwd: project.workspaceRoot,
                 faviconPath: project.faviconPath,
+                projectIcon: project.projectIcon,
               },
             ] as const,
         ),
@@ -2915,7 +2962,9 @@ export function ArchivedThreadsPanel() {
               <ProjectFavicon
                 environmentId={project.environmentId}
                 cwd={project.cwd}
+                projectName={project.name}
                 faviconPath={project.faviconPath}
+                projectIcon={project.projectIcon}
               />
             }
           >

@@ -1,5 +1,5 @@
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { pullRequestHostOf, ThreadId } from "@t3tools/contracts";
+import { pullRequestHostOf, resolveEnvironmentMachineKind, ThreadId } from "@t3tools/contracts";
 import type {
   EnvironmentId,
   ProjectId,
@@ -11,6 +11,7 @@ import type {
   PullRequestListState,
   SourceControlProviderKind,
 } from "@t3tools/contracts";
+import { useAtomValue } from "@effect/atom-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   ArrowDownUpIcon,
@@ -19,8 +20,6 @@ import {
   ChevronDownIcon,
   ClockIcon,
   EyeIcon,
-  MonitorIcon,
-  ServerIcon,
   GitMergeIcon,
   GitPullRequestClosedIcon,
   GitPullRequestIcon,
@@ -36,6 +35,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -86,6 +86,7 @@ import {
   writePullRequestListPreferences,
 } from "../components/pullRequest/pullRequestListPreferences";
 import { assignProjectsToEnvironments } from "../components/pullRequest/pullRequestProjectAssignment.logic";
+import { environmentMachineIcon } from "../components/EnvironmentMachineIcon";
 import { PullRequestDetailPanel } from "../components/pullRequest/PullRequestDetailPanel";
 import {
   PullRequestFiltersMenu,
@@ -108,7 +109,10 @@ import {
 } from "../components/WorkspaceBreadcrumb";
 import { WorkspacePageContainer } from "../components/WorkspacePageContainer";
 import { WorkspacePageHeader } from "../components/WorkspacePageHeader";
+import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { isElectron } from "../env";
+import { resolveShortcutCommand } from "../keybindings";
+import { isTerminalFocused } from "../lib/terminalFocus";
 import { PanelLayoutControls } from "../components/chat/PanelLayoutControls";
 import { Button } from "../components/ui/button";
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "../components/ui/menu";
@@ -136,6 +140,7 @@ import {
 } from "../state/pullRequests";
 import { useAtomCommand } from "../state/use-atom-command";
 import { cn } from "~/lib/utils";
+import { primaryServerKeybindingsAtom } from "~/state/server";
 import { getSourceControlPresentationForKind } from "~/sourceControlPresentation";
 
 export interface PullRequestsSearch extends PullRequestListPreferences {
@@ -286,6 +291,7 @@ function PullRequestsRouteView() {
   const statsPolicy: PullRequestStatsPolicy =
     sort === "ready" || sort === "largest" || sort === "smallest" ? "eager" : "visible";
   const navigate = useNavigate({ from: Route.fullPath });
+  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { environments } = useEnvironments();
   // Every connected environment that has said it can list pull requests. Sorted, so the query
   // keys, the scope key and the stored snapshot all read the same whichever order the
@@ -363,6 +369,8 @@ function PullRequestsRouteView() {
             ? `${project.title} · ${environmentLabels.get(project.environmentId) ?? project.environmentId}`
             : project.title,
         workspaceRoot: project.workspaceRoot,
+        faviconPath: project.faviconPath ?? null,
+        projectIcon: project.projectIcon ?? null,
       }))
       .toSorted((left, right) => left.title.localeCompare(right.title));
   }, [environmentLabels, projects]);
@@ -1736,14 +1744,14 @@ function PullRequestsRouteView() {
       };
     }),
   ];
-  // The same shape the host pills take, so the two groups read as one control. A local
-  // connection wears the screen it is on; every other server wears a server.
+  // The same shape the host pills take, so the two groups read as one control. Each server
+  // wears the machine it runs on.
   const serverMenuOptions: ReadonlyArray<PullRequestFilterOption<string>> = [
     { value: "", label: "All servers", Icon: LayersIcon },
     ...capableEnvironments.map((environment) => ({
       value: environment.environmentId,
       label: environment.label,
-      Icon: environment.displayUrl === null ? MonitorIcon : ServerIcon,
+      Icon: environmentMachineIcon(resolveEnvironmentMachineKind(environment.serverConfig)),
     })),
   ];
   const sortMenu = (
@@ -1886,6 +1894,26 @@ function PullRequestsRouteView() {
     useRightPanelStore.getState().closeAllSurfaces(rightPanelRef);
     selectSurfaceInUrl(null);
   };
+
+  // This page has no ChatView, so the shared panel handles `rightPanel.close`
+  // itself. With nothing open the event falls through to its native meaning.
+  const closeActiveSurfaceFromShortcut = useEffectEvent((event: KeyboardEvent) => {
+    if (activePullRequestSurface === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.repeat) closeSurface(activePullRequestSurface);
+  });
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || isCommandPaletteOpen()) return;
+      const command = resolveShortcutCommand(event, keybindings, {
+        context: { terminalFocus: isTerminalFocused() },
+      });
+      if (command === "rightPanel.close") closeActiveSurfaceFromShortcut(event);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [keybindings]);
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none bg-background text-foreground">
@@ -2295,7 +2323,7 @@ function PullRequestsColumn({
         {/* The top padding is the shared fade band's height, the same pairing the
             settings page makes: at rest the controls sit fully below the mask, and only
             content actually passing under the chrome fades. */}
-        <WorkspacePageContainer className="gap-4">
+        <WorkspacePageContainer width="expanded" className="gap-4">
           <div className="flex flex-col gap-3">
             <div ref={inFlowSearchRef} className="flex items-center gap-2">
               {searchInput}
