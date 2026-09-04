@@ -26,6 +26,13 @@ authenticated.
   startup pairing URL is built against the shared origin, and the mapping is removed on exit.
   Vite's experimental bundled dev mode remains available as an explicit
   `T3CODE_BUNDLED_DEV=1` opt-in. The default shared path uses standard dev serving for reliability.
+  A remote browser pays a network round trip per import level in unbundled dev, which can turn a
+  cold module graph into minutes of waterfall; set `T3CODE_BUNDLED_DEV=1` when that matters.
+  The web entry loads the app with a dynamic import so React refresh starts before shared UI
+  chunks run. Keep app imports out of that entry. A static import can work on the first load
+  and then fail on reload after Vite splits code for lazy routes.
+  Bundled dev uses Tailwind's watched files to rebuild CSS. Its Vite-only hot-update hook is
+  disabled in this mode because Rolldown does not supply the Vite server or module graph.
 - `vp run dev --browser`: Auto-opens a browser. Off by default. The dev runner writes
   `T3CODE_NO_BROWSER` itself from this flag, so setting `T3CODE_NO_BROWSER=0` in your environment has
   no effect; use `--browser`.

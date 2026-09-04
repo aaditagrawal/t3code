@@ -197,7 +197,7 @@ describe("searchSettings", () => {
     expect(searchSettings("sidebar artwork")[0]).toMatchObject({
       id: "environment-identification",
       to: "/settings/appearance",
-      targetId: "appearance",
+      targetId: "appearance-interface",
     });
   });
 

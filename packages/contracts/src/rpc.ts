@@ -206,6 +206,10 @@ import {
   ResourceTelemetryRetryResult,
   ResourceTelemetrySnapshot,
 } from "./resourceTelemetry.ts";
+import {
+  ProviderConsumeResetCreditInput,
+  ProviderConsumeResetCreditResult,
+} from "./providerUsageLimits.ts";
 import { UsagePricing, UsageReadError, UsageSummary, UsageSummaryInput } from "./usage.ts";
 import { ServerSettings, ServerSettingsError, ServerSettingsPatch } from "./settings.ts";
 import {
@@ -257,6 +261,7 @@ export const WS_METHODS = {
   // Provider methods
   providerUploadFeedback: "provider.uploadFeedback",
   providerAuthStart: "provider.auth.start",
+  providerConsumeResetCredit: "provider.consumeResetCredit",
   providerAuthComplete: "provider.auth.complete",
   providerAuthCancel: "provider.auth.cancel",
   providerAuthLogout: "provider.auth.logout",
@@ -431,6 +436,12 @@ export const WsServerUpdateProviderRpc = Rpc.make(WS_METHODS.serverUpdateProvide
 });
 
 const ProviderSetupRpcError = Schema.Union([ProviderSetupError, EnvironmentAuthorizationError]);
+
+export const WsProviderConsumeResetCreditRpc = Rpc.make(WS_METHODS.providerConsumeResetCredit, {
+  payload: ProviderConsumeResetCreditInput,
+  success: ProviderConsumeResetCreditResult,
+  error: ProviderSetupRpcError,
+});
 
 export const WsProviderAuthStartRpc = Rpc.make(WS_METHODS.providerAuthStart, {
   payload: ProviderSetupInput,
@@ -1180,6 +1191,8 @@ export const WsSubscribeServerConfigRpc = Rpc.make(WS_METHODS.subscribeServerCon
      * dropped by old servers.
      */
     environmentThemes: Schema.optional(Schema.Boolean),
+    /** Whether this client understands `usageLimitSourcesUpdated` events. */
+    usageLimitSources: Schema.optional(Schema.Boolean),
   }),
   success: ServerConfigStreamEvent,
   error: Schema.Union([KeybindingsConfigError, ServerSettingsError, EnvironmentAuthorizationError]),
@@ -1219,6 +1232,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,
   WsServerUpdateProviderRpc,
+  WsProviderConsumeResetCreditRpc,
   WsProviderAuthStartRpc,
   WsProviderAuthCompleteRpc,
   WsProviderAuthCancelRpc,

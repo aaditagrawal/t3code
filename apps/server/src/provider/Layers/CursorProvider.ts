@@ -15,6 +15,7 @@ import * as Option from "effect/Option";
 
 import {
   buildServerProvider,
+  COMPACT_SLASH_COMMAND,
   providerModelsFromSettings,
   type ServerProviderDraft,
 } from "../providerSnapshot.ts";
@@ -144,6 +145,7 @@ export function buildCursorProviderSnapshot(input: {
     enabled: input.cursorSettings.enabled,
     checkedAt: input.checkedAt,
     models,
+    slashCommands: [COMPACT_SLASH_COMMAND],
     probe: {
       installed: input.installed,
       version: input.version ?? null,

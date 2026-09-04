@@ -104,9 +104,9 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Sidebar artwork",
     to: "/settings/appearance",
     searchTerms: ["dev nightly artwork pill label hide none"],
-    // The theme cards can change artwork compatibility, so the parent section
-    // remains the stable destination.
-    targetId: "appearance",
+    // Night sky / sidebar artwork lives in the Interface section after the
+    // settings reorg; the parent section is the stable destination.
+    targetId: "appearance-interface",
   },
   {
     id: "interface-font",
