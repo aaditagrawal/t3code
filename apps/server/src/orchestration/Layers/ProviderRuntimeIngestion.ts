@@ -31,7 +31,7 @@ import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
 import * as Stream from "effect/Stream";
 import { makeDrainableWorker } from "@t3tools/shared/DrainableWorker";
-import { normalizeProviderRateLimitPayload } from "@t3tools/shared/rateLimits";
+import { normalizeRateLimitLabel } from "@t3tools/shared/rateLimits";
 import { formatTokens } from "@t3tools/shared/usageFormat";
 
 import { ProviderService } from "../../provider/Services/ProviderService.ts";
@@ -839,8 +839,25 @@ export function runtimeEventToActivities(
     }
 
     case "account.rate-limits.updated": {
-      const normalized = normalizeProviderRateLimitPayload(event.payload);
-      if (!normalized) {
+      // Adapters already normalised native snapshots into `limits.windows`.
+      // The fork rate-limit panel still reads thread activities, so map those
+      // windows into the panel's RateLimitWindow shape without re-parsing
+      // driver payloads.
+      const limits = event.payload.limits.windows.flatMap((window) => {
+        if (!Number.isFinite(window.usedPercent)) return [];
+        return [
+          {
+            window: normalizeRateLimitLabel(window.label, window.windowDurationMins),
+            limitId: window.id,
+            usedPercent: window.usedPercent,
+            ...(window.resetsAt ? { resetsAt: window.resetsAt } : {}),
+            ...(window.windowDurationMins !== undefined
+              ? { windowDurationMins: window.windowDurationMins }
+              : {}),
+          },
+        ];
+      });
+      if (limits.length === 0) {
         return [];
       }
 
@@ -856,8 +873,7 @@ export function runtimeEventToActivities(
             // travel with the payload rather than be inferred from the thread.
             provider: event.provider,
             ...(event.providerInstanceId ? { providerInstanceId: event.providerInstanceId } : {}),
-            limits: normalized.limits,
-            ...(normalized.status ? { status: normalized.status } : {}),
+            limits,
           },
           // Account usage is not turn-scoped. Claude emits `rate_limit_event`
           // mid-turn, and the revert projector drops every activity whose turn
