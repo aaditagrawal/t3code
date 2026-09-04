@@ -1,6 +1,7 @@
 import {
   AcpSettings,
   AmpSettings,
+  AntigravitySettings,
   ClaudeSettings,
   CodexSettings,
   CopilotSettings,
@@ -20,6 +21,7 @@ import type * as Schema from "effect/Schema";
 import {
   ACPRegistryIcon,
   AmpIcon,
+  AntigravityIcon,
   ClaudeAI,
   CopilotIcon,
   CursorIcon,
@@ -100,6 +102,12 @@ export const PROVIDER_CLIENT_DEFINITIONS: readonly ProviderClientDefinition[] = 
     label: "OpenCode",
     icon: OpenCodeIcon,
     settingsSchema: OpenCodeSettings,
+  },
+  {
+    value: ProviderDriverKind.make("antigravity"),
+    label: "Antigravity",
+    icon: AntigravityIcon,
+    settingsSchema: AntigravitySettings,
   },
   {
     value: ProviderDriverKind.make("droid"),

@@ -153,6 +153,8 @@ export const PREFERRED_DEFAULT_CODEX_MODELS: ReadonlyArray<string> = [
   "gpt-5.6-terra",
 ];
 export const DEFAULT_TEXT_GENERATION_MODEL = "gpt-5.6-luna";
+/** Keep the official Antigravity session's current model. Never send this ID to ACP. */
+export const ANTIGRAVITY_DEFAULT_MODEL = "antigravity-default";
 export const DEFAULT_TEXT_GENERATION_REASONING_EFFORT = "low";
 
 export const DEFAULT_MODEL_BY_PROVIDER: Partial<Record<ProviderDriverKind, string>> = {
@@ -164,6 +166,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Partial<Record<ProviderDriverKind, strin
   [GROK_DRIVER_KIND]: "grok-build",
   [HERMES_DRIVER_KIND]: DEFAULT_HERMES_MODEL,
   [OPENCODE_DRIVER_KIND]: "openai/gpt-5",
+  [ProviderDriverKind.make("antigravity")]: ANTIGRAVITY_DEFAULT_MODEL,
 };
 
 /** Per-provider text generation model defaults. */
@@ -171,6 +174,7 @@ export const DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER: Partial<
   Record<ProviderDriverKind, string>
 > = {
   [CODEX_DRIVER_KIND]: DEFAULT_TEXT_GENERATION_MODEL,
+  [ProviderDriverKind.make("antigravity")]: ANTIGRAVITY_DEFAULT_MODEL,
   [CLAUDE_DRIVER_KIND]: "claude-haiku-4-5",
   [CURSOR_DRIVER_KIND]: "composer-2.5",
   [OPENCODE_DRIVER_KIND]: "openai/gpt-5",
@@ -211,6 +215,7 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Partial<
 
 export const PROVIDER_DISPLAY_NAMES: Partial<Record<ProviderDriverKind, string>> = {
   [ACP_DRIVER_KIND]: "ACP Agent",
+  [ProviderDriverKind.make("antigravity")]: "Antigravity",
   [CODEX_DRIVER_KIND]: "Codex",
   [CLAUDE_DRIVER_KIND]: "Claude",
   [CURSOR_DRIVER_KIND]: "Cursor",

@@ -48,6 +48,7 @@ import {
   ProjectSearchEntriesError,
   ProjectWriteFileError,
   ProviderUploadFeedbackError,
+  ProviderSetupError,
   RelayClientInstallFailedError,
   type RelayClientInstallProgressEvent,
   ServerSelfUpdateError,
@@ -96,6 +97,9 @@ import * as ProviderRegistry from "./provider/Services/ProviderRegistry.ts";
 import { HermesGatewayBroker } from "./provider/Services/HermesGatewayBroker.ts";
 import * as ProviderService from "./provider/Services/ProviderService.ts";
 import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner.ts";
+import { ProviderAuthService } from "./provider/Services/ProviderAuthService.ts";
+import { ProviderInstanceRegistry } from "./provider/Services/ProviderInstanceRegistry.ts";
+import { makeProviderInstallation } from "./provider/providerInstallation.ts";
 import * as ServerSelfUpdate from "./cloud/selfUpdate.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
@@ -511,6 +515,9 @@ const makeWsRpcLayer = (
       const hermesGatewayBroker = yield* HermesGatewayBroker;
       const providerService = yield* ProviderService.ProviderService;
       const providerMaintenanceRunner = yield* ProviderMaintenanceRunner.ProviderMaintenanceRunner;
+      const providerAuth = yield* ProviderAuthService;
+      const providerInstances = yield* ProviderInstanceRegistry;
+      const providerInstallation = yield* makeProviderInstallation();
       const serverUpdate = yield* ServerSelfUpdate.ServerSelfUpdate;
       const config = yield* ServerConfig.ServerConfig;
       const lifecycleEvents = yield* ServerLifecycleEvents.ServerLifecycleEvents;
@@ -1684,15 +1691,44 @@ const makeWsRpcLayer = (
         [WS_METHODS.serverRefreshProviders]: (input) =>
           observeRpcEffect(
             WS_METHODS.serverRefreshProviders,
-            (input.cwd !== undefined && input.instanceId !== undefined
-              ? providerRegistry.refreshWorkspaceSnapshot({
-                  instanceId: input.instanceId,
-                  cwd: input.cwd,
-                })
-              : input.instanceId !== undefined
-                ? providerRegistry.refreshInstance(input.instanceId)
-                : providerRegistry.refresh()
-            ).pipe(Effect.map((providers) => ({ providers }))),
+            Effect.gen(function* () {
+              let providers = yield* input.cwd !== undefined && input.instanceId !== undefined
+                ? providerRegistry.refreshWorkspaceSnapshot({
+                    instanceId: input.instanceId,
+                    cwd: input.cwd,
+                  })
+                : input.instanceId !== undefined
+                  ? providerRegistry.refreshInstance(input.instanceId)
+                  : providerRegistry.refresh();
+              if (input.refreshModels) {
+                const instances = yield* providerInstances.listInstances;
+                for (const instance of instances) {
+                  if (
+                    !instance.refreshModels ||
+                    (input.instanceId !== undefined && input.instanceId !== instance.instanceId) ||
+                    !providers.some(
+                      (provider) =>
+                        provider.instanceId === instance.instanceId &&
+                        provider.enabled &&
+                        provider.installed,
+                    )
+                  )
+                    continue;
+                  yield* instance.refreshModels().pipe(
+                    Effect.mapError(
+                      (error) =>
+                        new ProviderSetupError({
+                          instanceId: instance.instanceId,
+                          operation: "refresh-models",
+                          detail: error.detail,
+                        }),
+                    ),
+                  );
+                  providers = yield* providerRegistry.refreshInstance(instance.instanceId);
+                }
+              }
+              return { providers };
+            }),
             { "rpc.aggregate": "server" },
           ),
         [WS_METHODS.providerUploadFeedback]: (input) =>
@@ -1717,6 +1753,52 @@ const makeWsRpcLayer = (
               "rpc.aggregate": "server",
             },
           ),
+        [WS_METHODS.providerAuthStart]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.providerAuthStart,
+            providerAuth.start(input, currentSessionId),
+            { "rpc.aggregate": "provider" },
+          ),
+        [WS_METHODS.providerAuthComplete]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.providerAuthComplete,
+            providerAuth.complete(input, currentSessionId),
+            { "rpc.aggregate": "provider" },
+          ),
+        [WS_METHODS.providerAuthCancel]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.providerAuthCancel,
+            providerAuth.cancel(input, currentSessionId),
+            { "rpc.aggregate": "provider" },
+          ),
+        [WS_METHODS.providerAuthLogout]: (input) =>
+          observeRpcEffect(WS_METHODS.providerAuthLogout, providerAuth.logout(input), {
+            "rpc.aggregate": "provider",
+          }),
+        [WS_METHODS.providerAuthSubscribe]: (input) =>
+          observeRpcStream(
+            WS_METHODS.providerAuthSubscribe,
+            providerAuth.subscribe(input, currentSessionId),
+            { "rpc.aggregate": "provider" },
+          ),
+        [WS_METHODS.providerInstallStart]: (input) =>
+          observeRpcEffect(WS_METHODS.providerInstallStart, providerInstallation.start(input), {
+            "rpc.aggregate": "provider",
+          }),
+        [WS_METHODS.providerInstallCancel]: (input) =>
+          observeRpcEffect(WS_METHODS.providerInstallCancel, providerInstallation.cancel(input), {
+            "rpc.aggregate": "provider",
+          }),
+        [WS_METHODS.providerInstallSubscribe]: (input) =>
+          observeRpcStream(
+            WS_METHODS.providerInstallSubscribe,
+            providerInstallation.subscribe(input),
+            { "rpc.aggregate": "provider" },
+          ),
+        [WS_METHODS.providerInstallRemove]: (input) =>
+          observeRpcEffect(WS_METHODS.providerInstallRemove, providerInstallation.remove(input), {
+            "rpc.aggregate": "provider",
+          }),
         [WS_METHODS.serverUpdateServer]: (input) =>
           observeRpcEffect(WS_METHODS.serverUpdateServer, serverUpdate.update(input), {
             "rpc.aggregate": "server",
@@ -1869,6 +1951,10 @@ const makeWsRpcLayer = (
           ),
         [WS_METHODS.serverGetUsageSummary]: (input) =>
           observeRpcEffect(WS_METHODS.serverGetUsageSummary, usage.readSummary(input), {
+            "rpc.aggregate": "server",
+          }),
+        [WS_METHODS.serverRefreshUsageRates]: (_input) =>
+          observeRpcEffect(WS_METHODS.serverRefreshUsageRates, usage.refreshRates, {
             "rpc.aggregate": "server",
           }),
         [WS_METHODS.serverRetryResourceTelemetry]: (_input) =>

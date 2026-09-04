@@ -373,6 +373,7 @@ interface ProviderInstanceCardProps {
    * omit it.
    */
   readonly headerAction?: ReactNode | undefined;
+  readonly setup?: ReactNode;
   readonly hiddenModels: ReadonlyArray<string>;
   readonly favoriteModels: ReadonlyArray<string>;
   readonly modelOrder: ReadonlyArray<string>;
@@ -415,6 +416,7 @@ export function ProviderInstanceCard({
   onUpdate,
   onDelete,
   headerAction,
+  setup,
   hiddenModels,
   favoriteModels,
   modelOrder,
@@ -479,7 +481,8 @@ export function ProviderInstanceCard({
     : null;
   const visibleTab = driverOption === undefined ? "configuration" : activeTab;
 
-  const customModels = readConfigStringArray(instance.config, "customModels");
+  const customModels =
+    instance.driver === "antigravity" ? [] : readConfigStringArray(instance.config, "customModels");
   // Server-returned models may lag behind settings writes. Treat probe
   // models as the source for built-ins only; custom rows come directly
   // from the current instance config so add/remove reflects immediately.
@@ -848,6 +851,7 @@ export function ProviderInstanceCard({
           className="lg:h-full"
           hidden={visibleTab !== "configuration"}
         >
+          {setup ? <div className="border-b border-border/60 px-4 py-3">{setup}</div> : null}
           <div
             inert={readOnly}
             aria-disabled={readOnly || undefined}
