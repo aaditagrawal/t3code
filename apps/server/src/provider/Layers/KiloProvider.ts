@@ -100,9 +100,8 @@ const discoverKiloModels = (
   }).pipe(
     Effect.timeoutOption(DEFAULT_TIMEOUT_MS),
     Effect.result,
-    Effect.map(
-      (result): ReadonlyArray<KiloDiscoveredModel> =>
-        Result.isSuccess(result) && Option.isSome(result.success) ? result.success.value : [],
+    Effect.map((result): ReadonlyArray<KiloDiscoveredModel> =>
+      Result.isSuccess(result) && Option.isSome(result.success) ? result.success.value : [],
     ),
   );
 
