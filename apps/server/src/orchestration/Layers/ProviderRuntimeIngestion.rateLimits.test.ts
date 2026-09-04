@@ -134,9 +134,7 @@ describe("runtimeEventToActivities account.rate-limits.updated", () => {
     expect(activities[0]!.payload).toEqual({
       provider: "codex",
       providerInstanceId: "codex",
-      limits: [
-        { limitId: "codex-mini", window: "5h", usedPercent: 12, windowDurationMins: 300 },
-      ],
+      limits: [{ limitId: "codex-mini", window: "5h", usedPercent: 12, windowDurationMins: 300 }],
     });
   });
 });
