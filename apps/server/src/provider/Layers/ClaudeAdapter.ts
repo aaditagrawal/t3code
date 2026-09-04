@@ -1323,12 +1323,8 @@ const buildUserMessageEffect = Effect.fn("buildUserMessageEffect")(function* (
     input.skillDispatchInput ?? input.input,
   );
   const dispatch = planClaudeSkillDispatch(skillDispatchText, dependencies.skillNames, text);
-  if (dispatch) {
-    if (dispatch.leadingText !== undefined) {
-      sdkContent.push({ type: "text", text: dispatch.leadingText });
-    }
-  } else if (text.length > 0) {
-    sdkContent.push({ type: "text", text: text });
+  if (dispatch?.leadingText !== undefined) {
+    sdkContent.push({ type: "text", text: dispatch.leadingText });
   }
 
   for (const attachment of input.attachments ?? []) {
