@@ -417,9 +417,10 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
               ? {}
               : {
                   contentType: normalizeAttachmentContentType(input.resource.mimeType),
+                  download: true,
                   ...(input.resource.fileName?.trim()
                     ? { downloadName: input.resource.fileName.trim() }
-                    : { download: true }),
+                    : {}),
                 }
           : {}),
         ...(input.resource.fileName !== undefined ? { fileName: input.resource.fileName } : {}),
@@ -604,7 +605,7 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
       ),
       Effect.orElseSucceed(() => Option.none()),
     );
-    const downloadName = claims.downloadName ?? (claims.download ? claims.fileName : undefined);
+    const downloadName = claims.downloadName;
     const legacyMimeType = claims.mimeType?.split(";", 1)[0]?.trim();
     const contentType =
       claims.contentType ??
@@ -613,13 +614,17 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
         : legacyMimeType !== undefined && INLINE_VIDEO_MIME_TYPE_PATTERN.test(legacyMimeType)
           ? legacyMimeType
           : undefined);
+    const inlineDocument =
+      !claims.download && downloadName === undefined && contentType === undefined;
     return Option.isSome(info) && info.value.type === "File"
       ? ({
           kind: "file",
           path: attachmentPath,
           ...(contentType !== undefined ? { contentType } : {}),
           ...(downloadName !== undefined ? { downloadName } : {}),
-          ...(claims.download && downloadName === undefined ? { download: true } : {}),
+          ...(claims.download ? { download: true } : {}),
+          ...(inlineDocument && claims.fileName !== undefined ? { fileName: claims.fileName } : {}),
+          ...(inlineDocument && claims.mimeType !== undefined ? { mimeType: claims.mimeType } : {}),
         } satisfies ResolvedAsset)
       : null;
   }
