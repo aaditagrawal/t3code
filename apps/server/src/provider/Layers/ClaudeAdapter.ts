@@ -1374,9 +1374,14 @@ const buildUserMessageEffect = Effect.fn("buildUserMessageEffect")(function* (
   }
 
   // Images go before the command block: a text block after them still
-  // expands, a command block followed by an image does not.
+  // expands, a command block followed by an image does not. Skip the extra
+  // text block when a command is dispatched — the command payload already
+  // includes the prompt and duplicating it makes Claude treat the raw input
+  // as a second user message.
   if (dispatch) {
     sdkContent.push({ type: "text", text: dispatch.commandText });
+  } else if (text.length > 0) {
+    sdkContent.push({ type: "text", text });
   }
 
   return buildUserMessage({ sdkContent });
