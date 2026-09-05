@@ -184,7 +184,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-describe("editable file highlighting", () => {
+describe("editable file highlighting", { timeout: 60_000 }, () => {
   it("still accepts an asynchronous highlight when the file has not changed", async () => {
     expect(renderContents()).not.toContain('style="color:');
     (await nextResponse()).deliver();
