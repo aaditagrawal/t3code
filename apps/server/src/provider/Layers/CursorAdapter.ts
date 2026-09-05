@@ -79,13 +79,18 @@ interface CursorTurnSnapshot {
   readonly items: Array<unknown>;
 }
 
+interface CursorTurnSummary {
+  assistantText: string;
+  reasoningText: string;
+  result?: CursorSdkRunResult;
+}
+
 interface CursorTurnStreamState {
   readonly turnId: TurnId;
   readonly runId: string;
   assistantItemStarted: boolean;
-  assistantText: string;
+  readonly summary: CursorTurnSummary;
   reasoningItemStarted: boolean;
-  reasoningText: string;
   readonly seenToolItemIds: Set<string>;
   readonly startedTaskIds: Set<string>;
 }
@@ -101,15 +106,6 @@ interface CursorSessionContext {
   activeRun: CursorSdkRun | undefined;
   drainFiber: Fiber.Fiber<void, never> | undefined;
   stopped: boolean;
-}
-
-function appendTurnItem(context: CursorSessionContext, turnId: TurnId, item: unknown): void {
-  const existing = context.turns.find((turn) => turn.id === turnId);
-  if (existing) {
-    existing.items.push(item);
-    return;
-  }
-  context.turns.push({ id: turnId, items: [item] });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -459,7 +455,7 @@ export function makeCursorAdapter(
           },
         });
       }
-      state.assistantText += delta;
+      state.summary.assistantText += delta;
       yield* emit({
         ...(yield* makeEventBase({
           threadId: context.threadId,
@@ -502,7 +498,7 @@ export function makeCursorAdapter(
           },
         });
       }
-      state.reasoningText += delta;
+      state.summary.reasoningText += delta;
       yield* emit({
         ...(yield* makeEventBase({
           threadId: context.threadId,
@@ -577,7 +573,6 @@ export function makeCursorAdapter(
       state: CursorTurnStreamState,
       message: CursorSdkMessage,
     ) {
-      appendTurnItem(context, state.turnId, message);
       yield* writeNativeEvent(context, message);
 
       switch (message.type) {
@@ -743,7 +738,9 @@ export function makeCursorAdapter(
             itemType: "reasoning",
             status: "completed",
             title: "Reasoning",
-            ...(state.reasoningText ? { detail: state.reasoningText.slice(0, 2_000) } : {}),
+            ...(state.summary.reasoningText
+              ? { detail: state.summary.reasoningText.slice(0, 2_000) }
+              : {}),
           },
         });
       }
@@ -761,7 +758,9 @@ export function makeCursorAdapter(
             itemType: "assistant_message",
             status: "completed",
             title: "Assistant message",
-            ...(state.assistantText ? { detail: state.assistantText.slice(0, 2_000) } : {}),
+            ...(state.summary.assistantText
+              ? { detail: state.summary.assistantText.slice(0, 2_000) }
+              : {}),
           },
         });
       }
@@ -769,16 +768,20 @@ export function makeCursorAdapter(
 
     const drainCursorRun = Effect.fn("drainCursorRun")(function* (
       context: CursorSessionContext,
-      turnId: TurnId,
+      turn: CursorTurnSnapshot,
       run: CursorSdkRun,
     ) {
+      const turnId = turn.id;
+      const summary: CursorTurnSummary = { assistantText: "", reasoningText: "" };
+      // Canonical events and optional native logs own the full stream. Keep only
+      // one summary here, including partial text when a run fails or is cancelled.
+      turn.items.push(summary);
       const state: CursorTurnStreamState = {
         turnId,
         runId: run.id,
         assistantItemStarted: false,
-        assistantText: "",
+        summary,
         reasoningItemStarted: false,
-        reasoningText: "",
         seenToolItemIds: new Set(),
         startedTaskIds: new Set(),
       };
@@ -805,6 +808,7 @@ export function makeCursorAdapter(
       }
 
       const result = yield* resolveRunResult(run);
+      summary.result = result;
       if (!state.assistantItemStarted && result.result) {
         yield* emitAssistantText(
           context,
@@ -1171,8 +1175,12 @@ export function makeCursorAdapter(
       );
 
       context.activeRun = run;
-      appendTurnItem(context, turnId, { prompt: message, runId: run.id, model: sdkModel });
-      const drainFiber = yield* drainCursorRun(context, turnId, run).pipe(
+      const turn: CursorTurnSnapshot = {
+        id: turnId,
+        items: [{ prompt: message, runId: run.id, model: sdkModel }],
+      };
+      context.turns.push(turn);
+      const drainFiber = yield* drainCursorRun(context, turn, run).pipe(
         Effect.catch((cause) => handleRunDrainFailure(context, turnId, cause)),
         Effect.catchCause((cause) => handleRunDrainFailure(context, turnId, Cause.squash(cause))),
         Effect.forkIn(context.scope),
