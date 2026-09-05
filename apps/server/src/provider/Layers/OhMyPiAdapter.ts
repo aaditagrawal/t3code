@@ -78,7 +78,7 @@ export function ohMyPiLaunchCommand(settings: OhMyPiSettings): {
 
 export function resolveOhMyPiAuthMethodId(
   initializeResult: EffectAcpSchema.InitializeResponse,
-): string {
+): string | undefined {
   const methods = initializeResult.authMethods ?? [];
   const byId = methods.find((method) => method.id.trim() === OH_MY_PI_AUTH_METHOD_ID);
   if (byId) return byId.id;
@@ -86,6 +86,7 @@ export function resolveOhMyPiAuthMethodId(
     (method) => method.name.trim().toLowerCase() === OH_MY_PI_AUTH_METHOD_ID,
   );
   if (byName) return byName.id;
+  if (methods.length === 0) return undefined;
   return OH_MY_PI_AUTH_METHOD_ID;
 }
 

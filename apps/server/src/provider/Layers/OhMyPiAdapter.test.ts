@@ -56,7 +56,7 @@ function selection(
 
 function selectOption(input: {
   readonly id: string;
-  readonly category: EffectAcpSchema.SessionConfigOption["category"];
+  readonly category: "mode" | "model" | "thought_level";
   readonly currentValue: string;
   readonly values: ReadonlyArray<string>;
   readonly type?: "select" | "boolean";
@@ -92,22 +92,6 @@ async function makeMockOhMyPiWrapper() {
   return wrapperPath;
 }
 
-const waitForRequestLog = (filePath: string, expected: string): Effect.Effect<string> => {
-  const readAttempt = (remainingAttempts: number): Effect.Effect<string> =>
-    Effect.gen(function* () {
-      if (remainingAttempts <= 0) {
-        return yield* Effect.die(new Error(`Timed out waiting for ${expected} in ${filePath}`));
-      }
-      const raw = yield* Effect.tryPromise(() => NodeFSP.readFile(filePath, "utf8")).pipe(
-        Effect.orElseSucceed(() => ""),
-      );
-      if (raw.includes(expected)) return raw;
-      yield* Effect.sleep("25 millis");
-      return yield* readAttempt(remainingAttempts - 1);
-    });
-  return readAttempt(80);
-};
-
 const testLayer = ServerConfig.layerTest(process.cwd(), {
   prefix: "t3code-oh-my-pi-adapter-test-",
 }).pipe(Layer.provideMerge(NodeServices.layer));
@@ -139,11 +123,21 @@ describe("Oh My Pi auth method resolution", () => {
     ).toBe("omp-agent");
   });
 
-  it("falls back to agent when initialize advertises no methods", () => {
+  it("skips authenticate when initialize advertises no methods", () => {
     expect(
       resolveOhMyPiAuthMethodId({
         protocolVersion: 1,
         agentCapabilities: {},
+      }),
+    ).toBeUndefined();
+  });
+
+  it("falls back to agent when initialize advertises methods but none are named agent", () => {
+    expect(
+      resolveOhMyPiAuthMethodId({
+        protocolVersion: 1,
+        agentCapabilities: {},
+        authMethods: [{ id: "terminal", name: "Set up Oh My Pi in terminal" }],
       }),
     ).toBe(OH_MY_PI_AUTH_METHOD_ID);
   });
@@ -369,46 +363,44 @@ describe("Oh My Pi provider kind", () => {
   });
 });
 
-it.layer(testLayer)("Oh My Pi adapter session config", (it) => {
-  it.effect("authenticates with agent and maps thinking plus plan mode", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const tempDir = yield* fileSystem.makeTempDirectoryScoped({
-        prefix: "t3-oh-my-pi-config-",
-      });
-      const requestLogPath = NodePath.join(tempDir, "requests.jsonl");
-      const binaryPath = yield* Effect.promise(() => makeMockOhMyPiWrapper());
-      const settings = yield* decodeOhMyPiSettings({ binaryPath });
-      const adapter = yield* makeOhMyPiAdapter(settings, {
-        environment: {
-          ...process.env,
-          T3_ACP_REQUEST_LOG_PATH: requestLogPath,
-        },
-      });
-      const threadId = ThreadId.make("oh-my-pi-thinking-plan");
-      yield* adapter.startSession({
-        threadId,
-        provider: ProviderDriverKind.make("ohMyPi"),
-        cwd: process.cwd(),
-        runtimeMode: "full-access",
-        modelSelection: selection([{ id: "thinking", value: true }]),
-      });
-      yield* adapter.sendTurn({
-        threadId,
-        input: "plan the change",
-        attachments: [],
-        interactionMode: "plan",
-        modelSelection: selection([{ id: "thinking", value: "high" }]),
-      });
-      const log = yield* waitForRequestLog(requestLogPath, `"configId":"mode"`);
-      expect(log).toContain('"methodId":"agent"');
-      expect(log).toContain('"configId":"thinking"');
-      expect(log).toContain('"value":"high"');
-      expect(log).toContain('"configId":"mode"');
-      expect(log).toContain('"value":"plan"');
-      expect(log).not.toContain('"value":true');
-      expect(log).not.toContain('"value":false');
-      yield* adapter.stopSession(threadId);
-    }).pipe(Effect.scoped),
-  );
-});
+it.live("authenticates with agent and maps thinking plus plan mode", () =>
+  Effect.gen(function* () {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const tempDir = yield* fileSystem.makeTempDirectoryScoped({
+      prefix: "t3-oh-my-pi-config-",
+    });
+    const requestLogPath = NodePath.join(tempDir, "requests.jsonl");
+    const binaryPath = yield* Effect.promise(() => makeMockOhMyPiWrapper());
+    const settings = yield* decodeOhMyPiSettings({ binaryPath });
+    const adapter = yield* makeOhMyPiAdapter(settings, {
+      environment: {
+        ...process.env,
+        T3_ACP_REQUEST_LOG_PATH: requestLogPath,
+      },
+    });
+    const threadId = ThreadId.make("oh-my-pi-thinking-plan");
+    yield* adapter.startSession({
+      threadId,
+      provider: ProviderDriverKind.make("ohMyPi"),
+      cwd: process.cwd(),
+      runtimeMode: "full-access",
+      modelSelection: selection([{ id: "thinking", value: true }]),
+    });
+    yield* adapter.sendTurn({
+      threadId,
+      input: "plan the change",
+      attachments: [],
+      interactionMode: "plan",
+      modelSelection: selection([{ id: "thinking", value: "high" }]),
+    });
+    const log = yield* Effect.tryPromise(() => NodeFSP.readFile(requestLogPath, "utf8"));
+    expect(log).toContain('"methodId":"agent"');
+    expect(log).toContain('"configId":"thinking"');
+    expect(log).toContain('"value":"high"');
+    expect(log).toContain('"configId":"mode"');
+    expect(log).toContain('"value":"plan"');
+    expect(log).not.toContain('"value":true');
+    expect(log).not.toContain('"value":false');
+    yield* adapter.stopSession(threadId);
+  }).pipe(Effect.scoped, Effect.provide(testLayer)),
+);

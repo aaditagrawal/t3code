@@ -60,63 +60,63 @@ it.layer(NodeServices.layer)("OhMyPi provider probe", (it) => {
       assert.isFalse(yield* fileSystem.exists(capturedSessionDir));
     }),
   );
+});
 
-  it.effect("treats empty discovered models as unauthenticated", () =>
-    Effect.gen(function* () {
-      const provider = yield* checkStandardAcpCliProviderStatus(
-        {
-          ...ohMyPiProbeConfig,
-          args: [ohMyPiConfigAgentPath],
-          environment: {
-            ...process.env,
-            T3_OH_MY_PI_EMPTY_MODELS: "1",
-          },
-        },
-        { prepareArgs: makeOhMyPiProbeArgs([ohMyPiConfigAgentPath]) },
-      );
-
-      assert.equal(provider.status, "error");
-      assert.equal(provider.auth.status, "unauthenticated");
-      assert.equal(provider.installed, true);
-      assert.equal(provider.version, "18.0.5");
-      assert.isTrue((provider.message ?? "").includes("/login"));
-      assert.equal(provider.models.length, 0);
-    }),
-  );
-
-  it.effect("keeps empty-model probes ready unless Oh My Pi opts into unauthenticated", () =>
-    Effect.gen(function* () {
-      const provider = yield* checkStandardAcpCliProviderStatus({
+it.live("treats empty discovered models as unauthenticated", () =>
+  Effect.gen(function* () {
+    const provider = yield* checkStandardAcpCliProviderStatus(
+      {
         ...ohMyPiProbeConfig,
         args: [ohMyPiConfigAgentPath],
-        unauthenticatedWhenNoDiscoveredModels: false,
         environment: {
           ...process.env,
           T3_OH_MY_PI_EMPTY_MODELS: "1",
         },
-      });
+      },
+      { prepareArgs: makeOhMyPiProbeArgs([ohMyPiConfigAgentPath]) },
+    );
 
-      assert.equal(provider.status, "ready");
-      assert.equal(provider.auth.status, "unknown");
-    }),
-  );
+    assert.equal(provider.status, "error");
+    assert.equal(provider.auth.status, "unauthenticated");
+    assert.equal(provider.installed, true);
+    assert.equal(provider.version, "18.0.5");
+    assert.isTrue((provider.message ?? "").includes("/login"));
+    assert.equal(provider.models.length, 0);
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
 
-  it.effect("stays ready when session setup advertises models", () =>
-    Effect.gen(function* () {
-      const provider = yield* checkStandardAcpCliProviderStatus(
-        {
-          ...ohMyPiProbeConfig,
-          args: [ohMyPiConfigAgentPath],
-        },
-        { prepareArgs: makeOhMyPiProbeArgs([ohMyPiConfigAgentPath]) },
-      );
+it.live("keeps empty-model probes ready unless Oh My Pi opts into unauthenticated", () =>
+  Effect.gen(function* () {
+    const provider = yield* checkStandardAcpCliProviderStatus({
+      ...ohMyPiProbeConfig,
+      args: [ohMyPiConfigAgentPath],
+      unauthenticatedWhenNoDiscoveredModels: false,
+      environment: {
+        ...process.env,
+        T3_OH_MY_PI_EMPTY_MODELS: "1",
+      },
+    });
 
-      assert.equal(provider.status, "ready");
-      assert.equal(provider.auth.status, "unknown");
-      assert.include(
-        provider.models.map((model) => model.slug),
-        "anthropic/claude-sonnet-4.6",
-      );
-    }),
-  );
-});
+    assert.equal(provider.status, "ready");
+    assert.equal(provider.auth.status, "unknown");
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+it.live("stays ready when session setup advertises models", () =>
+  Effect.gen(function* () {
+    const provider = yield* checkStandardAcpCliProviderStatus(
+      {
+        ...ohMyPiProbeConfig,
+        args: [ohMyPiConfigAgentPath],
+      },
+      { prepareArgs: makeOhMyPiProbeArgs([ohMyPiConfigAgentPath]) },
+    );
+
+    assert.equal(provider.status, "ready");
+    assert.equal(provider.auth.status, "unknown");
+    assert.include(
+      provider.models.map((model) => model.slug),
+      "anthropic/claude-sonnet-4.6",
+    );
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
