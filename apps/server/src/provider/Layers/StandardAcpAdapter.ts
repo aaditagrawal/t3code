@@ -43,6 +43,7 @@ import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { HostProcessEnvironment, HostProcessPlatform } from "@t3tools/shared/hostProcess";
 import { stableStringify } from "@t3tools/shared/relaySigning";
 import { ServerConfig } from "../../config.ts";
+import { buildRuntimeInstructions } from "../RuntimeInstructions.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import {
   type ProviderAdapterError,
@@ -262,6 +263,13 @@ function settlePendingUserInputsAsCancelled(
     (pending) => Deferred.succeed(pending.resolution, { _tag: "cancelled" }).pipe(Effect.ignore),
     { discard: true },
   );
+}
+
+function promptWithRuntimeInstructions(
+  promptParts: ReadonlyArray<EffectAcpSchema.ContentBlock>,
+  runtimeInstructions: string,
+): Array<EffectAcpSchema.ContentBlock> {
+  return [...promptParts, { type: "text", text: runtimeInstructions }];
 }
 
 function appendPromptResultToTurn(
@@ -1578,6 +1586,11 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
               const displayModel = currentModelId
                 ? config.normalizeModel(currentModelId)
                 : undefined;
+              const runtimeInstructions = buildRuntimeInstructions({
+                harness: config.label,
+                model: displayModel,
+                reasoningEffort: ctx.currentModelOptions.reasoningEffort,
+              });
               for (
                 let yieldAttempt = 0;
                 yieldAttempt < SETTLEMENT_YIELD_ATTEMPTS;
@@ -1642,6 +1655,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                 acpSessionId: ctx.acpSessionId,
                 displayModel,
                 promptParts,
+                runtimeInstructions,
                 turnId,
                 promptEpoch,
                 promptLifecycle: ctx.promptLifecycle,
@@ -1699,7 +1713,15 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                   }
                   const dispatched = yield* Deferred.make<void>();
                   const fiber = yield* liveCtx.acp
-                    .prompt({ prompt: prepared.promptParts }, { dispatched })
+                    .prompt(
+                      {
+                        prompt: promptWithRuntimeInstructions(
+                          prepared.promptParts,
+                          prepared.runtimeInstructions,
+                        ),
+                      },
+                      { dispatched },
+                    )
                     .pipe(Effect.forkChild({ startImmediately: true }));
                   // Keep the permit until the runtime has registered the RPC,
                   // ensuring a later cancel targets this exact prompt.
@@ -1741,7 +1763,12 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
           const promptEffect =
             promptStart._tag === "Started"
               ? Fiber.join(promptStart.fiber)
-              : prepared.acp.prompt({ prompt: prepared.promptParts });
+              : prepared.acp.prompt({
+                  prompt: promptWithRuntimeInstructions(
+                    prepared.promptParts,
+                    prepared.runtimeInstructions,
+                  ),
+                });
           const result = yield* promptEffect.pipe(
             Effect.tap((promptResult) =>
               Effect.all([

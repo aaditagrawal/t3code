@@ -18,10 +18,15 @@ provider health-check interval and update live while a turn runs. API-key accoun
 subscription windows and say so; that includes a Claude Code that reaches Anthropic through a proxy
 via `ANTHROPIC_AUTH_TOKEN`, since the CLI then treats itself as an API-key client.
 
-If you pool accounts behind a CLIProxyAPI hub, **Add CLIProxyAPI hub** on the Limits view shows
-every account the hub manages, each marked _via CLIProxyAPI_ so it is not mistaken for the provider
-signed in on this machine. Enter the hub's URL and management key; the key is stored on the server
-and never sent back to a client. Emails are blurred until clicked, as in provider settings.
+If you pool accounts behind a CLIProxyAPI hub, open **Settings → Providers → Usage providers**
+and choose **Add hub**. Select the device that should connect to the hub; its accounts appear on
+the Limits view. Remove hubs from the same settings section. Each limits row shows its provider
+and instance name, or a small _CLI Proxy_ label for
+hub accounts. When a connected provider reports limits for the same provider and email, its row
+replaces the hub copy, keeping details such as banked reset credits. The hub copy remains visible
+if the connected provider cannot report limits. Enter the hub's URL and management key; the key
+is stored on the server and never sent back to a client. Emails are blurred until clicked, as in
+provider settings.
 
 Use **Past 24h** for an hourly chart covering the exact rolling 24-hour period. The **7 days**,
 **30 days**, and **90 days** ranges use daily resolution. Cost and token toggles update both the
