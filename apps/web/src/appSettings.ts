@@ -85,6 +85,7 @@ const APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS = {
   geminiCli: "customGeminiCliModels",
   amp: "customAmpModels",
   kilo: "customKiloModels",
+  primeAgent: "customPrimeAgentModels",
 } as const satisfies Partial<Record<ProviderKind, keyof AppSettings>>;
 const MIRRORED_CLIENT_KEYS = new Set<keyof AppSettings>([
   "confirmThreadDelete",
@@ -110,6 +111,7 @@ const MIRRORED_SERVER_KEYS = new Set<keyof AppSettings>([
   "customGeminiCliModels",
   "customAmpModels",
   "customKiloModels",
+  "customPrimeAgentModels",
 ]);
 
 const withDefaults =
@@ -157,6 +159,7 @@ export const AppSettingsSchema = Schema.Struct({
   customGeminiCliModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
   customAmpModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
   customKiloModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
+  customPrimeAgentModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
   gitTextGenerationModelByProvider: Schema.Record(Schema.String, Schema.String).pipe(
     withDefaults(() => ({}) as Record<string, string>),
   ),
@@ -200,6 +203,7 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
     customGeminiCliModels: normalizeCustomModelSlugsLocal(settings.customGeminiCliModels),
     customAmpModels: normalizeCustomModelSlugsLocal(settings.customAmpModels),
     customKiloModels: normalizeCustomModelSlugsLocal(settings.customKiloModels),
+    customPrimeAgentModels: normalizeCustomModelSlugsLocal(settings.customPrimeAgentModels),
     gitTextGenerationModelByProvider: normalizeGitTextGenerationModelByProviderLocal(
       settings.gitTextGenerationModelByProvider,
     ),
@@ -293,6 +297,7 @@ function withUnifiedCompatSettings(
     customGeminiCliModels: readCustomModelSlugs(unifiedSettings.providers.geminiCli.customModels),
     customAmpModels: readCustomModelSlugs(unifiedSettings.providers.amp.customModels),
     customKiloModels: readCustomModelSlugs(unifiedSettings.providers.kilo.customModels),
+    customPrimeAgentModels: readCustomModelSlugs(unifiedSettings.providers.primeAgent.customModels),
   });
 }
 

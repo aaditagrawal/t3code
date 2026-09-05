@@ -7,7 +7,7 @@ This fork focuses on expanding provider support, keeping usage and limit monitor
 Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, Google Antigravity, and the other supported agents below. If they're set up on your computer, T3 Code can control them.
 
 It supports configurable stdio ACP agents, Codex, Claude Code, Cursor, Droid, Fx, Grok Build,
-OpenCode, Antigravity, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, and Pi.
+OpenCode, Antigravity, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, Pi, and Prime Agent.
 
 (NOTE: Amp /mode free is not supported, as Amp Code doesn't support it in headless mode - since they need to show ads for that business model to work.)
 
@@ -38,24 +38,25 @@ The protected fork features are multi-provider runtime support, usage and limit 
 
 Adds full provider adapters (server managers, service layers, runtime layers) for agents that are not yet on the upstream roadmap:
 
-| Provider       | What's included                                                            |
-| -------------- | -------------------------------------------------------------------------- |
-| Codex CLI      | App-server JSON-RPC support with usage/rate-limit monitoring               |
-| Claude Code    | Full adapter with permission mode, thinking token limits, and SDK typings  |
-| Cursor         | TypeScript SDK adapter + SDK model discovery + usage-dashboard tracking    |
-| Droid          | Factory Droid SDK runtime integration                                      |
-| Fx             | ACP integration through `fx acp`                                           |
-| Grok Build     | ACP adapter with xAI protocol extensions                                   |
-| OpenCode       | Adapter with hostname/port/workspace config                                |
-| Antigravity    | Official Google ACP agent with managed install and Google sign-in          |
-| Amp            | Adapter + `ampServerManager` for headless Amp sessions                     |
-| GitHub Copilot | Adapter + CLI binary resolution + text generation layer                    |
-| Gemini CLI     | **Enhanced:** Adapter + `geminiCliServerManager` with full test coverage   |
-| Kilo           | Adapter + `kiloServerManager` + OpenCode-style server URL config           |
-| Hermes Agent   | ACP chats plus an optional companion for Home, cron, handoffs, and media   |
-| Oh My Pi       | ACP integration through the built-in `omp acp` mode                        |
-| Pi             | ACP integration through `pi-acp`, with shared model and session handling   |
-| ACP Agent      | Configurable executable and argument list for any stdio ACP implementation |
+| Provider       | What's included                                                                    |
+| -------------- | ---------------------------------------------------------------------------------- |
+| Codex CLI      | App-server JSON-RPC support with usage/rate-limit monitoring                       |
+| Claude Code    | Full adapter with permission mode, thinking token limits, and SDK typings          |
+| Cursor         | TypeScript SDK adapter + SDK model discovery + usage-dashboard tracking            |
+| Droid          | Factory Droid SDK runtime integration                                              |
+| Fx             | ACP integration through `fx acp`                                                   |
+| Grok Build     | ACP adapter with xAI protocol extensions                                           |
+| OpenCode       | Adapter with hostname/port/workspace config                                        |
+| Antigravity    | Official Google ACP agent with managed install and Google sign-in                  |
+| Amp            | Adapter + `ampServerManager` for headless Amp sessions                             |
+| GitHub Copilot | Adapter + CLI binary resolution + text generation layer                            |
+| Gemini CLI     | **Enhanced:** Adapter + `geminiCliServerManager` with full test coverage           |
+| Kilo           | Adapter + `kiloServerManager` + OpenCode-style server URL config                   |
+| Hermes Agent   | ACP chats plus an optional companion for Home, cron, handoffs, and media           |
+| Oh My Pi       | ACP integration through the built-in `omp acp` mode                                |
+| Pi             | ACP integration through `pi-acp`, with shared model and session handling           |
+| Prime Agent    | ACP adapter for Prime Intellect's CLI; [setup](docs/user/providers-prime-agent.md) |
+| ACP Agent      | Configurable executable and argument list for any stdio ACP implementation         |
 
 Hermes uses `hermes-acp` for ordinary interactive conversations. Its optional [T3 companion plugin](integrations/hermes-t3-gateway/README.md) adds enrollment, proactive Home and cron delivery, handoffs, and media without replacing the standard ACP path. Oh My Pi runs its native ACP server through `omp acp`, while Pi stays on the shared transport through `pi-acp`.
 

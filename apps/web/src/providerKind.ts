@@ -26,6 +26,7 @@ export const PROVIDER_KINDS = [
   "geminiCli",
   "amp",
   "kilo",
+  "primeAgent",
   "hermes",
   "pi",
   "ohMyPi",

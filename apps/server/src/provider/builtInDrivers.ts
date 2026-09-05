@@ -36,6 +36,7 @@ import { KiloDriver, type KiloDriverEnv } from "./Drivers/KiloDriver.ts";
 import { OpenCodeDriver, type OpenCodeDriverEnv } from "./Drivers/OpenCodeDriver.ts";
 import { OhMyPiDriver, type OhMyPiDriverEnv } from "./Drivers/OhMyPiDriver.ts";
 import { PiDriver, type PiDriverEnv } from "./Drivers/PiDriver.ts";
+import { PrimeAgentDriver, type PrimeAgentDriverEnv } from "./Drivers/PrimeAgentDriver.ts";
 import type { AnyProviderDriver } from "./ProviderDriver.ts";
 
 /**
@@ -44,6 +45,7 @@ import type { AnyProviderDriver } from "./ProviderDriver.ts";
  * layer must provide every service in this union.
  */
 export type BuiltInDriversEnv =
+  | PrimeAgentDriverEnv
   | AcpDriverEnv
   | ClaudeDriverEnv
   | CodexDriverEnv
@@ -86,4 +88,5 @@ export const BUILT_IN_DRIVERS: ReadonlyArray<AnyProviderDriver<BuiltInDriversEnv
   KiloDriver,
   OhMyPiDriver,
   PiDriver,
+  PrimeAgentDriver,
 ];

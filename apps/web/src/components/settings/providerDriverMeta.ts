@@ -12,6 +12,7 @@ import {
   GrokSettings,
   HermesSettings,
   KiloSettings,
+  PrimeAgentSettings,
   OhMyPiSettings,
   OpenCodeSettings,
   PiSettings,
@@ -32,6 +33,7 @@ import {
   HermesIcon,
   type Icon,
   KiloIcon,
+  PrimeAgentIcon,
   OhMyPiIcon,
   OpenAI,
   OpenCodeIcon,
@@ -64,6 +66,13 @@ export interface ProviderClientDefinition {
 }
 
 export const PROVIDER_CLIENT_DEFINITIONS: readonly ProviderClientDefinition[] = [
+  {
+    value: ProviderDriverKind.make("primeAgent"),
+    label: "Prime Agent",
+    icon: PrimeAgentIcon,
+    settingsSchema: PrimeAgentSettings,
+    badgeLabel: "Fork Extension",
+  },
   {
     value: ProviderDriverKind.make("acp"),
     label: "ACP Agent",
