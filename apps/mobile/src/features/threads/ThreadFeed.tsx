@@ -182,6 +182,8 @@ import {
   ThreadMarkdownImageView,
 } from "./ThreadMarkdownImage";
 
+const NativeReviewDiffView = resolveNativeReviewDiffView();
+
 const WIDE_MARKDOWN_BLOCK_OPTIONS = {
   // Native iOS blockquotes and adjacent selectable text are separate layout
   // chunks. Giving their shrink-to-fit bubble a definite width keeps both
@@ -1673,7 +1675,6 @@ const ReviewCommentCard = memo(function ReviewCommentCard(props: {
   const { codeSurface, nativeReviewDiffStyle } = useAppearanceCodeSurface();
   const { themeAppearance: appearanceScheme, themeId } = useAppearancePreferences();
   const appTheme = useUniwindTheme();
-  const NativeReviewDiffView = resolveNativeReviewDiffView();
   const patch = useMemo(() => buildReviewCommentPatch(props.comment), [props.comment]);
   const parsedDiff = useMemo(
     () => buildReviewParsedDiff(patch, `thread-review-comment:${props.comment.id}`),
@@ -1899,6 +1900,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   // momentum; scroll events only break follow inside that session, so MVCP
   // compensations and programmatic scrolls never strand a follower.
   const userScrollSessionRef = useRef(false);
+  const propsOnEndFollowEnabledChange = props.onEndFollowEnabledChange;
   const setEndFollow = useCallback(
     (enabled: boolean) => {
       if (endFollowEnabledRef.current === enabled) {
@@ -1906,9 +1908,9 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       }
       endFollowEnabledRef.current = enabled;
       setEndFollowEnabled(enabled);
-      props.onEndFollowEnabledChange?.(enabled);
+      propsOnEndFollowEnabledChange?.(enabled);
     },
-    [props.onEndFollowEnabledChange],
+    [propsOnEndFollowEnabledChange],
   );
   const transitionEndFollow = useCallback(
     (event: ThreadFeedLiveFollowEvent) => {
@@ -1930,10 +1932,25 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const { copiedRowId, expandedWorkGroups, expandedWorkRows, expandedTurnIds } = interactionState;
   const [expandedFile, setExpandedFile] = useState<FilePreviewSource | null>(null);
   const [expandedVideo, setExpandedVideo] = useState<VideoPreviewSource | null>(null);
-  useEffect(() => {
+  const nextExpandedVideoResetInputs = [
+    props.environmentId,
+    props.threadId,
+    props.contentPresentation.kind,
+  ];
+  const [expandedVideoResetInputs, setExpandedVideoResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    expandedVideoResetInputs === null ||
+    nextExpandedVideoResetInputs.some(
+      (value, index) => !Object.is(value, expandedVideoResetInputs[index]),
+    )
+  ) {
+    setExpandedVideoResetInputs(nextExpandedVideoResetInputs);
+
     setExpandedVideo(null);
     setExpandedFile(null);
-  }, [props.environmentId, props.threadId, props.contentPresentation.kind]);
+  }
   const horizontalPadding = props.layoutVariant === "split" ? 20 : 16;
   const contentHorizontalPadding = deriveCenteredContentHorizontalPadding({
     viewportWidth,
@@ -2194,15 +2211,16 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       viewportWidth,
     ],
   );
+  const propsOnHeaderMaterialVisibilityChange = props.onHeaderMaterialVisibilityChange;
   const reportHeaderMaterialVisibility = useCallback(
     (visible: boolean) => {
       if (headerMaterialVisibleRef.current === visible) {
         return;
       }
       headerMaterialVisibleRef.current = visible;
-      props.onHeaderMaterialVisibilityChange?.(visible);
+      propsOnHeaderMaterialVisibilityChange?.(visible);
     },
-    [props.onHeaderMaterialVisibilityChange],
+    [propsOnHeaderMaterialVisibilityChange],
   );
   const handleScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -2673,6 +2691,8 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       <View className="flex-1" onLayout={handleViewportLayout}>
         <View className="flex-1">
           <KeyboardAwareLegendList
+            // Message rows own disclosure state; retain remount-on-reuse behavior.
+            recycleItems={false}
             ref={props.listRef}
             // The empty↔filled key remounts the list when messages first
             // arrive. LegendList's maintainScrollAtEnd calls scrollToEnd(),

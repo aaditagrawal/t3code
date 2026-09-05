@@ -25,7 +25,7 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
         : params.environmentId,
       projectId: Array.isArray(params.projectId) ? params.projectId[0] : params.projectId,
     }),
-    [route.params],
+    [params.environmentId, params.projectId],
   );
 
   return (

@@ -1,3 +1,5 @@
+import { useLayoutEffect } from "react";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -72,20 +74,26 @@ export function useVoiceInputController(input: {
   const [state, setState] = useState<VoiceInputState>(INITIAL_STATE);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const elapsedSecondsRef = useRef(0);
-  const audioLevelsRef = useRef(Array<number>(VOICE_WAVEFORM_SAMPLE_COUNT).fill(0));
-  const audioLevels = useSharedValue(audioLevelsRef.current);
+  const [initialAudioLevels] = useState(() => Array<number>(VOICE_WAVEFORM_SAMPLE_COUNT).fill(0));
+  const audioLevelsRef = useRef(initialAudioLevels);
+  const audioLevels = useSharedValue(initialAudioLevels);
   const controllerRef = useRef<VoiceInputController | null>(null);
-  const previousDraftRef = useRef({ ownerKey: input.ownerKey, text: input.draftMessage });
-  const revisionRef = useRef(0);
-  if (
-    previousDraftRef.current.ownerKey !== input.ownerKey ||
-    previousDraftRef.current.text !== input.draftMessage
-  ) {
-    previousDraftRef.current = { ownerKey: input.ownerKey, text: input.draftMessage };
-    revisionRef.current += 1;
+  const [previousDraft, setPreviousDraft] = useState({
+    ownerKey: input.ownerKey,
+    text: input.draftMessage,
+    revision: 0,
+  });
+  if (previousDraft.ownerKey !== input.ownerKey || previousDraft.text !== input.draftMessage) {
+    setPreviousDraft({
+      ownerKey: input.ownerKey,
+      text: input.draftMessage,
+      revision: previousDraft.revision + 1,
+    });
   }
+  const revisionRef = useRef(previousDraft.revision);
+  useCommitRef(revisionRef, previousDraft.revision);
   const latestInputRef = useRef(input);
-  latestInputRef.current = input;
+  useCommitRef(latestInputRef, input);
 
   const handleRecorderStatus = useCallback((status: RecordingStatus) => {
     controllerRef.current?.handleRecorderStatus({
@@ -97,37 +105,42 @@ export function useVoiceInputController(input: {
   }, []);
   const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS, handleRecorderStatus);
 
-  if (!controllerRef.current) {
-    controllerRef.current = new VoiceInputController({
-      recorder,
-      getTranscriber: getLocalVoiceTranscriber,
-      requestPermission: async () => {
-        const permission = await requestRecordingPermissionsAsync();
-        return { granted: permission.granted, canAskAgain: permission.canAskAgain };
-      },
-      configureRecording: configureVoiceRecordingAudio,
-      releaseRecording: releaseVoiceRecordingAudio,
-      deleteRecording: (uri) => new File(uri).delete(),
-      readDraft: (): VoiceDraftSnapshot | null => {
-        const current = latestInputRef.current;
-        if (!current.ownerKey) return null;
-        return {
-          ownerKey: current.ownerKey,
-          text: current.draftMessage,
-          selection: current.selection,
-          revision: revisionRef.current,
-        };
-      },
-      commitDraft: (text, selection) => {
-        const current = latestInputRef.current;
-        current.onChangeSelection(selection);
-        current.onChangeDraftMessage(text);
-      },
-      onStateChange: setState,
-    });
-  }
-
-  const controller = controllerRef.current;
+  const [controller] = useState(
+    () =>
+      new VoiceInputController({
+        recorder,
+        getTranscriber: getLocalVoiceTranscriber,
+        requestPermission: async () => {
+          const permission = await requestRecordingPermissionsAsync();
+          return { granted: permission.granted, canAskAgain: permission.canAskAgain };
+        },
+        configureRecording: configureVoiceRecordingAudio,
+        releaseRecording: releaseVoiceRecordingAudio,
+        deleteRecording: (uri) => new File(uri).delete(),
+        readDraft: (): VoiceDraftSnapshot | null => {
+          const current = latestInputRef.current;
+          if (!current.ownerKey) return null;
+          return {
+            ownerKey: current.ownerKey,
+            text: current.draftMessage,
+            selection: current.selection,
+            revision: revisionRef.current,
+          };
+        },
+        commitDraft: (text, selection) => {
+          const current = latestInputRef.current;
+          current.onChangeSelection(selection);
+          current.onChangeDraftMessage(text);
+        },
+        onStateChange: setState,
+      }),
+  );
+  useLayoutEffect(() => {
+    controllerRef.current = controller;
+    return () => {
+      controllerRef.current = null;
+    };
+  }, [controller]);
   const previousOwnerRef = useRef(input.ownerKey);
   useEffect(() => {
     if (previousOwnerRef.current === input.ownerKey) return;
@@ -161,7 +174,7 @@ export function useVoiceInputController(input: {
 
     if (audioLevelsRef.current.some((level) => level !== 0)) {
       audioLevelsRef.current = Array<number>(VOICE_WAVEFORM_SAMPLE_COUNT).fill(0);
-      audioLevels.value = audioLevelsRef.current;
+      audioLevels.set(audioLevelsRef.current);
     }
     if (elapsedSecondsRef.current !== 0) {
       elapsedSecondsRef.current = 0;
@@ -179,7 +192,7 @@ export function useVoiceInputController(input: {
       if (level !== 0 || history.some((sample) => sample !== 0)) {
         const nextLevels = [...history.slice(1), level];
         audioLevelsRef.current = nextLevels;
-        audioLevels.value = nextLevels;
+        audioLevels.set(nextLevels);
       }
 
       const nextElapsedSeconds = Math.min(

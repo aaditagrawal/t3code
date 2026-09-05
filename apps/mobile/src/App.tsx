@@ -77,7 +77,7 @@ function AppContent() {
     <>
       <SplashScreenCoordinator />
       <GestureHandlerRootView className="flex-1">
-        <KeyboardProvider statusBarTranslucent>
+        <KeyboardProvider>
           <SafeAreaProvider>
             <StatusBar
               barStyle={themeAppearance === "dark" ? "light-content" : "dark-content"}

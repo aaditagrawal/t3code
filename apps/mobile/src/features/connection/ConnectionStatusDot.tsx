@@ -48,22 +48,26 @@ function usePulseAnimation(pulse: boolean) {
 
   useEffect(() => {
     if (pulse) {
-      pulseProgress.value = withRepeat(
-        withTiming(1, {
-          duration: 1100,
-          easing: Easing.out(Easing.cubic),
-        }),
-        -1,
-        false,
+      pulseProgress.set(
+        withRepeat(
+          withTiming(1, {
+            duration: 1100,
+            easing: Easing.out(Easing.cubic),
+          }),
+          -1,
+          false,
+        ),
       );
       return;
     }
 
     cancelAnimation(pulseProgress);
-    pulseProgress.value = withTiming(0, {
-      duration: 180,
-      easing: Easing.out(Easing.quad),
-    });
+    pulseProgress.set(
+      withTiming(0, {
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+      }),
+    );
   }, [pulse, pulseProgress]);
 
   return pulseProgress;

@@ -124,3 +124,55 @@ export function pruneAcknowledgedComposerNativeEvents(
       index === latestAcknowledgedIndex || snapshot.eventCount > acknowledgedEventCount,
   );
 }
+
+/** One immutable snapshot for React and synchronous native-event acknowledgement. */
+export function createComposerRevisionStore() {
+  let snapshot: {
+    readonly eventCount: number;
+    readonly events: ReadonlyArray<ComposerNativeEventSnapshot>;
+  } = { eventCount: 0, events: [] };
+  const listeners = new Set<() => void>();
+  const publish = (eventCount: number, events: ReadonlyArray<ComposerNativeEventSnapshot>) => {
+    if (
+      snapshot.eventCount === eventCount &&
+      snapshot.events.length === events.length &&
+      events.every((event, index) => event === snapshot.events[index])
+    )
+      return;
+    snapshot = { eventCount, events };
+    for (const listener of listeners) listener();
+  };
+  return {
+    getSnapshot: () => snapshot,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    accept: (eventCount: number, value: string, selection: ComposerEditorSelection) => {
+      const acknowledged = acknowledgeComposerNativeEvent(snapshot.eventCount, eventCount);
+      if (acknowledged === null) return false;
+      publish(acknowledged, [...snapshot.events, { eventCount: acknowledged, value, selection }]);
+      return acknowledged;
+    },
+    prune: (eventCount: number) => {
+      publish(
+        snapshot.eventCount,
+        pruneAcknowledgedComposerNativeEvents(snapshot.events, eventCount),
+      );
+    },
+    assume: (eventCount: number, value: string) => {
+      if (eventCount !== snapshot.eventCount) return;
+      const only = snapshot.events[0];
+      if (
+        snapshot.events.length === 1 &&
+        only?.eventCount === eventCount &&
+        only.value === value &&
+        only.selection === null
+      )
+        return;
+      publish(eventCount, assumeComposerControlledState(snapshot.events, eventCount, value));
+    },
+  };
+}
