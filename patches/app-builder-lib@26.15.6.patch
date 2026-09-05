@@ -1,0 +1,39 @@
+diff --git a/out/util/appFileCopier.js b/out/util/appFileCopier.js
+index 230f5bcd04697279ad8b43f406c9112637065c98..71bc218910bb03777640854b7394282a0d851bbf 100644
+--- a/out/util/appFileCopier.js
++++ b/out/util/appFileCopier.js
+@@ -211,6 +211,7 @@ function collectionMatchesAppDependencies(nodeModules, dependencies) {
+ async function resolveFirstMatchingCollection(options) {
+     const { pmApproaches, searchDirectories, dependencies, run } = options;
+     let fallback;
++    let incomplete = false;
+     for (const pm of pmApproaches) {
+         for (const dir of searchDirectories) {
+             builder_util_1.log.info({ pm, searchDir: dir }, "searching for node modules");
+@@ -219,6 +220,16 @@ async function resolveFirstMatchingCollection(options) {
+                 builder_util_1.log.info({ pm, searchDir: dir }, "no node modules found in collection, trying next search directory");
+                 continue;
+             }
++            const missing = [
++                moduleManager_1.LogMessageByKey.PKG_DUPLICATE_REF_UNRESOLVED,
++                moduleManager_1.LogMessageByKey.PKG_NOT_FOUND,
++                moduleManager_1.LogMessageByKey.PKG_NOT_ON_DISK,
++            ].flatMap(key => deps.logSummary?.[key] || []);
++            if (missing.length > 0) {
++                incomplete = true;
++                builder_util_1.log.warn({ pm, dependencies: missing }, "incomplete dependency collection; trying filesystem traversal");
++                continue;
++            }
+             if (collectionMatchesAppDependencies(deps.nodeModules, dependencies)) {
+                 builder_util_1.log.debug({ pm, searchDir: dir, depCount: deps.nodeModules.length }, "collected node modules");
+                 return deps;
+@@ -227,6 +238,9 @@ async function resolveFirstMatchingCollection(options) {
+             fallback !== null && fallback !== void 0 ? fallback : (fallback = deps);
+         }
+     }
++    if (incomplete && !fallback) {
++        throw new Error("Cannot package an incomplete production dependency tree.");
++    }
+     return fallback;
+ }
+ async function collectNodeModulesWithLogging(platformPackager) {
