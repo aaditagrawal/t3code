@@ -75,6 +75,8 @@ import { buildReviewSectionMenu } from "./review-section-menu";
 import type { ReviewSectionItem } from "./reviewModel";
 import { reportShowcaseSceneRendered } from "../showcase/showcaseRenderSignal";
 
+const NativeReviewDiffView = resolveNativeReviewDiffView()!;
+
 const REVIEW_HEADER_SPACING = 0;
 const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
 
@@ -401,7 +403,6 @@ export function ReviewSheet(props: ReviewSheetProps) {
       selectedSection,
       draftMessage,
     });
-  const NativeReviewDiffView = resolveNativeReviewDiffView()!;
   const nativeReviewDiffViewRef = useRef<NativeReviewDiffViewHandle>(null);
   const showcasedReviewDrawRef = useRef<string | null>(null);
   // Native pull-to-refresh on the diff surface (replaces the old Refresh menu item).
@@ -413,7 +414,7 @@ export function ReviewSheet(props: ReviewSheetProps) {
     } finally {
       setIsPullRefreshing(false);
     }
-  }, [refreshSelectedSection]);
+  }, []);
   const reviewFileNavigatorRef = useRef<ReviewFileNavigatorHandle>(null);
   const reviewFiles = parsedDiff.kind === "files" ? parsedDiff.files : [];
   const fileVisibility = useReviewFileVisibility({
@@ -461,7 +462,7 @@ export function ReviewSheet(props: ReviewSheetProps) {
       showcasedReviewDrawRef.current = showcaseReviewKey;
       reportShowcaseSceneRendered({ scene: "review", themeId: nativeBridge.themeId });
     },
-    [nativeBridge.onDebug, nativeBridge.themeId, showcaseReviewKey],
+    [showcaseReviewKey, nativeBridge],
   );
 
   const handleSelectFile = useCallback(

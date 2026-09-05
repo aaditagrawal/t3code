@@ -120,7 +120,8 @@ function BranchSelectionRow(props: {
   readonly onSelect: (branch: VcsRef) => void;
   readonly selected: boolean;
 }) {
-  const onPress = useCallback(() => props.onSelect(props.branch), [props.branch, props.onSelect]);
+  const propsOnSelect = props.onSelect;
+  const onPress = useCallback(() => propsOnSelect(props.branch), [props.branch, propsOnSelect]);
 
   return (
     <View
@@ -391,6 +392,7 @@ export function NewTaskBranchPickerRouteScreen() {
       </ScrollView>
     ) : (
       <LegendList
+        recycleItems={false}
         alwaysBounceVertical={false}
         automaticallyAdjustsScrollIndicatorInsets
         automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}

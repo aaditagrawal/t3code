@@ -191,7 +191,7 @@ export function GitOverviewSheet(props: GitOverviewSheetProps) {
       }
       return undefined;
     },
-    [gitStatus.data, menuItems],
+    [gitStatus.data],
   );
 
   const behindCount = gitStatus.data?.behindCount ?? 0;
@@ -207,7 +207,7 @@ export function GitOverviewSheet(props: GitOverviewSheetProps) {
     } finally {
       setIsPullRefreshing(false);
     }
-  }, [gitActions]);
+  }, []);
 
   const content = (
     <ScrollView

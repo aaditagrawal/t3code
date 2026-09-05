@@ -1,3 +1,4 @@
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import { type EnvironmentConnectionPhase } from "@t3tools/client-runtime/connection";
 import {
   appendCodexArtifactTemplateUsePrompt,
@@ -254,9 +255,20 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
       subscription.remove();
     };
   }, []);
-  useEffect(() => {
+  const nextKeyboardStateSuspectResetInputs = [isKeyboardVisible, liveKeyboardHeight];
+  const [keyboardStateSuspectResetInputs, setKeyboardStateSuspectResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    keyboardStateSuspectResetInputs === null ||
+    nextKeyboardStateSuspectResetInputs.some(
+      (value, index) => !Object.is(value, keyboardStateSuspectResetInputs[index]),
+    )
+  ) {
+    setKeyboardStateSuspectResetInputs(nextKeyboardStateSuspectResetInputs);
+
     setKeyboardStateSuspect(false);
-  }, [isKeyboardVisible, liveKeyboardHeight]);
+  }
   const handleOwnedInputFocusChange = useCallback((focused: boolean) => {
     if (focused) {
       setKeyboardStateSuspect(false);
@@ -268,7 +280,7 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
   const selectedThreadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
   const composerEditorRef = useRef<ComposerEditorHandle>(null);
   const draftMessageRef = useRef(props.draftMessage);
-  draftMessageRef.current = props.draftMessage;
+  useCommitRef(draftMessageRef, props.draftMessage);
   const composerOverlayRef = useRef<View>(null);
   const listRef = useRef<LegendListRef>(null);
   const feedTouchStartRef = useRef<{ pageX: number; pageY: number } | null>(null);
@@ -371,11 +383,22 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
   // an estimate; once a real height is known the card corrects once,
   // discretely.
   const [lastKnownKeyboardHeight, setLastKnownKeyboardHeight] = useState(0);
-  useEffect(() => {
+  const nextLastKnownKeyboardHeightResetInputs = [lastKnownKeyboardHeight, liveKeyboardHeight];
+  const [lastKnownKeyboardHeightResetInputs, setLastKnownKeyboardHeightResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    lastKnownKeyboardHeightResetInputs === null ||
+    nextLastKnownKeyboardHeightResetInputs.some(
+      (value, index) => !Object.is(value, lastKnownKeyboardHeightResetInputs[index]),
+    )
+  ) {
+    setLastKnownKeyboardHeightResetInputs(nextLastKnownKeyboardHeightResetInputs);
+
     if (liveKeyboardHeight > 0 && liveKeyboardHeight !== lastKnownKeyboardHeight) {
       setLastKnownKeyboardHeight(liveKeyboardHeight);
     }
-  }, [lastKnownKeyboardHeight, liveKeyboardHeight]);
+  }
   const pendingUserInputMaxHeight = derivePendingUserInputMaxHeight({
     windowHeight,
     keyboardHeight:
@@ -418,9 +441,11 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
     showWorkingControl ? FLOATING_WORKING_CONTROL_COVERAGE : 0,
   );
   useEffect(() => {
-    floatingControlCoverage.value = withTiming(
-      showWorkingControl ? FLOATING_WORKING_CONTROL_COVERAGE : 0,
-      { duration: 180, reduceMotion: ReduceMotion.System },
+    floatingControlCoverage.set(
+      withTiming(showWorkingControl ? FLOATING_WORKING_CONTROL_COVERAGE : 0, {
+        duration: 180,
+        reduceMotion: ReduceMotion.System,
+      }),
     );
   }, [floatingControlCoverage, showWorkingControl]);
   // Android renders the expanded card in-flow (it cannot hit-test the iOS
@@ -436,13 +461,13 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
       floatingControlCoverage.value +
       (userInputCoverageApplies ? userInputInsetProgress.value * userInputCardCoverage.value : 0),
     (value) => {
-      combinedContentInsetEndAdjustment.value = value;
+      combinedContentInsetEndAdjustment.set(value);
     },
     [userInputCoverageApplies],
   );
   const { freeze, scrollMessageToEnd } = useKeyboardScrollToEnd({ listRef });
-  const endFollowEnabledRef = useRef(true);
-  endFollowEnabledRef.current = endFollowEnabled;
+  const endFollowEnabledRef = useRef(endFollowEnabled);
+  useCommitRef(endFollowEnabledRef, endFollowEnabled);
   const overlayRepinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousWorkingControlStateRef = useRef({
     threadKey: selectedThreadKey,
@@ -502,19 +527,19 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
     }
     if (userInputCollapsed) {
       // Expanding: card and feed glide start NOW, on the UI thread.
-      userInputCardProgress.value = withTiming(1, USER_INPUT_TOGGLE_TIMING);
-      userInputInsetProgress.value = withTiming(1, USER_INPUT_TOGGLE_TIMING);
+      userInputCardProgress.set(withTiming(1, USER_INPUT_TOGGLE_TIMING));
+      userInputInsetProgress.set(withTiming(1, USER_INPUT_TOGGLE_TIMING));
       setCollapsedUserInputRequestId(null);
       scheduleOverlayRepin(USER_INPUT_TOGGLE_DURATION_MS + 50);
     } else {
       // Collapsing hides the custom-answer inputs; release the keyboard with
       // them instead of leaving it up over a dead responder.
       Keyboard.dismiss();
-      userInputCardProgress.value = withTiming(0, USER_INPUT_TOGGLE_TIMING);
+      userInputCardProgress.set(withTiming(0, USER_INPUT_TOGGLE_TIMING));
       // Instant: the sinking card still covers the strip being revealed, and
       // animating the inset downward is what drifted the short-content end
       // anchor.
-      userInputInsetProgress.value = 0;
+      userInputInsetProgress.set(0);
       setCollapsedUserInputRequestId(activeUserInputRequestId);
       scheduleOverlayRepin(60);
     }
@@ -527,8 +552,8 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
   ]);
   useEffect(() => {
     // A new request always arrives expanded.
-    userInputCardProgress.value = 1;
-    userInputInsetProgress.value = 1;
+    userInputCardProgress.set(1);
+    userInputInsetProgress.set(1);
   }, [activeUserInputRequestId, userInputCardProgress, userInputInsetProgress]);
   const showContent = props.showContent ?? true;
   const layoutVariant = props.layoutVariant ?? "compact";
@@ -613,12 +638,13 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
     selectedThreadKey,
   ]);
 
+  const propsOnSendMessage = props.onSendMessage;
   const handleSendMessage = useCallback(async () => {
     const targetThreadKey = selectedThreadKey;
     const hasUserMessage = selectedThreadFeed.some(
       (entry) => entry.type === "message" && entry.message.role === "user",
     );
-    const messageId = await props.onSendMessage();
+    const messageId = await propsOnSendMessage();
     if (messageId === null || selectedThreadKeyRef.current !== targetThreadKey) {
       return messageId;
     }
@@ -637,7 +663,7 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
     return messageId;
   }, [
     anchorMessageId,
-    props.onSendMessage,
+    propsOnSendMessage,
     props.selectedThread.latestTurn,
     props.selectedThreadQueueCount,
     selectedThreadFeed,
@@ -648,20 +674,21 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
     composerEditorRef.current?.blur();
   }, []);
 
+  const propsOnChangeDraftMessage = props.onChangeDraftMessage;
   const handleUseArtifactTemplate = useCallback(
     (template: CodexArtifactTemplate) => {
       const currentDraft = draftMessageRef.current;
       const nextDraft = appendCodexArtifactTemplateUsePrompt(currentDraft, template);
       if (nextDraft !== currentDraft) {
         draftMessageRef.current = nextDraft;
-        props.onChangeDraftMessage(nextDraft);
+        propsOnChangeDraftMessage(nextDraft);
       }
       requestAnimationFrame(() => {
         composerEditorRef.current?.focus();
         composerEditorRef.current?.setSelection({ start: nextDraft.length, end: nextDraft.length });
       });
     },
-    [props.onChangeDraftMessage],
+    [propsOnChangeDraftMessage],
   );
 
   const handleScrollToEnd = useCallback(() => {

@@ -107,11 +107,21 @@ export function useReviewCommentSelectionController(input: {
     setPendingNativeCommentSelection(null);
   }, [selectedSection?.id]);
 
-  useEffect(() => {
+  const nextPendingNativeCommentSelectionResetInputs = [activeCommentTarget];
+  const [pendingNativeCommentSelectionResetInputs, setPendingNativeCommentSelectionResetInputs] =
+    useState<readonly unknown[] | null>(null);
+  if (
+    pendingNativeCommentSelectionResetInputs === null ||
+    nextPendingNativeCommentSelectionResetInputs.some(
+      (value, index) => !Object.is(value, pendingNativeCommentSelectionResetInputs[index]),
+    )
+  ) {
+    setPendingNativeCommentSelectionResetInputs(nextPendingNativeCommentSelectionResetInputs);
+
     if (activeCommentTarget === null) {
       setPendingNativeCommentSelection(null);
     }
-  }, [activeCommentTarget]);
+  }
 
   const onPressLine = useCallback(
     (

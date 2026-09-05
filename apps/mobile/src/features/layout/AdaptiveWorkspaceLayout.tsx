@@ -1,3 +1,4 @@
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
@@ -145,7 +146,7 @@ export function useRegisterWorkspaceInspector(render: (() => ReactNode) | undefi
   }, [navigation, render, route]);
 
   const wrappedRenderRef = useRef(wrappedRender);
-  wrappedRenderRef.current = wrappedRender;
+  useCommitRef(wrappedRenderRef, wrappedRender);
   const focusedRef = useRef(false);
   const deactivateRef = useRef<(() => void) | null>(null);
 
@@ -468,7 +469,7 @@ function AdaptiveWorkspaceLayoutContent(
   );
   useEffect(() => {
     const targetWidth = panes.primarySidebarVisible ? (layout.listPaneWidth ?? 0) : 0;
-    renderedSidebarWidth.value = withTiming(targetWidth, WORKSPACE_PANE_TIMING);
+    renderedSidebarWidth.set(withTiming(targetWidth, WORKSPACE_PANE_TIMING));
   }, [layout.listPaneWidth, panes.primarySidebarVisible, renderedSidebarWidth]);
   const sidebarAnimatedStyle = useAnimatedStyle(() => ({
     opacity: Math.min(1, renderedSidebarWidth.value / 80),

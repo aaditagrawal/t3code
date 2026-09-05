@@ -1,3 +1,4 @@
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import { useAtomValue } from "@effect/atom-react";
 import { NativeHeaderToolbar, NativeStackScreenOptions } from "../../native/StackHeader";
 import {
@@ -280,9 +281,9 @@ export function NewTaskDraftScreen(props: {
   const activeShareImportTokenRef = useRef<symbol | null>(null);
   const shareImportMountedRef = useRef(true);
   const latestDraftKeyRef = useRef(flow.draftKey);
+  useCommitRef(latestDraftKeyRef, flow.draftKey);
   const latestIncomingShareIdRef = useRef(props.incomingShareId);
-  latestDraftKeyRef.current = flow.draftKey;
-  latestIncomingShareIdRef.current = props.incomingShareId;
+  useCommitRef(latestIncomingShareIdRef, props.incomingShareId);
   const isImportingShare = importingShareKey !== null;
   const alertedUnavailableIncomingShareIdRef = useRef<string | null>(null);
   const incomingShare = props.incomingShareId ? getShare(props.incomingShareId) : null;
