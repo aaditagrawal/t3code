@@ -16,7 +16,6 @@ import {
   type OrchestrationLatestTurn,
   type OrchestrationThreadActivity,
   type OrchestrationProposedPlanId,
-  ProviderDriverKind,
   ProviderApprovalOption,
   ProviderRequestKind,
   type ToolLifecycleItemType,
@@ -37,68 +36,6 @@ import {
 } from "./types";
 
 export { formatDuration, formatElapsed } from "@t3tools/shared/orchestrationTiming";
-
-export type ProviderPickerKind = ProviderDriverKind;
-
-export const PROVIDER_OPTIONS: Array<{
-  value: ProviderPickerKind;
-  label: string;
-  available: boolean;
-  /** Shown on the model picker sidebar when relevant */
-  pickerSidebarBadge?: "new" | "soon";
-}> = [
-  {
-    value: ProviderDriverKind.make("acp"),
-    label: "ACP Agent",
-    available: true,
-    pickerSidebarBadge: "new",
-  },
-  { value: ProviderDriverKind.make("codex"), label: "Codex", available: true },
-  { value: ProviderDriverKind.make("copilot"), label: "GitHub Copilot", available: true },
-  { value: ProviderDriverKind.make("claudeAgent"), label: "Claude Code", available: true },
-  {
-    value: ProviderDriverKind.make("cursor"),
-    label: "Cursor Agent",
-    available: true,
-    pickerSidebarBadge: "new",
-  },
-  {
-    value: ProviderDriverKind.make("opencode"),
-    label: "OpenCode",
-    available: true,
-    pickerSidebarBadge: "new",
-  },
-  {
-    value: ProviderDriverKind.make("droid"),
-    label: "Droid",
-    available: true,
-    pickerSidebarBadge: "new",
-  },
-  {
-    value: ProviderDriverKind.make("fx"),
-    label: "Fx",
-    available: true,
-    pickerSidebarBadge: "new",
-  },
-  {
-    value: ProviderDriverKind.make("grok"),
-    label: "Grok",
-    available: true,
-    pickerSidebarBadge: "new",
-  },
-  {
-    value: ProviderDriverKind.make("antigravity"),
-    label: "Antigravity",
-    available: true,
-    pickerSidebarBadge: "new",
-  },
-  { value: ProviderDriverKind.make("geminiCli"), label: "Gemini CLI", available: true },
-  { value: ProviderDriverKind.make("amp"), label: "AMPcode", available: true },
-  { value: ProviderDriverKind.make("kilo"), label: "Kilo", available: true },
-  { value: ProviderDriverKind.make("hermes"), label: "Hermes", available: true },
-  { value: ProviderDriverKind.make("pi"), label: "Pi", available: true },
-  { value: ProviderDriverKind.make("ohMyPi"), label: "Oh My Pi", available: true },
-];
 
 export type WorkLogToolLifecycleStatus =
   | "inProgress"
