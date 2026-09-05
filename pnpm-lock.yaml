@@ -635,9 +635,6 @@ importers:
       effect:
         specifier: 4.0.0-beta.103
         version: 4.0.0-beta.103(patch_hash=af36b7948b6f9c56623074662b51dade5699880c1a7c71245de73e13c3185fb6)
-      ghostty-web:
-        specifier: ^0.4.0
-        version: 0.4.0
       heic-to:
         specifier: ^1.5.2
         version: 1.5.2
@@ -7273,9 +7270,6 @@ packages:
   getenv@2.0.0:
     resolution: {integrity: sha512-VilgtJj/ALgGY77fiLam5iD336eSWi96Q15JSAG1zi8NRBysm3LXKdGnHb4m5cuyxvOLQQKWpBZAT6ni4FI2iQ==}
     engines: {node: '>=6'}
-
-  ghostty-web@0.4.0:
-    resolution: {integrity: sha512-0puDBik2qapbD/QQBW9o5ZHfXnZBqZWx/ctBiVtKZ6ZLds4NYb+wZuw1cRLXZk9zYovIQ908z3rvFhexAvc5Hg==}
 
   github-slugger@2.0.0:
     resolution: {integrity: sha512-IaOQ9puYtjrkq7Y0Ygl9KDZnrf/aiUJYUpVf89y8kyaxbRG7Y1SrX/jaumrv81vc61+kiMempujsM3Yw7w5qcw==}
@@ -17510,8 +17504,6 @@ snapshots:
       resolve-pkg-maps: 1.0.0
 
   getenv@2.0.0: {}
-
-  ghostty-web@0.4.0: {}
 
   github-slugger@2.0.0: {}
 
