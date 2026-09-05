@@ -135,6 +135,8 @@ const makeEngineLayer = (
 ) =>
   Layer.succeed(OrchestrationEngine.OrchestrationEngineService, {
     readEvents: () => Stream.empty,
+    readThreadEvents: () => Stream.die("unused thread replay"),
+    getThreadReplayStats: () => Effect.die("unused thread replay stats"),
     dispatch: (command: OrchestrationCommand) =>
       Ref.update(dispatched, (calls) => [...calls, command]).pipe(
         Effect.andThen(options.onDispatch ? options.onDispatch(command) : Effect.void),
@@ -155,7 +157,7 @@ const makeEngineLayer = (
       Effect.map(Stream.fromSubscription),
     ),
     latestSequence: Effect.succeed(0),
-  } as OrchestrationEngine.OrchestrationEngineService["Service"]);
+  });
 
 const configLayer = Layer.succeed(ServerConfig, {
   baseDir: BASE_DIR,
