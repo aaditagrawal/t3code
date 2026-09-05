@@ -91,6 +91,7 @@ patchedDependencies:
   '@effect/vitest@4.0.0-beta.103': a16b1e870d8c29e4a98b17cc4c638a4ff471753d8ca3487f78a22b759caf951b
   '@expo/metro-config@57.0.12': 96f1a75347e6ea02dc4b7034ace815d8ee39e18b8166ebfb573d9e58328f0dc2
   '@ff-labs/fff-node@0.9.4': ab9ff544009e1891cfe3930105862d3699007f38922a79f3c98d90018deca368
+  '@github/copilot-sdk@0.1.32': fda37620d052aa4a96436b0f7fd4964ce7d4826142f09352daf1a2e59226e6e3
   '@legendapp/list@3.3.5': 03ec41339cd915ecb9a774a6b90cc2197c29038f7db67c4d2e55cd3971e5be43
   '@pierre/diffs@1.3.0-beta.10': c087c47b657c44ddce2b0ec8237d675086414134e91829c4b4edd009ec86893e
   '@react-native-ai/apple@0.12.0': 2d09870c2848d185cb05b53ed823a46e12dba519324d8dd8e584e28731990f9d
@@ -507,7 +508,7 @@ importers:
         version: 1.0.2
       '@github/copilot-sdk':
         specifier: ^0.1.32
-        version: 0.1.32
+        version: 0.1.32(patch_hash=fda37620d052aa4a96436b0f7fd4964ce7d4826142f09352daf1a2e59226e6e3)
       '@opencode-ai/sdk':
         specifier: ^1.3.15
         version: 1.15.13
@@ -12991,7 +12992,7 @@ snapshots:
   '@github/copilot-linux-x64@1.0.2':
     optional: true
 
-  '@github/copilot-sdk@0.1.32':
+  '@github/copilot-sdk@0.1.32(patch_hash=fda37620d052aa4a96436b0f7fd4964ce7d4826142f09352daf1a2e59226e6e3)':
     dependencies:
       '@github/copilot': 1.0.2
       vscode-jsonrpc: 8.2.1

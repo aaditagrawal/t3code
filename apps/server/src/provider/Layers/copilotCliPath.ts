@@ -216,3 +216,8 @@ export function resolveBundledCopilotCliPath(): string | undefined {
     ...(sdkEntrypoint ? { sdkEntrypoint } : {}),
   });
 }
+
+/** SDK cliPath is a filesystem path, not a command to search on PATH. */
+export function resolveCopilotSdkCliPath(value?: string): string | undefined {
+  return normalizeCopilotCliPathOverride(value) ?? resolveBundledCopilotCliPath();
+}

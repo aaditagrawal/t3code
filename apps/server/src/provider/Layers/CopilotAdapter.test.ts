@@ -144,8 +144,7 @@ modeLayer("CopilotAdapterLive interaction mode", (it) => {
       NodeAssert.equal(adapter.capabilities.supportsConversationRollback, false);
     }),
   );
-  // Skip: @github/copilot-sdk has broken ESM resolution (vscode-jsonrpc/node) in CI
-  it.effect.skip("switches the Copilot session mode when interactionMode changes", () =>
+  it.effect("switches the Copilot session mode when interactionMode changes", () =>
     Effect.gen(function* () {
       modeSession.modeSetImpl.mockClear();
       modeSession.sendImpl.mockClear();
@@ -193,8 +192,7 @@ const planLayer = it.layer(
 );
 
 planLayer("CopilotAdapterLive proposed plan events", (it) => {
-  // Skip: @github/copilot-sdk has broken ESM resolution (vscode-jsonrpc/node) in CI
-  it.effect.skip("emits a proposed-plan completion event from Copilot plan updates", () =>
+  it.effect("emits a proposed-plan completion event from Copilot plan updates", () =>
     Effect.gen(function* () {
       planSession.modeSetImpl.mockClear();
       planSession.planReadImpl.mockReset();

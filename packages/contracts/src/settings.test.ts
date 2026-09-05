@@ -97,6 +97,16 @@ describe("custom model settings", () => {
     ]);
   });
 
+  it.each(Object.keys(DEFAULT_SERVER_SETTINGS.providers))(
+    "round-trips named models and option descriptors in %s settings and patches",
+    (driver) => {
+      const customModels = ["legacy-model", { slug: "named", name: "Named model", capabilities }];
+      const input = { providers: { [driver]: { customModels } } };
+      expect(encodeServerSettings(decodeServerSettings(input))).toMatchObject(input);
+      expect(decodeServerSettingsPatch(input)).toMatchObject(input);
+    },
+  );
+
   it("accepts entries at the settings patch boundary", () => {
     expect(
       decodeServerSettingsPatch({

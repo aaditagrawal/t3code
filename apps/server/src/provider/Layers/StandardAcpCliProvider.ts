@@ -1,3 +1,4 @@
+import type { CustomModelSetting } from "@t3tools/contracts";
 import type {
   ModelCapabilities,
   ProviderDriverKind,
@@ -44,7 +45,7 @@ export interface StandardAcpCliProviderConfig {
   readonly command: string;
   readonly args?: ReadonlyArray<string>;
   readonly enabled: boolean;
-  readonly customModels: ReadonlyArray<string>;
+  readonly customModels: ReadonlyArray<CustomModelSetting>;
   readonly environment: NodeJS.ProcessEnv;
   readonly setupHint: string;
   readonly missingCommandMessage: string;

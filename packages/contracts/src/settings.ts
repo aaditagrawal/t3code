@@ -772,7 +772,7 @@ export const DroidSettings = makeProviderSettingsSchema(
         providerSettingsForm: { placeholder: "droid", clearWhenEmpty: "omit" },
       }),
     ),
-    customModels: Schema.Array(Schema.String).pipe(
+    customModels: Schema.Array(CustomModelSetting).pipe(
       Schema.withDecodingDefault(Effect.succeed([])),
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
@@ -807,7 +807,7 @@ export const AmpSettings = makeProviderSettingsSchema(
         },
       }),
     ),
-    customModels: Schema.Array(Schema.String).pipe(
+    customModels: Schema.Array(CustomModelSetting).pipe(
       Schema.withDecodingDefault(Effect.succeed([])),
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
@@ -840,7 +840,7 @@ export const CopilotSettings = makeProviderSettingsSchema(
         providerSettingsForm: { placeholder: "~/.copilot", clearWhenEmpty: "omit" },
       }),
     ),
-    customModels: Schema.Array(Schema.String).pipe(
+    customModels: Schema.Array(CustomModelSetting).pipe(
       Schema.withDecodingDefault(Effect.succeed([])),
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
@@ -872,7 +872,7 @@ export const GeminiCliSettings = makeProviderSettingsSchema(
         providerSettingsForm: { placeholder: "~/.gemini", clearWhenEmpty: "omit" },
       }),
     ),
-    customModels: Schema.Array(Schema.String).pipe(
+    customModels: Schema.Array(CustomModelSetting).pipe(
       Schema.withDecodingDefault(Effect.succeed([])),
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
@@ -907,7 +907,7 @@ export const KiloSettings = makeProviderSettingsSchema(
         },
       }),
     ),
-    customModels: Schema.Array(Schema.String).pipe(
+    customModels: Schema.Array(CustomModelSetting).pipe(
       Schema.withDecodingDefault(Effect.succeed([])),
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
@@ -938,7 +938,7 @@ function makeAcpCliProviderSettingsSchema(input: {
           },
         }),
       ),
-      customModels: Schema.Array(Schema.String).pipe(
+      customModels: Schema.Array(CustomModelSetting).pipe(
         Schema.withDecodingDefault(Effect.succeed([])),
         Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
       ),
@@ -998,7 +998,7 @@ export const AcpSettings = makeProviderSettingsSchema(
         },
       }),
     ),
-    customModels: Schema.Array(Schema.String).pipe(
+    customModels: Schema.Array(CustomModelSetting).pipe(
       Schema.withDecodingDefault(Effect.succeed([])),
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
@@ -1009,7 +1009,9 @@ export type AcpSettings = typeof AcpSettings.Type;
 
 export const GenericProviderSettings = Schema.Struct({
   enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  customModels: Schema.Array(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+  customModels: Schema.Array(CustomModelSetting).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
   binaryPath: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   configDir: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
 });
@@ -1356,7 +1358,7 @@ const GenericProviderSettingsPatch = Schema.Struct({
   enabled: Schema.optionalKey(Schema.Boolean),
   binaryPath: Schema.optionalKey(Schema.String),
   configDir: Schema.optionalKey(Schema.String),
-  customModels: Schema.optionalKey(Schema.Array(Schema.String)),
+  customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
 });
 
 const CursorSettingsPatch = Schema.Struct({
@@ -1393,13 +1395,13 @@ const OpenCodeSettingsPatch = Schema.Struct({
 const DroidSettingsPatch = Schema.Struct({
   enabled: Schema.optionalKey(Schema.Boolean),
   binaryPath: Schema.optionalKey(TrimmedString),
-  customModels: Schema.optionalKey(Schema.Array(Schema.String)),
+  customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
 });
 
 const OhMyPiSettingsPatch = Schema.Struct({
   enabled: Schema.optionalKey(Schema.Boolean),
   binaryPath: Schema.optionalKey(TrimmedString),
-  customModels: Schema.optionalKey(Schema.Array(Schema.String)),
+  customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
 });
 
 export const ServerSettingsPatch = Schema.Struct({
