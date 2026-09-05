@@ -183,7 +183,6 @@ export default defineConfig(() => {
         "@pierre/diffs/editor",
         "@pierre/diffs/react",
         "@pierre/diffs/worker/worker.js",
-        "ghostty-web",
         "effect/Array",
         "effect/Order",
         "react-dom/client",
