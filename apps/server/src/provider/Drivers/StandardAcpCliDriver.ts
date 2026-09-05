@@ -15,6 +15,7 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/unstable/process";
+import type * as EffectAcpSchema from "effect-acp/schema";
 
 import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
 import { ServerConfig } from "../../config.ts";
@@ -74,6 +75,10 @@ export interface StandardAcpCliDriverConfig<Settings extends StandardAcpCliSetti
   readonly setupHint: string;
   readonly missingCommandMessage: string;
   readonly excludedAuthMethodIds?: ReadonlySet<string>;
+  readonly resolveAuthMethodId?: (
+    initializeResult: EffectAcpSchema.InitializeResponse,
+  ) => string | undefined;
+  readonly unauthenticatedWhenNoDiscoveredModels?: boolean;
   readonly discoverSkills?: (
     environment: NodeJS.ProcessEnv,
   ) => Effect.Effect<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path>;
@@ -164,6 +169,12 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           missingCommandMessage: driverConfig.missingCommandMessage,
           ...(driverConfig.excludedAuthMethodIds
             ? { excludedAuthMethodIds: driverConfig.excludedAuthMethodIds }
+            : {}),
+          ...(driverConfig.resolveAuthMethodId
+            ? { resolveAuthMethodId: driverConfig.resolveAuthMethodId }
+            : {}),
+          ...(driverConfig.unauthenticatedWhenNoDiscoveredModels
+            ? { unauthenticatedWhenNoDiscoveredModels: true }
             : {}),
           ...(driverConfig.discoverSkills
             ? { discoverSkills: driverConfig.discoverSkills(processEnv) }
