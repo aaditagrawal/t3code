@@ -1108,7 +1108,22 @@ const ThreadTitleRegenerationCompleteCommand = Schema.Struct({
   error: Schema.optional(TrimmedNonEmptyString),
 });
 
+const ThreadImportCommand = Schema.Struct({
+  ...ThreadCreateCommand.fields,
+  type: Schema.Literal("thread.import"),
+  session: OrchestrationSession,
+  messages: Schema.Array(
+    Schema.Struct({
+      role: Schema.Literals(["user", "assistant"]),
+      text: Schema.String,
+      createdAt: IsoDateTime,
+      messageId: MessageId,
+    }),
+  ),
+});
+
 const InternalOrchestrationCommand = Schema.Union([
+  ThreadImportCommand,
   ThreadSessionSetCommand,
   ThreadMessageAssistantDeltaCommand,
   ThreadMessageAssistantCompleteCommand,

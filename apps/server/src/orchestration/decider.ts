@@ -349,7 +349,8 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
-    case "thread.create": {
+    case "thread.create":
+    case "thread.import": {
       yield* requireProject({
         readModel,
         command,
@@ -360,7 +361,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
-      return {
+      const created: PlannedOrchestrationEvent = {
         ...(yield* withEventBase({
           aggregateKind: "thread",
           aggregateId: command.threadId,
@@ -381,6 +382,37 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           updatedAt: command.createdAt,
         },
       };
+      if (command.type === "thread.create") return created;
+      const events: PlannedOrchestrationEvent[] = [created];
+      for (const message of command.messages) {
+        events.push({
+          ...(yield* withEventBase({
+            aggregateKind: "thread",
+            aggregateId: command.threadId,
+            occurredAt: message.createdAt,
+            commandId: command.commandId,
+          })),
+          type: "thread.message-sent",
+          payload: {
+            threadId: command.threadId,
+            ...message,
+            turnId: null,
+            streaming: false,
+            updatedAt: message.createdAt,
+          },
+        });
+      }
+      events.push({
+        ...(yield* withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        })),
+        type: "thread.session-set",
+        payload: { threadId: command.threadId, session: command.session },
+      });
+      return events;
     }
 
     case "thread.delete": {

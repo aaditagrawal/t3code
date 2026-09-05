@@ -15,6 +15,33 @@ This fork aims to provide a more robust and feature-rich multi-provider experien
 
 The protected fork features are multi-provider runtime support, usage and limit monitoring, provider management UX, and provider-neutral orchestration reliability. Upstream syncs should preserve those unless a change explicitly replaces them with equivalent or better behavior.
 
+### Run alongside official T3
+
+Desktop builds use the **T3 Code Fork** name, a separate application ID, the `t3code-fork://`
+URL scheme, and separate Electron storage. Server data defaults to `~/.t3code-fork` and the
+standalone server defaults to port `3873`. Keep these defaults when running both apps: pointing
+both builds at the same T3 database is not supported. Provider account homes remain configurable
+independently of the app's own database.
+
+### Continue an existing conversation
+
+Open **Settings → Existing conversations**, choose the Codex or Claude account that originally
+ran the session, and select **Find conversations**. The fork reads that account's local session
+files and matches official T3 titles from the default `~/.t3/userdata` profile. Sessions already
+managed by this fork have an **Open** link.
+
+Stop the session in the other app or CLI, then choose **Continue → Import and open**. The fork
+imports saved user and assistant text into its own database and retains the original provider
+session ID for your next message. Importing does not send a message or modify the source T3
+database. Codex resume failures are surfaced rather than silently starting a new conversation.
+
+This supports Codex and Claude sessions with local history and an available original project
+folder. Discovery shows up to 200 sessions from a bounded scan; imports are limited to 32 MB and
+5,000 text messages. T3 plans, attachments, tool records, and checkpoints are not imported, and
+subsequent conversation changes are not synchronized between apps. Use one app at a time for
+each provider session. Detected live official T3 sessions are blocked; CLI sessions require you
+to confirm that the other writer has stopped.
+
 ### Multi-provider support (Enhanced)
 
 Adds full provider adapters (server managers, service layers, runtime layers) for agents that are not yet on the upstream roadmap:

@@ -1,3 +1,4 @@
+import { ProviderSessionDirectory } from "./provider/Services/ProviderSessionDirectory.ts";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeSocket from "@effect/platform-node/NodeSocket";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -645,6 +646,7 @@ const buildAppUnderTest = (options?: {
             streamChanges: Stream.empty,
             ...options?.layers?.providerRegistry,
           }),
+          Layer.mock(ProviderSessionDirectory)({}),
           Layer.mock(ProviderService.ProviderService)({
             uploadFeedback: () => Effect.die("Provider feedback is not stubbed in this test"),
             ...options?.layers?.providerService,
