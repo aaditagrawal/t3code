@@ -759,10 +759,8 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
     ].filter((action) => action !== null);
   }, [
     assetPreviewUri,
-    assetPreview.refresh,
     previewUri,
     canPreview,
-    fileQuery.refresh,
     isBrowserFile,
     isImageFile,
     isVideoFile,
@@ -770,6 +768,8 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
     resolvedActiveMode,
     mediaSource,
     mediaActions.actions,
+    assetPreview,
+    fileQuery,
   ]);
 
   const androidFileMenuActions = useMemo<MenuAction[]>(

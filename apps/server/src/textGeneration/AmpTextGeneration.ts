@@ -31,10 +31,10 @@ const fail = (
     | "generateThreadTitle",
 ) => Effect.fail(new TextGenerationError({ operation, detail: NOT_SUPPORTED_DETAIL }));
 
-export const makeAmpTextGeneration = Effect.fn("makeAmpTextGeneration")(function* (
+export const makeAmpTextGeneration = Effect.fn("makeAmpTextGeneration")((
   _ampSettings: GenericProviderSettings,
   _environment: NodeJS.ProcessEnv = process.env,
-) {
+) => {
   const generateCommitMessage: TextGenerationService["generateCommitMessage"] = () =>
     fail("generateCommitMessage");
 
@@ -47,10 +47,10 @@ export const makeAmpTextGeneration = Effect.fn("makeAmpTextGeneration")(function
   const generateThreadTitle: TextGenerationService["generateThreadTitle"] = () =>
     fail("generateThreadTitle");
 
-  return {
+  return Effect.succeed({
     generateCommitMessage,
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
-  } satisfies TextGenerationService;
+  } satisfies TextGenerationService);
 });

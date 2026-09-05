@@ -10,7 +10,6 @@
  * @module AmpProvider
  */
 import {
-  ProviderDriverKind,
   type GenericProviderSettings,
   type ModelCapabilities,
   type ServerProviderModel,
@@ -34,7 +33,6 @@ import {
   type ServerProviderDraft,
 } from "../providerSnapshot.ts";
 
-const PROVIDER = ProviderDriverKind.make("amp");
 const AMP_PRESENTATION = {
   displayName: "Amp",
   showInteractionModeToggle: true,

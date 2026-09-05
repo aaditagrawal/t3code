@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import * as React from "react";
 import * as Schema from "effect/Schema";
 
@@ -140,15 +142,14 @@ export function useCopyToClipboard<TContext = void>({
 } = {}): { copyToClipboard: (value: string, ctx: TContext) => void; isCopied: boolean } {
   const [isCopied, setIsCopied] = React.useState(false);
   const timeoutIdRef = React.useRef<NodeJS.Timeout | null>(null);
-  const onCopyRef = React.useRef(onCopy);
-  const onErrorRef = React.useRef(onError);
-  const targetRef = React.useRef(target);
-  const timeoutRef = React.useRef(timeout);
-
-  onCopyRef.current = onCopy;
-  onErrorRef.current = onError;
-  targetRef.current = target;
-  timeoutRef.current = timeout;
+  const onCopyRef = useRef(onCopy);
+  useCommitRef(onCopyRef, onCopy);
+  const onErrorRef = useRef(onError);
+  useCommitRef(onErrorRef, onError);
+  const targetRef = useRef(target);
+  useCommitRef(targetRef, target);
+  const timeoutRef = useRef(timeout);
+  useCommitRef(timeoutRef, timeout);
 
   const copyToClipboard = React.useCallback((value: string, ctx: TContext): void => {
     void writeTextToClipboard(value, targetRef.current).then(

@@ -249,9 +249,11 @@ export const make = Effect.gen(function* () {
 
   const updateDesktopProtocolTargetOrigin = Effect.fn(
     "desktop.electron.protocol.updateDesktopProtocolTargetOrigin",
-  )(function* (targetOrigin: URL) {
-    currentTargetOrigin = targetOrigin;
-  });
+  )((targetOrigin: URL) =>
+    Effect.sync(() => {
+      currentTargetOrigin = targetOrigin;
+    }),
+  );
 
   return ElectronProtocol.of({
     registerDesktopProtocol,

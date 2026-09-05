@@ -1,6 +1,8 @@
+import { useRef } from "react";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/unstable/reactivity";
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
 
@@ -18,9 +20,9 @@ export function useThreadListV2ShelfPreferences() {
   const settledShelfExpanded =
     loaded && preferencesResult.value.threadListSettledShelfExpanded === true;
   const snoozedShelfExpandedRef = useRef(snoozedShelfExpanded);
+  useCommitRef(snoozedShelfExpandedRef, snoozedShelfExpanded);
   const settledShelfExpandedRef = useRef(settledShelfExpanded);
-  snoozedShelfExpandedRef.current = snoozedShelfExpanded;
-  settledShelfExpandedRef.current = settledShelfExpanded;
+  useCommitRef(settledShelfExpandedRef, settledShelfExpanded);
 
   const toggleSnoozedShelf = useCallback(() => {
     if (!loaded) return;

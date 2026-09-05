@@ -139,7 +139,6 @@ import {
   toolGroupAction,
   workEntryDisplayLabel,
   workEntryIsVisibleInGroup,
-  type StableMessagesTimelineRowsState,
   type MessagesTimelineRow,
   TIMELINE_MINIMAP_MIN_ITEMS,
   type TimelineLatestTurn,
@@ -522,45 +521,50 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     });
   }, [latestTurn]);
 
-  const rowsProjectionRef = useRef<{
-    threadKey: string;
-    workspaceRoot: string | undefined;
+  const projectionInput = useMemo(
+    () => ({
+      routeThreadKey,
+      workspaceRoot,
+      timelineEntries,
+      latestTurn,
+      runningTurnId,
+      expandedTurnIds,
+      expandedWorkGroupIds,
+      isWorking,
+      activeTurnStartedAt,
+      turnDiffSummaryByAssistantMessageId,
+      revertTurnCountByUserMessageId,
+    }),
+    [
+      routeThreadKey,
+      workspaceRoot,
+      timelineEntries,
+      latestTurn,
+      runningTurnId,
+      expandedTurnIds,
+      expandedWorkGroupIds,
+      isWorking,
+      activeTurnStartedAt,
+      turnDiffSummaryByAssistantMessageId,
+      revertTurnCountByUserMessageId,
+    ],
+  );
+  const [retainedProjection, setRetainedProjection] = useState<{
+    input: typeof projectionInput;
     projection: MessagesTimelineRowsProjection;
   } | null>(null);
-  const rawRows = useMemo(() => {
-    const previous = rowsProjectionRef.current;
-    const projection = deriveMessagesTimelineRowsWithState(
-      {
-        timelineEntries,
-        latestTurn,
-        runningTurnId,
-        expandedTurnIds,
-        expandedWorkGroupIds,
-        isWorking,
-        activeTurnStartedAt,
-        turnDiffSummaryByAssistantMessageId,
-        revertTurnCountByUserMessageId,
-      },
-      previous?.threadKey === routeThreadKey && previous.workspaceRoot === workspaceRoot
-        ? previous.projection
+  let projection = retainedProjection?.projection;
+  if (retainedProjection === null || retainedProjection.input !== projectionInput) {
+    projection = deriveMessagesTimelineRowsWithState(
+      projectionInput,
+      retainedProjection?.input.routeThreadKey === routeThreadKey &&
+        retainedProjection.input.workspaceRoot === workspaceRoot
+        ? retainedProjection.projection
         : null,
     );
-    rowsProjectionRef.current = { threadKey: routeThreadKey, workspaceRoot, projection };
-    return projection.rows;
-  }, [
-    rowsProjectionRef,
-    routeThreadKey,
-    workspaceRoot,
-    timelineEntries,
-    latestTurn,
-    runningTurnId,
-    expandedTurnIds,
-    expandedWorkGroupIds,
-    isWorking,
-    activeTurnStartedAt,
-    turnDiffSummaryByAssistantMessageId,
-    revertTurnCountByUserMessageId,
-  ]);
+    setRetainedProjection({ input: projectionInput, projection });
+  }
+  const rawRows = projection?.rows ?? [];
   const rows = useStableRows(rawRows);
   const minimapItems = useMemo(() => deriveTimelineMinimapItems(rows), [rows]);
   const [timelineViewportElement, setTimelineViewportElement] = useState<HTMLDivElement | null>(
@@ -1212,7 +1216,7 @@ function UserVideoAttachment({ file }: { readonly file: ChatFileAttachment }) {
       file.downloadable === false
         ? null
         : buildAttachmentVideoAsset(ctx.activeThreadEnvironmentId, file),
-    [ctx.activeThreadEnvironmentId, file.downloadable, file.id, file.mimeType, file.name],
+    [ctx.activeThreadEnvironmentId, file],
   );
   const resource = asset?.resource ?? null;
   const assetUrl = useAssetUrlState(ctx.activeThreadEnvironmentId, resource);
@@ -2692,16 +2696,17 @@ function UserMessageReviewCommentCard({ comment }: { comment: ReviewCommentConte
 /** Returns a structurally-shared copy of `rows`: for each row whose content
  *  hasn't changed since last call, the previous object reference is reused. */
 function useStableRows(rows: MessagesTimelineRow[]): MessagesTimelineRow[] {
-  const prevState = useRef<StableMessagesTimelineRowsState>({
-    byId: new Map<string, MessagesTimelineRow>(),
-    result: [],
-  });
-
-  return useMemo(() => {
-    const nextState = computeStableMessagesTimelineRows(rows, prevState.current);
-    prevState.current = nextState;
-    return nextState.result;
-  }, [rows]);
+  const [cache, setCache] = useState(() => ({
+    input: rows,
+    projection: computeStableMessagesTimelineRows(rows, {
+      byId: new Map<string, MessagesTimelineRow>(),
+      result: [],
+    }),
+  }));
+  if (cache.input === rows) return cache.projection.result;
+  const projection = computeStableMessagesTimelineRows(rows, cache.projection);
+  setCache({ input: rows, projection });
+  return projection.result;
 }
 
 // ---------------------------------------------------------------------------

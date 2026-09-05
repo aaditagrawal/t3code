@@ -604,7 +604,7 @@ export class QrCode {
     data: Readonly<Array<byte>>,
     divisor: Readonly<Array<byte>>,
   ): Array<byte> {
-    let result: Array<byte> = divisor.map((_) => 0);
+    let result: Array<byte> = divisor.map(() => 0);
     for (const b of data) {
       // Polynomial division
       const factor: byte = b ^ (result.shift() as byte);

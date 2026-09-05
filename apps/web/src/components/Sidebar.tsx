@@ -1,3 +1,5 @@
+import { useClock } from "@t3tools/client-runtime/react-clock";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import { autoAnimate } from "@formkit/auto-animate";
 import { useAtomValue } from "@effect/atom-react";
 import * as Schema from "effect/Schema";
@@ -265,17 +267,10 @@ function JumpHintBadge(props: { label: string }) {
 // Self-ticking so only this span re-renders each second, not the whole row.
 function WorkingDuration(props: { startedAt: string | null }) {
   const startedMs = props.startedAt !== null ? Date.parse(props.startedAt) : Number.NaN;
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    if (Number.isNaN(startedMs)) return;
-    const id = window.setInterval(() => setTick((tick) => tick + 1), 1_000);
-    return () => window.clearInterval(id);
-  }, [startedMs]);
+  const now = useClock(1000, !Number.isNaN(startedMs));
   if (Number.isNaN(startedMs)) return null;
   return (
-    <span className="font-mono tabular-nums">
-      {formatWorkingDurationLabel(Date.now() - startedMs)}
-    </span>
+    <span className="font-mono tabular-nums">{formatWorkingDurationLabel(now - startedMs)}</span>
   );
 }
 
@@ -650,9 +645,8 @@ const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
     let row: SidebarDraftRowData | null = null;
     if (props.routeDraftId !== null) {
       const draftId = DraftId.make(props.routeDraftId);
-      const store = useComposerDraftStore.getState();
-      const session = store.getDraftSession(draftId);
-      const composer = store.getComposerDraft(draftId);
+      const session = draftThreadsByThreadKey[draftId];
+      const composer = draftsByThreadKey[draftId];
       row =
         session && session.promotedTo == null && composer && composerDraftHasUserContent(composer)
           ? { draftId, session, composer }
@@ -1161,9 +1155,20 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
   // hover actions, and the effect clears the raw state so the popover
   // doesn't resurrect if the button later remounts.
   const snoozeMenuOpen = snoozeMenuOpenRaw && showSnoozeButton;
-  useEffect(() => {
+  const nextSnoozeMenuOpenResetInputs = [showSnoozeButton];
+  const [snoozeMenuOpenResetInputs, setSnoozeMenuOpenResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    snoozeMenuOpenResetInputs === null ||
+    nextSnoozeMenuOpenResetInputs.some(
+      (value, index) => !Object.is(value, snoozeMenuOpenResetInputs[index]),
+    )
+  ) {
+    setSnoozeMenuOpenResetInputs(nextSnoozeMenuOpenResetInputs);
+
     if (!showSnoozeButton) setSnoozeMenuOpen(false);
-  }, [showSnoozeButton]);
+  }
   const handlePrClick = useCallback(
     (event: ReactMouseEvent<HTMLAnchorElement>) => {
       if (!pr?.url) return;
@@ -2018,13 +2023,11 @@ export default function SidebarV2() {
     [routeDraftThread, routeTarget],
   );
   const routeThreadKey = routeThreadRef ? scopedThreadKey(routeThreadRef) : null;
-  const routeTargetRef = useRef(routeTarget);
-  routeTargetRef.current = routeTarget;
   // Post-settle navigation validates against the CURRENT route, not the one
   // captured when the settle started: if the user navigated elsewhere while
   // the command was in flight, completing it must not yank them away.
   const routeThreadKeyRef = useRef(routeThreadKey);
-  routeThreadKeyRef.current = routeThreadKey;
+  useCommitRef(routeThreadKeyRef, routeThreadKey);
 
   const environmentLabelById = useMemo(
     () =>
@@ -2081,7 +2084,7 @@ export default function SidebarV2() {
     [sidebarProjectSortOrder, threads, unsortedProjectGroups],
   );
   const projectGroupsRef = useRef(projectGroups);
-  projectGroupsRef.current = projectGroups;
+  useCommitRef(projectGroupsRef, projectGroups);
   const serverConfigs = useAtomValue(environmentServerConfigsAtom);
   // Threads on non-primary environments (T3 Connect, hosted) resolve their
   // provider entry from their own environment's config: default instance ids
@@ -2143,7 +2146,7 @@ export default function SidebarV2() {
   // tick is a plain counter bumped exactly at the next wake boundary (armed
   // below, after the partition knows the boundary); the partition reads a
   // fresh clock whenever it recomputes.
-  const [snoozeWakeTick, bumpSnoozeWakeTick] = useState(0);
+  const [snoozeWakeTick, bumpSnoozeWakeTick] = useState(Date.now);
 
   const changeRequestSnapshotByKey = useAtomValue(threadChangeRequestSnapshotsAtom);
 
@@ -2304,8 +2307,9 @@ export default function SidebarV2() {
     // wake times are second-precise and a woken thread must not linger on
     // the shelf for the rest of the minute. snoozeWakeTick re-runs this
     // memo exactly at the next wake boundary.
-    void snoozeWakeTick;
-    const preciseNow = new Date().toISOString();
+    const preciseNow = new Date(
+      Math.max(Date.parse(`${nowMinute}:00Z`), snoozeWakeTick),
+    ).toISOString();
     const visible = threads.filter(
       (thread) =>
         thread.archivedAt === null &&
@@ -2380,9 +2384,20 @@ export default function SidebarV2() {
     .map((thread) => scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)))
     .join("\0");
 
-  useEffect(() => {
+  const nextActiveSearchResultIndexResetInputs = [threadSearchResultOrderKey];
+  const [activeSearchResultIndexResetInputs, setActiveSearchResultIndexResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    activeSearchResultIndexResetInputs === null ||
+    nextActiveSearchResultIndexResetInputs.some(
+      (value, index) => !Object.is(value, activeSearchResultIndexResetInputs[index]),
+    )
+  ) {
+    setActiveSearchResultIndexResetInputs(nextActiveSearchResultIndexResetInputs);
+
     setActiveSearchResultIndex(0);
-  }, [threadSearchResultOrderKey]);
+  }
 
   useEffect(() => {
     if (!isSearchingThreads) return;
@@ -2405,7 +2420,7 @@ export default function SidebarV2() {
     // synced from elsewhere) into a tight re-arm loop. Clamped, the timer
     // just re-arms every ~24.8 days until the wake is in range.
     const delayMs = Math.min(Math.max(0, nextWakeAtMs - Date.now()) + 50, 2_147_483_647);
-    const id = window.setTimeout(() => bumpSnoozeWakeTick((tick) => tick + 1), delayMs);
+    const id = window.setTimeout(() => bumpSnoozeWakeTick(Date.now()), delayMs);
     return () => window.clearTimeout(id);
   }, [snoozedThreads]);
 
@@ -2415,9 +2430,9 @@ export default function SidebarV2() {
   // page state.
   const [settledVisibleCount, setSettledVisibleCount] = useState(SETTLED_TAIL_INITIAL_COUNT);
   const settledResetKey = projectScopeKey ?? "all";
-  const lastSettledResetKeyRef = useRef(settledResetKey);
-  if (lastSettledResetKeyRef.current !== settledResetKey) {
-    lastSettledResetKeyRef.current = settledResetKey;
+  const [lastSettledResetKey, setLastSettledResetKey] = useState(settledResetKey);
+  if (lastSettledResetKey !== settledResetKey) {
+    setLastSettledResetKey(settledResetKey);
     setSettledVisibleCount(SETTLED_TAIL_INITIAL_COUNT);
   }
   const visibleSettledThreads = useMemo(() => {
@@ -2503,7 +2518,7 @@ export default function SidebarV2() {
   // memoization. The ref keeps shift-range-select working against the list as
   // rendered at click time.
   const orderedThreadKeysRef = useRef(orderedThreadKeys);
-  orderedThreadKeysRef.current = orderedThreadKeys;
+  useCommitRef(orderedThreadKeysRef, orderedThreadKeys);
   const threadByKey = useMemo(
     () =>
       new Map(
@@ -2518,11 +2533,11 @@ export default function SidebarV2() {
   // identities would give every row a fresh callback prop on each shell
   // event and defeat row memoization during streaming.
   const threadByKeyRef = useRef(threadByKey);
-  threadByKeyRef.current = threadByKey;
+  useCommitRef(threadByKeyRef, threadByKey);
   // handleNewThread is inherently unstable (depends on the projects list);
   // a ref keeps it out of attemptSettle's dependency array.
   const handleNewThreadRef = useRef(newThreadContext.handleNewThread);
-  handleNewThreadRef.current = newThreadContext.handleNewThread;
+  useCommitRef(handleNewThreadRef, newThreadContext.handleNewThread);
   const settledThreadKeys = useMemo(
     () =>
       new Set(
@@ -2533,7 +2548,7 @@ export default function SidebarV2() {
     [settledThreads],
   );
   const settledThreadKeysRef = useRef(settledThreadKeys);
-  settledThreadKeysRef.current = settledThreadKeys;
+  useCommitRef(settledThreadKeysRef, settledThreadKeys);
   const snoozedThreadKeys = useMemo(
     () =>
       new Set(
@@ -2544,7 +2559,7 @@ export default function SidebarV2() {
     [snoozedThreads],
   );
   const snoozedThreadKeysRef = useRef(snoozedThreadKeys);
-  snoozedThreadKeysRef.current = snoozedThreadKeys;
+  useCommitRef(snoozedThreadKeysRef, snoozedThreadKeys);
 
   const jumpLabelByKey = useMemo(() => {
     const mapping = new Map<string, string>();
@@ -3019,7 +3034,7 @@ export default function SidebarV2() {
         snoozingThreadKeysRef.current.delete(threadKey);
       }
     },
-    [planForwardNavigation, snoozeThread],
+    [],
   );
   const attemptSnooze = useCallback(
     (

@@ -30,10 +30,10 @@ type TextGenerationService = TextGeneration["Service"];
 const UNSUPPORTED_DETAIL =
   "Gemini CLI is not supported for headless text generation (the only non-interactive Gemini mode auto-approves tool calls in the workspace). Pick a different provider for commit / PR / branch / thread title generation.";
 
-export const makeGeminiCliTextGeneration = Effect.fn("makeGeminiCliTextGeneration")(function* (
+export const makeGeminiCliTextGeneration = Effect.fn("makeGeminiCliTextGeneration")((
   _config: GenericProviderSettings,
   _environment: NodeJS.ProcessEnv = process.env,
-) {
+) => {
   const fail = <
     Op extends
       | "generateCommitMessage"
@@ -59,10 +59,10 @@ export const makeGeminiCliTextGeneration = Effect.fn("makeGeminiCliTextGeneratio
   const generateThreadTitle: TextGenerationService["generateThreadTitle"] = () =>
     fail("generateThreadTitle");
 
-  return {
+  return Effect.succeed({
     generateCommitMessage,
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
-  } satisfies TextGenerationService;
+  } satisfies TextGenerationService);
 });

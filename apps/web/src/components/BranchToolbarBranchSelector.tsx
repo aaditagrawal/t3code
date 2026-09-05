@@ -536,7 +536,7 @@ export function BranchToolbarBranchSelector({
     }
 
     branchRefState.loadNext();
-  }, [branchRefState.loadNext, hasNextPage, isFetchingNextPage]);
+  }, [hasNextPage, isFetchingNextPage, branchRefState]);
   const maybeFetchNextBranchPage = useCallback(() => {
     const scrollElement = branchListScrollElementRef.current;
     if (!scrollElement) {

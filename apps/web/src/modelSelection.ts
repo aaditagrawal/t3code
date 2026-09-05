@@ -179,7 +179,7 @@ export function normalizeCustomModelEntries(
   return normalizedModels;
 }
 
-export function getAppModelOptions(
+function getAppModelOptions(
   settings: UnifiedSettings,
   providers: ReadonlyArray<ServerProvider>,
   provider: ProviderDriverKind,

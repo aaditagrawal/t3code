@@ -4,6 +4,10 @@ import * as Schema from "effect/Schema";
 
 import { WsSubscribeServerConfigRpc } from "./rpc.ts";
 
+const decodeUnknownSyncWsSubscribeServerConfigRpc_payloadSchema = Schema.decodeUnknownSync(
+  WsSubscribeServerConfigRpc.payloadSchema,
+);
+
 /**
  * The client always sends `environmentThemes`, including to servers built
  * before the field existed, whose payload schema was an empty struct. What
@@ -18,14 +22,14 @@ describe("subscribeServerConfig payload compatibility", () => {
   });
 
   it("is carried by a server that declares it", () => {
-    const decoded = Schema.decodeUnknownSync(WsSubscribeServerConfigRpc.payloadSchema)({
+    const decoded = decodeUnknownSyncWsSubscribeServerConfigRpc_payloadSchema({
       environmentThemes: true,
     });
     expect(decoded).toEqual({ environmentThemes: true });
   });
 
   it("stays optional, so a client that never sends it still subscribes", () => {
-    const decoded = Schema.decodeUnknownSync(WsSubscribeServerConfigRpc.payloadSchema)({});
+    const decoded = decodeUnknownSyncWsSubscribeServerConfigRpc_payloadSchema({});
     expect(decoded).toEqual({});
   });
 });

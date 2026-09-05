@@ -41,6 +41,8 @@ import {
 } from "../layout/native-mail-search-toolbar";
 import type { ArchivedThreadGroup, ArchivedThreadSortOrder } from "./archivedThreadList";
 
+const createNativeGesture = Gesture.Native;
+
 export interface ArchivedThreadsHeaderEnvironment {
   readonly environmentId: EnvironmentId;
   readonly label: string;
@@ -120,20 +122,22 @@ function ArchivedThreadsHeader(props: {
     ],
     [props.environments, props.selectedEnvironmentId, props.sortOrder],
   );
+  const propsOnEnvironmentChange = props.onEnvironmentChange;
+  const propsOnSortOrderChange = props.onSortOrderChange;
   const handleAndroidFilterAction = useCallback(
     (event: { nativeEvent: { event: string } }) => {
       const action = event.nativeEvent.event;
       if (action === "environment:all") {
-        props.onEnvironmentChange(null);
+        propsOnEnvironmentChange(null);
       } else if (action.startsWith("environment:")) {
-        props.onEnvironmentChange(action.slice("environment:".length) as EnvironmentId);
+        propsOnEnvironmentChange(action.slice("environment:".length) as EnvironmentId);
       } else if (action === "sort:newest") {
-        props.onSortOrderChange("newest");
+        propsOnSortOrderChange("newest");
       } else if (action === "sort:oldest") {
-        props.onSortOrderChange("oldest");
+        propsOnSortOrderChange("oldest");
       }
     },
-    [props.onEnvironmentChange, props.onSortOrderChange],
+    [propsOnEnvironmentChange, propsOnSortOrderChange],
   );
 
   if (Platform.OS === "android") {
@@ -524,7 +528,7 @@ export function ArchivedThreadsScreen(props: {
 }) {
   const { onDeleteThread, onUnarchiveThread } = props;
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
-  const archiveScrollGesture = useMemo(() => Gesture.Native(), []);
+  const archiveScrollGesture = useMemo(() => createNativeGesture(), []);
   const environmentLabelsById = useMemo(
     () =>
       new Map(
@@ -646,6 +650,7 @@ export function ArchivedThreadsScreen(props: {
 
       <GestureDetector gesture={archiveScrollGesture}>
         <LegendList
+          recycleItems={false}
           className="flex-1"
           contentContainerStyle={{
             paddingBottom: 32,

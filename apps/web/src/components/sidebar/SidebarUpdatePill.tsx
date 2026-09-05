@@ -123,13 +123,24 @@ function SidebarUpdateControl() {
   const releaseNotesTriggerId = useId();
   const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
 
-  useEffect(() => {
+  const nextIsCheckAnimationLatchedResetInputs = [prefersReducedMotion, state?.status];
+  const [isCheckAnimationLatchedResetInputs, setIsCheckAnimationLatchedResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    isCheckAnimationLatchedResetInputs === null ||
+    nextIsCheckAnimationLatchedResetInputs.some(
+      (value, index) => !Object.is(value, isCheckAnimationLatchedResetInputs[index]),
+    )
+  ) {
+    setIsCheckAnimationLatchedResetInputs(nextIsCheckAnimationLatchedResetInputs);
+
     if (prefersReducedMotion) {
       setIsCheckAnimationLatched(false);
     } else if (state?.status === "checking") {
       setIsCheckAnimationLatched(true);
     }
-  }, [prefersReducedMotion, state?.status]);
+  }
 
   const action = state ? resolveDesktopUpdateButtonAction(state) : "none";
   const isDownloading = state?.status === "downloading";

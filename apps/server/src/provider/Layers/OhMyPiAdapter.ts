@@ -42,6 +42,7 @@ export function makeOhMyPiAdapter(
       applyModelSelection: applyStandardAcpConfigOptionModelSelection,
       modelSelectionMethod: "session/set_config_option",
       formElicitation: true,
+      rememberSessionApprovals: true,
     },
     options,
   );

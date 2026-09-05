@@ -54,19 +54,17 @@ export function WorkspaceInspectorPane(props: {
 
   const onClosed = props.onClosed;
   useEffect(() => {
-    inspectorProgress.value = withTiming(
-      inspectorVisible ? 1 : 0,
-      WORKSPACE_PANE_TIMING,
-      (finished) => {
+    inspectorProgress.set(
+      withTiming(inspectorVisible ? 1 : 0, WORKSPACE_PANE_TIMING, (finished) => {
         if (finished === true && !inspectorVisible && onClosed !== undefined) {
           runOnJS(onClosed)();
         }
-      },
+      }),
     );
     const targetWidth = inspectorVisible ? (inspectorWidth ?? 0) : 0;
-    renderedInspectorWidth.value = resizing
-      ? targetWidth
-      : withTiming(targetWidth, WORKSPACE_PANE_TIMING);
+    renderedInspectorWidth.set(
+      resizing ? targetWidth : withTiming(targetWidth, WORKSPACE_PANE_TIMING),
+    );
   }, [
     inspectorProgress,
     inspectorVisible,
@@ -81,10 +79,10 @@ export function WorkspaceInspectorPane(props: {
     if (!inspectorVisible || resizing) {
       // Hidden panes re-measure silently; during a divider drag the content
       // tracks the finger directly.
-      renderedContentWidth.value = targetWidth;
+      renderedContentWidth.set(targetWidth);
       return;
     }
-    renderedContentWidth.value = withTiming(targetWidth, WORKSPACE_PANE_TIMING);
+    renderedContentWidth.set(withTiming(targetWidth, WORKSPACE_PANE_TIMING));
   }, [inspectorVisible, inspectorWidth, renderedContentWidth, resizing]);
 
   const inspectorStyle = useAnimatedStyle(
