@@ -1014,6 +1014,42 @@ export const AcpSettings = makeProviderSettingsSchema(
 );
 export type AcpSettings = typeof AcpSettings.Type;
 
+export const PrimeAgentSettings = makeProviderSettingsSchema(
+  {
+    enabled: Schema.Boolean.pipe(
+      Schema.withDecodingDefault(Effect.succeed(true)),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+    binaryPath: makeBinaryPathSetting("prime-agent").pipe(
+      Schema.annotateKey({
+        title: "Binary path",
+        description: "Path to the Prime Agent CLI binary.",
+        providerSettingsForm: { placeholder: "prime-agent", clearWhenEmpty: "omit" },
+      }),
+    ),
+    configDir: TrimmedString.pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Config directory",
+        description:
+          "Custom Prime Agent configuration directory. Leave blank to use the Prime Agent default (~/.prime/agent).",
+        providerSettingsForm: {
+          placeholder: "~/.prime/agent",
+          clearWhenEmpty: "omit",
+        },
+      }),
+    ),
+    customModels: Schema.Array(CustomModelSetting).pipe(
+      Schema.withDecodingDefault(Effect.succeed([])),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+  },
+  {
+    order: ["binaryPath", "configDir"],
+  },
+);
+export type PrimeAgentSettings = typeof PrimeAgentSettings.Type;
+
 export const GenericProviderSettings = Schema.Struct({
   enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   customModels: Schema.Array(CustomModelSetting).pipe(
@@ -1217,6 +1253,7 @@ export const ServerSettings = Schema.Struct({
     geminiCli: GeminiCliSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     amp: AmpSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     hermes: HermesSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    primeAgent: PrimeAgentSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     kilo: KiloSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     ohMyPi: OhMyPiSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     pi: PiSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
@@ -1463,6 +1500,7 @@ export const ServerSettingsPatch = Schema.Struct({
       geminiCli: Schema.optionalKey(GenericProviderSettingsPatch),
       amp: Schema.optionalKey(GenericProviderSettingsPatch),
       hermes: Schema.optionalKey(GenericProviderSettingsPatch),
+      primeAgent: Schema.optionalKey(GenericProviderSettingsPatch),
       kilo: Schema.optionalKey(GenericProviderSettingsPatch),
       ohMyPi: Schema.optionalKey(OhMyPiSettingsPatch),
       pi: Schema.optionalKey(GenericProviderSettingsPatch),

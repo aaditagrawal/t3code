@@ -1007,3 +1007,21 @@ export const GeminiCliIcon: Icon = Gemini;
 // Re-export GithubCopilotIcon under the shorter "CopilotIcon" alias used
 // by providerDriverMeta to keep the meta entries terse.
 export const CopilotIcon: Icon = GithubCopilotIcon;
+
+// Prime Intellect `prime-agent` — dark rounded square with a stylized "P".
+export const PrimeAgentIcon: Icon = ({ className, ...props }) => (
+  <svg
+    {...props}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={cn(className)}
+  >
+    <rect width="24" height="24" rx="5" fill="#0F1115" />
+    <path
+      d="M8.4 6.4h4.3a3.65 3.65 0 0 1 0 7.3h-2.05v3.9H8.4V6.4Zm2.25 2.15v3h1.95a1.5 1.5 0 0 0 0-3h-1.95Z"
+      fill="#fff"
+    />
+    <path d="M15.1 14.9h2.5v2.7h-2.5v-2.7Z" fill="#fff" />
+  </svg>
+);

@@ -23,6 +23,19 @@ export function ProviderIcon(props: ProviderIconProps) {
     );
   }
 
+  if (props.provider === "primeAgent") {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Rect width="24" height="24" rx="5" fill="#0F1115" />
+        <Path
+          d="M8.4 6.4h4.3a3.65 3.65 0 0 1 0 7.3h-2.05v3.9H8.4V6.4Zm2.25 2.15v3h1.95a1.5 1.5 0 0 0 0-3h-1.95Z"
+          fill="#fff"
+        />
+        <Path d="M15.1 14.9h2.5v2.7h-2.5v-2.7Z" fill="#fff" />
+      </Svg>
+    );
+  }
+
   if (props.provider === "fx") {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
