@@ -1591,7 +1591,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                 ? config.normalizeModel(turnModelSelection.model)
                 : undefined;
               const requestedTurnModelOptions = {
-                ...(config.requestedModelOptionsFromSelection?.(turnModelSelection) ?? {}),
+                ...config.requestedModelOptionsFromSelection?.(turnModelSelection),
                 ...(input.interactionMode === "plan"
                   ? { mode: "plan" }
                   : input.interactionMode === "default"

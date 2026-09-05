@@ -202,6 +202,93 @@ describe("Oh My Pi thinking and plan mapping", () => {
 });
 
 describe("Oh My Pi ACP config option application", () => {
+  it.effect("retries a skipped thinking selection after switching to a supporting model", () =>
+    Effect.gen(function* () {
+      const calls: Array<string> = [];
+      let supportsHigh = false;
+      let thinking = "off";
+      const configOptions = () => [
+        selectOption({
+          id: "thinking",
+          category: "thought_level",
+          currentValue: thinking,
+          values: supportsHigh ? ["off", "auto", "high"] : ["off", "auto"],
+        }),
+      ];
+      const runtime = {
+        getConfigOptions: Effect.sync(configOptions),
+        setModel: () =>
+          Effect.sync(() => {
+            supportsHigh = true;
+            return configOptions();
+          }),
+        setConfigOption: (configId: string, value: string | boolean) =>
+          Effect.sync(() => {
+            calls.push(`${configId}:${value}`);
+            if (typeof value === "string") thinking = value;
+            return { configOptions: configOptions() };
+          }),
+        setMode: () => Effect.succeed({}),
+      };
+      yield* applyOhMyPiAcpSelection({
+        runtime,
+        currentModelId: "model-a",
+        requestedModelId: "model-a",
+        currentModelOptions: { thinking: "off" },
+        requestedModelOptions: { thinking: "high" },
+        mapError: String,
+      });
+      expect(calls).toEqual([]);
+
+      yield* applyOhMyPiAcpSelection({
+        runtime,
+        currentModelId: "model-a",
+        requestedModelId: "model-b",
+        // The shared adapter remembers the requested value even when unsupported.
+        currentModelOptions: { thinking: "high" },
+        requestedModelOptions: { thinking: "high" },
+        mapError: String,
+      });
+      expect(calls).toEqual(["thinking:high"]);
+    }),
+  );
+
+  it.effect("restores plan mode after an agent-side mode change without redundant writes", () =>
+    Effect.gen(function* () {
+      const calls: Array<string> = [];
+      let mode = "default";
+      const input = {
+        runtime: {
+          getConfigOptions: Effect.sync(() => [
+            selectOption({
+              id: "mode",
+              category: "mode",
+              currentValue: mode,
+              values: ["default", "plan"],
+            }),
+          ]),
+          setModel: () => Effect.succeed([]),
+          setConfigOption: () => Effect.succeed({ configOptions: [] }),
+          setMode: (modeId: string) =>
+            Effect.sync(() => {
+              calls.push(modeId);
+              mode = modeId;
+              return {};
+            }),
+        },
+        currentModelId: undefined,
+        requestedModelId: undefined,
+        currentModelOptions: { mode: "plan" },
+        requestedModelOptions: { mode: "plan" },
+        mapError: String,
+      };
+      yield* applyOhMyPiAcpSelection(input);
+      expect(calls).toEqual(["plan"]);
+      yield* applyOhMyPiAcpSelection(input);
+      expect(calls).toEqual(["plan"]);
+    }),
+  );
+
   it.effect("sets thinking and plan as string config options after the model", () =>
     Effect.gen(function* () {
       const calls: Array<{ method: string; args: ReadonlyArray<unknown> }> = [];

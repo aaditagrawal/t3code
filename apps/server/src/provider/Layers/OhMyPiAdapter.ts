@@ -31,8 +31,8 @@ import {
 const PROVIDER = ProviderDriverKind.make("ohMyPi");
 
 export const OH_MY_PI_AUTH_METHOD_ID = "agent";
-export const OH_MY_PI_THINKING_CONFIG_ID = "thinking";
-export const OH_MY_PI_MODE_CONFIG_ID = "mode";
+const OH_MY_PI_THINKING_CONFIG_ID = "thinking";
+const OH_MY_PI_MODE_CONFIG_ID = "mode";
 export const OH_MY_PI_PLAN_MODE_ID = "plan";
 export const OH_MY_PI_DEFAULT_MODE_ID = "default";
 export const OH_MY_PI_THINKING_OFF = "off";
@@ -90,7 +90,7 @@ export function resolveOhMyPiAuthMethodId(
   return OH_MY_PI_AUTH_METHOD_ID;
 }
 
-export function normalizeOhMyPiThinkingValue(value: string | undefined): string | undefined {
+function normalizeOhMyPiThinkingValue(value: string | undefined): string | undefined {
   const trimmed = value?.trim().toLowerCase();
   if (!trimmed) return undefined;
   return OH_MY_PI_THINKING_ALIASES[trimmed];
@@ -158,14 +158,13 @@ const applyAdvertisedSelectConfigOption = <E>(input: {
   readonly configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>;
   readonly configId: string;
   readonly requested: string | undefined;
-  readonly current: string | undefined;
   readonly mapError: (cause: EffectAcpErrors.AcpError) => E;
 }): Effect.Effect<void, E> => {
-  if (input.requested === undefined || input.requested === input.current) {
+  if (input.requested === undefined) {
     return Effect.void;
   }
   const option = findSessionConfigOption(input.configOptions, input.configId);
-  if (!option || option.type !== "select") {
+  if (!option || option.type !== "select" || option.currentValue === input.requested) {
     return Effect.void;
   }
   const allowed = collectSessionConfigOptionValues(option);
@@ -192,16 +191,15 @@ export const applyOhMyPiAcpSelection = Effect.fn("applyOhMyPiAcpSelection")(func
     configOptions,
     configId: OH_MY_PI_THINKING_CONFIG_ID,
     requested: input.requestedModelOptions.thinking,
-    current: input.currentModelOptions.thinking,
     mapError: input.mapError,
   });
 
   const requestedMode = resolveOhMyPiPlanMode(input.requestedModelOptions.mode);
-  if (requestedMode !== undefined && requestedMode !== input.currentModelOptions.mode) {
+  if (requestedMode !== undefined) {
     const modeOption = findSessionConfigOption(configOptions, OH_MY_PI_MODE_CONFIG_ID);
     const allowed =
       modeOption?.type === "select" ? collectSessionConfigOptionValues(modeOption) : [];
-    if (allowed.includes(requestedMode)) {
+    if (modeOption?.currentValue !== requestedMode && allowed.includes(requestedMode)) {
       yield* input.runtime.setMode(requestedMode).pipe(Effect.mapError(input.mapError));
     }
   }
