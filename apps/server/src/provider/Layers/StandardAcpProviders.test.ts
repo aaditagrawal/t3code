@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off
+import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -7,6 +8,7 @@ import * as NodeURL from "node:url";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Fiber from "effect/Fiber";
@@ -235,5 +237,205 @@ it.layer(testLayer)("standard ACP provider adapters", (it) => {
       yield* adapter.stopSession(threadId);
       yield* Fiber.interrupt(eventFiber);
     }).pipe(Effect.scoped),
+  );
+
+  it.effect(
+    "maps OhMyPi usage_update and thought chunks onto fork usage and reasoning events",
+    () =>
+      Effect.gen(function* () {
+        const binaryPath = yield* Effect.promise(() => makeMockAcpWrapper());
+        const settings = yield* decodeOhMyPiSettings({ binaryPath });
+        const adapter = yield* makeOhMyPiAdapter(settings, {
+          environment: { ...process.env, T3_ACP_EMIT_USAGE_AND_THOUGHTS: "1" },
+        });
+        const events: ProviderRuntimeEvent[] = [];
+        const turnCompleted = yield* Deferred.make<void>();
+        const eventFiber = yield* adapter.streamEvents.pipe(
+          Stream.runForEach((event) =>
+            Effect.sync(() => events.push(event)).pipe(
+              Effect.andThen(
+                event.type === "turn.completed"
+                  ? Deferred.succeed(turnCompleted, undefined).pipe(Effect.asVoid)
+                  : Effect.void,
+              ),
+            ),
+          ),
+          Effect.forkChild,
+        );
+        const threadId = ThreadId.make("oh-my-pi-usage-thoughts");
+        yield* Effect.gen(function* () {
+          yield* adapter.startSession({
+            threadId,
+            provider: ProviderDriverKind.make("ohMyPi"),
+            cwd: process.cwd(),
+            runtimeMode: "full-access",
+          });
+          yield* adapter.sendTurn({ threadId, input: "hello usage", attachments: [] });
+          yield* Deferred.await(turnCompleted);
+
+          const thought = events.find(
+            (event) =>
+              event.type === "content.delta" && event.payload.streamKind === "reasoning_text",
+          );
+          const assistant = events
+            .filter(
+              (event) =>
+                event.type === "content.delta" && event.payload.streamKind === "assistant_text",
+            )
+            .map((event) => (event.type === "content.delta" ? event.payload.delta : ""))
+            .join("");
+          const usage = events.find((event) => event.type === "thread.token-usage.updated");
+          const limits = events.find((event) => event.type === "account.rate-limits.updated");
+
+          assert.equal(
+            thought?.type === "content.delta" ? thought.payload.delta : undefined,
+            "Inspect the current implementation first.",
+          );
+          assert.equal(assistant, "hello from mock");
+          assert.equal(usage?.type, "thread.token-usage.updated");
+          if (usage?.type === "thread.token-usage.updated") {
+            assert.deepStrictEqual(usage.payload.usage, { usedTokens: 1_200, maxTokens: 128_000 });
+            assert.equal(usage.providerInstanceId, "ohMyPi");
+          }
+          assert.equal(limits?.type, "account.rate-limits.updated");
+          if (limits?.type === "account.rate-limits.updated") {
+            assert.deepStrictEqual(limits.payload.limits, {
+              windows: [
+                {
+                  id: "five_hour",
+                  kind: "session",
+                  label: "Session",
+                  usedPercent: 37,
+                  windowDurationMins: 300,
+                  resetsAt: "2026-09-05T12:00:00.000Z",
+                },
+              ],
+            });
+            assert.equal(limits.providerInstanceId, "ohMyPi");
+          }
+          yield* adapter.stopSession(threadId);
+        }).pipe(Effect.ensuring(Fiber.interrupt(eventFiber)));
+      }),
+  );
+
+  it.effect("keeps OhMyPi child ACP session updates out of the parent thread", () =>
+    Effect.gen(function* () {
+      const binaryPath = yield* Effect.promise(() => makeMockAcpWrapper());
+      const settings = yield* decodeOhMyPiSettings({ binaryPath });
+      const adapter = yield* makeOhMyPiAdapter(settings, {
+        environment: { ...process.env, T3_ACP_EMIT_FOREIGN_SESSION_UPDATES: "1" },
+      });
+      const events: ProviderRuntimeEvent[] = [];
+      const turnCompleted = yield* Deferred.make<void>();
+      const eventFiber = yield* adapter.streamEvents.pipe(
+        Stream.runForEach((event) =>
+          Effect.sync(() => events.push(event)).pipe(
+            Effect.andThen(
+              event.type === "turn.completed"
+                ? Deferred.succeed(turnCompleted, undefined).pipe(Effect.asVoid)
+                : Effect.void,
+            ),
+          ),
+        ),
+        Effect.forkChild,
+      );
+      const threadId = ThreadId.make("oh-my-pi-child-session-isolation");
+      yield* Effect.gen(function* () {
+        yield* adapter.startSession({
+          threadId,
+          provider: ProviderDriverKind.make("ohMyPi"),
+          cwd: process.cwd(),
+          runtimeMode: "full-access",
+        });
+        yield* adapter.sendTurn({ threadId, input: "parent only", attachments: [] });
+        yield* Deferred.await(turnCompleted);
+
+        const deltas = events.filter((event) => event.type === "content.delta");
+        assert.deepStrictEqual(
+          deltas.map((event) => (event.type === "content.delta" ? event.payload : undefined)),
+          [
+            { streamKind: "assistant_text", delta: "root before child" },
+            { streamKind: "assistant_text", delta: " root after child" },
+          ],
+        );
+        assert.equal(
+          events.some(
+            (event) =>
+              event.type === "content.delta" && event.payload.delta.includes("child thought"),
+          ),
+          false,
+        );
+        assert.equal(
+          events.some(
+            (event) => event.type === "item.updated" && event.payload.title === "Child-only tool",
+          ),
+          false,
+        );
+        assert.equal(
+          events.some((event) => event.type === "thread.token-usage.updated"),
+          false,
+        );
+        assert.equal(
+          events.some((event) => event.type === "account.rate-limits.updated"),
+          false,
+        );
+        yield* adapter.stopSession(threadId);
+      }).pipe(Effect.ensuring(Fiber.interrupt(eventFiber)));
+    }),
+  );
+});
+
+function ompBinaryAvailable(): boolean {
+  try {
+    NodeChildProcess.execFileSync("which", ["omp"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+it.layer(testLayer)("live Oh My Pi ACP", (it) => {
+  it.effect.skipIf(process.env.T3_LIVE_OHMYPI !== "1" || !ompBinaryAvailable())(
+    "completes a turn against a real omp binary when opted in",
+    () =>
+      Effect.gen(function* () {
+        const adapter = yield* decodeOhMyPiSettings({}).pipe(Effect.flatMap(makeOhMyPiAdapter));
+        const threadId = ThreadId.make("oh-my-pi-live");
+        const completed = yield* Deferred.make<void>();
+        const events: ProviderRuntimeEvent[] = [];
+        const eventFiber = yield* adapter.streamEvents.pipe(
+          Stream.runForEach((event) =>
+            Effect.sync(() => events.push(event)).pipe(
+              Effect.andThen(
+                event.type === "turn.completed"
+                  ? Deferred.succeed(completed, undefined).pipe(Effect.asVoid)
+                  : Effect.void,
+              ),
+            ),
+          ),
+          Effect.forkChild,
+        );
+        yield* Effect.gen(function* () {
+          yield* adapter.startSession({
+            threadId,
+            provider: ProviderDriverKind.make("ohMyPi"),
+            cwd: process.cwd(),
+            runtimeMode: "full-access",
+          });
+          yield* adapter.sendTurn({
+            threadId,
+            input: "Reply with exactly T3_ACP_OK and no other text.",
+            attachments: [],
+          });
+          yield* Deferred.await(completed).pipe(Effect.timeout(Duration.minutes(3)));
+          assert.isTrue(
+            events.some((event) => event.type === "turn.completed"),
+            "live omp turn completed",
+          );
+        }).pipe(
+          Effect.ensuring(Fiber.interrupt(eventFiber)),
+          Effect.ensuring(adapter.stopAll().pipe(Effect.orDie)),
+        );
+      }),
   );
 });

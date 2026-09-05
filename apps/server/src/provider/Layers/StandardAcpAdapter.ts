@@ -69,6 +69,11 @@ import {
   makeAcpToolCallEvent,
 } from "../acp/AcpCoreRuntimeEvents.ts";
 import { parsePermissionRequest } from "../acp/AcpRuntimeModel.ts";
+import {
+  acpNotificationSessionId,
+  acpUsageUpdateToTokenUsageSnapshot,
+  acpUsageUpdateToUsageLimits,
+} from "../acp/AcpUsageUpdates.ts";
 import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging.ts";
 import type { ProviderAdapterShape } from "../Services/ProviderAdapter.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
@@ -1342,7 +1347,9 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                 if (
                   event._tag === "PlanUpdated" ||
                   event._tag === "ToolCallUpdated" ||
-                  event._tag === "ContentDelta"
+                  event._tag === "ContentDelta" ||
+                  event._tag === "ThoughtDelta" ||
+                  event._tag === "UsageUpdated"
                 ) {
                   yield* logNative(ctx.threadId, "session/update", event.rawPayload);
                 }
@@ -1351,7 +1358,59 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                   return;
                 }
 
+                // Nested ACP sessions (Oh My Pi subagents, forked chats) share
+                // the stdio connection but must not flatten into this thread.
+                const notificationSessionId =
+                  "rawPayload" in event ? acpNotificationSessionId(event.rawPayload) : undefined;
+                if (
+                  notificationSessionId !== undefined &&
+                  notificationSessionId !== ctx.acpSessionId
+                ) {
+                  return;
+                }
+
                 const notificationTurnId = resolveNotificationTurnId(ctx);
+                const stamp = yield* makeEventStamp();
+                if (event._tag === "UsageUpdated") {
+                  const usage = acpUsageUpdateToTokenUsageSnapshot(event);
+                  if (usage) {
+                    yield* offerRuntimeEvent({
+                      type: "thread.token-usage.updated",
+                      ...stamp,
+                      provider: PROVIDER,
+                      providerInstanceId: boundInstanceId,
+                      threadId: ctx.threadId,
+                      ...(notificationTurnId !== undefined &&
+                      !ctx.interruptedTurnIds.has(notificationTurnId)
+                        ? { turnId: notificationTurnId }
+                        : {}),
+                      payload: { usage },
+                      raw: {
+                        source: "acp.jsonrpc",
+                        method: "session/update",
+                        payload: event.rawPayload,
+                      },
+                    });
+                  }
+                  const limits = acpUsageUpdateToUsageLimits(event.rawPayload);
+                  if (limits) {
+                    yield* offerRuntimeEvent({
+                      type: "account.rate-limits.updated",
+                      ...(yield* makeEventStamp()),
+                      provider: PROVIDER,
+                      providerInstanceId: boundInstanceId,
+                      threadId: ctx.threadId,
+                      payload: { limits },
+                      raw: {
+                        source: "acp.jsonrpc",
+                        method: "session/update",
+                        payload: event.rawPayload,
+                      },
+                    });
+                  }
+                  return;
+                }
+
                 if (
                   notificationTurnId === undefined ||
                   ctx.interruptedTurnIds.has(notificationTurnId)
@@ -1359,7 +1418,6 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                   return;
                 }
                 yield* recordTurnActivity(ctx, notificationTurnId, event);
-                const stamp = yield* makeEventStamp();
 
                 switch (event._tag) {
                   case "AssistantItemStarted":
@@ -1428,6 +1486,19 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                     }
                     return;
                   }
+                  case "ThoughtDelta":
+                    yield* offerRuntimeEvent(
+                      makeAcpContentDeltaEvent({
+                        stamp,
+                        provider: PROVIDER,
+                        threadId: ctx.threadId,
+                        turnId: notificationTurnId,
+                        streamKind: "reasoning_text",
+                        text: event.text,
+                        rawPayload: event.rawPayload,
+                      }),
+                    );
+                    return;
                   case "ContentDelta":
                     yield* offerRuntimeEvent(
                       makeAcpContentDeltaEvent({
