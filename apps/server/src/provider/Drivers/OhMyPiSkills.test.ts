@@ -6,43 +6,52 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 
-import { HostProcessPlatform } from "@t3tools/shared/hostProcess";
-
 import { discoverOhMyPiSkills, resolveOhMyPiHomePath } from "./OhMyPiSkills.ts";
 
 const writeSkill = Effect.fn(function* (
   root: string,
   directory: string,
-  frontmatter: ReadonlyArray<string>,
+  frontmatter: ReadonlyArray<string> = [],
 ) {
-  const fileSystem = yield* FileSystem.FileSystem;
+  const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const skillDirectory = path.join(root, directory);
-  yield* fileSystem.makeDirectory(skillDirectory, { recursive: true });
-  yield* fileSystem.writeFileString(
+  yield* fs.makeDirectory(skillDirectory, { recursive: true });
+  yield* fs.writeFileString(
     path.join(skillDirectory, "SKILL.md"),
-    ["---", ...frontmatter, "---", "", "# Skill"].join("\n"),
+    [
+      "---",
+      `name: ${path.basename(directory)}`,
+      "description: A test skill.",
+      ...frontmatter,
+      "---",
+      "# Skill",
+    ].join("\n"),
   );
 });
 
+const fixture = Effect.gen(function* () {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const home = yield* fs.makeTempDirectoryScoped({ prefix: "t3-oh-my-pi-skills-" });
+  const agent = path.join(home, ".omp", "agent");
+  const root = path.join(agent, "skills");
+  yield* fs.makeDirectory(agent, { recursive: true });
+  return { fs, path, home, agent, root, environment: { HOME: home } };
+});
+
 it.layer(NodeServices.layer)("discoverOhMyPiSkills", (it) => {
-  it.effect("reads user skills from PI_CODING_AGENT_DIR/skills", () =>
+  it.effect("reads the native agent directory and ignores the config-root skills directory", () =>
     Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const home = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-oh-my-pi-skills-" });
-      yield* writeSkill(path.join(home, "skills"), "deploy", [
-        "name: deploy",
-        "description: Deploy the app.",
-      ]);
-
-      const skills = yield* discoverOhMyPiSkills({ PI_CODING_AGENT_DIR: home });
-
+      const { path, home, root, environment } = yield* fixture;
+      yield* writeSkill(root, "native");
+      yield* writeSkill(path.join(home, ".omp", "skills"), "not-native");
+      const skills = yield* discoverOhMyPiSkills(environment);
       assert.deepEqual(skills, [
         {
-          name: "deploy",
-          description: "Deploy the app.",
-          path: path.join(home, "skills", "deploy", "SKILL.md"),
+          name: "native",
+          description: "A test skill.",
+          path: path.join(root, "native", "SKILL.md"),
           enabled: true,
           scope: "user",
         },
@@ -50,194 +59,179 @@ it.layer(NodeServices.layer)("discoverOhMyPiSkills", (it) => {
     }),
   );
 
-  it.effect("reads native omp skills from agent/skills under the home", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const home = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-oh-my-pi-skills-" });
-      yield* writeSkill(path.join(home, "agent", "skills"), "review", [
-        "name: review",
-        "description: Review the change.",
-      ]);
-
-      const skills = yield* discoverOhMyPiSkills({ PI_CODING_AGENT_DIR: home });
-
-      assert.deepEqual(skills, [
-        {
-          name: "review",
-          description: "Review the change.",
-          path: path.join(home, "agent", "skills", "review", "SKILL.md"),
-          enabled: true,
-          scope: "user",
-        },
-      ]);
-    }),
+  it.effect(
+    "treats PI_CODING_AGENT_DIR as the agent directory without an extra agent segment",
+    () =>
+      Effect.gen(function* () {
+        const { path, agent, root } = yield* fixture;
+        yield* writeSkill(root, "native");
+        yield* writeSkill(path.join(agent, "agent", "skills"), "wrong");
+        const skills = yield* discoverOhMyPiSkills({ PI_CODING_AGENT_DIR: agent });
+        assert.deepEqual(
+          skills.map((skill) => skill.name),
+          ["native"],
+        );
+      }),
   );
 
-  it.effect("prefers agent/skills when the same name exists under skills/", () =>
+  it.effect("reads enabled and ignoredSkills from the real agent config", () =>
     Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const home = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-oh-my-pi-skills-" });
-      yield* writeSkill(path.join(home, "agent", "skills"), "shared", ["name: shared"]);
-      yield* writeSkill(path.join(home, "skills"), "shared-copy", ["name: shared"]);
-
-      const skills = yield* discoverOhMyPiSkills({ PI_CODING_AGENT_DIR: home });
-
+      const { fs, path, agent, root, environment } = yield* fixture;
+      yield* writeSkill(root, "kept");
+      yield* writeSkill(root, "hidden-task");
+      yield* fs.writeFileString(
+        path.join(agent, "config.yml"),
+        "skills:\n  ignoredSkills: ['hidden-*']\n",
+      );
       assert.deepEqual(
-        skills.map((skill) => skill.path),
-        [path.join(home, "agent", "skills", "shared", "SKILL.md")],
-      );
-    }),
-  );
-
-  it.effect("uses exclusions, support directories, and active org gating", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const home = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-oh-my-pi-skills-" });
-      const root = path.join(home, "skills");
-      yield* writeSkill(root, "main", ["name: main"]);
-      yield* writeSkill(root, "main/references/archive", ["name: archived"]);
-      yield* writeSkill(root, "node_modules/package", ["name: dependency"]);
-      yield* writeSkill(root, "_org/active/shared", ["name: active-org"]);
-      yield* writeSkill(root, "_org/stale/shared", ["name: stale-org"]);
-      yield* fileSystem.writeFileString(path.join(root, "_org", ".active_org"), "active\n");
-
-      const skills = yield* discoverOhMyPiSkills({ PI_CODING_AGENT_DIR: home });
-
-      assert.deepEqual(
-        skills.map((skill) => skill.name),
-        ["active-org", "main"],
-      );
-    }),
-  );
-
-  it.effect("applies disabled, platform, and environment filters", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const hostPlatform = yield* HostProcessPlatform;
-      const home = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-oh-my-pi-skills-" });
-      const root = path.join(home, "skills");
-      yield* writeSkill(root, "disabled", ["name: disabled"]);
-      yield* writeSkill(root, "wrong-platform", [
-        "name: wrong-platform",
-        `platforms: [${hostPlatform === "win32" ? "linux" : "windows"}]`,
-      ]);
-      yield* writeSkill(root, "s6-only", ["name: s6-only", "environments: [s6]"]);
-      yield* writeSkill(root, "unknown", ["name: unknown", "environments: [future-runtime]"]);
-      yield* fileSystem.writeFileString(
-        path.join(home, "config.yaml"),
-        ["skills:", "  disabled: [disabled]"].join("\n"),
-      );
-
-      const skills = yield* discoverOhMyPiSkills({ PI_CODING_AGENT_DIR: home });
-
-      assert.deepEqual(
-        skills.map((skill) => skill.name),
-        ["unknown"],
-      );
-    }),
-  );
-
-  it.effect("reads config.yml when config.yaml is absent", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const home = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-oh-my-pi-skills-" });
-      yield* writeSkill(path.join(home, "skills"), "kept", ["name: kept"]);
-      yield* writeSkill(path.join(home, "skills"), "hidden", ["name: hidden"]);
-      yield* fileSystem.writeFileString(
-        path.join(home, "config.yml"),
-        ["skills:", "  disabled: [hidden]"].join("\n"),
-      );
-
-      const skills = yield* discoverOhMyPiSkills({ PI_CODING_AGENT_DIR: home });
-
-      assert.deepEqual(
-        skills.map((skill) => skill.name),
+        (yield* discoverOhMyPiSkills(environment)).map((skill) => skill.name),
         ["kept"],
       );
+      yield* fs.writeFileString(path.join(agent, "config.yml"), "skills:\n  enabled: false\n");
+      assert.deepEqual(yield* discoverOhMyPiSkills(environment), []);
     }),
   );
 
-  it.effect("reads external skill directories after the local directories", () =>
+  it.effect("honors include patterns and disabledExtensions in config.yaml", () =>
     Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const temp = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-oh-my-pi-skills-" });
-      const home = path.join(temp, "home");
-      const external = path.join(temp, "external");
-      yield* writeSkill(path.join(home, "skills"), "local", ["name: shared"]);
-      yield* writeSkill(external, "external", ["name: external"]);
-      yield* writeSkill(external, "duplicate", ["name: shared"]);
-      yield* fileSystem.makeDirectory(home, { recursive: true });
-      yield* fileSystem.writeFileString(
-        path.join(home, "config.yaml"),
-        ["skills:", `  external_dirs: ['${external.replaceAll("'", "''")}']`].join("\n"),
+      const { fs, path, agent, root, environment } = yield* fixture;
+      for (const name of ["ship-app", "ship-docs", "review"]) yield* writeSkill(root, name);
+      yield* fs.writeFileString(
+        path.join(agent, "config.yaml"),
+        "skills:\n  includeSkills: ['ship-*']\ndisabledExtensions: ['skill:ship-docs']\n",
       );
-
-      const skills = yield* discoverOhMyPiSkills({ PI_CODING_AGENT_DIR: home });
-
       assert.deepEqual(
-        skills.map((skill) => skill.name),
-        ["external", "shared"],
-      );
-      assert.equal(
-        skills.find((skill) => skill.name === "shared")?.path,
-        path.join(home, "skills", "local", "SKILL.md"),
+        (yield* discoverOhMyPiSkills(environment)).map((skill) => skill.name),
+        ["ship-app"],
       );
     }),
   );
 
-  it.effect("uses PI_CONFIG_DIR and OMP_PROFILE when PI_CODING_AGENT_DIR is unset", () =>
+  it.effect("prefers config.yml when both configuration files exist", () =>
     Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-oh-my-pi-skills-" });
-      const profileHome = path.join(root, "profiles", "work");
-      yield* writeSkill(path.join(profileHome, "agent", "skills"), "profiled", ["name: profiled"]);
+      const { fs, path, agent, root, environment } = yield* fixture;
+      yield* writeSkill(root, "native");
+      yield* fs.writeFileString(path.join(agent, "config.yml"), "skills:\n  enabled: false\n");
+      yield* fs.writeFileString(path.join(agent, "config.yaml"), "skills:\n  enabled: true\n");
+      assert.deepEqual(yield* discoverOhMyPiSkills(environment), []);
+    }),
+  );
 
+  it.effect(
+    "custom directories override native names and remain enabled when native user skills are off",
+    () =>
+      Effect.gen(function* () {
+        const { fs, path, home, agent, root, environment } = yield* fixture;
+        const custom = path.join(home, "custom");
+        yield* writeSkill(root, "shared");
+        yield* writeSkill(root, "native-only");
+        yield* writeSkill(custom, "shared");
+        yield* fs.writeFileString(
+          path.join(agent, "config.yml"),
+          "skills:\n  customDirectories: ['~/custom']\n",
+        );
+        const skills = yield* discoverOhMyPiSkills(environment);
+        assert.equal(
+          skills.find((skill) => skill.name === "shared")?.path,
+          path.join(custom, "shared", "SKILL.md"),
+        );
+        yield* fs.writeFileString(
+          path.join(agent, "config.yml"),
+          "skills:\n  customDirectories: ['~/custom']\n  enablePiUser: false\n",
+        );
+        assert.deepEqual(
+          (yield* discoverOhMyPiSkills(environment)).map((skill) => skill.name),
+          ["shared"],
+        );
+      }),
+  );
+
+  it.effect("matches native immediate-child scanning and frontmatter eligibility", () =>
+    Effect.gen(function* () {
+      const { fs, path, root, environment } = yield* fixture;
+      yield* writeSkill(root, "valid");
+      yield* writeSkill(root, "valid/nested");
+      yield* writeSkill(root, ".hidden");
+      yield* writeSkill(root, "disabled", ["enabled: false"]);
+      yield* fs.makeDirectory(path.join(root, "no-description"), { recursive: true });
+      yield* fs.writeFileString(
+        path.join(root, "no-description", "SKILL.md"),
+        "---\nname: no-description\n---\n# Skill",
+      );
+      yield* fs.makeDirectory(path.join(root, "invalid"), { recursive: true });
+      yield* fs.writeFileString(
+        path.join(root, "invalid", "SKILL.md"),
+        "---\nname: [broken\n---\n# Skill",
+      );
+      assert.deepEqual(
+        (yield* discoverOhMyPiSkills(environment)).map((skill) => skill.name),
+        ["valid"],
+      );
+    }),
+  );
+
+  it.effect("uses the named profile even when an agent-dir override is inherited", () =>
+    Effect.gen(function* () {
+      const { path, home, root, environment } = yield* fixture;
+      yield* writeSkill(root, "default-only");
+      const profileRoot = path.join(home, ".omp", "profiles", "work", "agent", "skills");
+      yield* writeSkill(profileRoot, "profile-only");
       const skills = yield* discoverOhMyPiSkills({
-        PI_CONFIG_DIR: root,
+        ...environment,
         OMP_PROFILE: "work",
+        PI_CODING_AGENT_DIR: path.dirname(root),
       });
-
       assert.deepEqual(
         skills.map((skill) => skill.name),
-        ["profiled"],
+        ["profile-only"],
       );
     }),
   );
 });
 
 it.layer(NodeServices.layer)("resolveOhMyPiHomePath", (it) => {
-  it.effect("defaults to ~/.omp", () =>
+  it.effect("defaults to ~/.omp/agent", () =>
     Effect.gen(function* () {
       const path = yield* Path.Path;
-      const resolved = yield* resolveOhMyPiHomePath({});
-      assert.equal(resolved, path.join(NodeOS.homedir(), ".omp"));
+      assert.equal(yield* resolveOhMyPiHomePath({}), path.join(NodeOS.homedir(), ".omp", "agent"));
     }),
   );
-
-  it.effect("uses PI_CODING_AGENT_DIR without shell expansion", () =>
+  it.effect("uses the provider HOME and PI_CONFIG_DIR directory-name override", () =>
     Effect.gen(function* () {
       const path = yield* Path.Path;
-      const resolved = yield* resolveOhMyPiHomePath({ PI_CODING_AGENT_DIR: "~/.custom-omp" });
-      assert.equal(resolved, path.resolve("~/.custom-omp"));
+      assert.equal(
+        yield* resolveOhMyPiHomePath({ HOME: "/tmp/provider", PI_CONFIG_DIR: "/custom" }),
+        path.join("/tmp/provider", "/custom", "agent"),
+      );
     }),
   );
-
-  it.effect("prefers PI_CODING_AGENT_DIR over PI_CONFIG_DIR and profile", () =>
+  it.effect("uses PI_CODING_AGENT_DIR without shell expansion for the default profile", () =>
     Effect.gen(function* () {
       const path = yield* Path.Path;
-      const resolved = yield* resolveOhMyPiHomePath({
-        PI_CODING_AGENT_DIR: "/tmp/omp-agent",
-        PI_CONFIG_DIR: "/tmp/ignored-omp",
-        OMP_PROFILE: "work",
-      });
-      assert.equal(resolved, path.resolve("/tmp/omp-agent"));
+      assert.equal(
+        yield* resolveOhMyPiHomePath({
+          PI_CODING_AGENT_DIR: "~/.custom-omp",
+          OMP_PROFILE: "default",
+        }),
+        path.resolve("~/.custom-omp"),
+      );
+    }),
+  );
+  it.effect("uses PI_PROFILE only when OMP_PROFILE is absent", () =>
+    Effect.gen(function* () {
+      const path = yield* Path.Path;
+      assert.equal(
+        yield* resolveOhMyPiHomePath({ HOME: "/tmp/provider", PI_PROFILE: "work" }),
+        path.join("/tmp/provider", ".omp", "profiles", "work", "agent"),
+      );
+      assert.equal(
+        yield* resolveOhMyPiHomePath({
+          HOME: "/tmp/provider",
+          PI_PROFILE: "work",
+          OMP_PROFILE: "",
+        }),
+        path.join("/tmp/provider", ".omp", "agent"),
+      );
     }),
   );
 });
