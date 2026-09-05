@@ -1590,13 +1590,20 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
               const requestedTurnModelId = turnModelSelection?.model
                 ? config.normalizeModel(turnModelSelection.model)
                 : undefined;
+              const requestedTurnModelOptions = {
+                ...config.requestedModelOptionsFromSelection?.(turnModelSelection),
+                ...(input.interactionMode === "plan"
+                  ? { mode: "plan" }
+                  : input.interactionMode === "default"
+                    ? { mode: "default" }
+                    : {}),
+              };
               const currentModelId = yield* config.applyModelSelection({
                 runtime: ctx.acp,
                 currentModelId: ctx.currentModelId,
                 requestedModelId: requestedTurnModelId,
                 currentModelOptions: ctx.currentModelOptions,
-                requestedModelOptions:
-                  config.requestedModelOptionsFromSelection?.(turnModelSelection) ?? {},
+                requestedModelOptions: requestedTurnModelOptions,
                 mapError: (cause) =>
                   mapAcpToAdapterError(
                     PROVIDER,
@@ -1652,7 +1659,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
               ctx.currentModelId = currentModelId;
               ctx.currentModelOptions = {
                 ...ctx.currentModelOptions,
-                ...config.requestedModelOptionsFromSelection?.(turnModelSelection),
+                ...requestedTurnModelOptions,
               };
               const displayModel = currentModelId
                 ? config.normalizeModel(currentModelId)
