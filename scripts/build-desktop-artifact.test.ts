@@ -8,7 +8,7 @@ import {
 } from "@t3tools/shared/branding";
 import desktopPackageJson from "../apps/desktop/package.json" with { type: "json" };
 import * as NodeCrypto from "node:crypto";
-import * as NodeFs from "node:fs";
+import * as NodeFS from "node:fs";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
@@ -716,7 +716,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     const sourceIconGlob = `"$srcdir"/squashfs-root/usr/share/icons/hicolor/*/apps/${LINUX_DESKTOP_ENTRY_NAME}.png`;
     const mimeType = `x-scheme-handler/${URL_SCHEME};x-scheme-handler/${URL_SCHEME_DEV};`;
     for (const pkg of ["t3code-bin", "t3code-nightly-bin"] as const) {
-      const pkgbuild = NodeFs.readFileSync(
+      const pkgbuild = NodeFS.readFileSync(
         new URL(`../packaging/aur/${pkg}/PKGBUILD`, import.meta.url),
         "utf8",
       );
