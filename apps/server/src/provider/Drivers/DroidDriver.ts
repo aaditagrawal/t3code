@@ -32,6 +32,7 @@ import type { ServerProviderDraft } from "../providerSnapshot.ts";
 import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
 import {
   enrichProviderSnapshotWithVersionAdvisory,
+  makeCachedProviderMaintenanceResolution,
   makePackageManagedProviderMaintenanceResolver,
   resolveProviderMaintenanceCapabilitiesEffect,
 } from "../providerMaintenance.ts";
@@ -42,7 +43,6 @@ const SNAPSHOT_REFRESH_INTERVAL = Duration.minutes(5);
 const UPDATE = makePackageManagedProviderMaintenanceResolver({
   provider: DRIVER_KIND,
   npmPackageName: "droid",
-  homebrewFormula: null,
   nativeUpdate: null,
 });
 
@@ -111,10 +111,16 @@ export const DroidDriver: ProviderDriver<DroidSettings, DroidDriverEnv> = {
         continuationGroupKey: continuationIdentity.continuationKey,
       });
       const effectiveConfig = { ...config, enabled } satisfies DroidSettings;
-      const maintenanceCapabilities = yield* resolveProviderMaintenanceCapabilitiesEffect(UPDATE, {
-        binaryPath: effectiveConfig.binaryPath,
-        env: processEnv,
-      });
+      const resolveMaintenance = yield* makeCachedProviderMaintenanceResolution(
+        resolveProviderMaintenanceCapabilitiesEffect(UPDATE, {
+          binaryPath: effectiveConfig.binaryPath,
+          env: processEnv,
+        }).pipe(
+          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+          Effect.provideService(FileSystem.FileSystem, yield* FileSystem.FileSystem),
+          Effect.provideService(Path.Path, yield* Path.Path),
+        ),
+      );
 
       const adapter = yield* makeDroidAdapter(effectiveConfig, {
         instanceId,
@@ -125,7 +131,7 @@ export const DroidDriver: ProviderDriver<DroidSettings, DroidDriverEnv> = {
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
       );
       const snapshot = yield* makeManagedServerProvider<DroidSettings>({
-        maintenanceCapabilities,
+        resolveMaintenance,
         getSettings: Effect.succeed(effectiveConfig),
         streamSettings: Stream.never,
         haveSettingsChanged: () => false,
@@ -133,7 +139,10 @@ export const DroidDriver: ProviderDriver<DroidSettings, DroidDriverEnv> = {
           makePendingDroidProvider(settings).pipe(Effect.map(stampIdentity)),
         checkProvider,
         enrichSnapshot: ({ snapshot, publishSnapshot }) =>
-          enrichProviderSnapshotWithVersionAdvisory(snapshot, maintenanceCapabilities).pipe(
+          resolveMaintenance().pipe(
+            Effect.flatMap((maintenanceCapabilities) =>
+              enrichProviderSnapshotWithVersionAdvisory(snapshot, maintenanceCapabilities),
+            ),
             Effect.provideService(HttpClient.HttpClient, httpClient),
             Effect.flatMap((enrichedSnapshot) => publishSnapshot(enrichedSnapshot)),
           ),

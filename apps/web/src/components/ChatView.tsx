@@ -1,7 +1,6 @@
 import {
   type AssistantCitation,
   type ApprovalRequestId,
-  type AssetResource,
   type ChatFileAttachment,
   DEFAULT_MODEL,
   type EnvironmentId,
@@ -105,6 +104,7 @@ import {
   deriveWorkLogEntries,
   hasActionableProposedPlan,
   isLatestTurnSettled,
+  selectHandoffImageResources,
   type TimelineEntriesProjection,
 } from "../session-logic";
 import { type LegendListRef } from "@legendapp/list/react";
@@ -222,6 +222,7 @@ import {
 import { useNowMinute } from "../hooks/useNowMinute";
 import { usePanelAnimationSettings, usePanelPresence } from "../panelAnimations";
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
+import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl";
 import { useThreadActions } from "../hooks/useThreadActions";
 import { resolveAppModelSelectionForInstance } from "../modelSelection";
 import { confirmTerminalClose, isTerminalCloseConfirmPending } from "../lib/terminalCloseConfirm";
@@ -386,6 +387,7 @@ import {
   resolveComposerInteractionMode,
   resolveComposerProviderSelection,
   resolveDraftHeroState,
+  resolveProactiveTurnDiffAction,
   resolveThreadMetadataUpdateForNextTurn,
   resolveSendEnvMode,
   revokeBlobPreviewUrl,
@@ -444,9 +446,8 @@ import {
   supportsServerUpdateThreadContinuation,
 } from "../versionSkew";
 import { useAssetUrls } from "../assets/assetUrls";
+import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "./chat/composerPromptHistory";
 
-const ATTACHMENT_ONLY_BOOTSTRAP_PROMPT =
-  "[User attached one or more files without additional text. Respond using the conversation context and the attached files.]";
 const EMPTY_ACTIVITIES: OrchestrationThreadActivity[] = [];
 const EMPTY_PROVIDERS: ServerProvider[] = [];
 const EMPTY_PROVIDER_SKILLS: ServerProvider["skills"] = [];
@@ -2768,40 +2769,20 @@ export default function ChatView(props: ChatViewProps) {
     },
     [activeThreadRef, downloadFileAttachment],
   );
-  const serverAttachmentResources = useMemo(() => {
-    const resources = new Map<string, Extract<AssetResource, { readonly _tag: "attachment" }>>();
-    for (const message of serverMessages ?? []) {
-      for (const attachment of message.attachments ?? []) {
-        if (resources.has(attachment.id)) continue;
-        resources.set(
-          attachment.id,
-          attachment.type === "file"
-            ? {
-                _tag: "attachment",
-                attachmentId: attachment.id,
-                fileName: attachment.name,
-                mimeType: attachment.mimeType,
-              }
-            : { _tag: "attachment", attachmentId: attachment.id },
-        );
-      }
-    }
-    return [...resources.values()];
-  }, [serverMessages]);
-  const serverAttachmentIds = useMemo(
-    () => serverAttachmentResources.map((resource) => resource.attachmentId),
-    [serverAttachmentResources],
+  const serverAttachmentResources = useMemo(
+    () => selectHandoffImageResources(serverMessages, attachmentPreviewHandoffByMessageId),
+    [serverMessages, attachmentPreviewHandoffByMessageId],
   );
   const serverAttachmentUrls = useAssetUrls(environmentId, serverAttachmentResources);
   const serverAttachmentUrlById = useMemo(
     () =>
       new Map(
-        serverAttachmentIds.flatMap((attachmentId, index) => {
+        serverAttachmentResources.flatMap((resource, index) => {
           const url = serverAttachmentUrls[index];
-          return url ? [[attachmentId, url] as const] : [];
+          return url ? [[resource.attachmentId, url] as const] : [];
         }),
       ),
-    [serverAttachmentIds, serverAttachmentUrls],
+    [serverAttachmentResources, serverAttachmentUrls],
   );
   const displayServerMessages = useMemo<ReadonlyArray<ChatMessage>>(() => {
     if (!serverMessages) return [];
@@ -3946,18 +3927,21 @@ export default function ChatView(props: ChatViewProps) {
       : null;
     const eligibleCompletion =
       settings.proactivePanelsEnabled && !shouldUseRightPanelSheet && newlyCompletedTurnId !== null;
-    const checkpointReady =
-      eligibleCompletion &&
-      activeThread?.checkpoints.some((checkpoint) => checkpoint.turnId === newlyCompletedTurnId) ===
-        true;
-    const shouldOpenTurn = checkpointReady && gitStatusQuery.data?.isRepo === true;
-    const shouldDeferCompletion =
-      eligibleCompletion && !shouldOpenTurn && gitStatusQuery.data?.isRepo !== false;
+    const completedCheckpoint = eligibleCompletion
+      ? activeThread?.checkpoints.find((checkpoint) => checkpoint.turnId === newlyCompletedTurnId)
+      : undefined;
+    const diffAction = eligibleCompletion
+      ? resolveProactiveTurnDiffAction({
+          checkpoint: completedCheckpoint,
+          isGitRepo: gitStatusQuery.data?.isRepo,
+          activeSurfaceKind: activeRightPanelSurface?.kind ?? null,
+        })
+      : "ignore";
     proactiveTurnObservationRef.current = {
       threadKey: activeThreadKey,
-      runningTurnId: shouldDeferCompletion ? (previousRunningTurnId ?? null) : activeRunningTurnId,
+      runningTurnId: diffAction === "defer" ? (previousRunningTurnId ?? null) : activeRunningTurnId,
     };
-    if (!shouldOpenTurn || newlyCompletedTurnId === null) return;
+    if (diffAction !== "open" || newlyCompletedTurnId === null) return;
 
     useDiffPanelStore.getState().selectTurn(activeThreadRef, newlyCompletedTurnId);
     useRightPanelStore.getState().open(activeThreadRef, "diff");
@@ -3969,6 +3953,7 @@ export default function ChatView(props: ChatViewProps) {
     activeRunningTurnId,
     activeThreadKey,
     activeThreadRef,
+    activeRightPanelSurface?.kind,
     clientSettingsHydrated,
     gitStatusQuery.data?.isRepo,
     isServerThread,
@@ -4821,6 +4806,10 @@ export default function ChatView(props: ChatViewProps) {
     requestAnimationFrame(() => positionAnchor(12));
   }, []);
 
+  const onToolOutputCollapsedAtEnd = useCallback(() => {
+    composerRef.current?.restoreAfterTimelineReachedEnd();
+  }, []);
+
   const onIsAtEndChange = useCallback((isAtEnd: boolean) => {
     if (
       !isAtEnd &&
@@ -5137,16 +5126,24 @@ export default function ChatView(props: ChatViewProps) {
       threadRepository,
     ],
   );
+  const openPanelPullRequestUrl = useOpenPanelPullRequestUrl(activeThreadRef);
   const activeThreadReferenceCopyTarget = useMemo(
     () =>
       activeThreadId === null || !isServerThread
         ? null
         : resolveThreadReferenceCopyTarget({
             threadId: activeThreadId,
+            openPanelPullRequestUrl,
             linkedPullRequestUrl: linkedThreadPullRequest?.url ?? null,
             detectedPullRequestUrl: activeThreadPr?.url ?? null,
           }),
-    [activeThreadId, activeThreadPr?.url, isServerThread, linkedThreadPullRequest?.url],
+    [
+      activeThreadId,
+      activeThreadPr?.url,
+      isServerThread,
+      linkedThreadPullRequest?.url,
+      openPanelPullRequestUrl,
+    ],
   );
   const copyActiveThreadReference = useCallback(() => {
     const target = activeThreadReferenceCopyTarget;
@@ -7896,6 +7893,7 @@ export default function ChatView(props: ChatViewProps) {
                 contentInsetEndAdjustment={composerTimelineInset}
                 liveFollowEnabled={timelineLiveFollowEnabled}
                 onIsAtEndChange={onIsAtEndChange}
+                onToolOutputCollapsedAtEnd={onToolOutputCollapsedAtEnd}
                 onManualNavigation={cancelTimelineLiveFollowForUserNavigation}
                 hideEmptyPlaceholder={isDraftHeroState || threadDetailLoading}
                 topFadeEnabled={!hasTimelineTopBanner}
@@ -7986,6 +7984,7 @@ export default function ChatView(props: ChatViewProps) {
                             activeThreadId={activeThreadId}
                             activeThreadEnvironmentId={activeThread?.environmentId}
                             activeThread={activeThread}
+                            promptHistoryMessages={timelineMessages}
                             isServerThread={isServerThread}
                             isLocalDraftThread={isLocalDraftThread}
                             forceExpandedOnMobile={forceExpandedMobileComposer && isDraftHeroState}

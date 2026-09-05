@@ -189,7 +189,7 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           Effect.provideService(Path.Path, path),
         );
         const snapshot = yield* makeManagedServerProvider<StandardAcpCliProviderConfig>({
-          maintenanceCapabilities,
+          resolveMaintenance: () => Effect.succeed(maintenanceCapabilities),
           getSettings: Effect.succeed(providerConfig),
           streamSettings: Stream.never,
           haveSettingsChanged: () => false,

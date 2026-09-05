@@ -120,6 +120,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   listLogFiles: () => ipcRenderer.invoke(IpcChannels.LOG_LIST_CHANNEL),
   readLogFile: (filename) => ipcRenderer.invoke(IpcChannels.LOG_READ_CHANNEL, filename),
   openLogDir: () => ipcRenderer.invoke(IpcChannels.LOG_OPEN_DIR_CHANNEL),
+  openSystemSettings: (pane: string) =>
+    ipcRenderer.invoke(IpcChannels.OPEN_SYSTEM_SETTINGS_CHANNEL, pane),
   probeRemoteEditors: () => ipcRenderer.invoke(IpcChannels.PROBE_REMOTE_EDITORS_CHANNEL, undefined),
   onMenuAction: (listener) => {
     const wrappedListener = (_event: Electron.IpcRendererEvent, action: unknown) => {

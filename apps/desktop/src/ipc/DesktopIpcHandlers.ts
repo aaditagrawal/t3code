@@ -41,6 +41,7 @@ import {
   listLogFiles,
   openLogDir,
   openExternal,
+  openSystemSettings,
   probeRemoteEditors,
   pickFolder,
   pickProjectFavicon,
@@ -102,6 +103,7 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* ipc.handle(listLogFiles);
   yield* ipc.handle(readLogFile);
   yield* ipc.handle(openLogDir);
+  yield* ipc.handle(openSystemSettings);
   yield* ipc.handle(probeRemoteEditors);
   yield* ipc.handle(getUpdateState);
   yield* ipc.handle(setUpdateChannel);

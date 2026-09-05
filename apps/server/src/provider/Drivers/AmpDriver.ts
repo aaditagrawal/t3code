@@ -114,7 +114,7 @@ export const AmpDriver: ProviderDriver<GenericProviderSettings, AmpDriverEnv> = 
       );
 
       const snapshot = yield* makeManagedServerProvider<GenericProviderSettings>({
-        maintenanceCapabilities: MAINTENANCE_CAPABILITIES,
+        resolveMaintenance: () => Effect.succeed(MAINTENANCE_CAPABILITIES),
         getSettings: Effect.succeed(effectiveConfig),
         streamSettings: Stream.never,
         haveSettingsChanged: () => false,

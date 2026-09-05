@@ -121,7 +121,7 @@ export const CopilotDriver: ProviderDriver<CopilotSettings, CopilotDriverEnv> = 
       );
 
       const snapshot = yield* makeManagedServerProvider<CopilotSettings>({
-        maintenanceCapabilities: MAINTENANCE_CAPABILITIES,
+        resolveMaintenance: () => Effect.succeed(MAINTENANCE_CAPABILITIES),
         getSettings: Effect.succeed(effectiveConfig),
         streamSettings: Stream.never,
         haveSettingsChanged: () => false,
