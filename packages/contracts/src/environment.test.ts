@@ -26,4 +26,42 @@ describe("ExecutionEnvironmentDescriptor", () => {
       }).capabilities.pullRequests,
     ).toBe(true);
   });
+
+  it("treats a missing pull-request summary capability as unsupported under version skew", () => {
+    expect(decodeDescriptor(descriptor).capabilities.pullRequestSummary).toBeUndefined();
+  });
+
+  it("preserves an advertised pull-request summary capability", () => {
+    expect(
+      decodeDescriptor({
+        ...descriptor,
+        capabilities: { ...descriptor.capabilities, pullRequestSummary: true },
+      }).capabilities.pullRequestSummary,
+    ).toBe(true);
+  });
+
+  it("treats a missing attachment upload capability as unsupported", () => {
+    expect(decodeDescriptor(descriptor).capabilities.attachmentUploads).toBeUndefined();
+  });
+
+  it("preserves an advertised attachment upload capability", () => {
+    expect(
+      decodeDescriptor({
+        ...descriptor,
+        capabilities: { ...descriptor.capabilities, attachmentUploads: true },
+      }).capabilities.attachmentUploads,
+    ).toBe(true);
+  });
+
+  it("preserves the server's generic attachment upload limit", () => {
+    expect(
+      decodeDescriptor({
+        ...descriptor,
+        capabilities: {
+          ...descriptor.capabilities,
+          fileAttachments: { maxUploadBytes: 50 * 1024 * 1024 },
+        },
+      }).capabilities.fileAttachments,
+    ).toEqual({ maxUploadBytes: 50 * 1024 * 1024 });
+  });
 });

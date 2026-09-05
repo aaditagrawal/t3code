@@ -4,7 +4,6 @@ import type {
   ServerProviderAuth,
   ServerProviderModel,
 } from "@t3tools/contracts";
-import { ProviderDriverKind } from "@t3tools/contracts";
 import { causeErrorTag } from "@t3tools/shared/observability";
 import * as Cause from "effect/Cause";
 import * as Data from "effect/Data";
@@ -15,6 +14,7 @@ import * as Option from "effect/Option";
 
 import {
   buildServerProvider,
+  COMPACT_SLASH_COMMAND,
   providerModelsFromSettings,
   type ServerProviderDraft,
 } from "../providerSnapshot.ts";
@@ -35,7 +35,6 @@ import {
   buildCursorDiscoveredModelsFromSdkModels,
 } from "../cursor/CursorSdkMappings.ts";
 
-const PROVIDER = ProviderDriverKind.make("cursor");
 const CURSOR_PRESENTATION = {
   displayName: "Cursor",
   badgeLabel: "SDK",
@@ -144,6 +143,7 @@ export function buildCursorProviderSnapshot(input: {
     enabled: input.cursorSettings.enabled,
     checkedAt: input.checkedAt,
     models,
+    slashCommands: [COMPACT_SLASH_COMMAND],
     probe: {
       installed: input.installed,
       version: input.version ?? null,

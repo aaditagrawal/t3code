@@ -52,6 +52,8 @@ import type { ServerProviderDraft } from "../providerSnapshot.ts";
 import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
 import { CopilotSettings } from "./CopilotSettings.ts";
 
+const decodeSyncCopilotSettings = Schema.decodeSync(CopilotSettings);
+
 const DRIVER_KIND = ProviderDriverKind.make("copilot");
 const SNAPSHOT_REFRESH_INTERVAL = Duration.minutes(5);
 const MAINTENANCE_CAPABILITIES = makeManualOnlyProviderMaintenanceCapabilities({
@@ -91,7 +93,7 @@ export const CopilotDriver: ProviderDriver<CopilotSettings, CopilotDriverEnv> = 
     supportsMultipleInstances: true,
   },
   configSchema: CopilotSettings,
-  defaultConfig: (): CopilotSettings => Schema.decodeSync(CopilotSettings)({}),
+  defaultConfig: (): CopilotSettings => decodeSyncCopilotSettings({}),
   create: ({ instanceId, displayName, accentColor, environment, enabled, config }) =>
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -121,7 +123,7 @@ export const CopilotDriver: ProviderDriver<CopilotSettings, CopilotDriverEnv> = 
       );
 
       const snapshot = yield* makeManagedServerProvider<CopilotSettings>({
-        maintenanceCapabilities: MAINTENANCE_CAPABILITIES,
+        resolveMaintenance: () => Effect.succeed(MAINTENANCE_CAPABILITIES),
         getSettings: Effect.succeed(effectiveConfig),
         streamSettings: Stream.never,
         haveSettingsChanged: () => false,

@@ -4,8 +4,10 @@ T3 Code is a minimal web GUI for coding agents made by [Pingdotgg](https://githu
 
 This fork focuses on expanding provider support, keeping usage and limit monitoring visible, improving persistence layers, and refining provider management across the app. The current branded release is [T3 Code v0.0.36 — ACP Edition](https://github.com/aaditagrawal/t3code/releases/tag/v0.0.36).
 
+Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, Google Antigravity, and the other supported agents below. If they're set up on your computer, T3 Code can control them.
+
 It supports configurable stdio ACP agents, Codex, Claude Code, Cursor, Droid, Fx, Grok Build,
-OpenCode, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, and Pi.
+OpenCode, Antigravity, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, and Pi.
 
 (NOTE: Amp /mode free is not supported, as Amp Code doesn't support it in headless mode - since they need to show ads for that business model to work.)
 
@@ -37,7 +39,7 @@ database. Codex resume failures are surfaced rather than silently starting a new
 
 This supports Codex and Claude sessions with local history and an available original project
 folder. Discovery shows up to 200 sessions from a bounded scan; imports are limited to 32 MB and
-5,000 text messages. T3 plans, attachments, tool records, and checkpoints are not imported, and
+the 200 most recent text messages. T3 plans, attachments, tool records, and checkpoints are not imported, and
 subsequent conversation changes are not synchronized between apps. Use one app at a time for
 each provider session. Detected live official T3 sessions are blocked; CLI sessions require you
 to confirm that the other writer has stopped.
@@ -55,6 +57,7 @@ Adds full provider adapters (server managers, service layers, runtime layers) fo
 | Fx             | ACP integration through `fx acp`                                           |
 | Grok Build     | ACP adapter with xAI protocol extensions                                   |
 | OpenCode       | Adapter with hostname/port/workspace config                                |
+| Antigravity    | Official Google ACP agent with managed install and Google sign-in          |
 | Amp            | Adapter + `ampServerManager` for headless Amp sessions                     |
 | GitHub Copilot | Adapter + CLI binary resolution + text generation layer                    |
 | Gemini CLI     | **Enhanced:** Adapter + `geminiCliServerManager` with full test coverage   |
@@ -132,7 +135,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/aaditagrawal/t3code/main/scr
 ### Manual build
 
 > [!WARNING]
-> You need at least one supported coding agent installed and authorized. See the supported agents list below.
+> You need at least one supported coding agent installed and authorized. See the supported agents list below. Antigravity does not require a CLI: enable it in Settings, then use **Install Antigravity** and **Sign in with Google**.
 
 ```bash
 # Prerequisites: Bun >=1.3.9, Node >=24.13.1
@@ -155,6 +158,7 @@ bun run dev
 - [Amp](https://ampcode.com)
 - [Kilo](https://kilo.dev)
 - [OpenCode](https://opencode.ai)
+- [Google Antigravity](https://github.com/agentclientprotocol/registry/blob/main/antigravity-acp/agent.json) (enable in Settings, then **Install Antigravity** and **Sign in with Google**)
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) (`hermes-acp`; run `hermes-acp --setup` after installation)
 - [Oh My Pi](https://github.com/can1357/oh-my-pi) (install `@oh-my-pi/pi-coding-agent`; T3 Code launches `omp acp`)
 - [Pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) (install it together with `pi-acp`, then authenticate with `pi`)

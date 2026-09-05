@@ -70,3 +70,47 @@ describe("desktop production dependency closure", () => {
     ).toBe(complete);
   });
 });
+
+it("keeps pnpm 11 subtrees that contain both real and deduplicated children", async () => {
+  const { PnpmNodeModulesCollector } = builderRequire(
+    "app-builder-lib/out/node-module-collector/pnpmNodeModulesCollector.js",
+  );
+  const root = {
+    name: "app",
+    dependencies: {
+      parent: {
+        version: "1.0.0",
+        dedupedDependenciesCount: 1,
+        dependencies: {
+          shared: { version: "1.0.0", deduped: true, dedupedDependenciesCount: 1 },
+          first: { version: "1.0.0" },
+        },
+      },
+      shared: { version: "1.0.0" },
+      wrapper: {
+        version: "1.0.0",
+        dependencies: {
+          parent: {
+            version: "1.0.0",
+            dependencies: {
+              debug: { version: "4.4.3", dependencies: { ms: { version: "2.1.3" } } },
+            },
+          },
+        },
+      },
+    },
+  };
+  const collector = new PnpmNodeModulesCollector("/stage", {});
+  collector._pnpmMajorVersion = 11;
+  collector._allWorkspacePackages = [root];
+  collector.locateFromDepOrRoot = async (name) => ({ packageDir: `/stage/node_modules/${name}` });
+  await collector.collectAllDependencies(root, "app");
+  expect([...collector.allDependencies.keys()]).toEqual([
+    "parent@1.0.0",
+    "first@1.0.0",
+    "shared@1.0.0",
+    "wrapper@1.0.0",
+    "debug@4.4.3",
+    "ms@2.1.3",
+  ]);
+});

@@ -1,3 +1,4 @@
+import type { CustomModelSetting } from "@t3tools/contracts";
 import {
   type ProviderDriverKind,
   type ServerProvider,
@@ -14,11 +15,14 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/unstable/process";
+import type * as EffectAcpSchema from "effect-acp/schema";
 
 import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
 import { ServerConfig } from "../../config.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
-import type { TextGenerationShape } from "../../textGeneration/TextGeneration.ts";
+import type { TextGeneration } from "../../textGeneration/TextGeneration.ts";
+
+type TextGenerationService = TextGeneration["Service"];
 import { ProviderDriverError } from "../Errors.ts";
 import { parseStandardAcpCliArguments } from "../acp/StandardAcpCliSupport.ts";
 import type { StandardAcpAdapterLiveOptions } from "../Layers/StandardAcpAdapter.ts";
@@ -44,7 +48,7 @@ export interface StandardAcpCliSettings {
   readonly enabled: boolean;
   readonly binaryPath: string;
   readonly arguments?: string;
-  readonly customModels: ReadonlyArray<string>;
+  readonly customModels: ReadonlyArray<CustomModelSetting>;
 }
 
 export type StandardAcpCliDriverEnv =
@@ -71,6 +75,10 @@ export interface StandardAcpCliDriverConfig<Settings extends StandardAcpCliSetti
   readonly setupHint: string;
   readonly missingCommandMessage: string;
   readonly excludedAuthMethodIds?: ReadonlySet<string>;
+  readonly resolveAuthMethodId?: (
+    initializeResult: EffectAcpSchema.InitializeResponse,
+  ) => string | undefined;
+  readonly unauthenticatedWhenNoDiscoveredModels?: boolean;
   readonly discoverSkills?: (
     environment: NodeJS.ProcessEnv,
   ) => Effect.Effect<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path>;
@@ -83,7 +91,7 @@ export interface StandardAcpCliDriverConfig<Settings extends StandardAcpCliSetti
   >;
 }
 
-function makeUnsupportedTextGeneration(displayName: string): TextGenerationShape {
+function makeUnsupportedTextGeneration(displayName: string): TextGenerationService {
   const fail = (operation: TextGenerationError["operation"]) =>
     Effect.fail(
       new TextGenerationError({
@@ -162,6 +170,12 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           ...(driverConfig.excludedAuthMethodIds
             ? { excludedAuthMethodIds: driverConfig.excludedAuthMethodIds }
             : {}),
+          ...(driverConfig.resolveAuthMethodId
+            ? { resolveAuthMethodId: driverConfig.resolveAuthMethodId }
+            : {}),
+          ...(driverConfig.unauthenticatedWhenNoDiscoveredModels
+            ? { unauthenticatedWhenNoDiscoveredModels: true }
+            : {}),
           ...(driverConfig.discoverSkills
             ? { discoverSkills: driverConfig.discoverSkills(processEnv) }
             : {}),
@@ -187,7 +201,7 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           Effect.provideService(Path.Path, path),
         );
         const snapshot = yield* makeManagedServerProvider<StandardAcpCliProviderConfig>({
-          maintenanceCapabilities,
+          resolveMaintenance: () => Effect.succeed(maintenanceCapabilities),
           getSettings: Effect.succeed(providerConfig),
           streamSettings: Stream.never,
           haveSettingsChanged: () => false,

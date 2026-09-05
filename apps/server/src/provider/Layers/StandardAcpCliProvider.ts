@@ -1,3 +1,4 @@
+import type { CustomModelSetting } from "@t3tools/contracts";
 import type {
   ModelCapabilities,
   ProviderDriverKind,
@@ -44,11 +45,15 @@ export interface StandardAcpCliProviderConfig {
   readonly command: string;
   readonly args?: ReadonlyArray<string>;
   readonly enabled: boolean;
-  readonly customModels: ReadonlyArray<string>;
+  readonly customModels: ReadonlyArray<CustomModelSetting>;
   readonly environment: NodeJS.ProcessEnv;
   readonly setupHint: string;
   readonly missingCommandMessage: string;
   readonly excludedAuthMethodIds?: ReadonlySet<string>;
+  readonly resolveAuthMethodId?: (
+    initializeResult: EffectAcpSchema.InitializeResponse,
+  ) => string | undefined;
+  readonly unauthenticatedWhenNoDiscoveredModels?: boolean;
   readonly discoverSkills?: Effect.Effect<
     ReadonlyArray<ServerProviderSkill>,
     never,
@@ -238,12 +243,14 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
         cwd: process.cwd(),
         environment: config.environment,
         clientInfo: { name: "t3-code-provider-probe", version: "0.0.0" },
-        ...(config.excludedAuthMethodIds
-          ? {
-              resolveAuthMethodId: (initializeResult) =>
-                firstAdvertisedAuthMethod(initializeResult, config.excludedAuthMethodIds),
-            }
-          : {}),
+        ...(config.resolveAuthMethodId
+          ? { resolveAuthMethodId: config.resolveAuthMethodId }
+          : config.excludedAuthMethodIds
+            ? {
+                resolveAuthMethodId: (initializeResult) =>
+                  firstAdvertisedAuthMethod(initializeResult, config.excludedAuthMethodIds),
+              }
+            : {}),
       });
       const started = yield* runtime.start();
       const models = modelsFromSessionState(started.sessionSetupResult.models, config.provider);
@@ -267,6 +274,8 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
       const skills = yield* (config.discoverSkills ?? Effect.succeed([])).pipe(
         Effect.catchCause(() => Effect.succeed<ReadonlyArray<ServerProviderSkill>>([])),
       );
+      const unauthenticated =
+        config.unauthenticatedWhenNoDiscoveredModels === true && discoveredModels.length === 0;
       return buildServerProvider({
         presentation,
         enabled: true,
@@ -277,12 +286,20 @@ export const checkStandardAcpCliProviderStatus = Effect.fn("checkStandardAcpCliP
             : fallbackModels,
         skills,
         slashCommands: slashCommandsFromAcpCommands(discovered.commands),
-        probe: {
-          installed: true,
-          version: discovered.version,
-          status: "ready",
-          auth: { status: "unknown" },
-        },
+        probe: unauthenticated
+          ? {
+              installed: true,
+              version: discovered.version,
+              status: "error",
+              auth: { status: "unauthenticated" },
+              message: config.setupHint,
+            }
+          : {
+              installed: true,
+              version: discovered.version,
+              status: "ready",
+              auth: { status: "unknown" },
+            },
       });
     }
 

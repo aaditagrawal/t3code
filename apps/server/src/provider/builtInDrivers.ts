@@ -22,6 +22,7 @@
  */
 import { AcpDriver, type AcpDriverEnv } from "./Drivers/AcpDriver.ts";
 import { AmpDriver, type AmpDriverEnv } from "./Drivers/AmpDriver.ts";
+import { AntigravityDriver, type AntigravityDriverEnv } from "./Drivers/AntigravityDriver.ts";
 import { ClaudeDriver, type ClaudeDriverEnv } from "./Drivers/ClaudeDriver.ts";
 import { CodexDriver, type CodexDriverEnv } from "./Drivers/CodexDriver.ts";
 import { CopilotDriver, type CopilotDriverEnv } from "./Drivers/CopilotDriver.ts";
@@ -52,6 +53,7 @@ export type BuiltInDriversEnv =
   | GrokDriverEnv
   | HermesDriverEnv
   | OpenCodeDriverEnv
+  | AntigravityDriverEnv
   | OhMyPiDriverEnv
   | AmpDriverEnv
   | CopilotDriverEnv
@@ -76,6 +78,7 @@ export const BUILT_IN_DRIVERS: ReadonlyArray<AnyProviderDriver<BuiltInDriversEnv
   FxDriver,
   GrokDriver,
   OpenCodeDriver,
+  AntigravityDriver,
   AmpDriver,
   CopilotDriver,
   GeminiCliDriver,

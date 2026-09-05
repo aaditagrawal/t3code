@@ -1,7 +1,11 @@
 // @effect-diagnostics nodeBuiltinImport:off globalDate:off - Read-only Node filesystem boundary, also exercised without an Effect runtime.
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
-import type { ExistingThread, ProviderInstanceId } from "@t3tools/contracts";
+import type {
+  AgentSessionImportSource,
+  ExistingThread,
+  ProviderInstanceId,
+} from "@t3tools/contracts";
 import { parseTranscript, record, stableId, string, type Transcript } from "./transcripts.ts";
 
 const MAX_FILES = 5_000;
@@ -191,7 +195,9 @@ export async function discoverThreads(
   if (unreadable) notices.push(`${unreadable} sessions could not be read.`);
   return { threads, notices };
 }
-export async function readDiscoveredThread(thread: DiscoveredThread): Promise<Transcript> {
+export async function readDiscoveredThread(
+  thread: DiscoveredThread,
+): Promise<Transcript & { source: AgentSessionImportSource }> {
   const realPath = await NodeFSP.realpath(thread.path);
   const relative = NodePath.relative(thread.providerHome, realPath);
   if (relative.startsWith("..") || NodePath.isAbsolute(relative))
@@ -206,9 +212,22 @@ export async function readDiscoveredThread(thread: DiscoveredThread): Promise<Tr
     const transcript = parseTranscript(await handle.readFile("utf8"), thread.summary.provider);
     if (transcript.sessionId !== thread.summary.sessionId || transcript.cwd !== thread.summary.cwd)
       throw new Error("The session changed. Refresh and try again.");
-    if (transcript.messages.length > 5000)
-      throw new Error("This session exceeds the 5,000 message import limit.");
-    return transcript;
+    if (transcript.messages.length === 0)
+      throw new Error("This session has no importable text history.");
+    return {
+      ...transcript,
+      source: {
+        provider: thread.summary.provider,
+        providerInstanceId: thread.summary.instanceId,
+        providerSessionId: transcript.sessionId,
+        filePath: realPath,
+        size: stat.size,
+        mtimeMs: stat.mtimeMs,
+        device: stat.dev,
+        inode: stat.ino,
+        birthtimeMs: stat.birthtimeMs,
+      },
+    };
   } finally {
     await handle.close();
   }

@@ -28,7 +28,10 @@ interface PendingRpcAckRequest {
 }
 
 const pendingRpcAckRequests = new Map<string, PendingRpcAckRequest>();
-const untrackedRpcAckMethods = new Set<string>([WS_METHODS.previewAutomationConnect]);
+const untrackedRpcAckMethods = new Set<string>([
+  WS_METHODS.previewAutomationConnect,
+  WS_METHODS.serverGetUsageSummary,
+]);
 const longRunningRpcAckMethods = new Set<string>([
   WS_METHODS.serverUpdateProvider,
   WS_METHODS.serverRefreshProviders,
@@ -155,10 +158,6 @@ function evictOldestPendingRpcRequestIfNeeded(): void {
 export function resetRequestLatencyStateForTests(): void {
   slowRpcAckThresholdMs = SLOW_RPC_ACK_THRESHOLD_MS;
   clearAllTrackedRpcRequests();
-}
-
-export function setSlowRpcAckThresholdMsForTests(thresholdMs: number): void {
-  slowRpcAckThresholdMs = thresholdMs;
 }
 
 export function useSlowRpcAckRequests(): ReadonlyArray<SlowRpcAckRequest> {

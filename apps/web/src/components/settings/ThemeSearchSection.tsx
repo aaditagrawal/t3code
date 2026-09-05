@@ -48,15 +48,16 @@ const SORT_OPTIONS: ReadonlyArray<{ value: OpenVsxThemeSort; label: string }> = 
 const SEARCH_DEBOUNCE_MS = 350;
 
 function SourceLinkIcon({ url }: { url: string }) {
+  let host: string | null = null;
   try {
-    const host = new URL(url).hostname.toLowerCase();
-    if (host === "github.com" || host.endsWith(".github.com"))
-      return <GitHubIcon className="size-3.5" />;
-    if (host === "gitlab.com" || host.endsWith(".gitlab.com"))
-      return <GitLabIcon className="size-3.5" monochrome />;
+    host = new URL(url).hostname.toLowerCase();
   } catch {
-    // Fall through to the generic external-link icon.
+    /* Invalid URLs use the generic icon. */
   }
+  if (host === "github.com" || host?.endsWith(".github.com"))
+    return <GitHubIcon className="size-3.5" />;
+  if (host === "gitlab.com" || host?.endsWith(".gitlab.com"))
+    return <GitLabIcon className="size-3.5" monochrome />;
   return <ExternalLinkIcon className="size-3.5" />;
 }
 
@@ -204,13 +205,12 @@ export function ThemeSearchSection({
       return;
     }
     void runSearch(debouncedQuery);
-    // `installingId` and `sortBy` are deliberately not dependencies: the
-    // guards above read the current values from the fresh render closure. An
-    // install finishing reruns the search only when the query or sort changed
-    // while it was in flight (checked via lastSearchKeyRef, recorded only
-    // once a search succeeds), so the install error the user needs to see is
-    // preserved across that rerun.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // `sortBy` is deliberately not a direct dependency: the guards above read
+    // the current value from the fresh render closure. An install finishing
+    // reruns the search only when the query or sort changed while it was in
+    // flight (checked via lastSearchKeyRef, recorded only once a search
+    // succeeds), so the install error the user needs to see is preserved
+    // across that rerun.
   }, [open, query, debouncedQuery, installingId, runSearch]);
 
   const handleSortChange = useCallback((value: OpenVsxThemeSort | null) => {

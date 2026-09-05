@@ -1,3 +1,4 @@
+import * as NodePath from "@effect/platform-node/NodePath";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { APP_BASE_NAME, DESKTOP_USER_DATA_DIR_NAME } from "@t3tools/shared/branding";
 import { assert, describe, it } from "@effect/vitest";
@@ -89,6 +90,7 @@ const makeEnvironmentLayer = (overrides: TestEnvironmentInput = {}) => {
     Layer.provide(
       Layer.mergeAll(
         NodeServices.layer,
+        NodePath.layerPosix,
         DesktopConfig.layerTest({
           ...env,
         }),

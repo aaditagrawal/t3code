@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import {
   ActivityIcon,
   AlertTriangleIcon,
@@ -27,7 +29,7 @@ import type {
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -45,6 +47,7 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { formatRelativeTime } from "../../timestampFormat";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
+import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { toastManager } from "../ui/toast";
 import {
@@ -378,21 +381,21 @@ function HistoryWindowSelector({
   onSelect: (windowMs: number) => void;
 }) {
   return (
-    <div className="flex items-center rounded-md border border-border/60 p-0.5">
+    <ToggleGroup
+      aria-label="Resource history period"
+      variant="segmented"
+      value={[String(selectedWindowMs)]}
+      onValueChange={(next) => {
+        const selected = HISTORY_WINDOWS.find((option) => String(option.windowMs) === next[0]);
+        if (selected) onSelect(selected.windowMs);
+      }}
+    >
       {HISTORY_WINDOWS.map((option) => (
-        <button
-          key={option.windowMs}
-          type="button"
-          className={cn(
-            "cursor-pointer h-6 rounded-sm px-2 text-[11px] font-medium text-muted-foreground hover:text-foreground",
-            selectedWindowMs === option.windowMs && "bg-muted text-foreground",
-          )}
-          onClick={() => onSelect(option.windowMs)}
-        >
+        <Toggle key={option.windowMs} value={String(option.windowMs)}>
           {option.label}
-        </button>
+        </Toggle>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }
 
@@ -846,10 +849,10 @@ export function ResourceTelemetryDiagnostics() {
     reportFailure: false,
   });
   const [signalingKeys, setSignalingKeys] = useState<ReadonlySet<string>>(() => new Set());
-  const signalingKeysRef = useRef<ReadonlySet<string>>(new Set());
-  signalingKeysRef.current = signalingKeys;
+  const signalingKeysRef = useRef<ReadonlySet<string>>(signalingKeys);
+  useCommitRef(signalingKeysRef, signalingKeys);
   const primaryEnvironmentIdRef = useRef(primaryEnvironment?.environmentId);
-  primaryEnvironmentIdRef.current = primaryEnvironment?.environmentId;
+  useCommitRef(primaryEnvironmentIdRef, primaryEnvironment?.environmentId);
   const [isRetrying, setIsRetrying] = useState(false);
   const snapshot = telemetry.data;
   const allT3 = snapshot?.groups.allT3;

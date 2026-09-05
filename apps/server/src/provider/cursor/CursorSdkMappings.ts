@@ -1,4 +1,5 @@
 import type {
+  CustomModelSetting,
   ModelCapabilities,
   ProviderOptionDescriptor,
   ProviderOptionSelection,
@@ -243,7 +244,7 @@ export function buildCursorCapabilitiesFromSdkModel(
 
 export function buildCursorDiscoveredModelsFromSdkModels(
   models: ReadonlyArray<CursorSdkModelListItem>,
-  customModels: ReadonlyArray<string> = [],
+  customModels: ReadonlyArray<CustomModelSetting> = [],
 ): ReadonlyArray<ServerProviderModel> {
   const seen = new Set<string>();
   const discovered = models.flatMap((model) => {

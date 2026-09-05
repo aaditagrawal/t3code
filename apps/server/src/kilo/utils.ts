@@ -208,6 +208,7 @@ export function toPermissionReply(
 ): "once" | "always" | "reject" {
   switch (decision) {
     case "acceptForSession":
+    case "acceptAlways":
       return "always";
     case "accept":
       return "once";

@@ -12,6 +12,7 @@ import {
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import { expect, it } from "@effect/vitest";
 import { ServerSettingsService } from "../serverSettings.ts";
 import { ProviderRegistry } from "../provider/Services/ProviderRegistry.ts";
@@ -99,9 +100,16 @@ for (const provider of ["codex", "claudeAgent"] as const) {
           NodeServices.layer,
           Layer.mock(ServerSettingsService)({ getSettings: Effect.succeed(settings) }),
           Layer.mock(ProviderRegistry)({ getProviders: Effect.succeed([info]) }),
-          Layer.mock(ProjectionSnapshotQuery)({ getSnapshot: () => Effect.succeed(model) }),
+          Layer.mock(ProjectionSnapshotQuery)({
+            getCommandReadModel: () => Effect.succeed(model),
+            getThreadDetailById: (id) =>
+              Effect.succeed(Option.fromNullishOr(model.threads.find((t) => t.id === id))),
+          }),
           Layer.mock(ProviderSessionDirectory)({
             listBindings: () => Effect.succeed(bindings),
+            getBinding: (id) =>
+              Effect.succeed(Option.fromNullishOr(bindings.find((b) => b.threadId === id))),
+            recordImportedTranscript: () => Effect.void,
             upsert: (binding) =>
               Effect.sync(() => {
                 bindings.push({ ...binding, lastSeenAt: stamp });
@@ -139,12 +147,16 @@ for (const provider of ["codex", "claudeAgent"] as const) {
           const restarted = yield* makeExistingThreads;
           expect(yield* restarted.importThread(input)).toEqual(first);
         }).pipe(Effect.provide(layer));
-        expect(commands.map((c) => c.type)).toEqual(["project.create", "thread.import"]);
+        expect(commands.map((c) => c.type)).toEqual([
+          "project.create",
+          "thread.create",
+          "thread.history.import",
+        ]);
         expect(bindings).toHaveLength(1);
         expect(bindings[0]?.resumeCursor).toEqual(
           provider === "codex"
             ? { threadId: sessionId, requireExisting: true }
-            : { resume: sessionId },
+            : { threadId: model.threads[0]?.id, resume: sessionId },
         );
         expect(model.threads).toHaveLength(1);
         expect(model.threads[0]?.messages.map((m) => m.text)).toEqual(["user", "assistant"]);

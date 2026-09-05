@@ -14,15 +14,22 @@ import type {
   OrchestrationClientOrigin,
   OrchestrationCommand,
   OrchestrationEvent,
+  ThreadId,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
-import type * as PubSub from "effect/PubSub";
 import type * as Scope from "effect/Scope";
 import type * as Stream from "effect/Stream";
 
 import type { OrchestrationDispatchError } from "../Errors.ts";
 import type { OrchestrationEventStoreError } from "../../persistence/Errors.ts";
+import type { OrchestrationAggregateReplayStats } from "../../persistence/Services/OrchestrationEventStore.ts";
+
+export interface OrchestrationThreadReplayRange {
+  readonly threadId: ThreadId;
+  readonly fromSequenceExclusive: number;
+  readonly toSequenceInclusive: number;
+}
 
 /**
  * OrchestrationEngineShape - Service API for orchestration command and event flow.
@@ -34,14 +41,23 @@ export interface OrchestrationEngineShape {
    * @param fromSequenceExclusive - Sequence cursor (exclusive).
    * @param limit - Maximum number of events to read. Defaults to the event
    *   store's page-bounded default; pass a higher value when the caller must
-   *   read every event after the cursor (e.g. per-thread catch-up that filters
-   *   a small subset out of a potentially larger global range).
+   *   read a wider global range. Thread subscriptions use readThreadEvents.
    * @returns Stream containing ordered events.
    */
   readonly readEvents: (
     fromSequenceExclusive: number,
     limit?: number,
   ) => Stream.Stream<OrchestrationEvent, OrchestrationEventStoreError, never>;
+
+  /** Read only this thread's events through a captured authoritative head. */
+  readonly readThreadEvents: (
+    input: OrchestrationThreadReplayRange & { readonly limit?: number },
+  ) => Stream.Stream<OrchestrationEvent, OrchestrationEventStoreError>;
+
+  /** Measure a bounded thread replay without decoding its event bodies. */
+  readonly getThreadReplayStats: (
+    input: OrchestrationThreadReplayRange & { readonly maxEvents: number },
+  ) => Effect.Effect<OrchestrationAggregateReplayStats, OrchestrationEventStoreError>;
 
   /**
    * Dispatch a validated orchestration command.
@@ -76,16 +92,11 @@ export interface OrchestrationEngineShape {
   readonly streamDomainEvents: Stream.Stream<OrchestrationEvent>;
 
   /**
-   * Acquire a subscription to the domain-event channel synchronously in
-   * the caller's fiber. Returns a `PubSub.Subscription` whose lifetime is
-   * scoped to the provided `Scope`. Consumers typically `yield*` this in
-   * the same fiber that forks their consumer loop, then drain with
-   * `Stream.fromSubscription(subscription)`. Because the subscription is
-   * registered with the PubSub before this `yield*` returns, no subsequent
-   * publish can land in a gap.
+   * Acquire a domain-event subscription before starting a consumer.
+   * The subscription is ready when this effect returns and closes with the scope.
    */
   readonly subscribeDomainEvents: Effect.Effect<
-    PubSub.Subscription<OrchestrationEvent>,
+    Stream.Stream<OrchestrationEvent>,
     never,
     Scope.Scope
   >;

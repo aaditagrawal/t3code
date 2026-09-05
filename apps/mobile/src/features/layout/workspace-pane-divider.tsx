@@ -1,8 +1,12 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useRef } from "react";
+import { useCommitRef } from "@t3tools/client-runtime/react";
+import { useCallback, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View, type AccessibilityActionEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
-import { useThemeColor } from "../../lib/useThemeColor";
+import { cn } from "../../lib/cn";
+
+const createPanGesture = Gesture.Pan;
 
 const ACCESSIBILITY_RESIZE_STEP = 24;
 
@@ -19,11 +23,9 @@ interface WorkspacePaneDividerProps {
 /** A forgiving divider target for touch, pointer, and VoiceOver users. */
 export function WorkspacePaneDivider(props: WorkspacePaneDividerProps) {
   const latestProps = useRef(props);
-  latestProps.current = props;
+  useCommitRef(latestProps, props);
   const [hovered, setHovered] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const dividerColor = useThemeColor("--color-border");
-  const activeDividerColor = useThemeColor("--color-primary");
   const handleResizeStart = useCallback(() => {
     setDragging(true);
     latestProps.current.onResizeStart?.();
@@ -37,7 +39,7 @@ export function WorkspacePaneDivider(props: WorkspacePaneDividerProps) {
   }, []);
   const resizeGesture = useMemo(
     () =>
-      Gesture.Pan()
+      createPanGesture()
         .activeOffsetX([-4, 4])
         .failOffsetY([-24, 24])
         .onStart(() => {
@@ -81,11 +83,11 @@ export function WorkspacePaneDivider(props: WorkspacePaneDividerProps) {
         onHoverOut={() => setHovered(false)}
       >
         <View
-          style={[
-            styles.line,
-            { backgroundColor: dividerColor },
-            (hovered || dragging) && [styles.activeLine, { backgroundColor: activeDividerColor }],
-          ]}
+          className={cn(
+            "h-full self-center bg-border opacity-70",
+            hovered || dragging ? "w-0.5 bg-primary opacity-100" : "w-px",
+          )}
+          style={[styles.line, (hovered || dragging) && styles.activeLine]}
         />
       </Pressable>
     </GestureDetector>
@@ -96,11 +98,9 @@ const styles = StyleSheet.create({
   line: {
     alignSelf: "center",
     height: "100%",
-    opacity: 0.7,
     width: StyleSheet.hairlineWidth,
   },
   activeLine: {
-    opacity: 1,
     width: 2,
   },
 });

@@ -193,6 +193,14 @@ package. GitHub Releases still wait for the `quality` and `build` jobs, while `p
 skipped placeholder. Do not describe remote automatic server updates as release-supported until the
 fork has a separately named package and the client update command targets it.
 
+Before enabling a future fork-owned package, validate exact-version publishing and update a server
+from the previous version. When a release adds database migrations, snapshot the database first,
+verify that the remote update applies the migrations and reconnects, and restore the snapshot plus
+the previous server after a failed trial. If the installed launcher does not support the target
+protocol, verify that the update stops before restart and document the one-time fork-scoped CLI
+update command. Also test the manual and desktop-managed guidance when those environments are
+available.
+
 ## Desktop auto-update notes
 
 - Updater runtime: `apps/desktop/src/updates/DesktopUpdates.ts`.
@@ -220,10 +228,12 @@ Windows packages the bundled server and only its runtime-external/native
 dependency closure in `resources/server.asar`. Native modules and helper
 executables declared as unpacked by that archive must be present at the matching
 paths below `resources/server.asar.unpacked`. The Windows-native backend reads
-the archive in place through Electron. WSL cannot read ASAR files, so enabling
-the WSL backend extracts the server tree once into the desktop state directory
-under `wsl-server-tree/<version>` and reuses the completed version until the app
-is updated.
+the archive in place through Electron. Packaged Windows builds also ship a
+Linux-only `resources/wsl-runtime.tar.gz` plus its SHA-256 sidecar. WSL verifies
+and extracts that archive into `~/.t3/wsl-runtime/sha256-<archive-digest>` inside
+the selected distro, then reuses it for later launches of the same update. The
+Windows-side `wsl-server-tree/<version>` extraction remains a fallback and is
+removed after the distro-local runtime passes preflight.
 
 The artifact builder rejects a Windows package when any of these invariants
 break:
@@ -234,6 +244,11 @@ break:
 - On same-architecture Windows builds, the packaged primary cannot load the fff
   native library from inside `server.asar` through its `.unpacked` sibling.
 - The isolated, extracted sidecar cannot load the server entry with plain Node.
+- A Windows build with a WSL node-pty prebuild omits the WSL archive or SHA-256
+  sidecar, the sidecar digest does not match the emitted archive, or required
+  Linux runtime members are absent.
+- The emitted WSL archive contains Windows/Darwin node-pty payloads, ConPTY,
+  pnpm install metadata, or Windows-only FFF, ffi-rs, or msgpackr bindings.
 - The external Windows resource monitor is absent.
 - The unpacked Windows application contains more than 80 files.
 
@@ -306,7 +321,7 @@ Checklist:
    - `APPLE_API_KEY`: contents of the downloaded `.p8`
    - `APPLE_API_KEY_ID`: Key ID
    - `APPLE_API_ISSUER`: Issuer ID
-10. Complete the Clerk Native API and AASA setup in [T3 Connect Clerk Setup](../internals/t3-connect.md#desktop-passkeys).
+10. Complete the Clerk Native API and AASA setup in [T3 Connect setup](./connect-setup.md#desktop-passkeys).
 11. Re-run a tag release and confirm macOS artifacts are signed/notarized and contain the expected
     `com.apple.developer.associated-domains` entitlement.
 
@@ -353,7 +368,7 @@ Checklist:
    - preflight passes
    - release quality checks pass
    - all matrix builds pass
-   - `publish_cli` publishes the exact release version before the release job
+   - `publish_cli` remains skipped for the upstream-owned package
    - release job uploads expected files
 6. Smoke test downloaded artifacts.
 

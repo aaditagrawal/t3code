@@ -5,14 +5,12 @@ import {
   ClaudeSettings,
   CodexSettings,
   CommandId,
-  DEFAULT_MODEL_BY_PROVIDER,
   ExistingThreadError,
-  MessageId,
   ProjectId,
-  ProviderDriverKind,
   ThreadId,
   type ExistingThreadImportInput,
   type ExistingThreadListInput,
+  type ExistingThread,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -27,6 +25,7 @@ import { resolveCodexHomeLayout } from "../provider/Drivers/CodexHomeLayout.ts";
 import { resolveClaudeConfigDir } from "../provider/Drivers/ClaudeHome.ts";
 import { mergeProviderInstanceEnvironment } from "../provider/ProviderInstanceEnvironment.ts";
 import { discoverThreads, readDiscoveredThread, type SourceInput } from "./sources.ts";
+import { importAgentThread } from "../project/AgentSessionImporter.ts";
 import { record, string, stableId } from "./transcripts.ts";
 
 const isExistingThreadError = Schema.is(ExistingThreadError);
@@ -39,7 +38,8 @@ const failure = (cause: unknown) =>
         detail:
           cause instanceof Error ? cause.message : "Existing conversations could not be loaded.",
       });
-const importId = (sourceId: string) => ThreadId.make(`imported-${sourceId}`);
+const importId = (thread: Pick<ExistingThread, "instanceId" | "sessionId">) =>
+  ThreadId.make(`import:${thread.instanceId}:${thread.sessionId}`);
 
 export const makeExistingThreads = Effect.gen(function* () {
   const path = yield* Path.Path;
@@ -138,7 +138,7 @@ export const makeExistingThreads = Effect.gen(function* () {
       threads: result.threads.map((t) => ({
         ...t.summary,
         importedThreadId:
-          [existingSessions.get(t.summary.sessionId), importId(t.summary.id)].find(
+          [existingSessions.get(t.summary.sessionId), importId(t.summary)].find(
             (id) => id !== undefined && ids.has(id),
           ) ?? null,
       })),
@@ -157,8 +157,8 @@ export const makeExistingThreads = Effect.gen(function* () {
           return yield* new ExistingThreadError({
             detail: "This conversation is no longer available. Refresh and try again.",
           });
-        const threadId = importId(found.summary.id);
-        const snapshot = yield* projection.getSnapshot();
+        const threadId = importId(found.summary);
+        const snapshot = yield* projection.getCommandReadModel();
         const mappedThreadId = (yield* existingSessionThreads(input)).get(found.summary.sessionId);
         const alreadyLinked = snapshot.threads.find((t) => t.id === mappedThreadId && !t.deletedAt);
         if (alreadyLinked) return { threadId: alreadyLinked.id };
@@ -189,52 +189,15 @@ export const makeExistingThreads = Effect.gen(function* () {
             workspaceRoot: transcript.cwd,
             createdAt: now,
           });
-        const modelSelection = {
-          instanceId: input.instanceId,
-          model:
-            DEFAULT_MODEL_BY_PROVIDER[ProviderDriverKind.make(found.summary.provider)] ?? "default",
-        };
-        // Persist the resumable binding before publishing the new thread. A retry uses
-        // the same IDs; clients can never send a turn to an unbound imported thread.
-        yield* directory.upsert({
-          threadId,
-          provider: ProviderDriverKind.make(found.summary.provider),
-          providerInstanceId: input.instanceId,
-          status: "stopped",
-          runtimeMode: "approval-required",
-          resumeCursor:
-            found.summary.provider === "codex"
-              ? { threadId: transcript.sessionId, requireExisting: true }
-              : { resume: transcript.sessionId },
-          runtimePayload: { cwd: transcript.cwd, modelSelection },
-        });
-        yield* engine.dispatch({
-          type: "thread.import",
-          commandId: CommandId.make(`import-thread-${input.id}`),
-          threadId,
+        yield* importAgentThread({
           projectId,
-          title: found.summary.title || "Imported conversation",
-          modelSelection,
-          runtimeMode: "approval-required",
-          interactionMode: "default",
-          branch: null,
-          worktreePath: null,
-          createdAt: now,
-          session: {
-            threadId,
-            status: "stopped",
-            providerName: found.summary.provider,
+          workspaceRoot: transcript.cwd,
+          source: transcript.source,
+          thread: {
+            ...transcript.providerThread,
             providerInstanceId: input.instanceId,
-            runtimeMode: "approval-required",
-            activeTurnId: null,
-            lastError: null,
-            updatedAt: now,
+            title: found.summary.title || transcript.title,
           },
-          messages: transcript.messages.map((m, index) => ({
-            ...m,
-            createdAt: Number.isFinite(Date.parse(m.createdAt)) ? m.createdAt : now,
-            messageId: MessageId.make(`imported-message-${stableId(input.id, String(index))}`),
-          })),
         });
         return { threadId };
       }).pipe(Effect.mapError(failure)),

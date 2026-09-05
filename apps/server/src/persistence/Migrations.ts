@@ -1,16 +1,15 @@
 /**
- * MigrationsLive - Migration runner with inline loader
+ * Migration runner with an inline loader.
  *
  * Uses Migrator.make with fromRecord to define migrations inline.
  * All migrations are statically imported - no dynamic file system loading.
  *
- * Migrations run automatically when the MigrationLayer is provided,
- * ensuring the database schema is always up-to-date before the application starts.
+ * `runMigrations` is called by the SQLite persistence layer at startup, so the
+ * schema is always up to date before the application starts.
  */
 
 import * as Migrator from "effect/unstable/sql/Migrator";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 
 // Import all migrations statically
 import Migration0001 from "./Migrations/001_OrchestrationEvents.ts";
@@ -75,6 +74,24 @@ import Migration0045 from "./Migrations/040_ProjectionProjectFaviconPath.ts";
 // Upstream AuthSessionClientConnection was runtime ID 41. The fork already
 // deployed IDs 41-45, so it must be appended without reusing an applied ID.
 import Migration0046 from "./Migrations/046_AuthSessionClientConnection.ts";
+// Upstream ProjectionThreadLinkedPullRequest was runtime ID 42. The fork has
+// already deployed through ID 46, so append it without reusing an applied ID.
+import Migration0047 from "./Migrations/047_ProjectionThreadLinkedPullRequest.ts";
+// Upstream ProjectionThreadsUnsettledAt was runtime ID 43. Append it after
+// the fork's already-deployed migration lineage.
+import Migration0048 from "./Migrations/048_ProjectionThreadsUnsettledAt.ts";
+// Upstream ClearAutomaticProjectModelDefaults was runtime ID 44. The fork has
+// already deployed through ID 48, so append it without reusing an applied ID.
+import Migration0049 from "./Migrations/049_ClearAutomaticProjectModelDefaults.ts";
+// Upstream ProjectionProjectsAutoPull was runtime ID 45. The fork has already
+// deployed through ID 49, so append it without reusing an applied ID.
+import Migration0050 from "./Migrations/050_ProjectionProjectsAutoPull.ts";
+// Upstream RepairAutomaticSettlementTimestamps was runtime ID 46. Append it
+// after auto-pull so deployed fork IDs remain append-only.
+import Migration0051 from "./Migrations/051_RepairAutomaticSettlementTimestamps.ts";
+// Upstream ProjectionProjectIcon was runtime ID 47. Append it after the fork's
+// already-deployed settlement-repair migration.
+import Migration0052 from "./Migrations/052_ProjectionProjectIcon.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -133,6 +150,12 @@ export const migrationEntries = [
   [44, "ProjectionProjectsDefaultThreadEnvMode", Migration0044],
   [45, "ProjectionProjectFaviconPath", Migration0045],
   [46, "AuthSessionClientConnection", Migration0046],
+  [47, "ProjectionThreadLinkedPullRequest", Migration0047],
+  [48, "ProjectionThreadsUnsettledAt", Migration0048],
+  [49, "ClearAutomaticProjectModelDefaults", Migration0049],
+  [50, "ProjectionProjectsAutoPull", Migration0050],
+  [51, "RepairAutomaticSettlementTimestamps", Migration0051],
+  [52, "ProjectionProjectIcon", Migration0052],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
@@ -176,22 +199,3 @@ export const runMigrations = Effect.fn("runMigrations")(function* ({
     : Effect.log("Migrations ran successfully").pipe(Effect.annotateLogs({ migrations }));
   return executedMigrations;
 });
-
-/**
- * Layer that runs migrations when the layer is built.
- *
- * Use this to ensure migrations run before your application starts.
- * Migrations are run automatically - no separate script is needed.
- *
- * @example
- * ```typescript
- * import { MigrationsLive } from "@acme/db/Migrations"
- * import * as SqliteClient from "@acme/db/SqliteClient"
- *
- * // Migrations run automatically when SqliteClient is provided
- * const AppLayer = MigrationsLive.pipe(
- *   Layer.provideMerge(SqliteClient.layer({ filename: "database.sqlite" }))
- * )
- * ```
- */
-export const MigrationsLive = Layer.effectDiscard(runMigrations());

@@ -5,7 +5,7 @@ import { AsyncResult } from "effect/unstable/reactivity";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Linking, Platform, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useThemeColor } from "../../lib/useThemeColor";
+import { useUniwindTheme } from "../../lib/useUniwindTheme";
 
 import { AndroidScreenHeader } from "../../components/AndroidScreenHeader";
 import { AppText as Text, AppTextInput as TextInput } from "../../components/AppText";
@@ -47,7 +47,7 @@ export function ConnectionsNewRouteScreen({
   const [scannerLocked, setScannerLocked] = useState(false);
   const attemptedAutoConnectRef = useRef<string | null>(null);
 
-  const headerIconColor = useThemeColor("--color-icon");
+  const headerIconColor = useUniwindTheme()["--color-icon"];
 
   const connectDisabled = isSubmitting || hostInput.trim().length === 0;
 
@@ -67,11 +67,22 @@ export function ConnectionsNewRouteScreen({
     setCodeInput(code);
   }, [routePairingUrl]);
 
-  useEffect(() => {
+  const nextIsSubmittingResetInputs = [pairingConnectionError];
+  const [isSubmittingResetInputs, setIsSubmittingResetInputs] = useState<readonly unknown[] | null>(
+    null,
+  );
+  if (
+    isSubmittingResetInputs === null ||
+    nextIsSubmittingResetInputs.some(
+      (value, index) => !Object.is(value, isSubmittingResetInputs[index]),
+    )
+  ) {
+    setIsSubmittingResetInputs(nextIsSubmittingResetInputs);
+
     if (pairingConnectionError) {
       setIsSubmitting(false);
     }
-  }, [pairingConnectionError]);
+  }
 
   const handleHostChange = useCallback((value: string) => {
     setHostInput(value);
@@ -164,7 +175,7 @@ export function ConnectionsNewRouteScreen({
         setIsSubmitting(false);
       }
     },
-    [navigation, onChangeConnectionPairingUrl, onConnectPress],
+    [onChangeConnectionPairingUrl],
   );
 
   const handleSubmit = useCallback(async () => {

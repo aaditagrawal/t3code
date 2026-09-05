@@ -1,3 +1,4 @@
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { isThemeColor, themeColorToHex, type ThemeColorRole } from "../../themePalette";
@@ -177,7 +178,7 @@ function ThemeColorPickerPanel({
   // (which can regenerate a whole guided palette) is batched to one call per
   // animation frame.
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useCommitRef(onChangeRef, onChange);
   const pendingCommitRef = useRef<string | null>(null);
   const commitFrameRef = useRef<number | null>(null);
   // The final drag frame must not be lost when the popover closes or the

@@ -1,5 +1,5 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
-import { canSettle, canSnooze } from "@t3tools/client-runtime/state/thread-settled";
+import { canSnooze } from "@t3tools/client-runtime/state/thread-settled";
 import * as Cause from "effect/Cause";
 import * as Haptics from "expo-haptics";
 import { useCallback, useRef } from "react";
@@ -118,16 +118,6 @@ function useThreadActionExecutor(
           );
           return false;
         }
-        // Settle may only target what effectiveSettled could classify as
-        // settled: not starting/running sessions, not threads waiting on
-        // approvals or user input. Anything else would hide live work.
-        if (action === "settle" && !canSettle(thread, { now: new Date().toISOString() })) {
-          Alert.alert(
-            actionFailureTitle(action),
-            "This thread still needs attention. Resolve or interrupt it first, then try again.",
-          );
-          return false;
-        }
         // Archive keeps its original, narrower guard: never interrupt a
         // thread mid-turn.
         if (
@@ -176,14 +166,7 @@ function useThreadActionExecutor(
         inFlightThreadKeys.current.delete(key);
       }
     },
-    [
-      archiveMutation,
-      deleteMutation,
-      onCompleted,
-      settleMutation,
-      unarchiveMutation,
-      unsettleMutation,
-    ],
+    [],
   );
 
   return executeAction;
@@ -309,44 +292,41 @@ export function useThreadListActions(): {
     },
     [snoozeMutation],
   );
-  const unsnoozeThread = useCallback(
-    async (thread: EnvironmentThreadShell) => {
-      const key = scopedThreadKey(thread.environmentId, thread.id);
-      if (snoozeInFlightThreadKeys.current.has(key)) {
+  const unsnoozeThread = useCallback(async (thread: EnvironmentThreadShell) => {
+    const key = scopedThreadKey(thread.environmentId, thread.id);
+    if (snoozeInFlightThreadKeys.current.has(key)) {
+      return false;
+    }
+    snoozeInFlightThreadKeys.current.add(key);
+    try {
+      if (!environmentSupportsSnooze(thread.environmentId)) {
+        Alert.alert(
+          "Could not wake thread",
+          "This environment's server does not support snoozing yet. Update the server to wake this thread.",
+        );
         return false;
       }
-      snoozeInFlightThreadKeys.current.add(key);
-      try {
-        if (!environmentSupportsSnooze(thread.environmentId)) {
-          Alert.alert(
-            "Could not wake thread",
-            "This environment's server does not support snoozing yet. Update the server to wake this thread.",
-          );
-          return false;
-        }
 
-        selectionHaptic();
-        const result = await unsnoozeMutation({
-          environmentId: thread.environmentId,
-          input: { threadId: thread.id, reason: "user" },
-        });
-        if (result._tag === "Failure") {
-          const error = Cause.squash(result.cause);
-          Alert.alert(
-            "Could not wake thread",
-            error instanceof Error && error.message.trim().length > 0
-              ? error.message
-              : "The thread could not be woken.",
-          );
-          return false;
-        }
-        return true;
-      } finally {
-        snoozeInFlightThreadKeys.current.delete(key);
+      selectionHaptic();
+      const result = await unsnoozeMutation({
+        environmentId: thread.environmentId,
+        input: { threadId: thread.id, reason: "user" },
+      });
+      if (result._tag === "Failure") {
+        const error = Cause.squash(result.cause);
+        Alert.alert(
+          "Could not wake thread",
+          error instanceof Error && error.message.trim().length > 0
+            ? error.message
+            : "The thread could not be woken.",
+        );
+        return false;
       }
-    },
-    [unsnoozeMutation],
-  );
+      return true;
+    } finally {
+      snoozeInFlightThreadKeys.current.delete(key);
+    }
+  }, []);
   const unsettleThread = useCallback(
     async (thread: EnvironmentThreadShell) => (await executeAction("unsettle", thread)) === true,
     [executeAction],
@@ -419,47 +399,41 @@ export function useThreadListActions(): {
     },
     [unpinMutation],
   );
-  const regenerateThreadTitle = useCallback(
-    async (thread: EnvironmentThreadShell) => {
-      const key = scopedThreadKey(thread.environmentId, thread.id);
-      if (
-        thread.titleRegeneration != null ||
-        titleRegenerationInFlightThreadKeys.current.has(key)
-      ) {
-        return false;
-      }
-      if (!environmentSupportsTitleRegeneration(thread.environmentId)) {
+  const regenerateThreadTitle = useCallback(async (thread: EnvironmentThreadShell) => {
+    const key = scopedThreadKey(thread.environmentId, thread.id);
+    if (thread.titleRegeneration != null || titleRegenerationInFlightThreadKeys.current.has(key)) {
+      return false;
+    }
+    if (!environmentSupportsTitleRegeneration(thread.environmentId)) {
+      Alert.alert(
+        "Could not regenerate title",
+        "This environment's server does not support title regeneration yet. Update the server to regenerate thread titles.",
+      );
+      return false;
+    }
+
+    titleRegenerationInFlightThreadKeys.current.add(key);
+    selectionHaptic();
+    try {
+      const result = await updateThreadMetadata({
+        environmentId: thread.environmentId,
+        input: { threadId: thread.id, regenerateTitle: true },
+      });
+      if (result._tag === "Failure") {
+        const error = Cause.squash(result.cause);
         Alert.alert(
           "Could not regenerate title",
-          "This environment's server does not support title regeneration yet. Update the server to regenerate thread titles.",
+          error instanceof Error && error.message.trim().length > 0
+            ? error.message
+            : "The thread title could not be regenerated.",
         );
         return false;
       }
-
-      titleRegenerationInFlightThreadKeys.current.add(key);
-      selectionHaptic();
-      try {
-        const result = await updateThreadMetadata({
-          environmentId: thread.environmentId,
-          input: { threadId: thread.id, regenerateTitle: true },
-        });
-        if (result._tag === "Failure") {
-          const error = Cause.squash(result.cause);
-          Alert.alert(
-            "Could not regenerate title",
-            error instanceof Error && error.message.trim().length > 0
-              ? error.message
-              : "The thread title could not be regenerated.",
-          );
-          return false;
-        }
-        return true;
-      } finally {
-        titleRegenerationInFlightThreadKeys.current.delete(key);
-      }
-    },
-    [updateThreadMetadata],
-  );
+      return true;
+    } finally {
+      titleRegenerationInFlightThreadKeys.current.delete(key);
+    }
+  }, []);
 
   // Move up / Move down for the pinned block. Computed against the CANONICAL
   // keyed pinned order (not the rendered list), so the move is valid even

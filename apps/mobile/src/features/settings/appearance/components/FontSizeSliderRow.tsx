@@ -1,6 +1,8 @@
+import { useRef } from "react";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import * as Haptics from "expo-haptics";
 import { SymbolView } from "../../../../components/AppSymbol";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { View, type AccessibilityActionEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -12,7 +14,10 @@ import Animated, {
 import type { ComponentProps } from "react";
 
 import { AppText as Text } from "../../../../components/AppText";
-import { useThemeColor } from "../../../../lib/useThemeColor";
+
+const createPanGesture = Gesture.Pan;
+const createTapGesture = Gesture.Tap;
+const createRaceGesture = Gesture.Race;
 
 type SymbolName = ComponentProps<typeof SymbolView>["name"];
 
@@ -36,13 +41,8 @@ export function FontSizeSliderRow(props: {
   readonly value: number;
   readonly onChange: (value: number) => void;
 }) {
-  const icon = useThemeColor("--color-icon");
-  const iconMuted = String(useThemeColor("--color-icon-muted"));
-  const trackColor = String(useThemeColor("--color-secondary-border"));
-  const fillColor = String(useThemeColor("--color-primary"));
-
   const latest = useRef(props);
-  latest.current = props;
+  useCommitRef(latest, props);
 
   const { min, max, step, value, disabled } = props;
   const fraction = (value - min) / (max - min);
@@ -53,7 +53,7 @@ export function FontSizeSliderRow(props: {
 
   useEffect(() => {
     if (!dragging.value) {
-      progress.value = withTiming(clampFraction(fraction), SNAP_ANIMATION);
+      progress.set(withTiming(clampFraction(fraction), SNAP_ANIMATION));
     }
   }, [dragging, fraction, progress]);
 
@@ -88,36 +88,33 @@ export function FontSizeSliderRow(props: {
       return clampFraction((v - min) / (max - min));
     };
 
-    const pan = Gesture.Pan()
+    const pan = createPanGesture()
       .enabled(!disabled)
       .activeOffsetX([-8, 8])
       .failOffsetY([-12, 12])
       .onUpdate((event) => {
-        dragging.value = true;
+        dragging.set(true);
         const f = fractionAt(event.x);
-        progress.value = f;
+        progress.set(f);
         runOnJS(commit)(valueAtFraction(f));
       })
       .onFinalize(() => {
         if (!dragging.value) {
           return;
         }
-        dragging.value = false;
-        progress.value = withTiming(
-          fractionOfValue(valueAtFraction(progress.value)),
-          SNAP_ANIMATION,
-        );
+        dragging.set(false);
+        progress.set(withTiming(fractionOfValue(valueAtFraction(progress.value)), SNAP_ANIMATION));
       });
 
-    const tap = Gesture.Tap()
+    const tap = createTapGesture()
       .enabled(!disabled)
       .onEnd((event) => {
         const next = valueAtFraction(fractionAt(event.x));
-        progress.value = withTiming(fractionOfValue(next), SNAP_ANIMATION);
+        progress.set(withTiming(fractionOfValue(next), SNAP_ANIMATION));
         runOnJS(commit)(next);
       });
 
-    return Gesture.Race(pan, tap);
+    return createRaceGesture(pan, tap);
   }, [commit, disabled, dragging, max, min, progress, step, trackWidth]);
 
   const fillStyle = useAnimatedStyle(() => ({
@@ -141,7 +138,7 @@ export function FontSizeSliderRow(props: {
         <SymbolView
           name={props.icon}
           size={22}
-          tintColor={icon}
+          tintColorClassName={"accent-icon"}
           type="monochrome"
           weight="regular"
         />
@@ -152,7 +149,7 @@ export function FontSizeSliderRow(props: {
         <SymbolView
           name="textformat.size.smaller"
           size={15}
-          tintColor={iconMuted}
+          tintColorClassName={"accent-icon-muted"}
           type="monochrome"
           weight="regular"
         />
@@ -169,16 +166,16 @@ export function FontSizeSliderRow(props: {
             className="h-11 flex-1 justify-center"
             onAccessibilityAction={handleAccessibilityAction}
             onLayout={(event) => {
-              trackWidth.value = event.nativeEvent.layout.width;
+              trackWidth.set(event.nativeEvent.layout.width);
             }}
           >
             <View
-              className="w-full rounded-full"
-              style={{ backgroundColor: trackColor, height: TRACK_HEIGHT }}
+              className="w-full rounded-full bg-secondary-border"
+              style={{ height: TRACK_HEIGHT }}
             >
               <Animated.View
-                className="absolute inset-y-0 left-0 rounded-full"
-                style={[{ backgroundColor: fillColor }, fillStyle]}
+                className="absolute inset-y-0 left-0 rounded-full bg-primary"
+                style={fillStyle}
               />
             </View>
             <Animated.View
@@ -204,7 +201,7 @@ export function FontSizeSliderRow(props: {
         <SymbolView
           name="textformat.size.larger"
           size={22}
-          tintColor={iconMuted}
+          tintColorClassName={"accent-icon-muted"}
           type="monochrome"
           weight="regular"
         />

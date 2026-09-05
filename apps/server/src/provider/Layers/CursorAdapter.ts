@@ -12,6 +12,7 @@ import {
   ProviderInstanceId,
   type ProviderRuntimeEvent,
   type ProviderSession,
+  type RuntimeMode,
   RuntimeItemId,
   RuntimeRequestId,
   RuntimeTaskId,
@@ -78,13 +79,18 @@ interface CursorTurnSnapshot {
   readonly items: Array<unknown>;
 }
 
+interface CursorTurnSummary {
+  assistantText: string;
+  reasoningText: string;
+  result?: CursorSdkRunResult;
+}
+
 interface CursorTurnStreamState {
   readonly turnId: TurnId;
   readonly runId: string;
   assistantItemStarted: boolean;
-  assistantText: string;
+  readonly summary: CursorTurnSummary;
   reasoningItemStarted: boolean;
-  reasoningText: string;
   readonly seenToolItemIds: Set<string>;
   readonly startedTaskIds: Set<string>;
 }
@@ -102,15 +108,6 @@ interface CursorSessionContext {
   stopped: boolean;
 }
 
-function appendTurnItem(context: CursorSessionContext, turnId: TurnId, item: unknown): void {
-  const existing = context.turns.find((turn) => turn.id === turnId);
-  if (existing) {
-    existing.items.push(item);
-    return;
-  }
-  context.turns.push({ id: turnId, items: [item] });
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -124,6 +121,27 @@ function parseCursorResume(raw: unknown): { agentId: string } | undefined {
   }
   const agentId = typeof raw.agentId === "string" ? raw.agentId.trim() : "";
   return agentId ? { agentId } : undefined;
+}
+
+function cursorSdkLocalPermissionOptions(runtimeMode: RuntimeMode): {
+  readonly sandboxOptions: { readonly enabled: boolean };
+  readonly autoReview?: boolean;
+} {
+  switch (runtimeMode) {
+    case "auto":
+      return {
+        sandboxOptions: { enabled: true },
+        autoReview: true,
+      };
+    case "full-access":
+      return {
+        sandboxOptions: { enabled: false },
+      };
+    default:
+      return {
+        sandboxOptions: { enabled: true },
+      };
+  }
 }
 
 function previewUnknown(value: unknown, fallback: string): string {
@@ -437,7 +455,7 @@ export function makeCursorAdapter(
           },
         });
       }
-      state.assistantText += delta;
+      state.summary.assistantText += delta;
       yield* emit({
         ...(yield* makeEventBase({
           threadId: context.threadId,
@@ -480,7 +498,7 @@ export function makeCursorAdapter(
           },
         });
       }
-      state.reasoningText += delta;
+      state.summary.reasoningText += delta;
       yield* emit({
         ...(yield* makeEventBase({
           threadId: context.threadId,
@@ -555,7 +573,6 @@ export function makeCursorAdapter(
       state: CursorTurnStreamState,
       message: CursorSdkMessage,
     ) {
-      appendTurnItem(context, state.turnId, message);
       yield* writeNativeEvent(context, message);
 
       switch (message.type) {
@@ -721,7 +738,9 @@ export function makeCursorAdapter(
             itemType: "reasoning",
             status: "completed",
             title: "Reasoning",
-            ...(state.reasoningText ? { detail: state.reasoningText.slice(0, 2_000) } : {}),
+            ...(state.summary.reasoningText
+              ? { detail: state.summary.reasoningText.slice(0, 2_000) }
+              : {}),
           },
         });
       }
@@ -739,7 +758,9 @@ export function makeCursorAdapter(
             itemType: "assistant_message",
             status: "completed",
             title: "Assistant message",
-            ...(state.assistantText ? { detail: state.assistantText.slice(0, 2_000) } : {}),
+            ...(state.summary.assistantText
+              ? { detail: state.summary.assistantText.slice(0, 2_000) }
+              : {}),
           },
         });
       }
@@ -747,16 +768,20 @@ export function makeCursorAdapter(
 
     const drainCursorRun = Effect.fn("drainCursorRun")(function* (
       context: CursorSessionContext,
-      turnId: TurnId,
+      turn: CursorTurnSnapshot,
       run: CursorSdkRun,
     ) {
+      const turnId = turn.id;
+      const summary: CursorTurnSummary = { assistantText: "", reasoningText: "" };
+      // Canonical events and optional native logs own the full stream. Keep only
+      // one summary here, including partial text when a run fails or is cancelled.
+      turn.items.push(summary);
       const state: CursorTurnStreamState = {
         turnId,
         runId: run.id,
         assistantItemStarted: false,
-        assistantText: "",
+        summary,
         reasoningItemStarted: false,
-        reasoningText: "",
         seenToolItemIds: new Set(),
         startedTaskIds: new Set(),
       };
@@ -783,6 +808,7 @@ export function makeCursorAdapter(
       }
 
       const result = yield* resolveRunResult(run);
+      summary.result = result;
       if (!state.assistantItemStarted && result.result) {
         yield* emitAssistantText(
           context,
@@ -876,6 +902,9 @@ export function makeCursorAdapter(
       const text = input.input?.trim() ?? "";
       const images: Array<Exclude<CursorSdkUserMessage["images"], undefined>[number]> = [];
       for (const attachment of input.attachments ?? []) {
+        if (attachment.type !== "image") {
+          continue;
+        }
         const attachmentPath = resolveAttachmentPath({
           attachmentsDir: serverConfig.attachmentsDir,
           attachment,
@@ -982,9 +1011,7 @@ export function makeCursorAdapter(
             local: {
               cwd,
               settingSources: ["all"] as const,
-              sandboxOptions: {
-                enabled: input.runtimeMode !== "full-access",
-              },
+              ...cursorSdkLocalPermissionOptions(input.runtimeMode),
             },
           };
 
@@ -1148,8 +1175,12 @@ export function makeCursorAdapter(
       );
 
       context.activeRun = run;
-      appendTurnItem(context, turnId, { prompt: message, runId: run.id, model: sdkModel });
-      const drainFiber = yield* drainCursorRun(context, turnId, run).pipe(
+      const turn: CursorTurnSnapshot = {
+        id: turnId,
+        items: [{ prompt: message, runId: run.id, model: sdkModel }],
+      };
+      context.turns.push(turn);
+      const drainFiber = yield* drainCursorRun(context, turn, run).pipe(
         Effect.catch((cause) => handleRunDrainFailure(context, turnId, cause)),
         Effect.catchCause((cause) => handleRunDrainFailure(context, turnId, Cause.squash(cause))),
         Effect.forkIn(context.scope),
@@ -1245,7 +1276,7 @@ export function makeCursorAdapter(
 
     const rollbackThread: CursorAdapterShape["rollbackThread"] = (threadId, numTurns) =>
       Effect.gen(function* () {
-        const context = yield* requireSession(threadId);
+        yield* requireSession(threadId);
         if (!Number.isInteger(numTurns) || numTurns < 1) {
           return yield* new ProviderAdapterValidationError({
             provider: PROVIDER,
@@ -1253,11 +1284,11 @@ export function makeCursorAdapter(
             issue: "numTurns must be an integer >= 1.",
           });
         }
-        context.turns.splice(Math.max(0, context.turns.length - numTurns));
-        return {
-          threadId,
-          turns: context.turns,
-        };
+        return yield* new ProviderAdapterRequestError({
+          provider: PROVIDER,
+          method: "thread/rollback",
+          detail: "Cursor SDK does not support provider-side conversation rollback.",
+        });
       });
 
     const stopSession: CursorAdapterShape["stopSession"] = (threadId) =>
@@ -1294,7 +1325,7 @@ export function makeCursorAdapter(
 
     return {
       provider: PROVIDER,
-      capabilities: { sessionModelSwitch: "in-session" },
+      capabilities: { sessionModelSwitch: "in-session", supportsConversationRollback: false },
       startSession,
       sendTurn,
       interruptTurn,

@@ -146,6 +146,19 @@ function makeSdkMessage(partial: Record<string, unknown>): CursorSdkMessage {
   } as CursorSdkMessage;
 }
 
+function localPermissionState(options: CursorSdkAgentOptions | undefined): {
+  readonly sandboxEnabled: boolean | undefined;
+  readonly autoReview: boolean | undefined;
+} {
+  const local = options?.local as
+    | (NonNullable<CursorSdkAgentOptions["local"]> & { readonly autoReview?: boolean })
+    | undefined;
+  return {
+    sandboxEnabled: local?.sandboxOptions?.enabled,
+    autoReview: local?.autoReview,
+  };
+}
+
 function runTest<A, E>(
   effect: Effect.Effect<
     A,
@@ -183,6 +196,73 @@ async function withAdapter<A>(
 }
 
 describe("CursorAdapter SDK", () => {
+  it("keeps two snapshot records per turn while delivering the complete SDK stream", async () => {
+    const agent = new FakeAgent("agent-retention", new FakeRun("initial", "agent-retention", []));
+    await withAdapter(new FakeCursorSdkClient(agent), (adapter) =>
+      Effect.gen(function* () {
+        const threadId = asThreadId("thread-retention");
+        yield* adapter.startSession({ threadId, cwd: process.cwd(), runtimeMode: "full-access" });
+        for (let turn = 0; turn < 3; turn++) {
+          const runId = `retention-${turn}`;
+          const chunks = Array.from({ length: 200 }, (_, index) => `chunk-${index} `);
+          const result = { id: runId, status: "finished" as const };
+          agent.nextRun = new FakeRun(
+            runId,
+            "agent-retention",
+            chunks.map((text) =>
+              makeSdkMessage({
+                type: "assistant",
+                run_id: runId,
+                message: { role: "assistant", content: [{ type: "text", text }] },
+              }),
+            ),
+            result,
+          );
+          const eventsFiber = yield* collectThroughTurnCompleted(adapter);
+          yield* adapter.sendTurn({ threadId, input: `prompt-${turn}`, attachments: [] });
+          const events = yield* Fiber.join(eventsFiber);
+          const deltas = events.filter((event) => event.type === "content.delta");
+          expect(deltas).toHaveLength(chunks.length);
+          expect(deltas.map((event) => event.payload.delta).join("")).toBe(chunks.join(""));
+          const snapshot = yield* adapter.readThread(threadId);
+          expect(snapshot.turns).toHaveLength(turn + 1);
+          expect(snapshot.turns.every((entry) => entry.items.length === 2)).toBe(true);
+          expect(snapshot.turns.at(-1)?.items[1]).toEqual({
+            assistantText: chunks.join(""),
+            reasoningText: "",
+            result,
+          });
+        }
+      }),
+    );
+  });
+
+  it("rejects rollback without changing the retained conversation", async () => {
+    const run = new FakeRun("run-rollback", "agent-rollback", [
+      makeSdkMessage({
+        type: "assistant",
+        message: { role: "assistant", content: [{ type: "text", text: "done" }] },
+      }),
+    ]);
+    const fakeClient = new FakeCursorSdkClient(new FakeAgent("agent-rollback", run));
+    await withAdapter(fakeClient, (adapter) =>
+      Effect.gen(function* () {
+        expect(adapter.capabilities.supportsConversationRollback).toBe(false);
+        const threadId = asThreadId("thread-rollback");
+        yield* adapter.startSession({ threadId, cwd: process.cwd(), runtimeMode: "full-access" });
+        const events = yield* collectThroughTurnCompleted(adapter);
+        yield* adapter.sendTurn({ threadId, input: "hello", attachments: [] });
+        yield* Fiber.join(events);
+        const before = yield* adapter.readThread(threadId);
+        expect(before.turns).toHaveLength(1);
+        const rollback = yield* adapter.rollbackThread(threadId, 1).pipe(Effect.exit);
+        expect(rollback._tag).toBe("Failure");
+        expect(yield* adapter.readThread(threadId)).toEqual(before);
+        expect((yield* adapter.readThread(threadId)).turns).toHaveLength(1);
+      }),
+    );
+  });
+
   it("creates local SDK agents, applies model params, and emits canonical runtime events", async () => {
     const run = new FakeRun("run-1", "agent-1", [
       makeSdkMessage({ type: "status", status: "RUNNING" }),
@@ -372,4 +452,64 @@ describe("CursorAdapter SDK", () => {
       },
     );
   });
+
+  it("disables the SDK sandbox in full-access mode", async () => {
+    const run = new FakeRun("run-full-access", "agent-full-access", []);
+    const agent = new FakeAgent("agent-full-access", run);
+    const fakeClient = new FakeCursorSdkClient(agent);
+
+    await withAdapter(fakeClient, (adapter) =>
+      adapter.startSession({
+        threadId: asThreadId("thread-full-access"),
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      }),
+    );
+
+    expect(localPermissionState(fakeClient.createAgentOptions[0])).toEqual({
+      sandboxEnabled: false,
+      autoReview: undefined,
+    });
+  });
+
+  it("enables Cursor auto-review in auto mode", async () => {
+    const run = new FakeRun("run-auto", "agent-auto", []);
+    const agent = new FakeAgent("agent-auto", run);
+    const fakeClient = new FakeCursorSdkClient(agent);
+
+    await withAdapter(fakeClient, (adapter) =>
+      adapter.startSession({
+        threadId: asThreadId("thread-auto"),
+        cwd: process.cwd(),
+        runtimeMode: "auto",
+      }),
+    );
+
+    expect(localPermissionState(fakeClient.createAgentOptions[0])).toEqual({
+      sandboxEnabled: true,
+      autoReview: true,
+    });
+  });
+
+  it.each(["approval-required", "auto-accept-edits", "medium-access"] as const)(
+    "does not relax approval in %s mode",
+    async (runtimeMode) => {
+      const run = new FakeRun(`run-${runtimeMode}`, `agent-${runtimeMode}`, []);
+      const agent = new FakeAgent(`agent-${runtimeMode}`, run);
+      const fakeClient = new FakeCursorSdkClient(agent);
+
+      await withAdapter(fakeClient, (adapter) =>
+        adapter.startSession({
+          threadId: asThreadId(`thread-${runtimeMode}`),
+          cwd: process.cwd(),
+          runtimeMode,
+        }),
+      );
+
+      expect(localPermissionState(fakeClient.createAgentOptions[0])).toEqual({
+        sandboxEnabled: true,
+        autoReview: undefined,
+      });
+    },
+  );
 });

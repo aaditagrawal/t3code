@@ -96,7 +96,7 @@ export const makeGeminiCliAdapter = Effect.fn("makeGeminiCliAdapter")(function* 
 
   const adapter: GeminiCliAdapterShape = {
     provider: PROVIDER,
-    capabilities: { sessionModelSwitch: "in-session" },
+    capabilities: { sessionModelSwitch: "in-session", supportsConversationRollback: false },
     startSession: (input) =>
       Effect.gen(function* () {
         if (!config.enabled) {

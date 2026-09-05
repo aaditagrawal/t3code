@@ -43,6 +43,8 @@ import {
 import type { ServerProviderDraft } from "../providerSnapshot.ts";
 import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
 
+const decodeSyncGenericProviderSettings = Schema.decodeSync(GenericProviderSettings);
+
 const DRIVER_KIND = ProviderDriverKind.make("kilo");
 const SNAPSHOT_REFRESH_INTERVAL = Duration.minutes(5);
 const MAINTENANCE_CAPABILITIES = makeManualOnlyProviderMaintenanceCapabilities({
@@ -81,7 +83,7 @@ export const KiloDriver: ProviderDriver<KiloSettings, KiloDriverEnv> = {
     supportsMultipleInstances: true,
   },
   configSchema: GenericProviderSettings,
-  defaultConfig: (): KiloSettings => Schema.decodeSync(GenericProviderSettings)({}),
+  defaultConfig: (): KiloSettings => decodeSyncGenericProviderSettings({}),
   create: ({ instanceId, displayName, accentColor, environment, enabled, config }) =>
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -114,7 +116,7 @@ export const KiloDriver: ProviderDriver<KiloSettings, KiloDriverEnv> = {
       );
 
       const snapshot = yield* makeManagedServerProvider<KiloSettings>({
-        maintenanceCapabilities: MAINTENANCE_CAPABILITIES,
+        resolveMaintenance: () => Effect.succeed(MAINTENANCE_CAPABILITIES),
         getSettings: Effect.succeed(effectiveConfig),
         streamSettings: Stream.never,
         haveSettingsChanged: () => false,

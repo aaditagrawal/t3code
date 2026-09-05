@@ -1,12 +1,5 @@
-// This file mostly exists because we want dev mode to say "T3 Code (Dev)" instead of "electron"
+// This file mostly exists because we want dev mode to say "T3 Code Fork (Dev)" instead of "electron"
 
-import {
-  APP_BASE_NAME,
-  DESKTOP_APP_ID,
-  DESKTOP_APP_ID_DEV,
-  URL_SCHEME,
-  URL_SCHEME_DEV,
-} from "@t3tools/shared/branding";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodeModule from "node:module";
@@ -22,21 +15,19 @@ const repoRoot = NodePath.resolve(desktopDir, "..", "..");
 const devBundleIdSuffix = NodePath.basename(repoRoot)
   .toLowerCase()
   .replaceAll(/[^a-z0-9]+/g, "");
-export const APP_DISPLAY_NAME = isDevelopment
-  ? `${APP_BASE_NAME} (Dev)`
-  : `${APP_BASE_NAME} (Alpha)`;
+export const APP_DISPLAY_NAME = isDevelopment ? "T3 Code Fork (Dev)" : "T3 Code Fork (Alpha)";
 export const APP_BUNDLE_ID = isDevelopment
-  ? `${DESKTOP_APP_ID_DEV}.${devBundleIdSuffix || "local"}`
-  : DESKTOP_APP_ID;
-const APP_PROTOCOL_SCHEMES = isDevelopment ? [URL_SCHEME_DEV] : [URL_SCHEME];
-const LAUNCHER_VERSION = 14;
-const defaultIconPath = NodePath.join(desktopDir, "resources", "icon.icns");
+  ? `com.t3tools.t3code.fork.dev.${devBundleIdSuffix || "local"}`
+  : "com.t3tools.t3code.fork";
+const APP_PROTOCOL_SCHEMES = isDevelopment ? ["t3code-fork-dev"] : ["t3code-fork"];
+const LAUNCHER_VERSION = 15;
 const developmentMacIconPngPath = NodePath.join(
   repoRoot,
   "assets",
   "dev",
   "blueprint-macos-1024.png",
 );
+const productionMacIconPngPath = NodePath.join(repoRoot, "assets", "prod", "black-macos-1024.png");
 // oxlint-disable-next-line t3code/no-global-process-runtime -- Standalone launcher script has no Effect runtime.
 const hostPlatform = NodeOS.platform();
 
@@ -174,15 +165,26 @@ function registerMacLauncherBundle(appBundlePath) {
   }
 }
 
-function ensureDevelopmentIconIcns(runtimeDir) {
-  const generatedIconPath = NodePath.join(runtimeDir, "icon-dev.icns");
+// Bundle-internal paths are macOS paths whatever host builds them.
+export function resolveMacLauncherIconPaths(runtimeDir, development = isDevelopment) {
+  return {
+    sourceIconPath: development ? developmentMacIconPngPath : productionMacIconPngPath,
+    generatedIconPath: NodePath.posix.join(
+      runtimeDir,
+      development ? "icon-dev.icns" : "icon-prod.icns",
+    ),
+  };
+}
+
+function ensureMacIconIcns(runtimeDir) {
+  const { sourceIconPath, generatedIconPath } = resolveMacLauncherIconPaths(runtimeDir);
   NodeFS.mkdirSync(runtimeDir, { recursive: true });
 
-  if (!NodeFS.existsSync(developmentMacIconPngPath)) {
-    return defaultIconPath;
+  if (!NodeFS.existsSync(sourceIconPath)) {
+    throw new Error(`Desktop macOS icon source is missing at ${sourceIconPath}`);
   }
 
-  const sourceMtimeMs = NodeFS.statSync(developmentMacIconPngPath).mtimeMs;
+  const sourceMtimeMs = NodeFS.statSync(sourceIconPath).mtimeMs;
   if (
     NodeFS.existsSync(generatedIconPath) &&
     NodeFS.statSync(generatedIconPath).mtimeMs >= sourceMtimeMs
@@ -200,7 +202,7 @@ function ensureDevelopmentIconIcns(runtimeDir) {
         "-z",
         String(size),
         String(size),
-        developmentMacIconPngPath,
+        sourceIconPath,
         "--out",
         NodePath.join(iconsetDir, `icon_${size}x${size}.png`),
       ]);
@@ -210,7 +212,7 @@ function ensureDevelopmentIconIcns(runtimeDir) {
         "-z",
         String(retinaSize),
         String(retinaSize),
-        developmentMacIconPngPath,
+        sourceIconPath,
         "--out",
         NodePath.join(iconsetDir, `icon_${size}x${size}@2x.png`),
       ]);
@@ -218,12 +220,6 @@ function ensureDevelopmentIconIcns(runtimeDir) {
 
     runChecked("iconutil", ["-c", "icns", iconsetDir, "-o", generatedIconPath]);
     return generatedIconPath;
-  } catch (error) {
-    console.warn(
-      "[desktop-launcher] Failed to generate dev macOS icon, falling back to default icon.",
-      error,
-    );
-    return defaultIconPath;
   } finally {
     NodeFS.rmSync(iconsetRoot, { recursive: true, force: true });
   }
@@ -288,12 +284,12 @@ function readJson(path) {
 }
 
 export function resolveMacLauncherPaths(appBundlePath, displayName = APP_DISPLAY_NAME) {
-  const executableDir = NodePath.join(appBundlePath, "Contents", "MacOS");
+  const executableDir = NodePath.posix.join(appBundlePath, "Contents", "MacOS");
   const launcherExecutableName = `${displayName} Launcher`;
   return {
     launcherExecutableName,
-    launcherBinaryPath: NodePath.join(executableDir, launcherExecutableName),
-    runtimeElectronBinaryPath: NodePath.join(executableDir, "Electron"),
+    launcherBinaryPath: NodePath.posix.join(executableDir, launcherExecutableName),
+    runtimeElectronBinaryPath: NodePath.posix.join(executableDir, "Electron"),
   };
 }
 
@@ -306,7 +302,7 @@ function buildMacLauncher(electronBinaryPath) {
   const launcherBinaryPath = isDevelopment
     ? developmentPaths.launcherBinaryPath
     : runtimeElectronBinaryPath;
-  const iconPath = isDevelopment ? ensureDevelopmentIconIcns(runtimeDir) : defaultIconPath;
+  const iconPath = ensureMacIconIcns(runtimeDir);
   const metadataPath = NodePath.join(runtimeDir, "metadata.json");
 
   NodeFS.mkdirSync(runtimeDir, { recursive: true });

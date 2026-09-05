@@ -192,9 +192,9 @@ function ConnectedExistingThreads({ environmentId }: { environmentId: Environmen
             {selected === thread.id && (
               <div className="mt-4 grid gap-3 rounded-md bg-muted/40 p-3">
                 <p className="text-sm">
-                  Text history will be imported here. Your next message continues the original
-                  provider session. T3-specific plans, attachments, and checkpoints are not
-                  imported.
+                  Recent text history (up to 200 messages) will be imported here. Your next message
+                  continues the original provider session. T3-specific plans, attachments, and
+                  checkpoints are not imported.
                 </p>
                 <label className="flex items-start gap-2 text-sm">
                   <input

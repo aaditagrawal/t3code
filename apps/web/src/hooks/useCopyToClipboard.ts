@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import * as React from "react";
 import * as Schema from "effect/Schema";
 
@@ -47,18 +49,53 @@ export class ClipboardReadError extends Schema.TaggedErrorClass<ClipboardReadErr
   }
 }
 
+/** Copy fallback for remote web pages served over plain HTTP. */
+function writeTextWithExecCommand(value: string): boolean {
+  if (typeof document === "undefined" || typeof document.execCommand !== "function") return false;
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.setAttribute("aria-hidden", "true");
+  textarea.style.position = "fixed";
+  textarea.style.top = "0";
+  textarea.style.left = "0";
+  textarea.style.opacity = "0";
+  textarea.style.fontSize = "16px";
+
+  const previouslyFocused = document.activeElement;
+  document.body.appendChild(textarea);
+  try {
+    textarea.focus({ preventScroll: true });
+    textarea.select();
+    textarea.setSelectionRange(0, value.length);
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    textarea.remove();
+    const restoreFocus = (previouslyFocused as { focus?: unknown } | null)?.focus;
+    if (typeof restoreFocus === "function") {
+      restoreFocus.call(previouslyFocused);
+    }
+  }
+}
+
 export async function writeTextToClipboard(value: string, target = "text") {
-  if (
-    typeof window === "undefined" ||
-    typeof navigator === "undefined" ||
-    !navigator.clipboard?.writeText
-  ) {
+  if (typeof window === "undefined") {
     throw new ClipboardApiUnavailableError({
       target,
     });
   }
 
   if (!value) return false;
+
+  if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+    if (writeTextWithExecCommand(value)) return true;
+    throw new ClipboardApiUnavailableError({
+      target,
+    });
+  }
 
   try {
     await navigator.clipboard.writeText(value);
@@ -105,15 +142,14 @@ export function useCopyToClipboard<TContext = void>({
 } = {}): { copyToClipboard: (value: string, ctx: TContext) => void; isCopied: boolean } {
   const [isCopied, setIsCopied] = React.useState(false);
   const timeoutIdRef = React.useRef<NodeJS.Timeout | null>(null);
-  const onCopyRef = React.useRef(onCopy);
-  const onErrorRef = React.useRef(onError);
-  const targetRef = React.useRef(target);
-  const timeoutRef = React.useRef(timeout);
-
-  onCopyRef.current = onCopy;
-  onErrorRef.current = onError;
-  targetRef.current = target;
-  timeoutRef.current = timeout;
+  const onCopyRef = useRef(onCopy);
+  useCommitRef(onCopyRef, onCopy);
+  const onErrorRef = useRef(onError);
+  useCommitRef(onErrorRef, onError);
+  const targetRef = useRef(target);
+  useCommitRef(targetRef, target);
+  const timeoutRef = useRef(timeout);
+  useCommitRef(timeoutRef, timeout);
 
   const copyToClipboard = React.useCallback((value: string, ctx: TContext): void => {
     void writeTextToClipboard(value, targetRef.current).then(

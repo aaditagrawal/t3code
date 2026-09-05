@@ -1,3 +1,4 @@
+import { readCustomModelSlugs } from "@t3tools/shared/model";
 import { useCallback, useMemo } from "react";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -284,14 +285,14 @@ function withUnifiedCompatSettings(
     sidebarProjectSortOrder: unifiedSettings.sidebarProjectSortOrder,
     sidebarThreadSortOrder: unifiedSettings.sidebarThreadSortOrder,
     timestampFormat: unifiedSettings.timestampFormat,
-    customCodexModels: [...unifiedSettings.providers.codex.customModels],
-    customCopilotModels: [...unifiedSettings.providers.copilot.customModels],
-    customClaudeModels: [...unifiedSettings.providers.claudeAgent.customModels],
-    customCursorModels: [...unifiedSettings.providers.cursor.customModels],
-    customOpencodeModels: [...unifiedSettings.providers.opencode.customModels],
-    customGeminiCliModels: [...unifiedSettings.providers.geminiCli.customModels],
-    customAmpModels: [...unifiedSettings.providers.amp.customModels],
-    customKiloModels: [...unifiedSettings.providers.kilo.customModels],
+    customCodexModels: readCustomModelSlugs(unifiedSettings.providers.codex.customModels),
+    customCopilotModels: readCustomModelSlugs(unifiedSettings.providers.copilot.customModels),
+    customClaudeModels: readCustomModelSlugs(unifiedSettings.providers.claudeAgent.customModels),
+    customCursorModels: readCustomModelSlugs(unifiedSettings.providers.cursor.customModels),
+    customOpencodeModels: readCustomModelSlugs(unifiedSettings.providers.opencode.customModels),
+    customGeminiCliModels: readCustomModelSlugs(unifiedSettings.providers.geminiCli.customModels),
+    customAmpModels: readCustomModelSlugs(unifiedSettings.providers.amp.customModels),
+    customKiloModels: readCustomModelSlugs(unifiedSettings.providers.kilo.customModels),
   });
 }
 
@@ -429,7 +430,7 @@ export function useAppSettings() {
   // Migrate legacy "claudeCode" keys to "claudeAgent" in record-typed settings
   // (e.g. gitTextGenerationModelByProvider.claudeCode, providerAccentColors.claudeCode).
   const migratedSettings = useMemo(() => {
-    let patched = settings;
+    const patched = { ...settings };
     for (const key of ["gitTextGenerationModelByProvider", "providerAccentColors"] as const) {
       const val = patched[key];
       if (val && typeof val === "object" && "claudeCode" in val) {
@@ -438,7 +439,7 @@ export function useAppSettings() {
           record.claudeAgent = record.claudeCode;
         }
         delete record.claudeCode;
-        patched = { ...patched, [key]: record };
+        Object.assign(patched, { [key]: record });
       }
     }
     return patched;

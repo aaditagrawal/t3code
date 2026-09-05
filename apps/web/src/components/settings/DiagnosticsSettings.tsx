@@ -1,3 +1,4 @@
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import {
   AlertTriangleIcon,
   ChevronDownIcon,
@@ -36,8 +37,10 @@ import { usePrimaryEnvironment } from "../../state/environments";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
+import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { toastManager } from "../ui/toast";
+import { ExpandableText } from "./ExpandableText";
 import { ResourceTelemetryDiagnostics } from "./ResourceTelemetryDiagnostics";
 import { SettingsPageContainer, SettingsSection, useRelativeTimeTick } from "./settingsLayout";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -159,43 +162,6 @@ function StatsGrid({ children }: { children: ReactNode }) {
 
 function EmptyRows({ label }: { label: string }) {
   return <div className="px-4 py-4 text-xs text-muted-foreground sm:px-5">{label}</div>;
-}
-
-function ExpandableText({
-  text,
-  className,
-  collapsedClassName = "line-clamp-3",
-  expandLabel = "Show full error",
-}: {
-  text: string;
-  className?: string;
-  collapsedClassName?: string;
-  expandLabel?: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const canExpand = text.length > 180 || text.includes("\n");
-
-  return (
-    <div className={cn("min-w-0", className)}>
-      <div
-        className={cn(
-          "whitespace-pre-wrap break-words",
-          !expanded && canExpand ? collapsedClassName : null,
-        )}
-      >
-        {text}
-      </div>
-      {canExpand ? (
-        <button
-          type="button"
-          className="cursor-pointer mt-1 text-[11px] font-medium text-foreground/70 underline-offset-2 hover:text-foreground hover:underline"
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {expanded ? "Show less" : expandLabel}
-        </button>
-      ) : null}
-    </div>
-  );
 }
 
 function DiagnosticsTable({
@@ -635,21 +601,23 @@ function ResourceHistoryWindowSelector({
   onSelect: (windowMs: number) => void;
 }) {
   return (
-    <div className="flex items-center rounded-md border border-border/60 p-0.5">
+    <ToggleGroup
+      aria-label="Process history period"
+      variant="segmented"
+      value={[String(selectedWindowMs)]}
+      onValueChange={(next) => {
+        const selected = RESOURCE_HISTORY_WINDOWS.find(
+          (option) => String(option.windowMs) === next[0],
+        );
+        if (selected) onSelect(selected.windowMs);
+      }}
+    >
       {RESOURCE_HISTORY_WINDOWS.map((option) => (
-        <button
-          key={option.windowMs}
-          type="button"
-          className={cn(
-            "cursor-pointer h-6 rounded-sm px-2 text-[11px] font-medium text-muted-foreground hover:text-foreground",
-            selectedWindowMs === option.windowMs && "bg-muted text-foreground",
-          )}
-          onClick={() => onSelect(option.windowMs)}
-        >
+        <Toggle key={option.windowMs} value={String(option.windowMs)}>
           {option.label}
-        </button>
+        </Toggle>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }
 
@@ -793,13 +761,13 @@ function DiagnosticsRefreshButton({
       <TooltipTrigger
         render={
           <Button
-            size="icon-micro"
+            size="icon-xs"
             variant="ghost-muted"
             disabled={isPending}
             onClick={onClick}
             aria-label={label}
           >
-            <RefreshCwIcon className={cn("size-3", isPending && "animate-spin")} />
+            <RefreshCwIcon className={cn(isPending && "animate-spin")} />
           </Button>
         }
       />
@@ -859,9 +827,9 @@ export function DiagnosticsSettingsPanel() {
   const [signalingPid, setSignalingPid] = useState<number | null>(null);
   const signalingPidRef = useRef<number | null>(null);
   const environmentIdRef = useRef(environmentId);
+  useCommitRef(environmentIdRef, environmentId);
   const processDataRef = useRef(processData);
-  environmentIdRef.current = environmentId;
-  processDataRef.current = processData;
+  useCommitRef(processDataRef, processData);
 
   const openLogsDirectory = useCallback(() => {
     const logsDirectoryPath = observability?.logsDirectoryPath ?? null;
@@ -899,90 +867,87 @@ export function DiagnosticsSettingsPanel() {
 
   const isInitialLoading = isPending && data === null;
   const isProcessInitialLoading = isProcessPending && processData === null;
-  const signalProcess = useCallback(
-    async (pid: number, signal: ServerProcessSignal) => {
-      if (signalingPidRef.current !== null) return;
-      signalingPidRef.current = pid;
-      setSignalingPid(pid);
-      const clearSignaling = () => {
-        signalingPidRef.current = null;
-        setSignalingPid(null);
-      };
-      if (signal === "SIGKILL") {
-        let confirmed = false;
-        try {
-          confirmed = await ensureLocalApi().dialogs.confirm(
-            `Send SIGKILL to process ${pid}? This cannot be handled by the process.`,
-            { variant: "destructive" },
-          );
-        } catch (error) {
-          clearSignaling();
-          toastManager.add({
-            type: "error",
-            title: "Could not confirm signal",
-            description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
-          });
-          return;
-        }
-        if (!confirmed) {
-          clearSignaling();
-          return;
-        }
-      }
-      const currentEnvironmentId = environmentIdRef.current;
-      if (currentEnvironmentId === null) {
-        clearSignaling();
-        return;
-      }
-      const process = processDataRef.current?.processes.find((entry) => entry.pid === pid);
-      if (process === undefined) {
-        clearSignaling();
-        return;
-      }
-
+  const signalProcess = useCallback(async (pid: number, signal: ServerProcessSignal) => {
+    if (signalingPidRef.current !== null) return;
+    signalingPidRef.current = pid;
+    setSignalingPid(pid);
+    const clearSignaling = () => {
+      signalingPidRef.current = null;
+      setSignalingPid(null);
+    };
+    if (signal === "SIGKILL") {
+      let confirmed = false;
       try {
-        const result = await signalServerProcess({
-          environmentId: currentEnvironmentId,
-          input: { pid, startTimeMs: process.startTimeMs, signal },
+        confirmed = await ensureLocalApi().dialogs.confirm(
+          `Send SIGKILL to process ${pid}? This cannot be handled by the process.`,
+          { variant: "destructive" },
+        );
+      } catch (error) {
+        clearSignaling();
+        toastManager.add({
+          type: "error",
+          title: "Could not confirm signal",
+          description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
         });
-        if (result._tag === "Failure") {
-          if (!isAtomCommandInterrupted(result)) {
-            const error = squashAtomCommandFailure(result);
-            toastManager.add({
-              type: "error",
-              title: `Could not send ${signal}`,
-              description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
-            });
-          }
-          return;
-        }
-        if (!result.value.signaled) {
-          const message = Option.getOrUndefined(result.value.message);
-          refreshProcesses();
-          if (isStaleProcessSignalMessage(message)) {
-            toastManager.add({
-              type: "info",
-              title: "Process already exited",
-              description:
-                "The process is not a child of the T3 Server. It might already have exited.",
-            });
-            return;
-          }
+        return;
+      }
+      if (!confirmed) {
+        clearSignaling();
+        return;
+      }
+    }
+    const currentEnvironmentId = environmentIdRef.current;
+    if (currentEnvironmentId === null) {
+      clearSignaling();
+      return;
+    }
+    const process = processDataRef.current?.processes.find((entry) => entry.pid === pid);
+    if (process === undefined) {
+      clearSignaling();
+      return;
+    }
 
+    try {
+      const result = await signalServerProcess({
+        environmentId: currentEnvironmentId,
+        input: { pid, startTimeMs: process.startTimeMs, signal },
+      });
+      if (result._tag === "Failure") {
+        if (!isAtomCommandInterrupted(result)) {
+          const error = squashAtomCommandFailure(result);
           toastManager.add({
             type: "error",
             title: `Could not send ${signal}`,
-            description: message ?? `Failed to send ${signal}.`,
+            description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
+          });
+        }
+        return;
+      }
+      if (!result.value.signaled) {
+        const message = Option.getOrUndefined(result.value.message);
+        refreshProcesses();
+        if (isStaleProcessSignalMessage(message)) {
+          toastManager.add({
+            type: "info",
+            title: "Process already exited",
+            description:
+              "The process is not a child of the T3 Server. It might already have exited.",
           });
           return;
         }
-        refreshProcesses();
-      } finally {
-        clearSignaling();
+
+        toastManager.add({
+          type: "error",
+          title: `Could not send ${signal}`,
+          description: message ?? `Failed to send ${signal}.`,
+        });
+        return;
       }
-    },
-    [refreshProcesses, signalServerProcess],
-  );
+      refreshProcesses();
+    } finally {
+      clearSignaling();
+    }
+  }, []);
 
   const processDiagnosticsError = processData ? Option.getOrNull(processData.error) : null;
   const processResourceError = resourceData ? Option.getOrNull(resourceData.error) : null;
@@ -1129,13 +1094,13 @@ export function DiagnosticsSettingsPanel() {
               <TooltipTrigger
                 render={
                   <Button
-                    size="icon-micro"
+                    size="icon-xs"
                     variant="ghost-muted"
                     disabled={!observability?.logsDirectoryPath || isOpeningLogsDirectory}
                     onClick={openLogsDirectory}
                     aria-label="Open logs folder"
                   >
-                    <FolderOpenIcon className="size-3" />
+                    <FolderOpenIcon />
                   </Button>
                 }
               />

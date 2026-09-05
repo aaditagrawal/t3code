@@ -14,9 +14,9 @@ import { Button } from "../ui/button";
 
 const PROVIDER_UPDATE_PILL_STYLES = {
   loading:
-    "bg-update-surface text-update-foreground group-has-[button.provider-update-main:hover]/provider-update:bg-update/22",
+    "bg-sidebar-control-surface text-sidebar-foreground group-has-[button.provider-update-main:hover]/provider-update:bg-sidebar-row-hover",
   success:
-    "bg-success/12 text-success group-has-[button.provider-update-main:hover]/provider-update:bg-success/18",
+    "bg-sidebar-control-surface text-sidebar-foreground group-has-[button.provider-update-main:hover]/provider-update:bg-sidebar-row-hover",
   warning:
     "bg-warning/12 text-warning group-has-[button.provider-update-main:hover]/provider-update:bg-warning/18",
   error:
@@ -24,7 +24,7 @@ const PROVIDER_UPDATE_PILL_STYLES = {
 } as const;
 
 const PROVIDER_UPDATE_PILL_PROGRESS_STYLES = {
-  success: "bg-success/18",
+  success: "bg-foreground/8",
   warning: "bg-warning/14",
   error: "bg-destructive/14",
 } as const;
@@ -56,11 +56,22 @@ export function SidebarProviderUpdatePill() {
     dismissedKeys,
   });
 
-  useEffect(() => {
+  const nextVisibleAfterIsoResetInputs = [effectiveVisibleAfterIso, visibleAfterIso];
+  const [visibleAfterIsoResetInputs, setVisibleAfterIsoResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    visibleAfterIsoResetInputs === null ||
+    nextVisibleAfterIsoResetInputs.some(
+      (value, index) => !Object.is(value, visibleAfterIsoResetInputs[index]),
+    )
+  ) {
+    setVisibleAfterIsoResetInputs(nextVisibleAfterIsoResetInputs);
+
     if (visibleAfterIso === undefined && effectiveVisibleAfterIso !== undefined) {
       setVisibleAfterIso(effectiveVisibleAfterIso);
     }
-  }, [effectiveVisibleAfterIso, visibleAfterIso]);
+  }
 
   const openProviderSettings = useCallback(() => {
     void navigate({ to: "/settings/providers" });

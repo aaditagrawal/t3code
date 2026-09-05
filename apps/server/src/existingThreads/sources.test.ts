@@ -19,7 +19,7 @@ function codex(cwd: string) {
   return (
     [
       { type: "session_meta", payload: { id: sessionId, cwd } },
-      { type: "event_msg", payload: { type: "user_message", message: "duplicate" } },
+      { type: "event_msg", payload: { type: "user_message", message: "Continue my project" } },
       {
         type: "response_item",
         timestamp: stamp,

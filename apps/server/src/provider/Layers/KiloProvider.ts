@@ -18,7 +18,6 @@
  * @module provider/Layers/KiloProvider
  */
 import {
-  ProviderDriverKind,
   type GenericProviderSettings,
   type ModelCapabilities,
   type ServerProviderModel,
@@ -43,7 +42,6 @@ import {
 } from "../providerSnapshot.ts";
 import { fetchKiloModels, type KiloDiscoveredModel } from "../../kiloServerManager.ts";
 
-const PROVIDER = ProviderDriverKind.make("kilo");
 const KILO_PRESENTATION = {
   displayName: "Kilo Code",
   showInteractionModeToggle: true,
@@ -100,9 +98,8 @@ const discoverKiloModels = (
   }).pipe(
     Effect.timeoutOption(DEFAULT_TIMEOUT_MS),
     Effect.result,
-    Effect.map(
-      (result): ReadonlyArray<KiloDiscoveredModel> =>
-        Result.isSuccess(result) && Option.isSome(result.success) ? result.success.value : [],
+    Effect.map((result): ReadonlyArray<KiloDiscoveredModel> =>
+      Result.isSuccess(result) && Option.isSome(result.success) ? result.success.value : [],
     ),
   );
 

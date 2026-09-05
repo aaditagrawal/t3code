@@ -52,12 +52,10 @@ class FakeGeminiCliManager extends GeminiCliServerManager {
     } as unknown as ProviderSession;
   });
 
-  public sendTurnImpl = vi.fn(
-    async (threadId: ThreadId): Promise<ProviderTurnStartResult> => ({
-      threadId,
-      turnId: asTurnId(`turn-${threadId}`),
-    }),
-  );
+  public sendTurnImpl = vi.fn(async (threadId: ThreadId): Promise<ProviderTurnStartResult> => ({
+    threadId,
+    turnId: asTurnId(`turn-${threadId}`),
+  }));
 
   public interruptTurnImpl = vi.fn(async (): Promise<void> => undefined);
   public respondToRequestImpl = vi.fn(async (): Promise<void> => undefined);
@@ -127,6 +125,7 @@ it.effect("delegates session startup to the manager", () =>
   Effect.gen(function* () {
     const manager = new FakeGeminiCliManager();
     const adapter = yield* makeGeminiCliAdapter(enabledConfig, { manager });
+    NodeAssert.equal(adapter.capabilities.supportsConversationRollback, false);
 
     const session = yield* adapter.startSession({
       threadId: asThreadId("thread-1"),

@@ -23,8 +23,15 @@ import { KiloServerManager } from "../kiloServerManager.ts";
 import { parseKiloModel, readJsonData } from "../kilo/utils.ts";
 import { createClient } from "../kilo/serverLifecycle.ts";
 import type { KiloProviderOptions, SharedServerState } from "../kilo/types.ts";
-import { type TextGenerationShape } from "./TextGeneration.ts";
+import { type TextGeneration } from "./TextGeneration.ts";
+
+type TextGenerationService = TextGeneration["Service"];
 import {
+  BranchNameOutput,
+  CommitMessageOutput,
+  CommitMessageWithBranchOutput,
+  PrContentOutput,
+  ThreadTitleOutput,
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
   buildPrContentPrompt,
@@ -36,6 +43,14 @@ import {
   sanitizeThreadTitle,
 } from "./TextGenerationUtils.ts";
 import type { KiloSettings } from "../provider/Layers/KiloProvider.ts";
+
+const decodeCommitMessageWithBranchOutput = Schema.decodeEffect(
+  Schema.fromJsonString(CommitMessageWithBranchOutput),
+);
+const decodeCommitMessageOutput = Schema.decodeEffect(Schema.fromJsonString(CommitMessageOutput));
+const decodePrContentOutput = Schema.decodeEffect(Schema.fromJsonString(PrContentOutput));
+const decodeBranchNameOutput = Schema.decodeEffect(Schema.fromJsonString(BranchNameOutput));
+const decodeThreadTitleOutput = Schema.decodeEffect(Schema.fromJsonString(ThreadTitleOutput));
 
 type TextGenerationOperation =
   | "generateCommitMessage"
@@ -104,11 +119,11 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
   const ensureKiloServer = (): Promise<SharedServerState> =>
     manager.getOrStartServer({ binaryPath: resolveBinaryPath() } as KiloProviderOptions);
 
-  const runKiloJson = Effect.fn("runKiloJson")(function* <S extends Schema.Top>(input: {
+  const runKiloJson = Effect.fn("runKiloJson")(function* <A>(input: {
     readonly operation: TextGenerationOperation;
     readonly cwd: string;
     readonly prompt: string;
-    readonly outputSchemaJson: S;
+    readonly decodeOutput: (raw: string) => Effect.Effect<A, Schema.SchemaError>;
     readonly modelSelection: ModelSelection;
     readonly attachments?: ReadonlyArray<ChatAttachment> | undefined;
   }) {
@@ -182,9 +197,7 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
         }),
     });
 
-    return yield* Schema.decodeEffect(Schema.fromJsonString(input.outputSchemaJson))(
-      extractJsonObject(rawText),
-    ).pipe(
+    return yield* input.decodeOutput(extractJsonObject(rawText)).pipe(
       Effect.catchTag("SchemaError", (cause) =>
         Effect.fail(
           new TextGenerationError({
@@ -197,10 +210,10 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
     );
   });
 
-  const generateCommitMessage: TextGenerationShape["generateCommitMessage"] = Effect.fn(
+  const generateCommitMessage: TextGenerationService["generateCommitMessage"] = Effect.fn(
     "KiloTextGeneration.generateCommitMessage",
   )(function* (input) {
-    const { prompt, outputSchema } = buildCommitMessagePrompt({
+    const { prompt } = buildCommitMessagePrompt({
       branch: input.branch,
       stagedSummary: input.stagedSummary,
       stagedPatch: input.stagedPatch,
@@ -210,7 +223,10 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
       operation: "generateCommitMessage",
       cwd: input.cwd,
       prompt,
-      outputSchemaJson: outputSchema,
+      decodeOutput:
+        input.includeBranch === true
+          ? decodeCommitMessageWithBranchOutput
+          : decodeCommitMessageOutput,
       modelSelection: input.modelSelection,
     });
 
@@ -223,10 +239,10 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
     };
   });
 
-  const generatePrContent: TextGenerationShape["generatePrContent"] = Effect.fn(
+  const generatePrContent: TextGenerationService["generatePrContent"] = Effect.fn(
     "KiloTextGeneration.generatePrContent",
   )(function* (input) {
-    const { prompt, outputSchema } = buildPrContentPrompt({
+    const { prompt } = buildPrContentPrompt({
       baseBranch: input.baseBranch,
       headBranch: input.headBranch,
       commitSummary: input.commitSummary,
@@ -237,7 +253,7 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
       operation: "generatePrContent",
       cwd: input.cwd,
       prompt,
-      outputSchemaJson: outputSchema,
+      decodeOutput: decodePrContentOutput,
       modelSelection: input.modelSelection,
     });
 
@@ -247,10 +263,10 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
     };
   });
 
-  const generateBranchName: TextGenerationShape["generateBranchName"] = Effect.fn(
+  const generateBranchName: TextGenerationService["generateBranchName"] = Effect.fn(
     "KiloTextGeneration.generateBranchName",
   )(function* (input) {
-    const { prompt, outputSchema } = buildBranchNamePrompt({
+    const { prompt } = buildBranchNamePrompt({
       message: input.message,
       attachments: input.attachments,
     });
@@ -258,7 +274,7 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
       operation: "generateBranchName",
       cwd: input.cwd,
       prompt,
-      outputSchemaJson: outputSchema,
+      decodeOutput: decodeBranchNameOutput,
       modelSelection: input.modelSelection,
       attachments: input.attachments,
     });
@@ -268,10 +284,10 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
     };
   });
 
-  const generateThreadTitle: TextGenerationShape["generateThreadTitle"] = Effect.fn(
+  const generateThreadTitle: TextGenerationService["generateThreadTitle"] = Effect.fn(
     "KiloTextGeneration.generateThreadTitle",
   )(function* (input) {
-    const { prompt, outputSchema } = buildThreadTitlePrompt({
+    const { prompt } = buildThreadTitlePrompt({
       message: input.message,
       attachments: input.attachments,
     });
@@ -279,7 +295,7 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
       operation: "generateThreadTitle",
       cwd: input.cwd,
       prompt,
-      outputSchemaJson: outputSchema,
+      decodeOutput: decodeThreadTitleOutput,
       modelSelection: input.modelSelection,
       attachments: input.attachments,
     });
@@ -294,5 +310,5 @@ export const makeKiloTextGeneration = Effect.fn("makeKiloTextGeneration")(functi
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
-  } satisfies TextGenerationShape;
+  } satisfies TextGenerationService;
 });

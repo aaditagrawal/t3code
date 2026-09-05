@@ -1,5 +1,10 @@
 import * as NodeCrypto from "node:crypto";
 import * as Schema from "effect/Schema";
+import { ProviderInstanceId } from "@t3tools/contracts";
+import {
+  parseAgentSessionTranscript,
+  type AgentSessionThread,
+} from "../project/AgentSessionScanner.ts";
 
 export interface TranscriptMessage {
   readonly role: "user" | "assistant";
@@ -7,6 +12,7 @@ export interface TranscriptMessage {
   readonly createdAt: string;
 }
 export interface Transcript {
+  readonly providerThread: AgentSessionThread;
   readonly sessionId: string;
   readonly cwd: string;
   readonly title: string;
@@ -19,19 +25,6 @@ export const string = (value: unknown): string => (typeof value === "string" ? v
 export const stableId = (...parts: ReadonlyArray<string>): string =>
   NodeCrypto.createHash("sha256").update(JSON.stringify(parts)).digest("hex");
 
-function contentText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .flatMap((item: unknown) => {
-      const part = record(item);
-      return ["text", "input_text", "output_text"].includes(string(part.type)) &&
-        typeof part.text === "string"
-        ? [part.text]
-        : [];
-    })
-    .join("\n");
-}
 export function parseTranscript(text: string, provider: "codex" | "claudeAgent"): Transcript {
   const lines = text.split("\n");
   const entries: Array<Record<string, unknown>> = [];
@@ -45,51 +38,55 @@ export function parseTranscript(text: string, provider: "codex" | "claudeAgent")
         throw new Error("The session transcript contains an invalid record.");
     }
   }
+  let selected = entries;
+  let sessionId = "";
+  let cwd = "";
   if (provider === "codex") {
     const meta = record(entries.find((e) => e.type === "session_meta")?.payload);
-    const messages: TranscriptMessage[] = [];
-    for (const entry of entries) {
-      const payload = record(entry.payload);
-      if (entry.type !== "response_item" || payload.type !== "message") continue;
-      if (payload.role !== "user" && payload.role !== "assistant") continue;
-      const text = contentText(payload.content);
-      if (text) messages.push({ role: payload.role, text, createdAt: string(entry.timestamp) });
+    sessionId = string(meta.id) || string(meta.session_id);
+    cwd = string(meta.cwd);
+  } else {
+    const main = entries.filter(
+      (e) =>
+        !e.isSidechain &&
+        (e.type === "user" || e.type === "assistant") &&
+        typeof e.uuid === "string",
+    );
+    const last = main.at(-1) ?? {};
+    sessionId = string(last.sessionId);
+    cwd = string(last.cwd) || string(main[0]?.cwd);
+    const byId = new Map(
+      entries.filter((e) => typeof e.uuid === "string").map((e) => [string(e.uuid), e]),
+    );
+    const chain: Array<Record<string, unknown>> = [];
+    const visited = new Set<string>();
+    let current = main.at(-1);
+    while (current) {
+      if (visited.has(string(current.uuid)))
+        throw new Error("The session transcript contains a cycle.");
+      visited.add(string(current.uuid));
+      chain.push(current);
+      current = byId.get(string(current.parentUuid));
     }
-    return {
-      sessionId: string(meta.id),
-      cwd: string(meta.cwd),
-      title: messages.find((m) => m.role === "user")?.text.slice(0, 160) ?? "Codex conversation",
-      messages,
-    };
+    selected = chain.reverse();
   }
-  // Claude transcripts are a parent-linked tree. Follow the last main-session leaf,
-  // rather than concatenating abandoned branches or subagent messages.
-  const main = entries.filter(
-    (e) =>
-      !e.isSidechain && (e.type === "user" || e.type === "assistant") && typeof e.uuid === "string",
-  );
-  const byId = new Map(
-    entries.filter((e) => typeof e.uuid === "string").map((e) => [string(e.uuid), e]),
-  );
-  const chain: Array<Record<string, unknown>> = [];
-  const visited = new Set<string>();
-  let current = main.at(-1);
-  while (current && !visited.has(string(current.uuid))) {
-    visited.add(string(current.uuid));
-    chain.push(current);
-    current = byId.get(string(current.parentUuid));
-  }
-  chain.reverse();
-  const messages: TranscriptMessage[] = chain.flatMap((entry) => {
-    if (entry.isSidechain || (entry.type !== "user" && entry.type !== "assistant")) return [];
-    const text = contentText(record(entry.message).content);
-    return text ? [{ role: entry.type, text, createdAt: string(entry.timestamp) }] : [];
+  const providerThread = parseAgentSessionTranscript({
+    contents: selected.map((e) => JSON.stringify(e)).join("\n"),
+    source: provider,
+    providerInstanceId: ProviderInstanceId.make(provider),
+    fallbackSessionId: sessionId,
+    lastActiveAtMs: 0,
   });
-  const last = main.at(-1) ?? {};
-  return {
-    sessionId: string(last.sessionId),
-    cwd: string(last.cwd) || string(main[0]?.cwd),
-    title: messages.find((m) => m.role === "user")?.text.slice(0, 160) ?? "Claude conversation",
-    messages,
+  // Header discovery can precede the first visible message.
+  const thread = providerThread ?? {
+    source: provider,
+    providerInstanceId: ProviderInstanceId.make(provider),
+    providerSessionId: sessionId,
+    title: "Conversation",
+    model: null,
+    createdAt: "1970-01-01T00:00:00.000Z",
+    updatedAt: "1970-01-01T00:00:00.000Z",
+    messages: [],
   };
+  return { providerThread: thread, sessionId, cwd, title: thread.title, messages: thread.messages };
 }

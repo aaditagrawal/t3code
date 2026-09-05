@@ -46,6 +46,7 @@ export function mapAcpToAdapterError(
 export function acpPermissionOutcome(decision: ProviderApprovalDecision): string {
   switch (decision) {
     case "acceptForSession":
+    case "acceptAlways":
       return "allow-always";
     case "accept":
       return "allow-once";

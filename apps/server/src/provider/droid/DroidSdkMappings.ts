@@ -169,6 +169,7 @@ export function toOutcome(decision: ProviderApprovalDecision): ToolConfirmationO
     case "accept":
       return ToolConfirmationOutcome.ProceedOnce;
     case "acceptForSession":
+    case "acceptAlways":
       return ToolConfirmationOutcome.ProceedAlways;
     case "decline":
     case "cancel":
