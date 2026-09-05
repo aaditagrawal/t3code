@@ -3,6 +3,7 @@ import {
   ProviderDriverKind,
   ProviderInstanceId,
   type ProviderRuntimeEvent,
+  type ServerProviderUsageWindow,
   ThreadId,
   TurnId,
 } from "@t3tools/contracts";
@@ -12,7 +13,7 @@ import { runtimeEventToActivities } from "./ProviderRuntimeIngestion.ts";
 
 function rateLimitEvent(
   provider: "codex" | "claudeAgent",
-  rateLimits: unknown,
+  windows: readonly ServerProviderUsageWindow[],
   turnId?: string,
 ): ProviderRuntimeEvent {
   return {
@@ -23,27 +24,23 @@ function rateLimitEvent(
     threadId: ThreadId.make("thread-1"),
     createdAt: "2026-07-29T00:00:00.000Z",
     ...(turnId ? { turnId: TurnId.make(turnId) } : {}),
-    payload: { rateLimits },
+    payload: { limits: { windows } },
   };
 }
 
 describe("runtimeEventToActivities account.rate-limits.updated", () => {
-  it("maps a Codex app-server snapshot into a persisted activity", () => {
-    // Shape reported by Codex CLI 0.145.0: the notification body is itself
-    // nested under `rateLimits`, so the adapter wrapper doubles the key.
+  it("maps a Codex usage-limit update into a persisted activity", () => {
     const activities = runtimeEventToActivities(
-      rateLimitEvent("codex", {
-        rateLimits: {
-          limitId: "codex",
-          planType: "plus",
-          primary: {
-            usedPercent: 53,
-            windowDurationMins: 10_080,
-            resetsAt: 1_785_848_123,
-          },
-          secondary: null,
+      rateLimitEvent("codex", [
+        {
+          id: "primary",
+          kind: "weekly",
+          label: "Weekly",
+          usedPercent: 53,
+          resetsAt: "2026-08-04T12:55:23.000Z",
+          windowDurationMins: 10_080,
         },
-      }),
+      ]),
     );
 
     expect(activities).toHaveLength(1);
@@ -56,7 +53,7 @@ describe("runtimeEventToActivities account.rate-limits.updated", () => {
       providerInstanceId: "codex",
       limits: [
         {
-          limitId: "codex",
+          limitId: "primary",
           window: "Weekly",
           usedPercent: 53,
           resetsAt: "2026-08-04T12:55:23.000Z",
@@ -66,17 +63,18 @@ describe("runtimeEventToActivities account.rate-limits.updated", () => {
     });
   });
 
-  it("maps a Claude rate_limit_event message into a persisted activity", () => {
+  it("maps a Claude session window into a persisted activity", () => {
     const activities = runtimeEventToActivities(
-      rateLimitEvent("claudeAgent", {
-        type: "rate_limit_event",
-        rate_limit_info: {
-          rateLimitType: "five_hour",
-          utilization: 0.42,
+      rateLimitEvent("claudeAgent", [
+        {
+          id: "five_hour",
+          kind: "session",
+          label: "Session",
+          usedPercent: 42,
           resetsAt: "2026-07-29T05:00:00.000Z",
-          status: "warning",
+          windowDurationMins: 300,
         },
-      }),
+      ]),
     );
 
     expect(activities).toHaveLength(1);
@@ -85,31 +83,33 @@ describe("runtimeEventToActivities account.rate-limits.updated", () => {
       providerInstanceId: "claudeAgent",
       limits: [
         {
+          limitId: "five_hour",
           window: "5h",
           usedPercent: 42,
           resetsAt: "2026-07-29T05:00:00.000Z",
           windowDurationMins: 300,
         },
       ],
-      status: "warning",
     });
   });
 
   it("drops snapshots that carry no usable window", () => {
-    expect(runtimeEventToActivities(rateLimitEvent("codex", {}))).toEqual([]);
-    expect(
-      runtimeEventToActivities(rateLimitEvent("codex", { rateLimits: { primary: null } })),
-    ).toEqual([]);
+    expect(runtimeEventToActivities(rateLimitEvent("codex", []))).toEqual([]);
   });
 
   it("keeps the activity outside turn scope so a revert cannot erase account usage", () => {
     const activities = runtimeEventToActivities(
       rateLimitEvent(
         "claudeAgent",
-        {
-          type: "rate_limit_event",
-          rate_limit_info: { rateLimitType: "five_hour", utilization: 0.42 },
-        },
+        [
+          {
+            id: "five_hour",
+            kind: "session",
+            label: "Session",
+            usedPercent: 42,
+            windowDurationMins: 300,
+          },
+        ],
         "turn-1",
       ),
     );
@@ -120,13 +120,15 @@ describe("runtimeEventToActivities account.rate-limits.updated", () => {
 
   it("preserves the Codex bucket id so two buckets cannot mask each other", () => {
     const activities = runtimeEventToActivities(
-      rateLimitEvent("codex", {
-        rateLimits: {
-          limitId: "codex-mini",
-          primary: { usedPercent: 12, windowDurationMins: 300 },
-          secondary: null,
+      rateLimitEvent("codex", [
+        {
+          id: "codex-mini",
+          kind: "session",
+          label: "Session",
+          usedPercent: 12,
+          windowDurationMins: 300,
         },
-      }),
+      ]),
     );
 
     expect(activities[0]!.payload).toEqual({

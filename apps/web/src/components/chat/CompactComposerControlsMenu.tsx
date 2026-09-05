@@ -1,5 +1,5 @@
 import { ProviderDriverKind, ProviderInteractionMode, RuntimeMode } from "@t3tools/contracts";
-import { memo, type ReactNode, useState } from "react";
+import { memo, type ReactNode } from "react";
 import { EllipsisIcon } from "lucide-react";
 import {
   Menu,
@@ -12,6 +12,7 @@ import {
 import { ComposerControl, ComposerControlIcon } from "./ComposerControl";
 import { composerFloatingLayerProps } from "./composerEventScope";
 import { getRuntimeModeConfig, getRuntimeModeOptions } from "./runtimeModePresentation";
+import { useComposerMenuState } from "./useComposerMenuState";
 
 export const CompactComposerControlsMenu = memo(function CompactComposerControlsMenu(props: {
   provider: ProviderDriverKind;
@@ -32,19 +33,10 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
   const runtimeModeConfig = getRuntimeModeConfig(props.provider);
   const runtimeModeOptions = getRuntimeModeOptions(props.provider);
   const size = props.size ?? "sm";
-  const [open, setOpen] = useState(false);
-  const hidden = props.hidden ?? false;
-  // Base UI does not report a close it did not initiate, so clear the state
-  // when the trigger hides or the menu would reopen by itself when the
-  // trigger returns.
-  const [wasHidden, setWasHidden] = useState(hidden);
-  if (hidden !== wasHidden) {
-    setWasHidden(hidden);
-    if (hidden) setOpen(false);
-  }
+  const [open, setOpen] = useComposerMenuState(props.hidden);
 
   return (
-    <Menu open={open && !hidden} onOpenChange={setOpen}>
+    <Menu open={open} onOpenChange={setOpen}>
       <MenuTrigger
         render={
           <ComposerControl

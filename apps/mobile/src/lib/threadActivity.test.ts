@@ -88,6 +88,29 @@ const nativeQuestion = {
 } as const;
 
 describe("pending user input answers", () => {
+  it("accepts free-text answers to async questions without options", () => {
+    const question = {
+      id: "0",
+      header: "Question",
+      question: "What should it be named?",
+      options: [],
+      allowCustomAnswer: true,
+      multiSelect: false,
+    };
+    const requested = makeActivity({
+      id: EventId.make("async-question"),
+      kind: "user-input.requested",
+      summary: "User input requested",
+      createdAt: "2026-09-03T00:00:00.000Z",
+      payload: { requestId: "async-1", responseMode: "message", questions: [question] },
+    });
+    const questions = derivePendingUserInputs([requested])[0]?.questions;
+    expect(questions).toEqual([question]);
+    expect(buildPendingUserInputAnswers(questions!, { "0": { customAnswer: "Example" } })).toEqual({
+      "0": "Example",
+    });
+  });
+
   it("preserves native choice values and custom-answer rules from activities", () => {
     const requested = makeActivity({
       id: EventId.make("native-question"),
@@ -330,6 +353,33 @@ function makeThread(
 }
 
 describe("buildThreadFeed", () => {
+  it("keeps context compaction as a standalone timeline row", () => {
+    const thread = makeThread({
+      id: ThreadId.make("thread-context-compaction"),
+      projectId: ProjectId.make("project-1"),
+      title: "Context compaction",
+      activities: [
+        makeActivity({
+          id: EventId.make("context-compaction"),
+          kind: "context-compaction",
+          tone: "info",
+          summary: "Compacted context 899K → 19K tokens",
+          createdAt: "2026-09-01T00:00:00.000Z",
+          turnId: TurnId.make("turn-context-compaction"),
+        }),
+      ],
+    });
+
+    const presented = deriveThreadFeedPresentation(buildThreadFeed(thread), null, new Set());
+    expect(presented).toMatchObject([
+      {
+        type: "activity-group",
+        id: "context-compaction",
+        activities: [{ summary: "Compacted context 899K → 19K tokens" }],
+      },
+    ]);
+  });
+
   it("keeps long Claude commands expandable without repeating them in full detail", () => {
     const command = `printf 'first line\nsecond line'\n&& printf done`;
     const thread = makeThread({
