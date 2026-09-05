@@ -8631,7 +8631,14 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
                   return;
                 }
                 assertTrue(threadResult._tag === "Success");
-                assert.deepEqual(threadResult.success, [{ kind: "synchronized" }]);
+                // Fork thread subscriptions still replay `thread.deleted` on
+                // catch-up so clients can drop local state without waiting for
+                // the shell `thread-removed` frame. Upstream only emits the
+                // synchronized marker here.
+                assert.deepEqual(threadResult.success, [
+                  { kind: "event", event: deleted },
+                  { kind: "synchronized" },
+                ]);
                 const shellItems = yield* client[ORCHESTRATION_WS_METHODS.subscribeShell]({
                   afterSequence: 0,
                   requestCompletionMarker: true,
