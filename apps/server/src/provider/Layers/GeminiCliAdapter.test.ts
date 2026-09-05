@@ -125,6 +125,7 @@ it.effect("delegates session startup to the manager", () =>
   Effect.gen(function* () {
     const manager = new FakeGeminiCliManager();
     const adapter = yield* makeGeminiCliAdapter(enabledConfig, { manager });
+    NodeAssert.equal(adapter.capabilities.supportsConversationRollback, false);
 
     const session = yield* adapter.startSession({
       threadId: asThreadId("thread-1"),

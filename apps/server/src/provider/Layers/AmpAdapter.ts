@@ -68,7 +68,7 @@ export const makeAmpAdapter = Effect.fn("makeAmpAdapter")(function* (
 
   const service: AmpAdapterShape = {
     provider: PROVIDER,
-    capabilities: { sessionModelSwitch: "in-session" },
+    capabilities: { sessionModelSwitch: "in-session", supportsConversationRollback: false },
     startSession: (input) =>
       Effect.gen(function* () {
         if (!ampSettings.enabled) {

@@ -1124,6 +1124,7 @@ it.effect("reads Droid thread snapshots and rejects unsupported rollback", () =>
 
       const before = yield* adapter.readThread(threadId);
       NodeAssert.equal(before.turns.length, 2);
+      NodeAssert.equal(adapter.capabilities.supportsConversationRollback, false);
       const rollback = yield* adapter.rollbackThread(threadId, 1).pipe(Effect.exit);
       NodeAssert.equal(rollback._tag, "Failure");
       if (rollback._tag === "Failure") {

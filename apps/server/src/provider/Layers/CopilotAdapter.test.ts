@@ -138,6 +138,12 @@ const modeLayer = it.layer(
 );
 
 modeLayer("CopilotAdapterLive interaction mode", (it) => {
+  it.effect("declares conversation rollback unsupported", () =>
+    Effect.gen(function* () {
+      const adapter = yield* CopilotAdapter;
+      NodeAssert.equal(adapter.capabilities.supportsConversationRollback, false);
+    }),
+  );
   // Skip: @github/copilot-sdk has broken ESM resolution (vscode-jsonrpc/node) in CI
   it.effect.skip("switches the Copilot session mode when interactionMode changes", () =>
     Effect.gen(function* () {
