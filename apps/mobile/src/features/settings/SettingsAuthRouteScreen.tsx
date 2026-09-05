@@ -1,7 +1,7 @@
 import { useAuth } from "@clerk/expo";
 import { AuthView, UserProfileView } from "@clerk/expo/native";
 import { StackActions, useNavigation } from "@react-navigation/native";
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { View } from "react-native";
 
 import { hasCloudPublicConfig } from "../cloud/publicConfig";
@@ -25,21 +25,21 @@ function ConfiguredSettingsAuthRouteScreen() {
     () => navigation.dispatch(StackActions.popTo("SettingsContent")),
     [navigation],
   );
-  const hasBeenSignedIn = useRef(isSignedIn);
-  if (isSignedIn) {
-    hasBeenSignedIn.current = true;
+  const [hasBeenSignedIn, setHasBeenSignedIn] = useState(isSignedIn);
+  if (isSignedIn && !hasBeenSignedIn) {
+    setHasBeenSignedIn(true);
   }
 
   useEffect(() => {
-    if (hasBeenSignedIn.current && isLoaded && isSignedIn === false) {
+    if (hasBeenSignedIn && isLoaded && isSignedIn === false) {
       navigation.dispatch(StackActions.popTo("SettingsContent"));
     }
-  }, [isLoaded, isSignedIn, navigation]);
+  }, [hasBeenSignedIn, isLoaded, isSignedIn, navigation]);
 
   return (
     <View collapsable={false} className="flex-1 overflow-hidden bg-sheet">
       {isLoaded ? (
-        hasBeenSignedIn.current ? (
+        hasBeenSignedIn ? (
           <UserProfileView isDismissible={false} onHostBack={handleHostBack} />
         ) : (
           <AuthView isDismissible={false} onHostBack={handleHostBack} />

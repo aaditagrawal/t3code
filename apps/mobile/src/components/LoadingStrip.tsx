@@ -41,14 +41,16 @@ function IndeterminateLoadingStrip() {
   const indicatorWidth = Math.max(MIN_INDICATOR_WIDTH, containerWidth * INDICATOR_WIDTH_FRACTION);
 
   useEffect(() => {
-    travelProgress.value = 0;
-    travelProgress.value = withRepeat(
-      withTiming(1, {
-        duration: 1100,
-        easing: Easing.inOut(Easing.quad),
-      }),
-      -1,
-      false,
+    travelProgress.set(0);
+    travelProgress.set(
+      withRepeat(
+        withTiming(1, {
+          duration: 1100,
+          easing: Easing.inOut(Easing.quad),
+        }),
+        -1,
+        false,
+      ),
     );
 
     return () => {

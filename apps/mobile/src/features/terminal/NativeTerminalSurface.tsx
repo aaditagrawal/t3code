@@ -23,6 +23,8 @@ import {
 } from "./terminalTheme";
 import { terminalDebugLog } from "./terminalDebugLog";
 
+const NativeTerminalSurfaceView = resolveNativeTerminalSurfaceView();
+
 interface TerminalInputEvent {
   readonly data: string;
 }
@@ -176,7 +178,6 @@ export const TerminalSurface = memo(function TerminalSurface(props: TerminalSurf
   const { themeAppearance, themeId } = useAppearancePreferences();
   const theme = props.theme ?? getMobileTerminalTheme(themeId, themeAppearance);
   const { onInput, onResize } = props;
-  const NativeTerminalSurfaceView = resolveNativeTerminalSurfaceView();
   const hasNativeSurface = Boolean(NativeTerminalSurfaceView);
 
   useEffect(() => {
