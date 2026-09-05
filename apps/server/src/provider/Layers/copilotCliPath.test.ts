@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   resolveBundledCopilotCliPathFrom,
+  resolveCopilotSdkCliPath,
   withSanitizedCopilotDesktopEnv,
 } from "./copilotCliPath.ts";
 
@@ -92,5 +93,20 @@ describe("withSanitizedCopilotDesktopEnv", () => {
       if (originalClaudeCode === undefined) delete process.env.CLAUDECODE;
       else process.env.CLAUDECODE = originalClaudeCode;
     }
+  });
+});
+
+describe("resolveCopilotSdkCliPath", () => {
+  it("uses bundled SDK resolution for default command names", () => {
+    const bundled = resolveCopilotSdkCliPath();
+    for (const value of ["", "copilot", " copilot ", "copilot.exe", "copilot.cmd", "copilot.bat"]) {
+      expect(resolveCopilotSdkCliPath(value)).toBe(bundled);
+    }
+    expect(bundled).not.toBe("copilot");
+  });
+
+  it("preserves explicit configured executable paths", () => {
+    expect(resolveCopilotSdkCliPath(" /custom/copilot ")).toBe("/custom/copilot");
+    expect(resolveCopilotSdkCliPath("./copilot")).toBe("./copilot");
   });
 });

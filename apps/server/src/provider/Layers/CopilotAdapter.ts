@@ -82,7 +82,7 @@ import {
   recordTurnUsage,
   type CopilotTurnTrackingState,
 } from "./copilotTurnTracking.ts";
-import { resolveBundledCopilotCliPath, withSanitizedCopilotDesktopEnv } from "./copilotCliPath.ts";
+import { resolveCopilotSdkCliPath, withSanitizedCopilotDesktopEnv } from "./copilotCliPath.ts";
 import { CopilotAdapter, type CopilotAdapterShape } from "../Services/CopilotAdapter.ts";
 import { toMessage } from "../toMessage.ts";
 import type {
@@ -1361,7 +1361,7 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function* (
         });
       }
       const settingsBinaryPath = copilotSettings.binaryPath.trim();
-      const cliPath = settingsBinaryPath || resolveBundledCopilotCliPath();
+      const cliPath = resolveCopilotSdkCliPath(settingsBinaryPath);
       const configDir = trimToUndefined(copilotSettings.configDir);
       const resumeSessionId = extractResumeSessionId(input.resumeCursor);
       const clientOptions: CopilotClientOptions = {
@@ -1813,7 +1813,7 @@ export async function fetchCopilotModels(overrideCliPath?: string): Promise<Read
 }> | null> {
   try {
     const { CopilotClient } = await import("@github/copilot-sdk");
-    const cliPath = overrideCliPath?.trim() || resolveBundledCopilotCliPath();
+    const cliPath = resolveCopilotSdkCliPath(overrideCliPath);
     const client = new CopilotClient({
       ...(cliPath ? { cliPath } : {}),
       logLevel: "error",
@@ -1850,7 +1850,7 @@ export async function fetchCopilotUsage(overrideCliPath?: string): Promise<{
 }> {
   try {
     const { CopilotClient } = await import("@github/copilot-sdk");
-    const cliPath = overrideCliPath?.trim() || resolveBundledCopilotCliPath();
+    const cliPath = resolveCopilotSdkCliPath(overrideCliPath);
     const client = new CopilotClient({
       ...(cliPath ? { cliPath } : {}),
       logLevel: "error",
