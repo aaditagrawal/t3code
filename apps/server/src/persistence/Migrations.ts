@@ -1,3 +1,4 @@
+import { assertMigrationLineageCompatible } from "./MigrationLineage.ts";
 /**
  * Migration runner with an inline loader.
  *
@@ -192,6 +193,8 @@ export interface RunMigrationsOptions {
 export const runMigrations = Effect.fn("runMigrations")(function* ({
   toMigrationInclusive,
 }: RunMigrationsOptions = {}) {
+  yield* assertMigrationLineageCompatible(migrationManifest);
+
   const executedMigrations = yield* run({ loader: makeMigrationLoader(toMigrationInclusive) });
   const migrations = executedMigrations.map(([id, name]) => `${id}_${name}`);
   yield* migrations.length === 0
