@@ -29,21 +29,27 @@ desktop provider settings, or **Refresh models** in mobile thread settings.
 
 ## Skills and slash commands
 
-User skills are directories with a `SKILL.md` file. T3 Code reads them from:
-
-- `~/.omp/agent/skills` (Oh My Pi's usual user skills directory)
-- `~/.omp/skills`
-
-If both define the same name, the `agent/skills` copy is listed. Use `$` in the
+User skills are immediate subdirectories of `~/.omp/agent/skills`, each with a
+`SKILL.md` file containing a description in its YAML frontmatter. Use `$` in the
 composer to add a skill. Skills also appear in the `/` menu unless you turn off
 **Settings → General → Show skills in slash menu**. See
 [commands and skills](./composer.md#commands-and-skills).
 
-To use a different Oh My Pi home, set `PI_CODING_AGENT_DIR` on the provider
-instance. T3 Code then reads `agent/skills` and `skills` under that directory.
-`PI_CONFIG_DIR` changes the directory name under your home (default `.omp`).
-`OMP_PROFILE` or `PI_PROFILE` selects `~/.omp/profiles/<name>` when
-`PI_CODING_AGENT_DIR` is unset.
+To use a different agent directory, set `PI_CODING_AGENT_DIR` on the provider
+instance. T3 Code reads `skills/` and `config.yml` (or `config.yaml`) directly
+under that directory. `PI_CONFIG_DIR` changes the directory name under the
+provider's home (default `.omp`). A named `OMP_PROFILE` or `PI_PROFILE` selects
+`~/.omp/profiles/<name>/agent` and takes precedence over `PI_CODING_AGENT_DIR`.
+`OMP_PROFILE` takes precedence over `PI_PROFILE`; an empty value selects the
+default profile.
+
+Discovery respects `skills.enabled`, `skills.enablePiUser`,
+`skills.customDirectories`, `skills.ignoredSkills`, `skills.includeSkills`, and
+`disabledExtensions` entries such as `skill:review` in the agent configuration.
+Use absolute paths or `~/` paths for custom directories so discovery does not
+depend on the server working directory. Custom directories take precedence over
+native skills with the same name.
+Skills with `enabled: false` in their frontmatter are omitted.
 
 Slash commands advertised by `omp` over ACP are listed with other provider
 commands. Those commands must start the message to run.
