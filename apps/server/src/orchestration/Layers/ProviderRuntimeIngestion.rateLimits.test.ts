@@ -12,7 +12,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { runtimeEventToActivities } from "./ProviderRuntimeIngestion.ts";
 
 function rateLimitEvent(
-  provider: "codex" | "claudeAgent",
+  provider: "codex" | "claudeAgent" | "ohMyPi",
   windows: readonly ServerProviderUsageWindow[],
   turnId?: string,
 ): ProviderRuntimeEvent {
@@ -135,6 +135,38 @@ describe("runtimeEventToActivities account.rate-limits.updated", () => {
       provider: "codex",
       providerInstanceId: "codex",
       limits: [{ limitId: "codex-mini", window: "5h", usedPercent: 12, windowDurationMins: 300 }],
+    });
+  });
+
+  it("maps an Oh My Pi usage-limit update into a persisted activity", () => {
+    const activities = runtimeEventToActivities(
+      rateLimitEvent("ohMyPi", [
+        {
+          id: "five_hour",
+          kind: "session",
+          label: "Session",
+          usedPercent: 37,
+          resetsAt: "2026-09-05T12:00:00.000Z",
+          windowDurationMins: 300,
+        },
+      ]),
+    );
+
+    expect(activities).toHaveLength(1);
+    expect(activities[0]!.kind).toBe("account.rate-limits.updated");
+    expect(activities[0]!.turnId).toBeNull();
+    expect(activities[0]!.payload).toEqual({
+      provider: "ohMyPi",
+      providerInstanceId: "ohMyPi",
+      limits: [
+        {
+          limitId: "five_hour",
+          window: "5h",
+          usedPercent: 37,
+          resetsAt: "2026-09-05T12:00:00.000Z",
+          windowDurationMins: 300,
+        },
+      ],
     });
   });
 });

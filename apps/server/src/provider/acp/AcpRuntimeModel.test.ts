@@ -391,6 +391,38 @@ describe("AcpRuntimeModel", () => {
     ]);
   });
 
+  it("parses usage_update tokens and optional cost", () => {
+    const notification = {
+      sessionId: "session-1",
+      update: {
+        sessionUpdate: "usage_update",
+        used: 1_200,
+        size: 128_000,
+        cost: { amount: 0.42, currency: "USD" },
+        _meta: {
+          windows: [
+            {
+              id: "five_hour",
+              kind: "session",
+              label: "Session",
+              usedPercent: 37,
+            },
+          ],
+        },
+      },
+    } satisfies EffectAcpSchema.SessionNotification;
+
+    expect(parseSessionUpdateEvent(notification).events).toEqual([
+      {
+        _tag: "UsageUpdated",
+        used: 1_200,
+        size: 128_000,
+        cost: { amount: 0.42, currency: "USD" },
+        rawPayload: notification,
+      },
+    ]);
+  });
+
   it("preserves native command inputs and empty command lists", () => {
     const availableCommands = [
       { name: "plan", description: "Plan a task", input: { hint: "task" } },
