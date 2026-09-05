@@ -234,6 +234,7 @@ export function makeOhMyPiAdapter(
       applyModelSelection: applyOhMyPiAcpSelection,
       modelSelectionMethod: "session/set_config_option",
       formElicitation: true,
+      rememberSessionApprovals: true,
     },
     options,
   );

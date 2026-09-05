@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 
 import {
+  createComposerRevisionStore,
   acknowledgeComposerNativeEvent,
   assumeComposerControlledState,
   isComposerNativeEcho,
@@ -190,5 +191,53 @@ describe("assumeComposerControlledState", () => {
     expect(resolveComposerControlledEventCount("typed", { start: 5, end: 5 }, 3, snapshots)).toBe(
       3,
     );
+  });
+});
+
+describe("composer revision subscriptions", () => {
+  it("publishes immutable snapshots and rejects stale native events", () => {
+    const store = createComposerRevisionStore();
+    const initial = store.getSnapshot();
+    let changes = 0;
+    const stop = store.subscribe(() => changes++);
+    expect(store.accept(2, "ab", { start: 2, end: 2 })).toBe(2);
+    const accepted = store.getSnapshot();
+    expect(initial.events).toEqual([]);
+    expect(accepted.events).toHaveLength(1);
+    expect(store.accept(1, "a", { start: 1, end: 1 })).toBe(false);
+    expect(store.getSnapshot()).toBe(accepted);
+    store.assume(1, "stale parent");
+    expect(store.getSnapshot()).toBe(accepted);
+    store.prune(2);
+    expect(store.getSnapshot()).toBe(accepted);
+    expect(changes).toBe(1);
+    stop();
+    store.accept(3, "abc", { start: 3, end: 3 });
+    expect(changes).toBe(1);
+    expect(accepted.events).toHaveLength(1);
+  });
+
+  it("does not stamp stale parent text at a newer native revision", () => {
+    const store = createComposerRevisionStore();
+    store.accept(1, "a", { start: 1, end: 1 });
+    store.accept(2, "ab", { start: 2, end: 2 });
+    const snapshot = store.getSnapshot();
+    expect(
+      resolveComposerControlledEventCount(
+        "a",
+        { start: 1, end: 1 },
+        snapshot.eventCount,
+        snapshot.events,
+      ),
+    ).toBe(1);
+    store.prune(1);
+    expect(store.getSnapshot().events.map((event) => event.eventCount)).toEqual([1, 2]);
+    store.assume(2, "parent replacement");
+    expect(store.getSnapshot().events).toEqual([
+      { eventCount: 2, value: "parent replacement", selection: null },
+    ]);
+    const assumed = store.getSnapshot();
+    store.assume(2, "parent replacement");
+    expect(store.getSnapshot()).toBe(assumed);
   });
 });

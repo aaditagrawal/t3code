@@ -1,6 +1,7 @@
+import { useClock } from "@t3tools/client-runtime/react-clock";
 import { formatDuration } from "@t3tools/shared/orchestrationTiming";
 import { GlassContainer, GlassView } from "expo-glass-effect";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { ActivityIndicator, Text as SystemText, View } from "react-native";
 import Animated, {
   Easing,
@@ -60,7 +61,7 @@ export function FloatingWorkingControl(props: {
   const separationProgress = useSharedValue(props.showScrollToEnd ? 1 : 0);
 
   useEffect(() => {
-    separationProgress.value = withTiming(props.showScrollToEnd ? 1 : 0, CONTROL_TIMING);
+    separationProgress.set(withTiming(props.showScrollToEnd ? 1 : 0, CONTROL_TIMING));
   }, [props.showScrollToEnd, separationProgress]);
 
   const timerStyle = useAnimatedStyle(() => ({
@@ -202,13 +203,7 @@ function FloatingStatusLabel(props: { readonly status: FloatingWorkingStatus }) 
 }
 
 function WorkingDuration(props: { readonly startedAt: string }) {
-  const [nowMs, setNowMs] = useState(() => Date.now());
-
-  useEffect(() => {
-    setNowMs(Date.now());
-    const intervalId = setInterval(() => setNowMs(Date.now()), 1_000);
-    return () => clearInterval(intervalId);
-  }, [props.startedAt]);
+  const nowMs = useClock();
 
   const duration = formatWorkingDuration(props.startedAt, nowMs);
   const label = `Working for ${duration}`;

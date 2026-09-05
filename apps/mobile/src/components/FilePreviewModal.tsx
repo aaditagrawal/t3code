@@ -42,9 +42,16 @@ function ResolvedFilePreview(props: {
     uri === null &&
     (connection._tag === "None" || asset._tag === "Failure");
   useEffect(() => Keyboard.dismiss(), []);
-  useEffect(() => {
+  const nextUriResetInputs = [uri, asset, source.srcFragment];
+  const [uriResetInputs, setUriResetInputs] = useState<readonly unknown[] | null>(null);
+  if (
+    uriResetInputs === null ||
+    nextUriResetInputs.some((value, index) => !Object.is(value, uriResetInputs[index]))
+  ) {
+    setUriResetInputs(nextUriResetInputs);
+
     if (uri === null && asset._tag === "Success") setUri(asset.url + (source.srcFragment ?? ""));
-  }, [uri, asset, source.srcFragment]);
+  }
   useEffect(() => {
     if (!failed) return;
     Alert.alert(

@@ -32,6 +32,7 @@ const emitContentThenHang = process.env.T3_ACP_EMIT_CONTENT_THEN_HANG === "1";
 const emitPlanThenHang = process.env.T3_ACP_EMIT_PLAN_THEN_HANG === "1";
 const emitActiveToolThenHang = process.env.T3_ACP_EMIT_ACTIVE_TOOL_THEN_HANG === "1";
 const emitForeignSessionUpdates = process.env.T3_ACP_EMIT_FOREIGN_SESSION_UPDATES === "1";
+const emitUsageAndThoughts = process.env.T3_ACP_EMIT_USAGE_AND_THOUGHTS === "1";
 const availableCommandsTiming = process.env.T3_ACP_AVAILABLE_COMMANDS_TIMING;
 const availableCommandsDelayMs = Number(process.env.T3_ACP_AVAILABLE_COMMANDS_DELAY_MS ?? "25");
 const emitEmptyAvailableCommands = process.env.T3_ACP_EMPTY_AVAILABLE_COMMANDS === "1";
@@ -1210,6 +1211,31 @@ const program = Effect.gen(function* () {
         yield* agent.client.sessionUpdate({
           sessionId: "mock-child-session-1",
           update: {
+            sessionUpdate: "agent_thought_chunk",
+            content: { type: "text", text: "child thought" },
+          },
+        });
+        yield* agent.client.sessionUpdate({
+          sessionId: "mock-child-session-1",
+          update: {
+            sessionUpdate: "usage_update",
+            used: 99,
+            size: 1_000,
+            _meta: {
+              windows: [
+                {
+                  id: "child-session",
+                  kind: "session",
+                  label: "Child",
+                  usedPercent: 99,
+                },
+              ],
+            },
+          },
+        });
+        yield* agent.client.sessionUpdate({
+          sessionId: "mock-child-session-1",
+          update: {
             sessionUpdate: "tool_call",
             toolCallId: "child-tool-call-1",
             title: "Child-only tool",
@@ -1247,6 +1273,16 @@ const program = Effect.gen(function* () {
         },
       });
 
+      if (emitUsageAndThoughts) {
+        yield* agent.client.sessionUpdate({
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "agent_thought_chunk",
+            content: { type: "text", text: "Inspect the current implementation first." },
+          },
+        });
+      }
+
       yield* agent.client.sessionUpdate({
         sessionId: requestedSessionId,
         update: {
@@ -1254,6 +1290,30 @@ const program = Effect.gen(function* () {
           content: { type: "text", text: promptResponseText ?? "hello from mock" },
         },
       });
+
+      if (emitUsageAndThoughts) {
+        yield* agent.client.sessionUpdate({
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "usage_update",
+            used: 1_200,
+            size: 128_000,
+            cost: { amount: 0.42, currency: "USD" },
+            _meta: {
+              windows: [
+                {
+                  id: "five_hour",
+                  kind: "session",
+                  label: "Session",
+                  usedPercent: 37,
+                  windowDurationMins: 300,
+                  resetsAt: "2026-09-05T12:00:00.000Z",
+                },
+              ],
+            },
+          },
+        });
+      }
 
       return { stopReason: "end_turn" };
     }),

@@ -1,6 +1,8 @@
+import { useRef } from "react";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import { useIsFocused } from "@react-navigation/native";
 import { videoMimeType } from "@t3tools/shared/video";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Keyboard, Modal, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -59,7 +61,7 @@ function useLocalPlayback(source: LocalVideoPreviewSource): PlaybackState {
   // Only a different file needs a new lease; a metadata update on the same
   // draft must not dispose the file Android is still playing.
   const attachmentRef = useRef(attachment);
-  attachmentRef.current = attachment;
+  useCommitRef(attachmentRef, attachment);
   const { id: attachmentId, fileUri } = attachment;
   useEffect(() => {
     setUri(null);
@@ -206,9 +208,10 @@ export function VideoPreviewModal(props: {
 }) {
   const isFocused = useIsFocused();
   const hasSource = props.source !== null;
+  const propsOnRequestClose = props.onRequestClose;
   useEffect(() => {
-    if (!isFocused && hasSource) props.onRequestClose();
-  }, [isFocused, hasSource, props.onRequestClose]);
+    if (!isFocused && hasSource) propsOnRequestClose();
+  }, [isFocused, hasSource, propsOnRequestClose]);
   const { source } = props;
   if (source === null || !isFocused) return null;
   return source.type === "local" ? (

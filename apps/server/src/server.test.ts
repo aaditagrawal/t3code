@@ -36,6 +36,7 @@ import {
   type ProviderInstallState,
   ProviderSetupError,
   ResolvedKeybindingRule,
+  type ServerLifecycleStreamEvent,
   ThreadId,
   TurnId,
   WS_METHODS,
@@ -91,6 +92,7 @@ const decodeTransferThreadSnapshot = Schema.decodeUnknownEffect(
 const decodeTransferShellSnapshot = Schema.decodeUnknownEffect(
   Schema.fromJsonString(OrchestrationShellSnapshot),
 );
+const encodeTestJson = Schema.encodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 
 import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
 import * as ServerConfig from "./config.ts";
@@ -127,6 +129,7 @@ import {
   AntigravityInstallationError,
 } from "./provider/AntigravityInstallation.ts";
 import type { ProviderInstance } from "./provider/ProviderDriver.ts";
+import * as ProviderSessionDirectory from "./provider/Services/ProviderSessionDirectory.ts";
 import { ProviderAdapterRequestError } from "./provider/Errors.ts";
 import { makeManualOnlyProviderMaintenanceCapabilities } from "./provider/providerMaintenance.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
@@ -513,6 +516,9 @@ const buildAppUnderTest = (options?: {
     projectSetupScriptRunner?: Partial<
       ProjectSetupScriptRunner.ProjectSetupScriptRunner["Service"]
     >;
+    providerSessionDirectory?: Partial<
+      ProviderSessionDirectory.ProviderSessionDirectory["Service"]
+    >;
     terminalManager?: Partial<TerminalManager.TerminalManager["Service"]>;
     orchestrationEngine?: Partial<OrchestrationEngine.OrchestrationEngineService["Service"]>;
     threadDeletionReactor?: Partial<ThreadDeletionReactor["Service"]>;
@@ -785,6 +791,13 @@ const buildAppUnderTest = (options?: {
             managedDirectory: "unused-test-antigravity-runtime",
             ...options?.layers?.antigravityInstallation,
           }),
+          Layer.mock(ProviderSessionDirectory.ProviderSessionDirectory)({
+            upsert: () => Effect.void,
+            getBinding: () => Effect.succeed(Option.none()),
+            listThreadIds: () => Effect.succeed([]),
+            listBindings: () => Effect.succeed([]),
+            ...options?.layers?.providerSessionDirectory,
+          }),
         ),
       ),
       Layer.provide(
@@ -977,6 +990,7 @@ const buildAppUnderTest = (options?: {
             }),
           getActiveProjectByWorkspaceRoot: () => Effect.succeed(Option.none()),
           getFirstActiveThreadIdByProjectId: () => Effect.succeed(Option.none()),
+          getImportedAgentSessionSources: () => Effect.succeed([]),
           getThreadCheckpointContext: () => Effect.succeed(Option.none()),
           ...options?.layers?.projectionSnapshotQuery,
         }),
@@ -5336,6 +5350,103 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
+  it.effect("keeps agent session import project failures structured over websocket rpc", () =>
+    Effect.gen(function* () {
+      yield* buildAppUnderTest();
+
+      const projectId = ProjectId.make("missing-import-project");
+      const wsUrl = yield* getWsServerUrl("/ws");
+      const error = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.agentSessionsImport]({ projectId }).pipe(Effect.flip),
+        ),
+      );
+
+      assert.equal(error._tag, "AgentSessionImportProjectNotFoundError");
+      if (error._tag === "AgentSessionImportProjectNotFoundError") {
+        assert.equal(error.projectId, projectId);
+      }
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect("returns scanner skip counts over websocket rpc", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const codexHome = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-agent-import-rpc-codex-",
+      });
+      const workspaceRoot = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-agent-import-rpc-workspace-",
+      });
+      const transcriptDirectory = path.join(codexHome, "sessions", "2026", "08", "31");
+      const transcriptPath = path.join(transcriptDirectory, "rollout-skipped.jsonl");
+      yield* fileSystem.makeDirectory(transcriptDirectory, { recursive: true });
+      yield* fileSystem.writeFileString(
+        transcriptPath,
+        encodeTestJson({
+          timestamp: "2026-08-31T12:00:00.000Z",
+          type: "session_meta",
+          payload: { id: "rpc-skipped-session", cwd: workspaceRoot },
+        }),
+      );
+      yield* fileSystem.utimes(transcriptPath, 0, 0);
+
+      const projectId = ProjectId.make("agent-import-rpc-project");
+      const project = {
+        id: projectId,
+        title: "Agent import RPC",
+        workspaceRoot,
+        defaultModelSelection: null,
+        scripts: [],
+        createdAt: "2026-08-31T12:00:00.000Z",
+        updatedAt: "2026-08-31T12:00:00.000Z",
+      } as const;
+      yield* buildAppUnderTest({
+        layers: {
+          serverSettings: {
+            getSettings: Effect.succeed({
+              ...DEFAULT_SERVER_SETTINGS,
+              providerInstances: {
+                [ProviderInstanceId.make("codex")]: {
+                  driver: ProviderDriverKind.make("codex"),
+                  config: { homePath: codexHome },
+                },
+                [ProviderInstanceId.make("claudeAgent")]: {
+                  driver: ProviderDriverKind.make("claudeAgent"),
+                  enabled: false,
+                  config: {},
+                },
+              },
+            }),
+          },
+          projectionSnapshotQuery: {
+            getProjectShellById: (requestedProjectId) =>
+              Effect.succeed(
+                requestedProjectId === projectId ? Option.some(project) : Option.none(),
+              ),
+          },
+        },
+      });
+
+      const wsUrl = yield* getWsServerUrl("/ws");
+      const result = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          Effect.gen(function* () {
+            const scan = yield* client[WS_METHODS.agentSessionsScan]({});
+            assert.deepEqual(
+              scan.candidates.map((candidate) => candidate.path),
+              [workspaceRoot],
+            );
+            return yield* client[WS_METHODS.agentSessionsImport]({ projectId });
+          }),
+        ),
+      );
+
+      assert.deepEqual(result, { importedCount: 0, skippedCount: 1 });
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
   it.effect("uploads Codex thread feedback through websocket rpc", () =>
     Effect.gen(function* () {
       const input = {
@@ -6241,6 +6352,98 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         assert.equal(second?.type, "ready");
         assert.equal(second?.sequence, 2);
       }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect("subscribeServerLifecycle buffers updates published during snapshot capture", () =>
+    Effect.gen(function* () {
+      const pubsub = yield* PubSub.unbounded<ServerLifecycleStreamEvent>();
+      const streamSubscribed = yield* Deferred.make<void>();
+      const snapshotPublished = yield* Deferred.make<void>();
+      const bootstrapProjectId = ProjectId.make("project-bootstrap");
+      const bootstrapThreadId = ThreadId.make("thread-bootstrap");
+      const snapshotEvent = {
+        version: 1 as const,
+        sequence: 1,
+        type: "welcome" as const,
+        payload: {
+          environment: testEnvironmentDescriptor,
+          cwd: "/tmp/project",
+          projectName: "project",
+          bootstrapStatus: "pending" as const,
+        },
+      };
+      const gapEvent = {
+        version: 1 as const,
+        sequence: 2,
+        type: "welcome" as const,
+        payload: {
+          environment: testEnvironmentDescriptor,
+          cwd: "/tmp/project",
+          projectName: "project",
+          bootstrapStatus: "complete" as const,
+          bootstrapProjectId,
+          bootstrapThreadId,
+          bootstrapProjectCreated: true,
+          bootstrapThreadCreated: true,
+        },
+      };
+      const sentinelEvent = {
+        version: 1 as const,
+        sequence: 3,
+        type: "ready" as const,
+        payload: { at: "2026-01-01T00:00:01.000Z", environment: testEnvironmentDescriptor },
+      };
+      const liveStream = Stream.unwrap(
+        Effect.gen(function* () {
+          const subscription = yield* PubSub.subscribe(pubsub);
+          yield* Deferred.succeed(streamSubscribed, undefined);
+          return Stream.fromSubscription(subscription);
+        }),
+      );
+
+      yield* buildAppUnderTest({
+        layers: {
+          serverLifecycleEvents: {
+            snapshot: PubSub.publish(pubsub, gapEvent).pipe(
+              Effect.andThen(Deferred.succeed(snapshotPublished, undefined)),
+              Effect.as({ sequence: 1, events: [snapshotEvent] }),
+            ),
+            stream: liveStream,
+          },
+        },
+      });
+
+      yield* Effect.gen(function* () {
+        yield* Deferred.await(snapshotPublished);
+        yield* Deferred.await(streamSubscribed);
+        yield* PubSub.publish(pubsub, sentinelEvent);
+      }).pipe(Effect.forkScoped);
+
+      const wsUrl = yield* getWsServerUrl("/ws");
+      const events = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.subscribeServerLifecycle]({}).pipe(Stream.take(2), Stream.runCollect),
+        ),
+      );
+
+      const [first, second] = Array.from(events);
+      assert.equal(first?.type, "welcome");
+      assert.equal(first?.sequence, 1);
+      if (first?.type !== "welcome") {
+        assert.fail("expected the pending bootstrap event");
+      }
+      assert.equal(first.payload.bootstrapStatus, "pending");
+      assert.equal(second?.type, "welcome");
+      assert.equal(second?.sequence, 2);
+      if (second?.type !== "welcome") {
+        assert.fail("expected the bootstrap completion event");
+      }
+      assert.equal(second.payload.bootstrapStatus, "complete");
+      assert.equal(second.payload.bootstrapProjectId, bootstrapProjectId);
+      assert.equal(second.payload.bootstrapThreadId, bootstrapThreadId);
+      assert.equal(second.payload.bootstrapProjectCreated, true);
+      assert.equal(second.payload.bootstrapThreadCreated, true);
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
   it.effect("routes websocket rpc projects.searchEntries", () =>
@@ -9960,7 +10163,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       Effect.gen(function* () {
         const dispatchedCommands: Array<OrchestrationCommand> = [];
         const bootstrapGitOperations: string[] = [];
-        const refreshStatus = vi.fn((_: string) =>
+        const refreshStatus = vi.fn((_input: string) =>
           Effect.succeed({
             isRepo: true,
             hasPrimaryRemote: true,
@@ -9979,20 +10182,20 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
           }),
         );
         const remoteExists = vi.fn(
-          (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["remoteExists"]>[0]) =>
+          (_input: Parameters<GitVcsDriver.GitVcsDriver["Service"]["remoteExists"]>[0]) =>
             Effect.sync(() => {
               bootstrapGitOperations.push("remote-exists");
               return true;
             }),
         );
         const fetchRemote = vi.fn(
-          (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["fetchRemote"]>[0]) =>
+          (_input: Parameters<GitVcsDriver.GitVcsDriver["Service"]["fetchRemote"]>[0]) =>
             Effect.sync(() => {
               bootstrapGitOperations.push("fetch");
             }),
         );
         const remoteBranchExists = vi.fn(
-          (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["remoteBranchExists"]>[0]) =>
+          (_input: Parameters<GitVcsDriver.GitVcsDriver["Service"]["remoteBranchExists"]>[0]) =>
             Effect.sync(() => {
               bootstrapGitOperations.push("remote-branch-exists");
               return true;
@@ -10000,7 +10203,11 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         );
         const fetchedOriginCommit = "0123456789abcdef0123456789abcdef01234567";
         const resolveRemoteTrackingCommit = vi.fn(
-          (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["resolveRemoteTrackingCommit"]>[0]) =>
+          (
+            _input: Parameters<
+              GitVcsDriver.GitVcsDriver["Service"]["resolveRemoteTrackingCommit"]
+            >[0],
+          ) =>
             Effect.sync(() => {
               bootstrapGitOperations.push("resolve-remote-commit");
               return {
@@ -10010,7 +10217,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
             }),
         );
         const createWorktree = vi.fn(
-          (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["createWorktree"]>[0]) =>
+          (_input: Parameters<GitVcsDriver.GitVcsDriver["Service"]["createWorktree"]>[0]) =>
             Effect.sync(() => {
               bootstrapGitOperations.push("create-worktree");
               return {
@@ -10023,7 +10230,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         );
         const runForThread = vi.fn(
           (
-            _: Parameters<
+            _input: Parameters<
               ProjectSetupScriptRunner.ProjectSetupScriptRunner["Service"]["runForThread"]
             >[0],
           ) =>
@@ -10173,25 +10380,29 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     Effect.gen(function* () {
       const dispatchedCommands: Array<OrchestrationCommand> = [];
       const remoteExists = vi.fn(
-        (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["remoteExists"]>[0]) =>
+        (_input: Parameters<GitVcsDriver.GitVcsDriver["Service"]["remoteExists"]>[0]) =>
           Effect.succeed(hasOrigin),
       );
       const fetchRemote = vi.fn(
-        (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["fetchRemote"]>[0]) => Effect.void,
+        (_input: Parameters<GitVcsDriver.GitVcsDriver["Service"]["fetchRemote"]>[0]) => Effect.void,
       );
       const resolveRemoteTrackingCommit = vi.fn(
-        (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["resolveRemoteTrackingCommit"]>[0]) =>
+        (
+          _input: Parameters<
+            GitVcsDriver.GitVcsDriver["Service"]["resolveRemoteTrackingCommit"]
+          >[0],
+        ) =>
           Effect.succeed({
             commitSha: "0123456789abcdef0123456789abcdef01234567",
             remoteRefName: "origin/main",
           }),
       );
       const remoteBranchExists = vi.fn(
-        (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["remoteBranchExists"]>[0]) =>
+        (_input: Parameters<GitVcsDriver.GitVcsDriver["Service"]["remoteBranchExists"]>[0]) =>
           Effect.succeed(false),
       );
       const createWorktree = vi.fn(
-        (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["createWorktree"]>[0]) =>
+        (_input: Parameters<GitVcsDriver.GitVcsDriver["Service"]["createWorktree"]>[0]) =>
           Effect.succeed({
             worktree: {
               refName: "t3code/bootstrap-refName",
@@ -10288,7 +10499,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     Effect.gen(function* () {
       const dispatchedCommands: Array<OrchestrationCommand> = [];
       const createWorktree = vi.fn(
-        (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["createWorktree"]>[0]) =>
+        (_input: Parameters<GitVcsDriver.GitVcsDriver["Service"]["createWorktree"]>[0]) =>
           Effect.succeed({
             worktree: {
               refName: "t3code/bootstrap-refName",
@@ -10393,7 +10604,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     Effect.gen(function* () {
       const dispatchedCommands: Array<OrchestrationCommand> = [];
       const createWorktree = vi.fn(
-        (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["createWorktree"]>[0]) =>
+        (_input: Parameters<GitVcsDriver.GitVcsDriver["Service"]["createWorktree"]>[0]) =>
           Effect.succeed({
             worktree: {
               refName: "t3code/bootstrap-refName",
@@ -10403,7 +10614,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       );
       const runForThread = vi.fn(
         (
-          _: Parameters<
+          _input: Parameters<
             ProjectSetupScriptRunner.ProjectSetupScriptRunner["Service"]["runForThread"]
           >[0],
         ) =>
@@ -10518,7 +10729,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const createWorktree = vi.fn(
-        (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["createWorktree"]>[0]) =>
+        (_input: Parameters<GitVcsDriver.GitVcsDriver["Service"]["createWorktree"]>[0]) =>
           Effect.die(new Error("worktree exploded")),
       );
 
@@ -10727,7 +10938,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     Effect.gen(function* () {
       const dispatchedCommands: Array<OrchestrationCommand> = [];
       const createWorktree = vi.fn(
-        (_: Parameters<GitVcsDriver.GitVcsDriver["Service"]["createWorktree"]>[0]) =>
+        (_input: Parameters<GitVcsDriver.GitVcsDriver["Service"]["createWorktree"]>[0]) =>
           Effect.die(new Error("worktree exploded")),
       );
 

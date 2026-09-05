@@ -60,11 +60,7 @@ function MarkdownTextPrimitiveChild({
     () => [true, flattenedStyle],
     [flattenedStyle],
   );
-  let childPosition = 0;
-  const nativeChildren = React.Children.toArray(children).map((child) => {
-    const position = childPosition;
-    childPosition += 1;
-
+  const nativeChildren = React.Children.toArray(children).map((child, position) => {
     if (React.isValidElement(child)) {
       return child;
     }

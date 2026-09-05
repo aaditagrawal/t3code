@@ -4,6 +4,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Schema from "effect/Schema";
 
 import { makeOhMyPiAdapter, resolveOhMyPiAuthMethodId } from "../Layers/OhMyPiAdapter.ts";
+import { discoverOhMyPiSkills } from "./OhMyPiSkills.ts";
 import { makeStandardAcpCliDriver, type StandardAcpCliDriverEnv } from "./StandardAcpCliDriver.ts";
 
 const DRIVER_KIND = ProviderDriverKind.make("ohMyPi");
@@ -35,4 +36,5 @@ export const OhMyPiDriver = makeStandardAcpCliDriver({
   setupHint:
     "Install `@oh-my-pi/pi-coding-agent`, then run `omp` and use `/login` to authenticate.",
   missingCommandMessage: "Oh My Pi CLI (`omp`) is not installed or not on PATH.",
+  discoverSkills: discoverOhMyPiSkills,
 });

@@ -1,5 +1,5 @@
 import type { AssetResource, EnvironmentId } from "@t3tools/contracts";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -31,13 +31,31 @@ export function ThreadMarkdownImageView(props: {
   const [sourceSize, setSourceSize] = useState<{ width: number; height: number } | null>(null);
   const [failedUri, setFailedUri] = useState<string | null>(null);
 
-  useEffect(() => {
-    setSourceSize(null);
-  }, [props.sourceKey]);
+  const nextSourceSizeResetInputs = [props.sourceKey];
+  const [sourceSizeResetInputs, setSourceSizeResetInputs] = useState<readonly unknown[] | null>(
+    null,
+  );
+  if (
+    sourceSizeResetInputs === null ||
+    nextSourceSizeResetInputs.some(
+      (value, index) => !Object.is(value, sourceSizeResetInputs[index]),
+    )
+  ) {
+    setSourceSizeResetInputs(nextSourceSizeResetInputs);
 
-  useEffect(() => {
+    setSourceSize(null);
+  }
+
+  const nextFailedUriResetInputs = [props.uri];
+  const [failedUriResetInputs, setFailedUriResetInputs] = useState<readonly unknown[] | null>(null);
+  if (
+    failedUriResetInputs === null ||
+    nextFailedUriResetInputs.some((value, index) => !Object.is(value, failedUriResetInputs[index]))
+  ) {
+    setFailedUriResetInputs(nextFailedUriResetInputs);
+
     setFailedUri(null);
-  }, [props.uri]);
+  }
 
   const displaySize =
     sourceSize === null

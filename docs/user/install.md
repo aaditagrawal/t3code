@@ -94,8 +94,8 @@ base URL. Mark secret values as sensitive; after saving, T3 Code does not displa
 their original values.
 
 For provider-specific setup and accounts, see [Codex](./providers-codex.md),
-[Claude](./providers-claude.md), [OpenCode](./providers-opencode.md), and
-[Antigravity](./providers-antigravity.md).
+[Claude](./providers-claude.md), [OpenCode](./providers-opencode.md),
+[Antigravity](./providers-antigravity.md), and [Oh My Pi](./providers-ohmypi.md).
 
 ## Next steps
 
@@ -111,5 +111,5 @@ The fork also supports Droid, Amp, Copilot, Gemini CLI, Kilo, Oh My Pi, Pi, Herm
 and configurable ACP agents. Enable and configure each instance under **Settings → Providers**
 on the machine that runs it. Keep credentials and configuration scoped to that instance.
 
-Oh My Pi starts as `omp acp`; configure the executable as `omp`, without adding the subcommand.
+[Oh My Pi](./providers-ohmypi.md) starts as `omp acp`; configure the executable as `omp`, without adding the subcommand.
 Use the configurable ACP provider for other agents that expose stdio ACP.

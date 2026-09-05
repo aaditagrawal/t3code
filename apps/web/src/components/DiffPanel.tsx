@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import { useAtomValue } from "@effect/atom-react";
 import type { FileDiffContentsLoader } from "@pierre/diffs";
 import { useParams } from "@tanstack/react-router";
@@ -23,7 +25,7 @@ import {
   TextWrapIcon,
 } from "lucide-react";
 import * as Schema from "effect/Schema";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCodeViewFileReveal } from "./diffs/useCodeViewFileReveal";
 import { useOpenInPreferredEditor } from "../editorPreferences";
 import { type DraftId } from "../composerDraftStore";
@@ -336,7 +338,7 @@ export default function DiffPanel({
     selectedTurnId,
   ]);
   const loadDiffFilesRef = useRef(currentLoadDiffFiles);
-  loadDiffFilesRef.current = currentLoadDiffFiles;
+  useCommitRef(loadDiffFilesRef, currentLoadDiffFiles);
   const loadDiffFiles = useCallback<FileDiffContentsLoader>(async (fileDiff) => {
     const loader = loadDiffFilesRef.current;
     if (!loader) throw new Error("Diff file contents are unavailable for this selection.");

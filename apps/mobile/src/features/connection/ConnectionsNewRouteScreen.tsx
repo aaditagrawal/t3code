@@ -67,11 +67,22 @@ export function ConnectionsNewRouteScreen({
     setCodeInput(code);
   }, [routePairingUrl]);
 
-  useEffect(() => {
+  const nextIsSubmittingResetInputs = [pairingConnectionError];
+  const [isSubmittingResetInputs, setIsSubmittingResetInputs] = useState<readonly unknown[] | null>(
+    null,
+  );
+  if (
+    isSubmittingResetInputs === null ||
+    nextIsSubmittingResetInputs.some(
+      (value, index) => !Object.is(value, isSubmittingResetInputs[index]),
+    )
+  ) {
+    setIsSubmittingResetInputs(nextIsSubmittingResetInputs);
+
     if (pairingConnectionError) {
       setIsSubmitting(false);
     }
-  }, [pairingConnectionError]);
+  }
 
   const handleHostChange = useCallback((value: string) => {
     setHostInput(value);
@@ -164,7 +175,7 @@ export function ConnectionsNewRouteScreen({
         setIsSubmitting(false);
       }
     },
-    [navigation, onChangeConnectionPairingUrl, onConnectPress],
+    [onChangeConnectionPairingUrl],
   );
 
   const handleSubmit = useCallback(async () => {
