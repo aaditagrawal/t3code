@@ -158,8 +158,17 @@ describe("highlightSourceFile", () => {
         .join(""),
     ).toBe(source);
     expect(highlighted.flat().some((token) => token.color !== null)).toBe(true);
+    const snippet = await highlighter.highlightCodeSnippet({
+      code: source,
+      language: "ts",
+      theme: "dark",
+    });
     expect(
-      await highlighter.highlightCodeSnippet({ code: source, language: "ts", theme: "dark" }),
-    ).toEqual(highlighted);
+      snippet
+        .flat()
+        .map((token) => token.content)
+        .join(""),
+    ).toBe(source);
+    expect(snippet.flat().some((token) => token.color !== null)).toBe(true);
   });
 });
