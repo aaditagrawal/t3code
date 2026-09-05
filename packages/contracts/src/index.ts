@@ -41,3 +41,5 @@ export * from "./usage.ts";
 export * from "./rpc.ts";
 
 export * from "./hermesGateway.ts";
+
+export * from "./existingThreads.ts";

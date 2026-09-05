@@ -1,0 +1,72 @@
+diff --git a/out/node-module-collector/pnpmNodeModulesCollector.js b/out/node-module-collector/pnpmNodeModulesCollector.js
+index 8853912e013d3769f3e763d06720a94091a7ffaa..f03fb96dea9f9c6261963e7b0dc651d6fc9a6754 100644
+--- a/out/node-module-collector/pnpmNodeModulesCollector.js
++++ b/out/node-module-collector/pnpmNodeModulesCollector.js
+@@ -97,7 +97,7 @@ class PnpmNodeModulesCollector extends nodeModulesCollector_1.NodeModulesCollect
+             return;
+         }
+         this.productionGraph[dependencyId] = { dependencies: [] };
+-        if (((_a = tree.dedupedDependenciesCount) !== null && _a !== void 0 ? _a : 0) > 0) {
++        if (tree.deduped === true || (((_a = tree.dedupedDependenciesCount) !== null && _a !== void 0 ? _a : 0) > 0 && !tree.dependencies && !tree.optionalDependencies)) {
+             const realDep = this.allDependencies.get(dependencyId);
+             if (realDep) {
+                 this.cache.logSummary[moduleManager_1.LogMessageByKey.PKG_DUPLICATE_REF].push(dependencyId);
+@@ -148,16 +148,14 @@ class PnpmNodeModulesCollector extends nodeModulesCollector_1.NodeModulesCollect
+     async collectDepsRecursively(tree) {
+         const visit = async (key, value) => {
+             var _a, _b;
+-            if (((_a = value === null || value === void 0 ? void 0 : value.dedupedDependenciesCount) !== null && _a !== void 0 ? _a : 0) > 0) {
++            if (value?.deduped === true || (((_a = value === null || value === void 0 ? void 0 : value.dedupedDependenciesCount) !== null && _a !== void 0 ? _a : 0) > 0 && !value.dependencies && !value.optionalDependencies)) {
+                 return;
+             }
+             const id = `${key}@${value.version}`;
+             // The pnpm list output can include the same `name@version` thousands of times across a
+             // deep workspace; without this guard we re-resolve and re-recurse each occurrence.
+-            if (this.collectedDeps.has(id)) {
+-                return;
+-            }
+-            this.collectedDeps.add(id);
++            // Peer-context entries can expand different branches for the same name/version.
++            // Walk every expanded entry; collapsed references above still terminate recursion.
+             const pkg = await this.locateFromDepOrRoot(key, value.path, value.version);
+             this.allDependencies.set(id, { ...value, path: (_b = pkg === null || pkg === void 0 ? void 0 : pkg.packageDir) !== null && _b !== void 0 ? _b : value.path });
+             await this.collectDepsRecursively(value);
+diff --git a/out/util/appFileCopier.js b/out/util/appFileCopier.js
+index 230f5bcd04697279ad8b43f406c9112637065c98..71bc218910bb03777640854b7394282a0d851bbf 100644
+--- a/out/util/appFileCopier.js
++++ b/out/util/appFileCopier.js
+@@ -211,6 +211,7 @@ function collectionMatchesAppDependencies(nodeModules, dependencies) {
+ async function resolveFirstMatchingCollection(options) {
+     const { pmApproaches, searchDirectories, dependencies, run } = options;
+     let fallback;
++    let incomplete = false;
+     for (const pm of pmApproaches) {
+         for (const dir of searchDirectories) {
+             builder_util_1.log.info({ pm, searchDir: dir }, "searching for node modules");
+@@ -219,6 +220,16 @@ async function resolveFirstMatchingCollection(options) {
+                 builder_util_1.log.info({ pm, searchDir: dir }, "no node modules found in collection, trying next search directory");
+                 continue;
+             }
++            const missing = [
++                moduleManager_1.LogMessageByKey.PKG_DUPLICATE_REF_UNRESOLVED,
++                moduleManager_1.LogMessageByKey.PKG_NOT_FOUND,
++                moduleManager_1.LogMessageByKey.PKG_NOT_ON_DISK,
++            ].flatMap(key => deps.logSummary?.[key] || []);
++            if (missing.length > 0) {
++                incomplete = true;
++                builder_util_1.log.warn({ pm, dependencies: missing }, "incomplete dependency collection; trying filesystem traversal");
++                continue;
++            }
+             if (collectionMatchesAppDependencies(deps.nodeModules, dependencies)) {
+                 builder_util_1.log.debug({ pm, searchDir: dir, depCount: deps.nodeModules.length }, "collected node modules");
+                 return deps;
+@@ -227,6 +238,9 @@ async function resolveFirstMatchingCollection(options) {
+             fallback !== null && fallback !== void 0 ? fallback : (fallback = deps);
+         }
+     }
++    if (incomplete && !fallback) {
++        throw new Error("Cannot package an incomplete production dependency tree.");
++    }
+     return fallback;
+ }
+ async function collectNodeModulesWithLogging(platformPackager) {

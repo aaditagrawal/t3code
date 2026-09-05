@@ -1,3 +1,4 @@
+import { makeExistingThreads } from "./existingThreads/service.ts";
 import * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
@@ -518,7 +519,9 @@ const makeWsRpcLayer = (
       const providerRegistry = yield* ProviderRegistry.ProviderRegistry;
       const hermesGatewayBroker = yield* HermesGatewayBroker;
       const providerService = yield* ProviderService.ProviderService;
+      const existingThreads = yield* makeExistingThreads;
       const providerSessionDirectory = yield* ProviderSessionDirectory.ProviderSessionDirectory;
+
       const providerMaintenanceRunner = yield* ProviderMaintenanceRunner.ProviderMaintenanceRunner;
       const providerAuth = yield* ProviderAuthService;
       const providerInstances = yield* ProviderInstanceRegistry;
@@ -1817,6 +1820,8 @@ const makeWsRpcLayer = (
             }),
             { "rpc.aggregate": "server" },
           ),
+        [WS_METHODS.existingThreadsList]: (input) => existingThreads.list(input),
+        [WS_METHODS.existingThreadsImport]: (input) => existingThreads.importThread(input),
         [WS_METHODS.providerUploadFeedback]: (input) =>
           observeRpcEffect(
             WS_METHODS.providerUploadFeedback,

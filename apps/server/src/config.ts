@@ -15,9 +15,10 @@ import * as LogLevel from "effect/LogLevel";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
+import { DEFAULT_SERVER_PORT } from "@t3tools/shared/branding";
 import { sweepStalePendingAttachments } from "./attachmentStore.ts";
 
-export const DEFAULT_PORT = 3773;
+export const DEFAULT_PORT = DEFAULT_SERVER_PORT;
 
 export const RuntimeMode = Schema.Literals(["web", "desktop"]);
 export type RuntimeMode = typeof RuntimeMode.Type;

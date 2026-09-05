@@ -876,7 +876,7 @@ it.layer(integrationLayer)("AgentSessionImporter integration", (it) => {
         );
         const resumeCursor =
           source === "codex"
-            ? { threadId: sourceThread.providerSessionId }
+            ? { threadId: sourceThread.providerSessionId, requireExisting: true }
             : { threadId, resume: sourceThread.providerSessionId };
         const provider = ProviderDriverKind.make(source);
         const harness = yield* makeTestProviderAdapterHarness({ provider });

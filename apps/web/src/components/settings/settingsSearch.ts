@@ -9,6 +9,7 @@ export type SettingsPath =
   | "/settings/integrations"
   | "/settings/source-control"
   | "/settings/connections"
+  | "/settings/existing-threads"
   | "/settings/archived";
 
 export interface SettingsSearchItem {
@@ -54,6 +55,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/integrations": "Integrations",
   "/settings/source-control": "Source Control",
   "/settings/connections": "Connections",
+  "/settings/existing-threads": "Existing conversations",
   "/settings/archived": "Archive",
 };
 
@@ -342,6 +344,11 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/providers",
     searchTerms: ["refresh availability versions auth state models background probes seconds off"],
     providerSettingsOnly: true,
+  },
+  {
+    id: "existing-conversations",
+    title: "Import existing conversations from official T3 and provider CLIs",
+    to: "/settings/existing-threads",
   },
   {
     id: "agent-browser-access",

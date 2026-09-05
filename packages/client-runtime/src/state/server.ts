@@ -1047,6 +1047,14 @@ export function createServerEnvironmentAtoms<R, E>(
         key: ({ environmentId, input }) => JSON.stringify([environmentId, input.instanceId]),
       },
     }),
+    listExistingThreads: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:existing-threads:list",
+      tag: WS_METHODS.existingThreadsList,
+    }),
+    importExistingThread: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:existing-threads:import",
+      tag: WS_METHODS.existingThreadsImport,
+    }),
     refreshProviders: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:refresh-providers",
       tag: WS_METHODS.serverRefreshProviders,
