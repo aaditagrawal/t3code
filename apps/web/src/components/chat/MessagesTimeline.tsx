@@ -19,11 +19,6 @@ import {
   emptyAgentPanelModel,
   formatSubagentTokenCount,
 } from "@t3tools/client-runtime/state/subagentRuntime";
-
-const EMPTY_AGENT_PANEL_MODEL = emptyAgentPanelModel();
-const NOOP_OPEN_AGENTS = () => {};
-const NOOP_USE_ARTIFACT_TEMPLATE = () => {};
-const NOOP_OPEN_ATTACHMENT = (_attachment: ChatFileAttachment) => {};
 import { resolveChatListAnchoredEndSpace } from "@t3tools/shared/chatList";
 import {
   createContext,
@@ -52,6 +47,7 @@ import {
   type ChatAttachment,
   type ChatFileAttachment,
   type ChatImageAttachment,
+  isBrowserPreviewAttachment,
   isFileAttachment,
   isImageAttachment,
   isVideoAttachment,
@@ -100,6 +96,7 @@ import {
   keepTimelineEndVisibleAfterOverlayGrowth,
 } from "./timelineScrollAnchoring";
 import { MessageCopyButton } from "./MessageCopyButton";
+import { PierreEntryIcon } from "./PierreEntryIcon";
 import { AssistantSelectionToolbar } from "./AssistantSelectionToolbar";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import {
@@ -165,6 +162,11 @@ import {
   type ReviewCommentContext,
 } from "../../reviewCommentContext";
 
+const EMPTY_AGENT_PANEL_MODEL = emptyAgentPanelModel();
+const NOOP_OPEN_AGENTS = () => {};
+const NOOP_USE_ARTIFACT_TEMPLATE = () => {};
+const NOOP_OPEN_ATTACHMENT = (_attachment: ChatFileAttachment) => {};
+
 // ---------------------------------------------------------------------------
 // Context — shared state consumed by every row component via Context.
 // Propagates through LegendList's memo boundaries for shared callbacks and
@@ -187,6 +189,7 @@ interface TimelineRowSharedState {
   onUseArtifactTemplate: (template: CodexArtifactTemplate) => void;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   onFileOpen: (attachment: ChatFileAttachment) => void;
+  onFileDownload: (attachment: ChatFileAttachment) => void;
   openingVideoAttachmentId: string | null;
   onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
   onToggleTurnFold: (turnId: TurnId) => void;
@@ -287,6 +290,7 @@ interface MessagesTimelineProps {
   isRevertingCheckpoint: boolean;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   onFileOpen?: (attachment: ChatFileAttachment) => void;
+  onFileDownload?: (attachment: ChatFileAttachment) => void;
   openingVideoAttachmentId: string | null;
   activeThreadEnvironmentId: EnvironmentId;
   markdownCwd: string | undefined;
@@ -338,6 +342,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   isRevertingCheckpoint,
   onImageExpand,
   onFileOpen = NOOP_OPEN_ATTACHMENT,
+  onFileDownload = NOOP_OPEN_ATTACHMENT,
   openingVideoAttachmentId,
   activeThreadEnvironmentId,
   markdownCwd,
@@ -556,7 +561,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
 
   const handleScroll = useCallback(() => {
     const state = listRef.current?.getState?.();
-    const isAtEnd = resolveTimelineIsAtEnd(state, contentInsetEndAdjustment);
+    const isAtEnd = resolveTimelineIsAtEnd(state);
     if (isAtEnd !== undefined && !citationPositioning) {
       onIsAtEndChange(isAtEnd);
     }
@@ -582,14 +587,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
 
       strip.dataset.inView = inView ? "true" : "false";
     }
-  }, [
-    citationPositioning,
-    contentInsetEndAdjustment,
-    listRef,
-    minimapItems,
-    minimapStripMap,
-    onIsAtEndChange,
-  ]);
+  }, [citationPositioning, listRef, minimapItems, minimapStripMap, onIsAtEndChange]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(handleScroll);
@@ -627,7 +625,11 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       listRef,
       timestampFormat,
       routeThreadKey,
-      threadRef: parseScopedThreadKey(routeThreadKey),
+      // Must be referentially stable: ChatMarkdown keys its react-markdown
+      // component map on threadRef, and a fresh object here remounts every
+      // rendered markdown node whenever this memo recomputes (e.g. on each
+      // activity delta while the thread is working).
+      threadRef: citationThreadRef,
       markdownCwd,
       resolvedTheme,
       workspaceRoot,
@@ -637,6 +639,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onUseArtifactTemplate,
       onImageExpand,
       onFileOpen,
+      onFileDownload,
       openingVideoAttachmentId,
       onOpenTurnDiff,
       onToggleTurnFold,
@@ -651,6 +654,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       listRef,
       timestampFormat,
       routeThreadKey,
+      citationThreadRef,
       markdownCwd,
       resolvedTheme,
       workspaceRoot,
@@ -660,6 +664,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       onUseArtifactTemplate,
       onImageExpand,
       onFileOpen,
+      onFileDownload,
       openingVideoAttachmentId,
       onOpenTurnDiff,
       onToggleTurnFold,
@@ -1229,16 +1234,53 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
         {otherUserFiles.length > 0 || unknownAttachments.length > 0 ? (
           <div className="mb-2 flex flex-col gap-1">
             {otherUserFiles.map((file) => {
+              const opensInPreview = isBrowserPreviewAttachment(file);
+              const fileIdentity = (
+                <>
+                  <PierreEntryIcon pathValue={file.name} kind="file" theme={ctx.resolvedTheme} />
+                  <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                </>
+              );
+              if (opensInPreview && file.downloadable !== false) {
+                return (
+                  <div key={file.id} className="flex min-w-0 items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label={`Preview ${file.name}`}
+                      onClick={() => ctx.onFileOpen(file)}
+                      className="focus-visible:ring-ring/70 flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md py-1 text-left text-sm hover:underline focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+                    >
+                      {fileIdentity}
+                      <EyeIcon className="size-4 shrink-0" />
+                    </button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            size="icon-xs"
+                            variant="ghost-muted"
+                            aria-label={`Download ${file.name}`}
+                            onClick={() => ctx.onFileDownload(file)}
+                          />
+                        }
+                      >
+                        <DownloadIcon />
+                      </TooltipTrigger>
+                      <TooltipPopup side="top">Download {file.name}</TooltipPopup>
+                    </Tooltip>
+                  </div>
+                );
+              }
+
               const content = (
                 <>
-                  <FileIcon className="size-4 shrink-0 text-secondary-label" />
-                  <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                  {fileIdentity}
                   {file.downloadable === false ? null : (
                     <DownloadIcon className="size-4 shrink-0" />
                   )}
                 </>
               );
-              return file.previewUrl ? (
+              return file.previewUrl && !opensInPreview ? (
                 <a
                   key={file.id}
                   href={file.previewUrl}
@@ -1255,7 +1297,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                 <button
                   key={file.id}
                   type="button"
-                  aria-label={`Download ${file.name}`}
+                  aria-label={`${opensInPreview ? "Preview" : "Download"} ${file.name}`}
                   onClick={() => ctx.onFileOpen(file)}
                   className="flex min-w-0 cursor-pointer items-center gap-2 rounded-md py-1 text-left text-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
                 >
@@ -1265,7 +1307,11 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
             })}
             {unknownAttachments.map((attachment) => (
               <div key={attachment.id} className="flex min-w-0 items-center gap-2 py-1 text-sm">
-                <FileIcon className="size-4 shrink-0 text-secondary-label" />
+                <PierreEntryIcon
+                  pathValue={attachment.name}
+                  kind="file"
+                  theme={ctx.resolvedTheme}
+                />
                 <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
               </div>
             ))}
@@ -1947,7 +1993,7 @@ function WorkGroupToggleTimelineRow({
     >
       <span className="flex size-6 shrink-0 items-center justify-center text-icon-muted">
         <WorkEntryIcon
-          name={toolGroupSummaryIconName(row.summaryKind)}
+          name={row.summaryToolIcon ?? toolGroupSummaryIconName(row.summaryKind)}
           className="size-4 shrink-0 stroke-[1.8] opacity-70"
         />
       </span>

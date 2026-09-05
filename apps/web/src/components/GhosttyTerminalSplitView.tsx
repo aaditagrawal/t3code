@@ -336,7 +336,6 @@ function GhosttyPane({
       disposed = true;
       void cleanupPromise?.then((cleanup) => cleanup?.());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cwd, runtimeEnv, terminalId, threadId]);
 
   // Handle focus

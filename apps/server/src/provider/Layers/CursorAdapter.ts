@@ -12,6 +12,7 @@ import {
   ProviderInstanceId,
   type ProviderRuntimeEvent,
   type ProviderSession,
+  type RuntimeMode,
   RuntimeItemId,
   RuntimeRequestId,
   RuntimeTaskId,
@@ -124,6 +125,27 @@ function parseCursorResume(raw: unknown): { agentId: string } | undefined {
   }
   const agentId = typeof raw.agentId === "string" ? raw.agentId.trim() : "";
   return agentId ? { agentId } : undefined;
+}
+
+function cursorSdkLocalPermissionOptions(runtimeMode: RuntimeMode): {
+  readonly sandboxOptions: { readonly enabled: boolean };
+  readonly autoReview?: boolean;
+} {
+  switch (runtimeMode) {
+    case "auto":
+      return {
+        sandboxOptions: { enabled: true },
+        autoReview: true,
+      };
+    case "full-access":
+      return {
+        sandboxOptions: { enabled: false },
+      };
+    default:
+      return {
+        sandboxOptions: { enabled: true },
+      };
+  }
 }
 
 function previewUnknown(value: unknown, fallback: string): string {
@@ -985,9 +1007,7 @@ export function makeCursorAdapter(
             local: {
               cwd,
               settingSources: ["all"] as const,
-              sandboxOptions: {
-                enabled: input.runtimeMode !== "full-access",
-              },
+              ...cursorSdkLocalPermissionOptions(input.runtimeMode),
             },
           };
 
