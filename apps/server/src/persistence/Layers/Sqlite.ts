@@ -1,6 +1,3 @@
-import * as NodeOS from "node:os";
-import { HOME_DIR_NAME, LEGACY_HOME_DIR_NAME } from "@t3tools/shared/branding";
-import { importLegacyStateIfNeeded } from "../LegacyStateImport.ts";
 import { makeRuntimeSqliteLayer } from "./RuntimeSqliteLayer.ts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -48,15 +45,7 @@ export const SqlitePersistenceMemory = Layer.provideMerge(
 
 export const layerConfig = Layer.unwrap(
   Effect.gen(function* () {
-    const { baseDir, dbPath, stateDir } = yield* ServerConfig;
-    const path = yield* Path.Path;
-    const home = NodeOS.homedir();
-    yield* importLegacyStateIfNeeded({
-      baseDir,
-      stateDir,
-      defaultBaseDir: path.join(home, HOME_DIR_NAME),
-      legacyBaseDir: path.join(home, LEGACY_HOME_DIR_NAME),
-    });
+    const { dbPath } = yield* ServerConfig;
     return makeSqlitePersistenceLive(dbPath);
   }),
 );
