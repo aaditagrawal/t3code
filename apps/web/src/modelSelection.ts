@@ -153,7 +153,7 @@ function applyInstanceModelPreferences(
   );
 }
 
-function normalizeCustomModelEntries(
+export function normalizeCustomModelEntries(
   models: ReadonlyArray<CustomModelDefinition>,
   builtInModelSlugs: ReadonlySet<string>,
 ): CustomModelDefinition[] {
