@@ -1,34 +1,15 @@
+import * as NodeOS from "node:os";
+import { HOME_DIR_NAME, LEGACY_HOME_DIR_NAME } from "@t3tools/shared/branding";
+import { importLegacyStateIfNeeded } from "../LegacyStateImport.ts";
+import { makeRuntimeSqliteLayer } from "./RuntimeSqliteLayer.ts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
-import type { SqlError } from "effect/unstable/sql/SqlError";
 
 import { runMigrations } from "../Migrations.ts";
 import { ServerConfig } from "../../config.ts";
-
-type RuntimeSqliteLayerConfig = {
-  readonly filename: string;
-  readonly spanAttributes?: Record<string, unknown>;
-};
-
-type Loader = {
-  layer: (config: RuntimeSqliteLayerConfig) => Layer.Layer<SqlClient.SqlClient, SqlError>;
-};
-const defaultSqliteClientLoaders = {
-  bun: () => import("@effect/sql-sqlite-bun/SqliteClient"),
-  node: () => import("@t3tools/shared/nodeSqliteClient"),
-} satisfies Record<string, () => Promise<Loader>>;
-
-const makeRuntimeSqliteLayer = Effect.fn("makeRuntimeSqliteLayer")(function* (
-  config: RuntimeSqliteLayerConfig,
-) {
-  const runtime = process.versions.bun !== undefined ? "bun" : "node";
-  const loader = defaultSqliteClientLoaders[runtime];
-  const clientModule = yield* Effect.promise<Loader>(loader);
-  return clientModule.layer(config);
-}, Layer.unwrap);
 
 const setup = Layer.effectDiscard(
   Effect.gen(function* () {
@@ -67,7 +48,15 @@ export const SqlitePersistenceMemory = Layer.provideMerge(
 
 export const layerConfig = Layer.unwrap(
   Effect.gen(function* () {
-    const { dbPath } = yield* ServerConfig;
+    const { baseDir, dbPath, stateDir } = yield* ServerConfig;
+    const path = yield* Path.Path;
+    const home = NodeOS.homedir();
+    yield* importLegacyStateIfNeeded({
+      baseDir,
+      stateDir,
+      defaultBaseDir: path.join(home, HOME_DIR_NAME),
+      legacyBaseDir: path.join(home, LEGACY_HOME_DIR_NAME),
+    });
     return makeSqlitePersistenceLive(dbPath);
   }),
 );

@@ -1,3 +1,4 @@
+import { HOME_DIR_NAME } from "@t3tools/shared/branding";
 import { resolveClaudeConfigDir as resolveConfiguredClaudeConfigDir } from "../provider/Drivers/ClaudeHome.ts";
 /**
  * AgentSessionScanner - discovery of projects a user already works on.
@@ -502,7 +503,8 @@ function isT3ManagedWorktree(
   const normalized = normalizeForWorktreeMatch(candidatePath, caseFold);
   return (
     normalized.startsWith(normalizeForWorktreeMatch(worktreesDir, caseFold)) ||
-    normalized.includes("/.t3/worktrees/")
+    normalized.includes("/.t3/worktrees/") ||
+    normalized.includes(`/${HOME_DIR_NAME}/worktrees/`)
   );
 }
 

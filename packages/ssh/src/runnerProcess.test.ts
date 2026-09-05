@@ -1,3 +1,4 @@
+import { CLI_BIN_NAME } from "@t3tools/shared/branding";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import { HostProcessPlatform } from "@t3tools/shared/hostProcess";
@@ -158,7 +159,7 @@ if (args.includes("--package")) {
             "--",
             "sh",
             "-c",
-            "command -v t3",
+            `command -v ${CLI_BIN_NAME}`,
           ];
           assert.deepEqual(calls, [expectedCall, expectedCall]);
         }).pipe(Effect.provide(NodeServices.layer), Effect.scoped),

@@ -1,3 +1,4 @@
+import { CLI_BIN_NAME, DEFAULT_SERVER_PORT, HOME_DIR_NAME } from "@t3tools/shared/branding";
 import { assert, describe, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NetService from "@t3tools/shared/Net";
@@ -14,6 +15,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import { SshPasswordPrompt } from "./auth.ts";
 import {
+  DEFAULT_REMOTE_PORT,
   buildRemoteLaunchScript,
   buildRemotePairingScript,
   buildRemoteStopScript,
@@ -104,12 +106,12 @@ describe("ssh tunnel scripts", () => {
     const script = buildRemoteT3RunnerScript({ nodeEngineRange: TEST_NODE_ENGINE_RANGE });
 
     assert.include(script, "T3_NODE_SCRIPT_PATH=''");
-    assert.include(script, 'exec t3 "$@"');
+    assert.include(script, `exec ${CLI_BIN_NAME} "$@"`);
     assert.include(script, 'exec "$T3_CLI_PATH" "$@"');
     assert.include(script, "could not install 't3@latest'");
     assert.include(script, "require_installed_t3_cli npx --yes --package 't3@latest'");
     assert.include(script, "require_installed_t3_cli npm exec --yes --package 't3@latest'");
-    assert.include(script, "npm produced no t3 executable");
+    assert.include(script, `npm produced no ${CLI_BIN_NAME} executable`);
     assert.include(script, 'prepend_path_if_dir "$HOME/.local/bin"');
     assert.include(script, `T3_NODE_ENGINE_RANGE='${TEST_NODE_ENGINE_RANGE}'`);
     assert.include(script, "remote_node_satisfies_engine()");
@@ -443,4 +445,19 @@ describe("ssh tunnel scripts", () => {
       assert.equal(tunnelKillCount, 1);
     }).pipe(Effect.provide(layer), Effect.scoped);
   });
+});
+
+it("isolates remote defaults and launch state from upstream", () => {
+  const target = {
+    alias: "devbox",
+    hostname: "devbox.example.com",
+    username: "julius",
+    port: 2222,
+  };
+  assert.equal(DEFAULT_REMOTE_PORT, DEFAULT_SERVER_PORT);
+  for (const script of [buildRemoteLaunchScript(), buildRemotePairingScript(target)]) {
+    assert.include(script, `$HOME/${HOME_DIR_NAME}`);
+    assert.notInclude(script, "$HOME/.t3/");
+    assert.include(script, `command -v ${CLI_BIN_NAME}`);
+  }
 });

@@ -1,5 +1,5 @@
 /**
- * `t3 pair` - mint a pairing token for an already-running server and print it
+ * `<cli> pair` - mint a pairing token for an already-running server and print it
  * as a QR code, without restarting anything.
  *
  * Discovery reads the `server-runtime.json` a live server persists next to its
@@ -14,6 +14,7 @@ import {
   ExecutionEnvironmentDescriptor,
   PortSchema,
 } from "@t3tools/contracts";
+import { NPM_PACKAGE_NAME } from "@t3tools/shared/branding";
 import { resolveWorktreeT3Home } from "@t3tools/shared/devHome";
 import {
   buildTailscaleHttpsBaseUrl,
@@ -79,7 +80,7 @@ export class NoRunningServerError extends Schema.TaggedErrorClass<NoRunningServe
     return [
       "No running T3 Code server found.",
       ...this.checkedStatePaths.map((statePath) => `  checked ${statePath}`),
-      "Start one with `npx t3 serve`, or connect this machine with T3 Connect: `npx t3 connect`.",
+      `Start one with \`npx ${NPM_PACKAGE_NAME} serve\`, or connect this machine with T3 Connect: \`npx ${NPM_PACKAGE_NAME} connect\`.`,
     ].join("\n");
   }
 }
