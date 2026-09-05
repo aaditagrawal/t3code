@@ -13,7 +13,7 @@ platform="$1"
 device_id="$2"
 server_port="$3"
 base_dir="$4"
-url_scheme="${5:-t3code-dev}"
+url_scheme="${5:-t3code-fork-dev}"
 
 case "$platform" in
   ios)
@@ -64,7 +64,7 @@ case "$platform" in
     # adb shell re-joins its arguments and evaluates them through the device
     # shell, so the deep link's `?`/`&` must be quoted once more for that shell.
     adb -s "$device_id" shell \
-      "am start -W -a android.intent.action.VIEW -d '$deep_link' com.t3tools.t3code.dev" \
+      "am start -W -a android.intent.action.VIEW -d '$deep_link' com.t3tools.t3code.fork.dev" \
       >/dev/null
     ;;
 esac

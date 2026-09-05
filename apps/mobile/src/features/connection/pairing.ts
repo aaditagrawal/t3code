@@ -1,7 +1,14 @@
 import { readHostedPairingRequest } from "@t3tools/shared/remote";
 import * as Schema from "effect/Schema";
 
+import { APP_URL_SCHEMES } from "../../lib/appUrlSchemes";
+
 const MOBILE_PAIRING_URL_PARAM = "pairingUrl";
+
+// Every variant's scheme, not just this build's: a QR minted by a dev or
+// preview build is routinely scanned by a production install, and the payload
+// means the same thing either way.
+const APP_URL_PROTOCOLS = new Set(APP_URL_SCHEMES.map((scheme) => `${scheme}:`));
 
 function isIpLiteral(host: string): boolean {
   try {
@@ -78,7 +85,7 @@ export function extractPairingUrlFromQrPayload(payload: string): string {
 
   try {
     const url = new URL(trimmed);
-    if (url.protocol === "t3code:") {
+    if (APP_URL_PROTOCOLS.has(url.protocol)) {
       const pairingUrl = url.searchParams.get(MOBILE_PAIRING_URL_PARAM)?.trim() ?? "";
       if (pairingUrl.length > 0) {
         return pairingUrl;

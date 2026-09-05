@@ -4,6 +4,15 @@ import type {
   DesktopRuntimeArch,
   DesktopRuntimeInfo,
 } from "@t3tools/contracts";
+import {
+  APP_BASE_NAME,
+  DESKTOP_APP_ID,
+  DESKTOP_APP_ID_DEV,
+  DESKTOP_USER_DATA_DIR_NAME,
+  DESKTOP_USER_DATA_DIR_NAME_DEV,
+  LINUX_DESKTOP_ENTRY_NAME,
+  LINUX_WM_CLASS,
+} from "@t3tools/shared/branding";
 import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -77,7 +86,7 @@ export class DesktopEnvironment extends Context.Service<
     readonly linuxApplicationsDir: string;
     readonly appImagePath: Option.Option<string>;
     readonly userDataDirName: string;
-    readonly legacyUserDataDirName: string;
+    readonly legacyUserDataDirNames: readonly string[];
     readonly defaultDesktopSettings: DesktopAppSettings.DesktopSettings;
     readonly runtimeInfo: DesktopRuntimeInfo;
     readonly resolvePickFolderDefaultPath: (rawOptions: unknown) => Option.Option<string>;
@@ -85,7 +94,19 @@ export class DesktopEnvironment extends Context.Service<
   }
 >()("@t3tools/desktop/app/DesktopEnvironment") {}
 
-const APP_BASE_NAME = "T3 Code";
+/**
+ * userData directory names this build previously wrote to, newest first.
+ *
+ * These are frozen historical values, not branding: the first entry is the
+ * shared (upstream-identical) directory every build used before the fork was
+ * namespaced, and the second is the even older Electron `productName`-derived
+ * directory. Both are read-only for us — {@link DESKTOP_USER_DATA_DIR_NAME} is
+ * the only directory this build writes to, and `DesktopAppIdentity` copies the
+ * first surviving legacy directory into it once so existing installs keep
+ * their state without re-colliding with upstream's single-instance lock.
+ */
+export const LEGACY_USER_DATA_DIR_NAMES = ["t3code", "T3 Code (Alpha)"] as const;
+export const LEGACY_USER_DATA_DIR_NAMES_DEV = ["t3code-dev", "T3 Code (Dev)"] as const;
 
 function resolveDesktopAppStageLabel(input: {
   readonly isDevelopment: boolean;
@@ -178,8 +199,12 @@ const make = Effect.fn("desktop.environment.make")(function* (
     joinPath: path.join,
     t3Home: config.t3Home,
   });
-  const userDataDirName = isDevelopment ? "t3code-dev" : "t3code";
-  const legacyUserDataDirName = isDevelopment ? "T3 Code (Dev)" : "T3 Code (Alpha)";
+  const userDataDirName = isDevelopment
+    ? DESKTOP_USER_DATA_DIR_NAME_DEV
+    : DESKTOP_USER_DATA_DIR_NAME;
+  const legacyUserDataDirNames = isDevelopment
+    ? LEGACY_USER_DATA_DIR_NAMES_DEV
+    : LEGACY_USER_DATA_DIR_NAMES;
   const linuxApplicationsDir = path.join(
     Option.getOrElse(config.xdgDataHome, () => path.join(homeDirectory, ".local", "share")),
     "applications",
@@ -224,14 +249,16 @@ const make = Effect.fn("desktop.environment.make")(function* (
     branding,
     displayName,
     appUserModelId: Option.getOrElse(config.appUserModelIdOverride, () =>
-      isDevelopment ? "com.t3tools.t3code.dev" : "com.t3tools.t3code",
+      isDevelopment ? DESKTOP_APP_ID_DEV : DESKTOP_APP_ID,
     ),
-    linuxDesktopEntryName: isDevelopment ? "t3code-dev.desktop" : "t3code.desktop",
-    linuxWmClass: isDevelopment ? "t3code-dev" : "t3code",
+    linuxDesktopEntryName: isDevelopment
+      ? `${LINUX_DESKTOP_ENTRY_NAME}-dev.desktop`
+      : `${LINUX_DESKTOP_ENTRY_NAME}.desktop`,
+    linuxWmClass: isDevelopment ? `${LINUX_WM_CLASS}-dev` : LINUX_WM_CLASS,
     linuxApplicationsDir,
     appImagePath: config.appImagePath,
     userDataDirName,
-    legacyUserDataDirName,
+    legacyUserDataDirNames,
     defaultDesktopSettings: DesktopAppSettings.resolveDefaultDesktopSettings(input.appVersion),
     runtimeInfo: resolveDesktopRuntimeInfo({
       platform: input.platform,

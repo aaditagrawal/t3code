@@ -11,6 +11,23 @@ OpenCode, Antigravity, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, a
 
 (NOTE: Amp /mode free is not supported, as Amp Code doesn't support it in headless mode - since they need to show ads for that business model to work.)
 
+## Running alongside upstream T3 Code
+
+This fork uses separate application identifiers and state so both builds can run on the same machine.
+
+| Identifier                | This fork                         | Upstream                     |
+| ------------------------- | --------------------------------- | ---------------------------- |
+| State directory           | `~/.t3code-fork`                  | `~/.t3`                      |
+| Default server port       | 3873                              | 3773                         |
+| CLI binary                | `t3f`                             | `t3`                         |
+| Desktop/mobile app ID     | `com.t3tools.t3code.fork`         | `com.t3tools.t3code`         |
+| Desktop profile directory | `t3code-fork`                     | `t3code`                     |
+| URL scheme                | `t3code-fork://`                  | `t3code://`                  |
+| Linux service             | `t3code-fork.service`             | `t3code.service`             |
+| macOS service             | `com.t3tools.t3code.fork.service` | `com.t3tools.t3code.service` |
+
+Existing fork data is imported once when the old database has a recognized, compatible fork migration history. Upstream-only or incompatible databases are left in place. The import copies state and retains a symlink to existing worktrees. **Keep `~/.t3` after upgrading** so those worktrees remain accessible. See [upgrading the fork](docs/user/fork-upgrade.md) for details.
+
 ## Why this fork?
 
 This fork aims to provide a more robust and feature-rich multi-provider experience, with improved server management, visible usage/rate-limit monitoring, more reliable persistence of orchestration events, and UI refinements for settings and model selection.

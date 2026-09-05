@@ -1,4 +1,5 @@
 import type { DesktopAppBranding } from "@t3tools/contracts";
+import { APP_BASE_NAME as FORK_APP_BASE_NAME } from "@t3tools/shared/branding";
 import { formatAppDisplayName } from "./branding.logic";
 
 function readInjectedDesktopAppBranding(): DesktopAppBranding | null {
@@ -16,7 +17,10 @@ export const HOSTED_APP_CHANNEL =
   hostedAppChannel === "latest" || hostedAppChannel === "nightly" ? hostedAppChannel : null;
 export const HOSTED_APP_CHANNEL_LABEL =
   HOSTED_APP_CHANNEL === "nightly" ? "Nightly" : HOSTED_APP_CHANNEL === "latest" ? "Latest" : null;
-export const APP_BASE_NAME = injectedDesktopAppBranding?.baseName ?? "T3 Code";
+// The desktop shell injects its own branding (which is itself sourced from
+// `@t3tools/shared/branding`), so the fork name here is only the browser/PWA
+// fallback. Both paths must agree — never hardcode the product name.
+export const APP_BASE_NAME = injectedDesktopAppBranding?.baseName ?? FORK_APP_BASE_NAME;
 export const APP_STAGE_LABEL =
   injectedDesktopAppBranding?.stageLabel ??
   HOSTED_APP_CHANNEL_LABEL ??

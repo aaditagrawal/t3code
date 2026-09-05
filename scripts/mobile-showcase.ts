@@ -11,6 +11,8 @@ import * as NodeURL from "node:url";
 
 import { PNG } from "pngjs";
 
+import { APP_BASE_NAME, DESKTOP_APP_ID, URL_SCHEME } from "@t3tools/shared/branding";
+
 import showcaseConfig, {
   type ShowcaseAppearance,
   type ShowcaseAndroidDevice,
@@ -33,14 +35,20 @@ import {
 
 const REPO_ROOT = NodePath.resolve(NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)), "..");
 const MOBILE_ROOT = NodePath.join(REPO_ROOT, "apps/mobile");
-const ANDROID_PACKAGE = "com.t3tools.t3code";
-const APP_SCHEME = "t3code";
+// The showcase always builds the production variant, so these mirror
+// `VARIANT_CONFIG.production` in apps/mobile/app.config.ts. The same identifier
+// is the Android package and the iOS bundle id.
+const ANDROID_PACKAGE = DESKTOP_APP_ID;
+const APP_SCHEME = URL_SCHEME;
+// `expo prebuild` names the Xcode project (and therefore the built .app) after
+// the Expo `name` with every non-word character stripped.
+const IOS_PROJECT_NAME = APP_BASE_NAME.replaceAll(/[\W_]+/g, "");
 const IOS_READY_FILENAME = "T3ShowcaseReadyScene";
 const SERVER_HOST = "0.0.0.0";
 const IOS_SIMULATOR_ARCH = NodeProcess.arch === "arm64" ? "arm64" : "x86_64";
 const IOS_APP_PATH = NodePath.join(
   MOBILE_ROOT,
-  ".showcase/ios-derived-data/Build/Products/Debug-iphonesimulator/T3Code.app",
+  `.showcase/ios-derived-data/Build/Products/Debug-iphonesimulator/${IOS_PROJECT_NAME}.app`,
 );
 const ANDROID_APK_PATH = NodePath.join(
   MOBILE_ROOT,
@@ -719,9 +727,9 @@ async function buildIos(): Promise<string> {
     "xcodebuild",
     [
       "-workspace",
-      NodePath.join(MOBILE_ROOT, "ios/T3Code.xcworkspace"),
+      NodePath.join(MOBILE_ROOT, `ios/${IOS_PROJECT_NAME}.xcworkspace`),
       "-scheme",
-      "T3Code",
+      IOS_PROJECT_NAME,
       "-configuration",
       "Debug",
       "-sdk",

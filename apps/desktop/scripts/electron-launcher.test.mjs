@@ -1,6 +1,9 @@
+import { APP_BASE_NAME, DESKTOP_APP_ID } from "@t3tools/shared/branding";
 import { assert, describe, it } from "vite-plus/test";
 
 import {
+  APP_BUNDLE_ID,
+  APP_DISPLAY_NAME,
   makeDevelopmentLauncherScript,
   resolveElectronBinaryPath,
   resolveMacLauncherIconPaths,
@@ -51,21 +54,24 @@ describe("electron development launcher", () => {
     assert.deepEqual(calls, ["ensure", "require:electron"]);
   });
 
-  it("keeps the native Electron executable name inside the branded macOS bundle", () => {
-    const paths = resolveMacLauncherPaths(
-      "/repo/apps/desktop/.electron-runtime/T3 Code (Dev).app",
-      "T3 Code (Dev)",
-    );
+  // The launcher bundle identity must stay namespaced against upstream, or a
+  // dev build re-registers upstream's bundle id and URL schemes with macOS.
+  it("derives its bundle identity from the shared branding module", () => {
+    assert.equal(APP_DISPLAY_NAME, `${APP_BASE_NAME} (Alpha)`);
+    assert.equal(APP_BUNDLE_ID, DESKTOP_APP_ID);
+  });
 
-    assert.equal(paths.launcherExecutableName, "T3 Code (Dev) Launcher");
+  it("keeps the native Electron executable name inside the branded macOS bundle", () => {
+    const devDisplayName = `${APP_BASE_NAME} (Dev)`;
+    const bundlePath = `/repo/apps/desktop/.electron-runtime/${devDisplayName}.app`;
+    const paths = resolveMacLauncherPaths(bundlePath, devDisplayName);
+
+    assert.equal(paths.launcherExecutableName, `${devDisplayName} Launcher`);
     assert.equal(
       paths.launcherBinaryPath,
-      "/repo/apps/desktop/.electron-runtime/T3 Code (Dev).app/Contents/MacOS/T3 Code (Dev) Launcher",
+      `${bundlePath}/Contents/MacOS/${devDisplayName} Launcher`,
     );
-    assert.equal(
-      paths.runtimeElectronBinaryPath,
-      "/repo/apps/desktop/.electron-runtime/T3 Code (Dev).app/Contents/MacOS/Electron",
-    );
+    assert.equal(paths.runtimeElectronBinaryPath, `${bundlePath}/Contents/MacOS/Electron`);
 
     const script = makeDevelopmentLauncherScript({
       electronBinaryPath: paths.runtimeElectronBinaryPath,
@@ -73,10 +79,7 @@ describe("electron development launcher", () => {
       desktopRoot: "/repo/apps/desktop",
       environment: {},
     });
-    assert.include(
-      script,
-      "exec '/repo/apps/desktop/.electron-runtime/T3 Code (Dev).app/Contents/MacOS/Electron'",
-    );
+    assert.include(script, `exec '${bundlePath}/Contents/MacOS/Electron'`);
     assert.notInclude(script, "node_modules/electron");
   });
 
