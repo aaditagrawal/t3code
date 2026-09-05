@@ -30,10 +30,10 @@ import type { CopilotSettings } from "../provider/Drivers/CopilotSettings.ts";
 const UNSUPPORTED_DETAIL =
   "GitHub Copilot does not support headless text generation. Pick a different provider for commit / PR / branch / thread title generation.";
 
-export const makeCopilotTextGeneration = Effect.fn("makeCopilotTextGeneration")(function* (
+export const makeCopilotTextGeneration = Effect.fn("makeCopilotTextGeneration")((
   _copilotSettings: CopilotSettings,
   _environment: NodeJS.ProcessEnv = process.env,
-) {
+) => {
   const fail = <
     Op extends
       | "generateCommitMessage"
@@ -59,10 +59,10 @@ export const makeCopilotTextGeneration = Effect.fn("makeCopilotTextGeneration")(
   const generateThreadTitle: TextGenerationService["generateThreadTitle"] = () =>
     fail("generateThreadTitle");
 
-  return {
+  return Effect.succeed({
     generateCommitMessage,
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
-  } satisfies TextGenerationService;
+  } satisfies TextGenerationService);
 });
