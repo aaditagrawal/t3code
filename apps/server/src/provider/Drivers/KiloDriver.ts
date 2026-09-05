@@ -114,7 +114,7 @@ export const KiloDriver: ProviderDriver<KiloSettings, KiloDriverEnv> = {
       );
 
       const snapshot = yield* makeManagedServerProvider<KiloSettings>({
-        maintenanceCapabilities: MAINTENANCE_CAPABILITIES,
+        resolveMaintenance: () => Effect.succeed(MAINTENANCE_CAPABILITIES),
         getSettings: Effect.succeed(effectiveConfig),
         streamSettings: Stream.never,
         haveSettingsChanged: () => false,

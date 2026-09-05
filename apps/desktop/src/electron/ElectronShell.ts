@@ -1,10 +1,28 @@
-import { REMOTE_CAPABLE_EDITOR_IDS, remoteSchemeForEditor } from "@t3tools/contracts";
+import {
+  REMOTE_CAPABLE_EDITOR_IDS,
+  remoteSchemeForEditor,
+  type SystemSettingsPane,
+} from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 
 import * as Electron from "electron";
+
+/**
+ * Deep links to individual System Settings panes. These are app-fixed, not
+ * renderer-supplied, so they skip `parseSafeExternalUrl` — which exists to keep
+ * arbitrary link schemes from reaching the OS handler — and open through their
+ * own path below. The pane rather than the URL crosses the IPC boundary, so a
+ * renderer can only ask for one of these known destinations.
+ *
+ * Full Disk Access uses the post-Ventura `PrivacySecurity.extension` anchor.
+ */
+const SYSTEM_SETTINGS_URLS: Record<SystemSettingsPane, string> = {
+  "full-disk-access":
+    "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles",
+};
 
 // Remote open-in-editor deep links (`vscode://vscode-remote/ssh-remote+…`)
 // must reach the OS handler; every other non-web scheme stays blocked.
@@ -42,6 +60,7 @@ export function parseSafeExternalUrl(rawUrl: unknown): Option.Option<string> {
 export interface ElectronShellShape {
   readonly openExternal: (rawUrl: unknown) => Effect.Effect<boolean>;
   readonly openPath: (path: string) => Effect.Effect<void>;
+  readonly openSystemSettings: (pane: SystemSettingsPane) => Effect.Effect<boolean>;
   readonly copyText: (text: string) => Effect.Effect<void>;
 }
 
@@ -62,6 +81,13 @@ export const make = ElectronShell.of({
         ),
     }),
   openPath: (path) => Effect.promise(() => Electron.shell.openPath(path)).pipe(Effect.asVoid),
+  openSystemSettings: (pane) =>
+    Effect.promise(() =>
+      Electron.shell.openExternal(SYSTEM_SETTINGS_URLS[pane]).then(
+        () => true,
+        () => false,
+      ),
+    ),
   copyText: (text) =>
     Effect.sync(() => {
       Electron.clipboard.writeText(text);

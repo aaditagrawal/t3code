@@ -1,3 +1,4 @@
+import { symlinksSupported } from "@t3tools/shared/testing/symlinks";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import {
@@ -421,7 +422,8 @@ it.layer(layer)("AntigravityAdapter", (it) => {
         modelSelection: { instanceId, model: nativeAlternative },
       });
       expect(second.model).toBe(nativeAlternative);
-      expect(second.cwd).toBe("/tmp");
+      // The adapter resolves the cwd it was given through the host Path.
+      expect(second.cwd).toBe((yield* Path.Path).resolve("/tmp"));
       expect(h.launches[1]?.resumeSessionId).toBe(nativeSessionId);
       expect(h.calls).toEqual([
         "start",
@@ -1262,6 +1264,38 @@ it.layer(layer)("AntigravityAdapter", (it) => {
       }).pipe(Effect.flip);
       expect(escape._tag).toBe("AcpRequestError");
       expect(yield* fs.exists(path.join(outside, "escape.txt"))).toBe(false);
+      if (symlinksSupported) {
+        const linkedDirectory = path.join(cwd, "outside-link");
+        yield* fs.symlink(outside, linkedDirectory);
+        const linkedEscape = yield* write({
+          sessionId: nativeSessionId,
+          path: path.join(linkedDirectory, "missing", "escape.txt"),
+          content: "nope",
+        }).pipe(Effect.flip);
+        expect(linkedEscape._tag).toBe("AcpRequestError");
+        expect(yield* fs.exists(path.join(outside, "missing"))).toBe(false);
+        const outsideFile = path.join(outside, "existing.txt");
+        yield* fs.writeFileString(outsideFile, "unchanged");
+        const linkedFile = path.join(cwd, "file-link");
+        yield* fs.symlink(outsideFile, linkedFile);
+        expect(
+          (yield* write({ sessionId: nativeSessionId, path: linkedFile, content: "nope" }).pipe(
+            Effect.flip,
+          ))._tag,
+        ).toBe("AcpRequestError");
+        expect(
+          (yield* read({ sessionId: nativeSessionId, path: linkedFile }).pipe(Effect.flip))._tag,
+        ).toBe("AcpRequestError");
+        expect(yield* fs.readFileString(outsideFile)).toBe("unchanged");
+        const dangling = path.join(cwd, "dangling");
+        yield* fs.symlink(path.join(outside, "absent.txt"), dangling);
+        expect(
+          (yield* write({ sessionId: nativeSessionId, path: dangling, content: "nope" }).pipe(
+            Effect.flip,
+          ))._tag,
+        ).toBe("AcpRequestError");
+        expect(yield* fs.exists(path.join(outside, "absent.txt"))).toBe(false);
+      }
       const missing = yield* read({
         sessionId: nativeSessionId,
         path: path.join(cwd, "missing.txt"),

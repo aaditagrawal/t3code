@@ -230,11 +230,51 @@ const resolveClientFilePath = Effect.fn("AntigravityAdapter.resolveClientFilePat
   }) {
     const { path } = input;
     const resolved = path.resolve(input.requestPath);
-    // Follow symlinks on the parent so a link out of the workspace cannot escape it.
-    const parent = yield* input.fileSystem
-      .realPath(path.dirname(resolved))
-      .pipe(Effect.orElseSucceed(() => path.dirname(resolved)));
-    const real = path.join(parent, path.basename(resolved));
+    // Resolve the target itself, or its nearest existing ancestor for new files.
+    // This also follows host aliases such as /var -> /private/var before adding
+    // missing directories, and rejects dangling symlinks instead of following
+    // them after the containment check.
+    let candidate = resolved;
+    const missingParts: Array<string> = [];
+    let real: string;
+    for (;;) {
+      const canonical = yield* input.fileSystem.realPath(candidate).pipe(
+        Effect.map(Option.some),
+        Effect.catch((error) =>
+          error.reason._tag === "NotFound"
+            ? Effect.succeed(Option.none<string>())
+            : Effect.fail(
+                EffectAcpErrors.AcpRequestError.invalidParams(
+                  `Cannot resolve '${input.requestPath}'.`,
+                ),
+              ),
+        ),
+      );
+      if (Option.isSome(canonical)) {
+        real = path.join(canonical.value, ...missingParts);
+        break;
+      }
+      const link = yield* input.fileSystem.readLink(candidate).pipe(
+        Effect.map(Option.some),
+        Effect.catch((error) =>
+          error.reason._tag === "NotFound"
+            ? Effect.succeed(Option.none<string>())
+            : Effect.fail(
+                EffectAcpErrors.AcpRequestError.invalidParams(
+                  `Cannot resolve '${input.requestPath}'.`,
+                ),
+              ),
+        ),
+      );
+      const parent = path.dirname(candidate);
+      if (Option.isSome(link) || parent === candidate) {
+        return yield* EffectAcpErrors.AcpRequestError.invalidParams(
+          `Cannot resolve '${input.requestPath}'.`,
+        );
+      }
+      missingParts.unshift(path.basename(candidate));
+      candidate = parent;
+    }
     const roots = yield* Effect.forEach(input.allowedRoots, (root) =>
       input.fileSystem.realPath(root).pipe(Effect.orElseSucceed(() => root)),
     );

@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, expectTypeOf, it } from "vite-plus/test";
 import * as Schema from "effect/Schema";
 
-import { classifyTaskAgentKind, ProviderRuntimeEvent, RuntimeEventRaw } from "./providerRuntime.ts";
+import {
+  classifyTaskAgentKind,
+  ProviderRuntimeEvent,
+  RuntimeEventRaw,
+  type ProviderRuntimeEventType,
+} from "./providerRuntime.ts";
 
 const decodeRuntimeEvent = Schema.decodeUnknownSync(ProviderRuntimeEvent);
 const decodeRuntimeEventRaw = Schema.decodeUnknownSync(RuntimeEventRaw);
@@ -23,6 +28,10 @@ describe("ProviderRuntimeEvent", () => {
       const parsed = decodeRuntimeEventRaw({ source, payload: {} });
       expect(parsed.source).toBe(source);
     }
+  });
+
+  it("includes every runtime event in the public event type", () => {
+    expectTypeOf<ProviderRuntimeEvent["type"]>().toEqualTypeOf<ProviderRuntimeEventType>();
   });
 
   it("requires input and output totals for complete turn usage", () => {

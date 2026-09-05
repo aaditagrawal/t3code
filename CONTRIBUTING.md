@@ -4,7 +4,7 @@ First off, thank you for considering contributing to this fork! It's people like
 
 ## Developer Setup
 
-See the [maintainer scripts guide](docs/internals/scripts.md#first-checkout) for the initial checkout,
+See the [maintainer scripts guide](docs/operations/development.md#first-checkout) for the initial checkout,
 development commands, tests, and platform-specific desktop packaging prerequisites.
 
 This fork is maintained in [aaditagrawal/t3code](https://github.com/aaditagrawal/t3code) and focuses on expanding provider support, preserving usage and limit monitoring, and improving the core orchestration and persistence layers.

@@ -1274,6 +1274,10 @@ function createTerminalSpawnEnv(
       scrubbed[key] = value;
     }
   }
+  // Both PTY backends feed truecolor-capable terminal clients.
+  if (scrubbed.COLORTERM === undefined || scrubbed.COLORTERM === "") {
+    scrubbed.COLORTERM = "truecolor";
+  }
   return scrubbed;
 }
 
