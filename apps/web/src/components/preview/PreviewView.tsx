@@ -1,4 +1,5 @@
 "use client";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
@@ -104,7 +105,7 @@ export function PreviewView({
   // Kept in sync so the title effect can depend on the stable thread key
   // instead of the thread object, which is recreated on every update.
   const threadRefRef = useRef(threadRef);
-  threadRefRef.current = threadRef;
+  useCommitRef(threadRefRef, threadRef);
   const previewState = useThreadPreviewState(threadRef);
   const recentHistoryEntries = useThreadRecentHistory(
     threadRef,

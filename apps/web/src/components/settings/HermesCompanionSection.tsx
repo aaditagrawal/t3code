@@ -95,45 +95,42 @@ export function HermesCompanionSection(props: {
     onCopy: () => toastManager.add({ type: "success", title: "Enrollment command copied" }),
   });
 
-  const refresh = useCallback(
-    async (quiet = false) => {
-      const generation = ++refreshGeneration.current;
-      if (!quiet) {
-        foregroundRefreshCount.current += 1;
-        setPending(true);
-      }
-      try {
-        const result = await getStatus({
-          environmentId: props.environmentId,
-          input: { instanceId: props.instanceId },
-        });
-        // A management operation or a newer poll superseded this read. Applying
-        // its stale not-enrolled result would hide a just-created enrollment (or
-        // erase the actionable error from a failed operation).
-        if (generation !== refreshGeneration.current) return;
-        if (result._tag === "Success") {
-          setStatus(result.value);
-          if (!connectorUrlHasLocalEdits.current) setConnectorUrl(result.value.connectorUrl);
+  const refresh = useCallback(async (quiet = false) => {
+    const generation = ++refreshGeneration.current;
+    if (!quiet) {
+      foregroundRefreshCount.current += 1;
+      setPending(true);
+    }
+    try {
+      const result = await getStatus({
+        environmentId: props.environmentId,
+        input: { instanceId: props.instanceId },
+      });
+      // A management operation or a newer poll superseded this read. Applying
+      // its stale not-enrolled result would hide a just-created enrollment (or
+      // erase the actionable error from a failed operation).
+      if (generation !== refreshGeneration.current) return;
+      if (result._tag === "Success") {
+        setStatus(result.value);
+        if (!connectorUrlHasLocalEdits.current) setConnectorUrl(result.value.connectorUrl);
+        if (!quiet) setError(null);
+      } else {
+        const failure = squashAtomCommandFailure(result);
+        if (isInstanceNotFoundError(failure)) {
+          // A missing gateway record is the normal, never-enrolled state.
+          setStatus(null);
           if (!quiet) setError(null);
-        } else {
-          const failure = squashAtomCommandFailure(result);
-          if (isInstanceNotFoundError(failure)) {
-            // A missing gateway record is the normal, never-enrolled state.
-            setStatus(null);
-            if (!quiet) setError(null);
-          } else if (!quiet) {
-            setError(messageFromUnknownError(failure));
-          }
-        }
-      } finally {
-        if (!quiet) {
-          foregroundRefreshCount.current -= 1;
-          if (foregroundRefreshCount.current === 0) setPending(false);
+        } else if (!quiet) {
+          setError(messageFromUnknownError(failure));
         }
       }
-    },
-    [getStatus, props.environmentId, props.instanceId],
-  );
+    } finally {
+      if (!quiet) {
+        foregroundRefreshCount.current -= 1;
+        if (foregroundRefreshCount.current === 0) setPending(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     void refresh();

@@ -1,3 +1,4 @@
+import { useLayoutEffect } from "react";
 import { ArchiveIcon, ArchiveX, ChevronRightIcon, LoaderIcon, SettingsIcon } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { CSSProperties, ReactNode } from "react";
@@ -597,52 +598,10 @@ export function useSettingsRestore(onRestored?: () => void) {
     [
       isTextGenerationModelDirty,
       isBackgroundActivityDirty,
-      settings.browserDefaultViewport,
-      settings.browserDefaultZoomFactor,
-      settings.browserDefaultAppearance,
-      settings.browserRecordingFrameRate,
-      settings.browserLinkTarget,
-      settings.browserAutoShowFloatingPreview,
-      settings.appearanceContrast,
-      settings.enableAgentBrowserAccess,
-      settings.confirmQuit,
-      settings.confirmThreadArchive,
-      settings.confirmThreadDelete,
-      settings.confirmThreadUnpin,
-      settings.composerCollapseOnBlur,
-      settings.composerCollapseOnScroll,
-      settings.addProjectBaseDirectory,
-      settings.defaultThreadEnvMode,
-      settings.newWorktreesStartFromOrigin,
-      settings.diffIgnoreWhitespace,
-      settings.diffLayout,
-      settings.proactivePanelsEnabled,
-      settings.environmentIdentificationMode,
-      settings.sidebarArtworkOverride,
-      settings.contextWindowMeterEnabled,
-      settings.fontFamilyCode,
-      settings.fontFamilyComposer,
-      settings.fontFamilySans,
-      settings.fontFamilyTerminal,
-      settings.fontSizeCode,
-      settings.fontSizeInterface,
-      settings.fontSizePrompt,
-      settings.fontSizeTerminal,
-      settings.glassOpacity,
-      settings.panelAnimationDurationMs,
-      settings.enableLegacyTokenStreaming,
-      settings.enableProviderUpdateChecks,
-      settings.continueThreadsAfterServerUpdate,
-      settings.sidebarAutoSettleAfterDays,
-      settings.sidebarAutoSettleOnMerge,
-      settings.sidebarProjectGroupingMode,
-      settings.sidebarThreadPreviewCount,
-      settings.showSkillsInSlashMenu,
-      settings.timestampFormat,
-      settings.wordWrap,
       followSystem,
       theme,
       themeHalves,
+      settings,
     ],
   );
 
@@ -770,7 +729,6 @@ export function useSettingsRestore(onRestored?: () => void) {
     setTheme,
     setThemeHalf,
     theme,
-    themeHalves,
     updateSettings,
   ]);
 
@@ -1685,18 +1643,20 @@ function FontFamilySettingsRow({
   const [draft, setDraft] = useState(value);
   const [draftSettled, setDraftSettled] = useState(true);
   const commitTimerRef = useRef<number | null>(null);
-  const lastValueRef = useRef(value);
-  if (lastValueRef.current !== value) {
+  const [lastValue, setLastValue] = useState(value);
+  if (lastValue !== value) {
     // The committed value changed externally (hydration, reset, picker
     // selection); adopt it and drop any pending commit of a stale draft.
-    lastValueRef.current = value;
+    setLastValue(value);
+    setDraft(value);
+    setDraftSettled(true);
+  }
+  useLayoutEffect(() => {
     if (commitTimerRef.current !== null) {
       window.clearTimeout(commitTimerRef.current);
       commitTimerRef.current = null;
     }
-    setDraft(value);
-    setDraftSettled(true);
-  }
+  }, [value]);
   useEffect(
     () => () => {
       if (commitTimerRef.current !== null) window.clearTimeout(commitTimerRef.current);
@@ -1741,7 +1701,7 @@ function FontFamilySettingsRow({
   // runs font discovery. Where the engine can enumerate, the control then
   // upgrades to the picker - popped open when the swap happens under focus,
   // so the interaction continues without a second click.
-  const inputFocusedRef = useRef(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const familyControl =
     fontEnumeration.status === "granted" ? (
       <FontFamilyPicker
@@ -1749,7 +1709,7 @@ function FontFamilySettingsRow({
         defaultFamily={defaultFamily}
         selectedFamily={trimmed}
         requireMonospace={requireMonospace}
-        initialOpen={inputFocusedRef.current}
+        initialOpen={inputFocused}
         onSelect={onValueChange}
       />
     ) : (
@@ -1762,11 +1722,11 @@ function FontFamilySettingsRow({
         className="min-w-0 flex-1"
         maxLength={200}
         onFocus={() => {
-          inputFocusedRef.current = true;
+          setInputFocused(true);
           discoverInstalledFonts();
         }}
         onBlur={() => {
-          inputFocusedRef.current = false;
+          setInputFocused(false);
           flushDraft();
         }}
         onChange={(event) => {
@@ -1854,9 +1814,11 @@ function AutoSettleDaysInput({
   // Local draft so the field can be emptied mid-edit; the setting only moves
   // on valid input and snaps back to the persisted value on blur.
   const [draft, setDraft] = useState(String(value));
-  useEffect(() => {
+  const [previousValue, setPreviousValue] = useState(value);
+  if (previousValue !== value) {
+    setPreviousValue(value);
     setDraft(String(value));
-  }, [value]);
+  }
 
   return (
     <Input
