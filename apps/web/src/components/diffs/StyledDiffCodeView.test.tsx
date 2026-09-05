@@ -240,6 +240,9 @@ describe("code-view worker lifecycle", () => {
     await Promise.all(testState.terminations);
     vi.useRealTimers();
     vi.restoreAllMocks();
+    // Pierre schedules pool broadcasts through the rAF → setImmediate stub.
+    // Drain those callbacks before unstubbing or cancelAnimationFrame is gone.
+    await new Promise<void>((resolve) => setImmediate(resolve));
     vi.unstubAllGlobals();
   });
 
