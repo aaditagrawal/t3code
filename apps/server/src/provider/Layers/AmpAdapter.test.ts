@@ -123,6 +123,7 @@ it.effect("AmpAdapter delegates session startup to the manager", () =>
   Effect.gen(function* () {
     const manager = new FakeAmpManager();
     const adapter = yield* makeAmpAdapter(enabledAmpSettings, { manager });
+    NodeAssert.equal(adapter.capabilities.supportsConversationRollback, false);
 
     const session = yield* adapter.startSession({
       threadId: asThreadId("thread-1"),

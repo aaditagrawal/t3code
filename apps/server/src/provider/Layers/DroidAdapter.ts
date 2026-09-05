@@ -429,7 +429,7 @@ export function makeDroidAdapter(settings: DroidSettings, options?: DroidAdapter
 
     return {
       provider: DROID_PROVIDER,
-      capabilities: { sessionModelSwitch: "in-session" },
+      capabilities: { sessionModelSwitch: "in-session", supportsConversationRollback: false },
       startSession,
       sendTurn,
       interruptTurn: (threadId) =>

@@ -92,6 +92,7 @@ it.layer(testLayer)("standard ACP provider adapters", (it) => {
               : provider === "ohMyPi"
                 ? decodeOhMyPiSettings({ binaryPath }).pipe(Effect.flatMap(makeOhMyPiAdapter))
                 : decodePiSettings({ binaryPath }).pipe(Effect.flatMap(makePiAdapter));
+        assert.strictEqual(adapter.capabilities.supportsConversationRollback, false);
         const threadId = ThreadId.make(`${provider}-mock-thread`);
         const providerKind = ProviderDriverKind.make(provider);
         const events: ProviderRuntimeEvent[] = [];

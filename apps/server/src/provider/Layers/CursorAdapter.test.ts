@@ -196,6 +196,32 @@ async function withAdapter<A>(
 }
 
 describe("CursorAdapter SDK", () => {
+  it("rejects rollback without changing the retained conversation", async () => {
+    const run = new FakeRun("run-rollback", "agent-rollback", [
+      makeSdkMessage({
+        type: "assistant",
+        message: { role: "assistant", content: [{ type: "text", text: "done" }] },
+      }),
+    ]);
+    const fakeClient = new FakeCursorSdkClient(new FakeAgent("agent-rollback", run));
+    await withAdapter(fakeClient, (adapter) =>
+      Effect.gen(function* () {
+        expect(adapter.capabilities.supportsConversationRollback).toBe(false);
+        const threadId = asThreadId("thread-rollback");
+        yield* adapter.startSession({ threadId, cwd: process.cwd(), runtimeMode: "full-access" });
+        const events = yield* collectThroughTurnCompleted(adapter);
+        yield* adapter.sendTurn({ threadId, input: "hello", attachments: [] });
+        yield* Fiber.join(events);
+        const before = yield* adapter.readThread(threadId);
+        expect(before.turns).toHaveLength(1);
+        const rollback = yield* adapter.rollbackThread(threadId, 1).pipe(Effect.exit);
+        expect(rollback._tag).toBe("Failure");
+        expect(yield* adapter.readThread(threadId)).toEqual(before);
+        expect((yield* adapter.readThread(threadId)).turns).toHaveLength(1);
+      }),
+    );
+  });
+
   it("creates local SDK agents, applies model params, and emits canonical runtime events", async () => {
     const run = new FakeRun("run-1", "agent-1", [
       makeSdkMessage({ type: "status", status: "RUNNING" }),
