@@ -1,6 +1,6 @@
 import * as NodeOS from "node:os";
 // @effect-diagnostics-next-line nodeBuiltinImport:off - Effect Path has no glob matching API.
-import { matchesGlob } from "node:path";
+import * as NodePath from "node:path";
 
 import type { ServerProviderSkill } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
@@ -113,8 +113,8 @@ export const discoverOhMyPiSkills = Effect.fn("discoverOhMyPiSkills")(function* 
           : entry;
       if (
         disabled.has(name) ||
-        ignored.some((pattern) => matchesGlob(name, pattern)) ||
-        (included.length > 0 && !included.some((pattern) => matchesGlob(name, pattern))) ||
+        ignored.some((pattern) => NodePath.matchesGlob(name, pattern)) ||
+        (included.length > 0 && !included.some((pattern) => NodePath.matchesGlob(name, pattern))) ||
         skillsByName.has(name)
       )
         continue;
