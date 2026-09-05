@@ -39,10 +39,6 @@ interface AmpUsageAccumulator {
 
 // ── Types ───────────────────────────────────────────────────────────
 
-type AmpProviderOptions = {
-  readonly binaryPath?: string;
-};
-
 interface AmpSession {
   readonly threadId: ThreadId;
   readonly process: NodeChildProcess.ChildProcessWithoutNullStreams;

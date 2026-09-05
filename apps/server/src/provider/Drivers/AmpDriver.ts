@@ -44,6 +44,8 @@ import {
 import type { ServerProviderDraft } from "../providerSnapshot.ts";
 import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
 
+const decodeSyncGenericProviderSettings = Schema.decodeSync(GenericProviderSettings);
+
 const DRIVER_KIND = ProviderDriverKind.make("amp");
 const SNAPSHOT_REFRESH_INTERVAL = Duration.minutes(5);
 const MAINTENANCE_CAPABILITIES = makeManualOnlyProviderMaintenanceCapabilities({
@@ -83,7 +85,7 @@ export const AmpDriver: ProviderDriver<GenericProviderSettings, AmpDriverEnv> = 
     supportsMultipleInstances: true,
   },
   configSchema: GenericProviderSettings,
-  defaultConfig: (): GenericProviderSettings => Schema.decodeSync(GenericProviderSettings)({}),
+  defaultConfig: (): GenericProviderSettings => decodeSyncGenericProviderSettings({}),
   create: ({ instanceId, displayName, accentColor, environment, enabled, config }) =>
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;

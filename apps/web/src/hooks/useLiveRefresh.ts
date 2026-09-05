@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 /**
  * Keeping what a reader is looking at true, whichever way they arrived at it.
  *
@@ -13,7 +15,7 @@
  * view's own first read is already on its way, and the interval stops as soon as the reader stops
  * reading.
  */
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId } from "react";
 
 /** Long enough that alt-tabbing through windows does not become a request per tab stop. */
 export const LIVE_REFRESH_MIN_INTERVAL_MS = 10_000;
@@ -123,7 +125,7 @@ export function useLiveRefresh(
   // Held in a ref so a caller can pass a fresh closure every render without re-arming the
   // listeners, which would otherwise refresh on every render that changed anything at all.
   const latest = useRef(refresh);
-  latest.current = refresh;
+  useCommitRef(latest, refresh);
   // A caller that shows a different thing in the same place — one panel, a pull request at a time —
   // says which thing it is showing, so the reads it owes follow the thing rather than the slot.
   // Anything else is one view per place it appears, which is what the tree position already means.

@@ -1,3 +1,4 @@
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import {
   StackActions,
@@ -388,11 +389,11 @@ function ThreadRouteContent(
     openFilesInspector: handleOpenFilesInspector,
     toggleAuxiliaryPane,
   });
-  inspectorToggleActionRef.current = {
+  useCommitRef(inspectorToggleActionRef, {
     inspectorMode,
     openFilesInspector: handleOpenFilesInspector,
     toggleAuxiliaryPane,
-  };
+  });
   const handleToggleInspector = useCallback(() => {
     const action = inspectorToggleActionRef.current;
     if (action.inspectorMode === null) {
@@ -454,9 +455,10 @@ function ThreadRouteContent(
       selectedThreadProject?.title,
     ],
   );
+  const propsRenderInspector = props.renderInspector;
   const RouteInspector = useCallback(
-    () => props.renderInspector?.(inspectorHeaderInset),
-    [inspectorHeaderInset, props.renderInspector],
+    () => propsRenderInspector?.(inspectorHeaderInset),
+    [inspectorHeaderInset, propsRenderInspector],
   );
   const renderInspectorStack = useCallback(
     () =>

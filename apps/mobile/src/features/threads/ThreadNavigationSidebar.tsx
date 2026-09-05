@@ -1,3 +1,4 @@
+import { useNowMinute } from "@t3tools/client-runtime/react-clock";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
@@ -84,6 +85,8 @@ import {
   type ThreadListV2ListItem,
 } from "./threadListV2";
 
+const createNativeGesture = Gesture.Native;
+
 /** The sidebar list serves both lists: v1 grouped items or, when the Thread
     List v2 beta is on, flat v2 rows with queued tasks spliced in, and a settled
     "Show more" pager. */
@@ -148,7 +151,7 @@ function ThreadNavigationSidebarPane(
   const searchInputRef = useRef<TextInput>(null);
   const searchBarRef = useRef<SearchBarCommands>(null);
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
-  const sidebarScrollGesture = useMemo(() => Gesture.Native(), []);
+  const sidebarScrollGesture = useMemo(() => createNativeGesture(), []);
   const {
     archiveThread,
     confirmDeleteThread,
@@ -376,9 +379,9 @@ function ThreadNavigationSidebarPane(
     THREAD_LIST_V2_SETTLED_INITIAL_COUNT,
   );
   const settledResetKey = `${options.selectedEnvironmentId ?? "all"}:${selectedProjectKey ?? "all"}:${props.searchQuery.trim()}`;
-  const lastSettledResetKeyRef = useRef(settledResetKey);
-  if (lastSettledResetKeyRef.current !== settledResetKey) {
-    lastSettledResetKeyRef.current = settledResetKey;
+  const [lastSettledResetKey, setLastSettledResetKey] = useState(settledResetKey);
+  if (lastSettledResetKey !== settledResetKey) {
+    setLastSettledResetKey(settledResetKey);
     setSettledVisibleCount(THREAD_LIST_V2_SETTLED_INITIAL_COUNT);
   }
   const showMoreSettled = useCallback(
@@ -393,18 +396,12 @@ function ThreadNavigationSidebarPane(
     toggleSnoozedShelf,
   } = useThreadListV2ShelfPreferences();
   // The queued-start and snooze helpers need a clock while the pane stays open.
-  const [nowMinute, setNowMinute] = useState(() => new Date().toISOString().slice(0, 16));
+  const nowMinute = useNowMinute(threadListV2Enabled);
   // Snooze wake times are second-precise; a counter bumped exactly at the
   // next wake boundary re-runs the partition with a fresh clock so a woken
   // thread reappears immediately instead of on the next minute tick.
-  const [snoozeWakeTick, bumpSnoozeWakeTick] = useState(0);
-  useEffect(() => {
-    if (!threadListV2Enabled) return;
-    // Refresh immediately because the mount-time value can be hours old.
-    setNowMinute(new Date().toISOString().slice(0, 16));
-    const id = setInterval(() => setNowMinute(new Date().toISOString().slice(0, 16)), 60_000);
-    return () => clearInterval(id);
-  }, [threadListV2Enabled]);
+  const [snoozeWakeTick, bumpSnoozeWakeTick] = useState(Date.now);
+
   // Threads on servers without the settlement capability never classify as
   // settled (the user could neither un-settle nor pin them).
   const serverConfigs = useAtomValue(environmentServerConfigsAtom);
@@ -497,7 +494,7 @@ function ThreadNavigationSidebarPane(
       settlementEnvironmentIds,
       snoozeEnvironmentIds,
       settledLimit: settledVisibleCount,
-      now: new Date().toISOString(),
+      now: new Date(Math.max(Date.parse(`${nowMinute}:00Z`), snoozeWakeTick)).toISOString(),
       snoozedShelfExpanded,
       settledShelfExpanded,
       selectedThreadKey: props.selectedThreadKey ?? null,
@@ -526,7 +523,7 @@ function ThreadNavigationSidebarPane(
     const wakeAtMs = Date.parse(nextSnoozeWakeAt);
     if (Number.isNaN(wakeAtMs)) return;
     const delayMs = Math.min(Math.max(0, wakeAtMs - Date.now()) + 50, 2_147_483_647);
-    const id = setTimeout(() => bumpSnoozeWakeTick((tick) => tick + 1), delayMs);
+    const id = setTimeout(() => bumpSnoozeWakeTick(Date.now()), delayMs);
     return () => clearTimeout(id);
     // snoozeWakeTick must re-arm the timer even when nextSnoozeWakeAt is
     // unchanged: after a clamped fire (wake beyond the 32-bit setTimeout
@@ -723,12 +720,13 @@ function ThreadNavigationSidebarPane(
       openSwipeableRef.current = null;
     }
   }, []);
+  const propsOnSelectThread = props.onSelectThread;
   const handleSelectThread = useCallback(
     (thread: EnvironmentThreadShell) => {
-      props.onSelectThread(thread);
+      propsOnSelectThread(thread);
       openSwipeableRef.current?.close();
     },
-    [props.onSelectThread],
+    [propsOnSelectThread],
   );
   const handleScrollBeginDrag = useCallback(() => {
     openSwipeableRef.current?.close();
@@ -806,6 +804,7 @@ function ThreadNavigationSidebarPane(
     },
     [],
   );
+  const propsOnRequestVisibility = props.onRequestVisibility;
   const focusSearch = useCallback(() => {
     const focus = () => {
       if (props.nativeChrome) {
@@ -815,13 +814,13 @@ function ThreadNavigationSidebarPane(
       searchInputRef.current?.focus();
     };
     if (!props.visible) {
-      props.onRequestVisibility();
+      propsOnRequestVisibility();
       setTimeout(focus, 240);
     } else {
       focus();
     }
     return true;
-  }, [props.nativeChrome, props.onRequestVisibility, props.visible]);
+  }, [props.nativeChrome, propsOnRequestVisibility, props.visible]);
   useHardwareKeyboardCommand("focusSearch", focusSearch);
   const renderListItem = useCallback(
     ({ item }: { readonly item: SidebarListItem }) => {

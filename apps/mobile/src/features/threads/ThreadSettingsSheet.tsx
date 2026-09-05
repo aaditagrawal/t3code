@@ -435,6 +435,7 @@ function ThreadSettingsSessionProvider(
     () => props.providerGroups.some((group) => group.models.some((model) => model.isLegacy)),
     [props.providerGroups],
   );
+  const propsOnSelectModel = props.onSelectModel;
   const commitPendingModel = useCallback(() => {
     if (pendingModel) {
       if (!canCommitPendingModel(pendingModel, props.providerGroups)) {
@@ -445,11 +446,12 @@ function ThreadSettingsSessionProvider(
         return false;
       }
       void Haptics.selectionAsync();
-      props.onSelectModel(pendingModel);
+      propsOnSelectModel(pendingModel);
     }
     return true;
-  }, [pendingModel, props.onSelectModel, props.providerGroups]);
+  }, [pendingModel, propsOnSelectModel, props.providerGroups]);
 
+  const propsOnUpdateOptionSelections = props.onUpdateOptionSelections;
   const applyOptionChange = useCallback(
     (id: string, value: string | boolean) => {
       const next = applyProviderOptionSelection(displayedDescriptors, { id, value });
@@ -462,10 +464,10 @@ function ThreadSettingsSessionProvider(
           selection: { ...pendingModel.selection, options: next },
         });
       } else {
-        props.onUpdateOptionSelections(next);
+        propsOnUpdateOptionSelections(next);
       }
     },
-    [displayedDescriptors, pendingModel, props.onUpdateOptionSelections],
+    [displayedDescriptors, pendingModel, propsOnUpdateOptionSelections],
   );
 
   const toggleProvider = useCallback((providerKey: string) => {
@@ -591,10 +593,7 @@ function ThreadSettingsModelListRow(props: {
   readonly isLast: boolean;
 }) {
   const session = useThreadSettingsSession();
-  const onPress = useCallback(
-    () => session.pressModel(props.option),
-    [props.option, session.pressModel],
-  );
+  const onPress = useCallback(() => session.pressModel(props.option), [props.option, session]);
 
   return (
     <ModelRow
@@ -613,7 +612,7 @@ function ThreadSettingsProviderListHeader(props: {
   const session = useThreadSettingsSession();
   const onToggle = useCallback(
     () => session.toggleProvider(props.provider.key),
-    [props.provider.key, session.toggleProvider],
+    [props.provider.key, session],
   );
 
   return (
@@ -687,15 +686,7 @@ function useThreadSettingsCatalogItems(
           })),
         ];
       }),
-    [
-      session.isApplied,
-      session.isDisplayed,
-      session.providerExpansionOverrides,
-      session.providerFilter,
-      session.providerGroups,
-      session.searchQuery,
-      session.showLegacy,
-    ],
+    [session],
   );
 }
 

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { View } from "react-native";
 
 // Minimal in-tree portal for Android overlays. AndroidAnchoredMenu projects
@@ -21,9 +21,7 @@ function emit() {
 
 /** Projects children into the app-root OverlayPortalHost. */
 export function OverlayPortal(props: { readonly children: ReactNode }) {
-  const keyRef = useRef<number | null>(null);
-  keyRef.current ??= nextKey++;
-  const key = keyRef.current;
+  const [key] = useState(() => nextKey++);
 
   // No dependency array: re-project after every render so the host always
   // shows the current content (menus re-render while open — drill-in, theme).

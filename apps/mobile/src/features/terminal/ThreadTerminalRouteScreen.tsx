@@ -717,11 +717,7 @@ export function ThreadTerminalRouteScreen(props: ThreadTerminalRouteScreenProps)
     [isRunning, selectedThread, terminalId, writeTerminal],
   );
 
-  const pasteSessionRef = useRef<ReturnType<typeof createTerminalPasteSession> | null>(null);
-  if (pasteSessionRef.current === null) {
-    pasteSessionRef.current = createTerminalPasteSession();
-  }
-  const pasteSession = pasteSessionRef.current;
+  const [pasteSession] = useState(createTerminalPasteSession);
 
   // Drop delayed clipboard reads whenever the route or attached pty changes.
   useEffect(() => {

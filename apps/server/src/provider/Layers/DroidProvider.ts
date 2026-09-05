@@ -7,11 +7,7 @@ import {
   ReasoningEffort,
 } from "@factory/droid-sdk";
 import * as NodeOS from "node:os";
-import {
-  type DroidSettings,
-  ProviderDriverKind,
-  type ServerProviderModel,
-} from "@t3tools/contracts";
+import { type DroidSettings, type ServerProviderModel } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
@@ -31,7 +27,6 @@ import {
   type ServerProviderDraft,
 } from "../providerSnapshot.ts";
 
-const PROVIDER = ProviderDriverKind.make("droid");
 const DROID_PRESENTATION = {
   displayName: "Droid",
   badgeLabel: "WIP",

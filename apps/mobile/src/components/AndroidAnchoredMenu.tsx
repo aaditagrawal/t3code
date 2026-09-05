@@ -172,6 +172,7 @@ export function AndroidAnchoredMenu(props: AndroidAnchoredMenuProps) {
   // unmounted for that first frame so the fade-in plays at the final position.
   const placeable = local !== null && rootHeight !== null;
 
+  const propsOnPressAction = props.onPressAction;
   const onPressItem = useCallback(
     (action: MenuAction) => {
       if ((action.subactions?.length ?? 0) > 0) {
@@ -180,12 +181,12 @@ export function AndroidAnchoredMenu(props: AndroidAnchoredMenuProps) {
       }
       close();
       if (action.id !== undefined) {
-        props.onPressAction?.({
+        propsOnPressAction?.({
           nativeEvent: { event: action.id },
         } as Parameters<NonNullable<MenuComponentProps["onPressAction"]>>[0]);
       }
     },
-    [close, props.onPressAction],
+    [close, propsOnPressAction],
   );
 
   return (

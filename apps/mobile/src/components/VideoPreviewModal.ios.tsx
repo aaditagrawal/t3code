@@ -51,9 +51,20 @@ function NativeVideoPreview(props: {
       : null;
 
   useEffect(() => Keyboard.dismiss(), []);
-  useEffect(() => {
+  const nextPlaybackUrlResetInputs = [playbackUrl, resolvedUrl];
+  const [playbackUrlResetInputs, setPlaybackUrlResetInputs] = useState<readonly unknown[] | null>(
+    null,
+  );
+  if (
+    playbackUrlResetInputs === null ||
+    nextPlaybackUrlResetInputs.some(
+      (value, index) => !Object.is(value, playbackUrlResetInputs[index]),
+    )
+  ) {
+    setPlaybackUrlResetInputs(nextPlaybackUrlResetInputs);
+
     if (playbackUrl === null && resolvedUrl !== null) setPlaybackUrl(resolvedUrl);
-  }, [playbackUrl, resolvedUrl]);
+  }
   useEffect(() => {
     if (!loadError) return;
     Alert.alert("Could not open video", loadError);
