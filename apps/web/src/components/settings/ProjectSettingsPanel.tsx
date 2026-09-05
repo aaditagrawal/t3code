@@ -502,7 +502,7 @@ function ProjectDetail({ group }: { group: SidebarProjectSnapshot }) {
         setIsSavingFavicon(false);
       }
     },
-    [updateAllMembers],
+    [],
   );
 
   // ----- checkout selection and scripts -----
@@ -617,15 +617,7 @@ function ProjectDetail({ group }: { group: SidebarProjectSnapshot }) {
         setIsSavingScripts(false);
       }
     },
-    [
-      keybindings,
-      removeKeybinding,
-      reportFailure,
-      selectedCheckout.environmentId,
-      selectedCheckout.id,
-      updateProject,
-      upsertKeybinding,
-    ],
+    [],
   );
 
   const submitScript = useCallback(

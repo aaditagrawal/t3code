@@ -56,11 +56,22 @@ export function SidebarProviderUpdatePill() {
     dismissedKeys,
   });
 
-  useEffect(() => {
+  const nextVisibleAfterIsoResetInputs = [effectiveVisibleAfterIso, visibleAfterIso];
+  const [visibleAfterIsoResetInputs, setVisibleAfterIsoResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    visibleAfterIsoResetInputs === null ||
+    nextVisibleAfterIsoResetInputs.some(
+      (value, index) => !Object.is(value, visibleAfterIsoResetInputs[index]),
+    )
+  ) {
+    setVisibleAfterIsoResetInputs(nextVisibleAfterIsoResetInputs);
+
     if (visibleAfterIso === undefined && effectiveVisibleAfterIso !== undefined) {
       setVisibleAfterIso(effectiveVisibleAfterIso);
     }
-  }, [effectiveVisibleAfterIso, visibleAfterIso]);
+  }
 
   const openProviderSettings = useCallback(() => {
     void navigate({ to: "/settings/providers" });

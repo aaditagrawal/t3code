@@ -430,7 +430,7 @@ export function useAppSettings() {
   // Migrate legacy "claudeCode" keys to "claudeAgent" in record-typed settings
   // (e.g. gitTextGenerationModelByProvider.claudeCode, providerAccentColors.claudeCode).
   const migratedSettings = useMemo(() => {
-    let patched = settings;
+    const patched = { ...settings };
     for (const key of ["gitTextGenerationModelByProvider", "providerAccentColors"] as const) {
       const val = patched[key];
       if (val && typeof val === "object" && "claudeCode" in val) {
@@ -439,7 +439,7 @@ export function useAppSettings() {
           record.claudeAgent = record.claudeCode;
         }
         delete record.claudeCode;
-        patched = { ...patched, [key]: record };
+        Object.assign(patched, { [key]: record });
       }
     }
     return patched;

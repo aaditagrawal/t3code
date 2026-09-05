@@ -1,3 +1,4 @@
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import { useAtomValue } from "@effect/atom-react";
 import {
   isAtomCommandInterrupted,
@@ -426,13 +427,14 @@ export function TerminalViewport({
     status: terminalStatus,
     version: terminalVersion,
   });
-  const latestSessionRef = useRef(previousSessionRef.current);
-  latestSessionRef.current = {
+  const latestSession = {
     output: terminalOutput,
     error: terminalError,
     status: terminalStatus,
     version: terminalVersion,
   };
+  const latestSessionRef = useRef(latestSession);
+  useCommitRef(latestSessionRef, latestSession);
 
   useEffect(() => {
     keybindingsRef.current = keybindings;

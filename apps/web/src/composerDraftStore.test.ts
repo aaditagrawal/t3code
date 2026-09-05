@@ -961,7 +961,8 @@ describe("composerDraftStore element contexts", () => {
     expect(accepted).toBe(true);
     const draft = draftFor(threadId, TEST_ENVIRONMENT_ID);
     expect(draft?.elementContexts).toHaveLength(1);
-    const entry = draft?.elementContexts[0]!;
+    const entry = draft?.elementContexts[0];
+    expect.assert(entry);
     expect(entry.id.startsWith("el_")).toBe(true);
     expect(entry.threadId).toBe(threadId);
     expect(entry.pickedAt.length).toBeGreaterThan(0);

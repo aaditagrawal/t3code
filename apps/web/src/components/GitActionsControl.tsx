@@ -1025,7 +1025,6 @@ export default function GitActionsControl({
     () => ({ environmentId: activeEnvironmentId, cwd: gitCwd }),
     [activeEnvironmentId, gitCwd],
   );
-  let runGitActionWithToast: (input: RunGitActionWithToastInput) => Promise<void>;
 
   const updateActiveProgressToast = useCallback(() => {
     const progress = activeGitActionProgressRef.current;
@@ -1258,238 +1257,239 @@ export default function GitActionsControl({
     });
   }, [gitStatusForActions, onOpenPullRequest, openLink, threadToastData]);
 
-  runGitActionWithToast = useEffectEvent(
-    async ({
-      action,
-      commitMessage,
-      onConfirmed,
-      skipDefaultBranchPrompt = false,
-      statusOverride,
-      featureBranch = false,
-      progressToastId,
-      filePaths,
-    }: RunGitActionWithToastInput) => {
-      const actionStatus = statusOverride ?? gitStatusForActions;
-      const actionBranch = actionStatus?.refName ?? null;
-      const actionIsDefaultBranch = featureBranch ? false : isDefaultRef;
-      const actionCanCommit =
-        action === "commit" || action === "commit_push" || action === "commit_push_pr";
-      const includesCommit =
-        actionCanCommit &&
-        (action === "commit" || !!actionStatus?.hasWorkingTreeChanges || featureBranch);
-      if (
-        !skipDefaultBranchPrompt &&
-        requiresDefaultBranchConfirmation(action, actionIsDefaultBranch) &&
-        actionBranch
-      ) {
+  const runGitActionWithToast: (input: RunGitActionWithToastInput) => Promise<void> =
+    useEffectEvent(
+      async ({
+        action,
+        commitMessage,
+        onConfirmed,
+        skipDefaultBranchPrompt = false,
+        statusOverride,
+        featureBranch = false,
+        progressToastId,
+        filePaths,
+      }: RunGitActionWithToastInput) => {
+        const actionStatus = statusOverride ?? gitStatusForActions;
+        const actionBranch = actionStatus?.refName ?? null;
+        const actionIsDefaultBranch = featureBranch ? false : isDefaultRef;
+        const actionCanCommit =
+          action === "commit" || action === "commit_push" || action === "commit_push_pr";
+        const includesCommit =
+          actionCanCommit &&
+          (action === "commit" || !!actionStatus?.hasWorkingTreeChanges || featureBranch);
         if (
-          action !== "push" &&
-          action !== "create_pr" &&
-          action !== "commit_push" &&
-          action !== "commit_push_pr"
+          !skipDefaultBranchPrompt &&
+          requiresDefaultBranchConfirmation(action, actionIsDefaultBranch) &&
+          actionBranch
         ) {
+          if (
+            action !== "push" &&
+            action !== "create_pr" &&
+            action !== "commit_push" &&
+            action !== "commit_push_pr"
+          ) {
+            return;
+          }
+          setPendingDefaultBranchAction({
+            action,
+            branchName: actionBranch,
+            includesCommit,
+            ...(commitMessage ? { commitMessage } : {}),
+            ...(onConfirmed ? { onConfirmed } : {}),
+            ...(filePaths ? { filePaths } : {}),
+          });
           return;
         }
-        setPendingDefaultBranchAction({
+        onConfirmed?.();
+
+        const progressStages = buildGitActionProgressStages({
           action,
-          branchName: actionBranch,
-          includesCommit,
+          hasCustomCommitMessage: !!commitMessage?.trim(),
+          hasWorkingTreeChanges: !!actionStatus?.hasWorkingTreeChanges,
+          featureBranch,
+          terminology: changeRequestTerminology,
+          shouldPushBeforePr:
+            action === "create_pr" &&
+            (!actionStatus?.hasUpstream || (actionStatus?.aheadCount ?? 0) > 0),
+        });
+        const scopedToastData = threadToastData ? { ...threadToastData } : undefined;
+        const actionId = randomUUID();
+        const resolvedProgressToastId =
+          progressToastId ??
+          toastManager.add({
+            type: "loading",
+            title: progressStages[0] ?? "Running git action...",
+            description: "Waiting for Git...",
+            timeout: 0,
+            data: scopedToastData,
+          });
+
+        activeGitActionProgressRef.current = {
+          toastId: resolvedProgressToastId,
+          toastData: scopedToastData,
+          actionId,
+          title: progressStages[0] ?? "Running git action...",
+          phaseStartedAtMs: null,
+          hookStartedAtMs: null,
+          hookName: null,
+          lastOutputLine: null,
+          currentPhaseLabel: progressStages[0] ?? "Running git action...",
+        };
+
+        if (progressToastId) {
+          toastManager.update(progressToastId, {
+            type: "loading",
+            title: progressStages[0] ?? "Running git action...",
+            description: "Waiting for Git...",
+            timeout: 0,
+            data: scopedToastData,
+          });
+        }
+
+        const applyProgressEvent = (event: GitActionProgressEvent) => {
+          const progress = activeGitActionProgressRef.current;
+          if (!progress) {
+            return;
+          }
+          if (gitCwd && event.cwd !== gitCwd) {
+            return;
+          }
+          if (progress.actionId !== event.actionId) {
+            return;
+          }
+
+          const now = Date.now();
+          switch (event.kind) {
+            case "action_started":
+              progress.phaseStartedAtMs = now;
+              progress.hookStartedAtMs = null;
+              progress.hookName = null;
+              progress.lastOutputLine = null;
+              break;
+            case "phase_started":
+              progress.title = event.label;
+              progress.currentPhaseLabel = event.label;
+              progress.phaseStartedAtMs = now;
+              progress.hookStartedAtMs = null;
+              progress.hookName = null;
+              progress.lastOutputLine = null;
+              break;
+            case "hook_started":
+              progress.title = `Running ${event.hookName}...`;
+              progress.hookName = event.hookName;
+              progress.hookStartedAtMs = now;
+              progress.lastOutputLine = null;
+              break;
+            case "hook_output":
+              progress.lastOutputLine = event.text;
+              break;
+            case "hook_finished":
+              progress.title = progress.currentPhaseLabel ?? "Committing...";
+              progress.hookName = null;
+              progress.hookStartedAtMs = null;
+              progress.lastOutputLine = null;
+              break;
+            case "action_finished":
+              // Let the resolved mutation update the toast so we keep the
+              // elapsed description visible until the final success state renders.
+              return;
+            case "action_failed":
+              // Let the settled mutation publish the error toast to avoid a
+              // transient intermediate state before the final failure message.
+              return;
+          }
+
+          updateActiveProgressToast();
+        };
+
+        const result = await runImmediateGitAction.run({
+          actionId,
+          action,
           ...(commitMessage ? { commitMessage } : {}),
-          ...(onConfirmed ? { onConfirmed } : {}),
+          ...(featureBranch ? { featureBranch } : {}),
           ...(filePaths ? { filePaths } : {}),
-        });
-        return;
-      }
-      onConfirmed?.();
-
-      const progressStages = buildGitActionProgressStages({
-        action,
-        hasCustomCommitMessage: !!commitMessage?.trim(),
-        hasWorkingTreeChanges: !!actionStatus?.hasWorkingTreeChanges,
-        featureBranch,
-        terminology: changeRequestTerminology,
-        shouldPushBeforePr:
-          action === "create_pr" &&
-          (!actionStatus?.hasUpstream || (actionStatus?.aheadCount ?? 0) > 0),
-      });
-      const scopedToastData = threadToastData ? { ...threadToastData } : undefined;
-      const actionId = randomUUID();
-      const resolvedProgressToastId =
-        progressToastId ??
-        toastManager.add({
-          type: "loading",
-          title: progressStages[0] ?? "Running git action...",
-          description: "Waiting for Git...",
-          timeout: 0,
-          data: scopedToastData,
+          onProgress: applyProgressEvent,
         });
 
-      activeGitActionProgressRef.current = {
-        toastId: resolvedProgressToastId,
-        toastData: scopedToastData,
-        actionId,
-        title: progressStages[0] ?? "Running git action...",
-        phaseStartedAtMs: null,
-        hookStartedAtMs: null,
-        hookName: null,
-        lastOutputLine: null,
-        currentPhaseLabel: progressStages[0] ?? "Running git action...",
-      };
-
-      if (progressToastId) {
-        toastManager.update(progressToastId, {
-          type: "loading",
-          title: progressStages[0] ?? "Running git action...",
-          description: "Waiting for Git...",
-          timeout: 0,
-          data: scopedToastData,
-        });
-      }
-
-      const applyProgressEvent = (event: GitActionProgressEvent) => {
-        const progress = activeGitActionProgressRef.current;
-        if (!progress) {
-          return;
-        }
-        if (gitCwd && event.cwd !== gitCwd) {
-          return;
-        }
-        if (progress.actionId !== event.actionId) {
-          return;
-        }
-
-        const now = Date.now();
-        switch (event.kind) {
-          case "action_started":
-            progress.phaseStartedAtMs = now;
-            progress.hookStartedAtMs = null;
-            progress.hookName = null;
-            progress.lastOutputLine = null;
-            break;
-          case "phase_started":
-            progress.title = event.label;
-            progress.currentPhaseLabel = event.label;
-            progress.phaseStartedAtMs = now;
-            progress.hookStartedAtMs = null;
-            progress.hookName = null;
-            progress.lastOutputLine = null;
-            break;
-          case "hook_started":
-            progress.title = `Running ${event.hookName}...`;
-            progress.hookName = event.hookName;
-            progress.hookStartedAtMs = now;
-            progress.lastOutputLine = null;
-            break;
-          case "hook_output":
-            progress.lastOutputLine = event.text;
-            break;
-          case "hook_finished":
-            progress.title = progress.currentPhaseLabel ?? "Committing...";
-            progress.hookName = null;
-            progress.hookStartedAtMs = null;
-            progress.lastOutputLine = null;
-            break;
-          case "action_finished":
-            // Let the resolved mutation update the toast so we keep the
-            // elapsed description visible until the final success state renders.
+        activeGitActionProgressRef.current = null;
+        if (result._tag === "Failure") {
+          if (isAtomCommandInterrupted(result)) {
+            toastManager.close(resolvedProgressToastId);
             return;
-          case "action_failed":
-            // Let the settled mutation publish the error toast to avoid a
-            // transient intermediate state before the final failure message.
-            return;
+          }
+
+          const error = squashAtomCommandFailure(result);
+          toastManager.update(
+            resolvedProgressToastId,
+            stackedThreadToast({
+              type: "error",
+              title: "Action failed",
+              description: error instanceof Error ? error.message : "An error occurred.",
+              ...(scopedToastData !== undefined ? { data: scopedToastData } : {}),
+            }),
+          );
+          return;
         }
 
-        updateActiveProgressToast();
-      };
-
-      const result = await runImmediateGitAction.run({
-        actionId,
-        action,
-        ...(commitMessage ? { commitMessage } : {}),
-        ...(featureBranch ? { featureBranch } : {}),
-        ...(filePaths ? { filePaths } : {}),
-        onProgress: applyProgressEvent,
-      });
-
-      activeGitActionProgressRef.current = null;
-      if (result._tag === "Failure") {
-        if (isAtomCommandInterrupted(result)) {
+        const actionResult = result.value;
+        syncThreadBranchAfterGitAction(actionResult);
+        const closeResultToast = () => {
           toastManager.close(resolvedProgressToastId);
-          return;
+        };
+
+        const toastCta = actionResult.toast.cta;
+        let toastActionProps: {
+          children: string;
+          onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+        } | null = null;
+        if (toastCta.kind === "run_action") {
+          toastActionProps = {
+            children: toastCta.label,
+            onClick: () => {
+              closeResultToast();
+              void runGitActionWithToast({
+                action: toastCta.action.kind,
+              });
+            },
+          };
+        } else if (toastCta.kind === "open_pr") {
+          toastActionProps = {
+            children: toastCta.label,
+            onClick: (event) => {
+              closeResultToast();
+              openPrLink(event, toastCta.url);
+            },
+          };
         }
 
-        const error = squashAtomCommandFailure(result);
-        toastManager.update(
-          resolvedProgressToastId,
-          stackedThreadToast({
-            type: "error",
-            title: "Action failed",
-            description: error instanceof Error ? error.message : "An error occurred.",
-            ...(scopedToastData !== undefined ? { data: scopedToastData } : {}),
-          }),
-        );
-        return;
-      }
-
-      const actionResult = result.value;
-      syncThreadBranchAfterGitAction(actionResult);
-      const closeResultToast = () => {
-        toastManager.close(resolvedProgressToastId);
-      };
-
-      const toastCta = actionResult.toast.cta;
-      let toastActionProps: {
-        children: string;
-        onClick: (event: MouseEvent<HTMLButtonElement>) => void;
-      } | null = null;
-      if (toastCta.kind === "run_action") {
-        toastActionProps = {
-          children: toastCta.label,
-          onClick: () => {
-            closeResultToast();
-            void runGitActionWithToast({
-              action: toastCta.action.kind,
-            });
-          },
+        const successToastData = {
+          ...scopedToastData,
+          dismissAfterVisibleMs: 10_000,
         };
-      } else if (toastCta.kind === "open_pr") {
-        toastActionProps = {
-          children: toastCta.label,
-          onClick: (event) => {
-            closeResultToast();
-            openPrLink(event, toastCta.url);
-          },
-        };
-      }
 
-      const successToastData = {
-        ...scopedToastData,
-        dismissAfterVisibleMs: 10_000,
-      };
-
-      if (toastActionProps) {
-        toastManager.update(
-          resolvedProgressToastId,
-          stackedThreadToast({
+        if (toastActionProps) {
+          toastManager.update(
+            resolvedProgressToastId,
+            stackedThreadToast({
+              type: "success",
+              title: actionResult.toast.title,
+              description: actionResult.toast.description,
+              timeout: 0,
+              actionProps: toastActionProps,
+              data: successToastData,
+            }),
+          );
+        } else {
+          toastManager.update(resolvedProgressToastId, {
             type: "success",
             title: actionResult.toast.title,
             description: actionResult.toast.description,
             timeout: 0,
-            actionProps: toastActionProps,
             data: successToastData,
-          }),
-        );
-      } else {
-        toastManager.update(resolvedProgressToastId, {
-          type: "success",
-          title: actionResult.toast.title,
-          description: actionResult.toast.description,
-          timeout: 0,
-          data: successToastData,
-        });
-      }
-    },
-  );
+          });
+        }
+      },
+    );
 
   const continuePendingDefaultBranchAction = () => {
     if (!pendingDefaultBranchAction) return;

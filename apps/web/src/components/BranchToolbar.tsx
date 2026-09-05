@@ -1,3 +1,4 @@
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import {
@@ -252,7 +253,7 @@ function useLabelsOverflow(element: HTMLDivElement | null): boolean {
   // the event callback, which left observers reading the first render's null
   // element forever.
   const stateRef = useRef({ element, overflows });
-  stateRef.current = { element, overflows };
+  useCommitRef(stateRef, { element, overflows });
 
   const measure = useCallback(() => {
     const { element: current, overflows: compact } = stateRef.current;

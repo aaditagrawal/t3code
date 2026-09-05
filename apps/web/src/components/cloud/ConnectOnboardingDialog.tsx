@@ -143,14 +143,25 @@ function ConfiguredConnectOnboardingDialog() {
 
   // Signing out (or switching accounts) mid-wizard invalidates everything the
   // wizard would do — close it and let the sign-in trigger re-evaluate.
-  useEffect(() => {
+  const nextOpenForAccountResetInputs = [isSignedIn, openForAccount, requestedAccount, userId];
+  const [openForAccountResetInputs, setOpenForAccountResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    openForAccountResetInputs === null ||
+    nextOpenForAccountResetInputs.some(
+      (value, index) => !Object.is(value, openForAccountResetInputs[index]),
+    )
+  ) {
+    setOpenForAccountResetInputs(nextOpenForAccountResetInputs);
+
     if (openForAccount !== null && (!isSignedIn || userId !== openForAccount)) {
       setOpenForAccount(null);
     }
     if (requestedAccount !== null && (!isSignedIn || userId !== requestedAccount)) {
       setRequestedAccount(null);
     }
-  }, [isSignedIn, openForAccount, requestedAccount, userId]);
+  }
 
   // Toggles default on, but an environment that is already linked should show
   // its actual configuration instead of silently proposing to rewrite it.
