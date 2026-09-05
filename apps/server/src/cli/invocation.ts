@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 
+import { CLI_BIN_NAME, NPM_PACKAGE_NAME } from "@t3tools/shared/branding";
 import { HostProcessArguments } from "@t3tools/shared/hostProcess";
 
 import packageJson from "../../package.json" with { type: "json" };
@@ -43,7 +44,7 @@ function detectCliRunner(entryPath: string): CliRunner | null {
  * anything else suggests the bare package.
  */
 function suggestedPackageSpec(version: string): string {
-  return version.includes("-nightly.") ? "t3@nightly" : "t3";
+  return version.includes("-nightly.") ? `${NPM_PACKAGE_NAME}@nightly` : NPM_PACKAGE_NAME;
 }
 
 /**
@@ -59,7 +60,7 @@ export function formatCliCommand(input: {
 }): string {
   const runner = detectCliRunner(input.entryPath);
   if (runner === null) {
-    return `t3 ${input.subcommand}`;
+    return `${CLI_BIN_NAME} ${input.subcommand}`;
   }
   return `${runner} ${suggestedPackageSpec(input.version)} ${input.subcommand}`;
 }

@@ -4,6 +4,7 @@ import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NetService from "@t3tools/shared/Net";
+import { DEV_BASE_SERVER_PORT, DEV_BASE_WEB_PORT } from "@t3tools/shared/branding";
 import {
   HostProcessEnvironment,
   HostProcessPlatform,
@@ -66,7 +67,7 @@ const devServerInput = {
   autoBootstrapProjectFromCwd: undefined,
   logWebSocketEvents: undefined,
   host: undefined,
-  port: 13_773,
+  port: DEV_BASE_SERVER_PORT,
   devUrl: undefined,
   dryRun: false,
   share: false,
@@ -324,12 +325,12 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         const env = yield* createDevRunnerEnv({
           mode: "dev:desktop",
           baseEnv: {
-            T3CODE_PORT: "13773",
+            T3CODE_PORT: `${DEV_BASE_SERVER_PORT}`,
             T3CODE_MODE: "web",
             T3CODE_NO_BROWSER: "0",
             T3CODE_HOST: "0.0.0.0",
             VITE_DEV_SERVER_URL: "http://127.0.0.1:8526",
-            VITE_WS_URL: "ws://localhost:13773",
+            VITE_WS_URL: `ws://localhost:${DEV_BASE_SERVER_PORT}`,
           },
           serverOffset: 0,
           webOffset: 0,
@@ -343,8 +344,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         });
 
         assert.equal(env.T3CODE_HOME, path.resolve("/tmp/my-t3"));
-        assert.equal(env.PORT, "5733");
-        assert.equal(env.VITE_DEV_SERVER_URL, "http://127.0.0.1:5733");
+        assert.equal(env.PORT, `${DEV_BASE_WEB_PORT}`);
+        assert.equal(env.VITE_DEV_SERVER_URL, `http://127.0.0.1:${DEV_BASE_WEB_PORT}`);
         assert.equal(env.HOST, "127.0.0.1");
         assert.equal(env.T3CODE_PORT, "4222");
         assert.equal(env.VITE_HTTP_URL, "http://127.0.0.1:4222");
@@ -371,8 +372,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.T3CODE_PORT, "13773");
-        assert.equal(env.PORT, "5733");
+        assert.equal(env.T3CODE_PORT, `${DEV_BASE_SERVER_PORT}`);
+        assert.equal(env.PORT, `${DEV_BASE_WEB_PORT}`);
       }),
     );
 
@@ -401,7 +402,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
 
           assert.equal(env.VITE_HTTP_URL, undefined);
           assert.equal(env.VITE_WS_URL, undefined);
-          assert.equal(env.T3CODE_PORT, "13773");
+          assert.equal(env.T3CODE_PORT, `${DEV_BASE_SERVER_PORT}`);
           // Deleting the keys is not sufficient — vite.config.ts merges
           // `.env`/`.env.local` underneath this env and would revive them, so
           // the intent has to be stated positively.
@@ -429,7 +430,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         });
 
         assert.equal(env.T3CODE_SINGLE_ORIGIN_DEV, undefined);
-        assert.equal(env.VITE_HTTP_URL, "http://127.0.0.1:13773");
+        assert.equal(env.VITE_HTTP_URL, `http://127.0.0.1:${DEV_BASE_SERVER_PORT}`);
       }),
     );
 
@@ -450,7 +451,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         });
 
         assert.equal(env.T3CODE_SINGLE_ORIGIN_DEV, undefined);
-        assert.equal(env.VITE_HTTP_URL, "http://localhost:13773");
+        assert.equal(env.VITE_HTTP_URL, `http://localhost:${DEV_BASE_SERVER_PORT}`);
       }),
     );
 
@@ -539,8 +540,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.VITE_HTTP_URL, "http://127.0.0.1:13773");
-        assert.equal(env.VITE_WS_URL, "ws://127.0.0.1:13773");
+        assert.equal(env.VITE_HTTP_URL, `http://127.0.0.1:${DEV_BASE_SERVER_PORT}`);
+        assert.equal(env.VITE_WS_URL, `ws://127.0.0.1:${DEV_BASE_SERVER_PORT}`);
       }),
     );
   });
@@ -561,7 +562,12 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
 
     it.effect("advances until all required ports are available", () =>
       Effect.gen(function* () {
-        const taken = new Set([13773, 5733, 13774, 5734]);
+        const taken = new Set([
+          DEV_BASE_SERVER_PORT,
+          DEV_BASE_WEB_PORT,
+          DEV_BASE_SERVER_PORT + 1,
+          DEV_BASE_WEB_PORT + 1,
+        ]);
         const offset = yield* findFirstAvailableOffset({
           startOffset: 0,
           requireServerPort: true,
@@ -577,7 +583,9 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       Effect.gen(function* () {
         const probed: Array<{ port: number; role: string | undefined }> = [];
         const offset = yield* findFirstAvailableOffset({
-          // 5733 + 833 = 6566, which browsers block as sane-port.
+          // DEV_BASE_WEB_PORT + 833 = 6666, the first of the browser-blocked
+          // IRC range 6665-6669. Offsets 833-836 all land inside it, so the
+          // first allowed web port is 6670 at offset 837.
           startOffset: 833,
           requireServerPort: true,
           requireWebPort: true,
@@ -587,10 +595,11 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           },
         });
 
-        assert.equal(offset, 834);
+        const expectedOffset = 6670 - DEV_BASE_WEB_PORT;
+        assert.equal(offset, expectedOffset);
         assert.deepStrictEqual(probed, [
-          { port: 14_607, role: "server" },
-          { port: 6567, role: "web" },
+          { port: DEV_BASE_SERVER_PORT + expectedOffset, role: "server" },
+          { port: 6670, role: "web" },
         ]);
       }),
     );
@@ -610,14 +619,17 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
 
     it.effect("allows offsets where the non-required server port exceeds max", () =>
       Effect.gen(function* () {
+        // The largest offset whose (required) web port is still <= MAX_PORT.
+        // The server port at this offset overflows, but it is not required.
+        const maxWebOffset = 65_535 - DEV_BASE_WEB_PORT;
         const offset = yield* findFirstAvailableOffset({
-          startOffset: 59_802,
+          startOffset: maxWebOffset,
           requireServerPort: false,
           requireWebPort: true,
           checkPortAvailability: () => Effect.succeed(true),
         });
 
-        assert.equal(offset, 59_802);
+        assert.equal(offset, maxWebOffset);
       }),
     );
 
@@ -636,8 +648,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         assert.equal(error.startOffset, 51_763);
         assert.equal(error.requireServerPort, true);
         assert.equal(error.requireWebPort, false);
-        assert.equal(error.baseServerPort, 13_773);
-        assert.equal(error.baseWebPort, 5_733);
+        assert.equal(error.baseServerPort, DEV_BASE_SERVER_PORT);
+        assert.equal(error.baseWebPort, DEV_BASE_WEB_PORT);
         assert.equal(error.maximumPort, 65_535);
         assert.ok(!("cause" in error));
       }),
@@ -652,9 +664,12 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       },
     );
 
-    it.each([5733, 5900, 6567, 6670, 8733])("allows browser-safe web port %s", (port) => {
-      assert.equal(isBrowserAllowedPort(port), true);
-    });
+    it.each([DEV_BASE_WEB_PORT, 5900, 6567, 6670, 8733])(
+      "allows browser-safe web port %s",
+      (port) => {
+        assert.equal(isBrowserAllowedPort(port), true);
+      },
+    );
   });
 
   describe("checkPortAvailabilityOnHosts", () => {
@@ -664,7 +679,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         const calls: Array<[number, string]> = [];
 
         const available = yield* checkPortAvailabilityOnHosts(
-          13_773,
+          DEV_BASE_SERVER_PORT,
           ["127.0.0.1", "0.0.0.0", "::"],
           (port, host) =>
             Effect.promise(async () => {
@@ -679,9 +694,9 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
 
         assert.equal(available, true);
         assert.deepStrictEqual(calls, [
-          [13_773, "127.0.0.1"],
-          [13_773, "0.0.0.0"],
-          [13_773, "::"],
+          [DEV_BASE_SERVER_PORT, "127.0.0.1"],
+          [DEV_BASE_SERVER_PORT, "0.0.0.0"],
+          [DEV_BASE_SERVER_PORT, "::"],
         ]);
       }),
     );
@@ -733,8 +748,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         });
 
         assert.deepStrictEqual(probed, [
-          { port: 13_773, role: "server" },
-          { port: 5733, role: "web" },
+          { port: DEV_BASE_SERVER_PORT, role: "server" },
+          { port: DEV_BASE_WEB_PORT, role: "web" },
         ]);
       }),
     );
@@ -743,7 +758,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
   describe("resolveModePortOffsets", () => {
     it.effect("uses a shared fallback offset for dev mode", () =>
       Effect.gen(function* () {
-        const taken = new Set([13773, 5733]);
+        const taken = new Set([DEV_BASE_SERVER_PORT, DEV_BASE_WEB_PORT]);
         const offsets = yield* resolveModePortOffsets({
           mode: "dev",
           startOffset: 0,
@@ -758,7 +773,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
 
     it.effect("keeps server offset stable for dev:web and only shifts web offset", () =>
       Effect.gen(function* () {
-        const taken = new Set([5733]);
+        const taken = new Set([DEV_BASE_WEB_PORT]);
         const offsets = yield* resolveModePortOffsets({
           mode: "dev:web",
           startOffset: 0,
@@ -773,7 +788,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
 
     it.effect("shifts only server offset for dev:server", () =>
       Effect.gen(function* () {
-        const taken = new Set([13773]);
+        const taken = new Set([DEV_BASE_SERVER_PORT]);
         const offsets = yield* resolveModePortOffsets({
           mode: "dev:server",
           startOffset: 0,

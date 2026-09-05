@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - CLI integration exercises Node HTTP and filesystem boundaries.
+import { CLI_BIN_NAME } from "@t3tools/shared/branding";
 import * as NodeHttp from "node:http";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
@@ -447,7 +448,7 @@ it.layer(NodeServices.layer)("bin cli parsing", (it) => {
       if (error._tag !== "ShowHelp") {
         assert.fail(`Expected ShowHelp, got ${error._tag}`);
       }
-      assert.deepEqual(error.commandPath, ["t3", "connect"]);
+      assert.deepEqual(error.commandPath, [CLI_BIN_NAME, "connect"]);
       assert.include(error.errors[0]?.message ?? "", "missing T3 Connect public configuration");
 
       const output = (yield* TestConsole.errorLines).join("\n");
@@ -676,7 +677,7 @@ it.layer(NodeServices.layer)("bin cli parsing", (it) => {
       if (error._tag !== "ShowHelp") {
         assert.fail(`Expected ShowHelp, got ${error._tag}`);
       }
-      assert.deepEqual(error.commandPath, ["t3", "auth", "pairing", "create"]);
+      assert.deepEqual(error.commandPath, [CLI_BIN_NAME, "auth", "pairing", "create"]);
       const ttlError = error.errors[0] as CliError.CliError | undefined;
       if (!ttlError || ttlError._tag !== "InvalidValue") {
         assert.fail(`Expected InvalidValue, got ${String(ttlError?._tag)}`);
@@ -844,7 +845,7 @@ it.layer(NodeServices.layer)("bin cli parsing", (it) => {
       if (error._tag !== "ShowHelp") {
         assert.fail(`Expected ShowHelp, got ${error._tag}`);
       }
-      assert.deepEqual(error.commandPath, ["t3", "project", "add"]);
+      assert.deepEqual(error.commandPath, [CLI_BIN_NAME, "project", "add"]);
       const optionError = error.errors[0] as CliError.CliError | undefined;
       if (!optionError || optionError._tag !== "UnrecognizedOption") {
         assert.fail(`Expected UnrecognizedOption, got ${String(optionError?._tag)}`);

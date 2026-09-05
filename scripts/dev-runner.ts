@@ -5,6 +5,12 @@ import * as NodeOS from "node:os";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NetService from "@t3tools/shared/Net";
+import {
+  DEV_BASE_SERVER_PORT,
+  DEV_BASE_WEB_PORT,
+  HOME_DIR_NAME,
+  NPM_PACKAGE_NAME,
+} from "@t3tools/shared/branding";
 import { resolveGitWorktreePath, resolveWorktreeT3Home } from "@t3tools/shared/devHome";
 import { HostProcessEnvironment, HostProcessWorkingDirectory } from "@t3tools/shared/hostProcess";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
@@ -24,8 +30,8 @@ import { loadRepoEnv } from "./lib/public-config.ts";
 
 Object.assign(process.env, loadRepoEnv());
 
-const BASE_SERVER_PORT = 13773;
-const BASE_WEB_PORT = 5733;
+const BASE_SERVER_PORT = DEV_BASE_SERVER_PORT;
+const BASE_WEB_PORT = DEV_BASE_WEB_PORT;
 const MAX_HASH_OFFSET = 3000;
 const MAX_PORT = 65535;
 const DESKTOP_DEV_LOOPBACK_HOST = "127.0.0.1";
@@ -68,7 +74,7 @@ export function isProxiableBindHost(host: string): boolean {
 }
 
 export const DEFAULT_T3_HOME = Effect.map(Effect.service(Path.Path), (path) =>
-  path.join(NodeOS.homedir(), ".t3"),
+  path.join(NodeOS.homedir(), HOME_DIR_NAME),
 );
 
 const MODE_ARGS = {
@@ -76,11 +82,11 @@ const MODE_ARGS = {
     "run",
     "--filter=@t3tools/contracts",
     "--filter=@t3tools/web",
-    "--filter=t3",
+    `--filter=${NPM_PACKAGE_NAME}`,
     "--parallel",
     "dev",
   ],
-  "dev:server": ["run", "--filter=t3", "dev"],
+  "dev:server": ["run", `--filter=${NPM_PACKAGE_NAME}`, "dev"],
   "dev:web": ["run", "--filter=@t3tools/web", "dev"],
   "dev:desktop": ["run", "--filter=@t3tools/desktop", "--filter=@t3tools/web", "dev"],
 } as const satisfies Record<string, ReadonlyArray<string>>;
@@ -267,7 +273,7 @@ export function resolveOffset(config: {
   // restarts and distinct from its siblings. Without this every worktree starts
   // at offset 0 and scan-collides onto whatever happens to be free that minute,
   // so ports move under you between runs — which breaks any URL you already
-  // shared. The main checkout keeps the documented 5733/13773.
+  // shared. The main checkout keeps the base dev ports from `branding.ts`.
   const worktreePath = config.worktreePath?.trim();
   if (worktreePath) {
     const offset = ((Hash.string(worktreePath) >>> 0) % MAX_HASH_OFFSET) + 1;

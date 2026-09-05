@@ -1,3 +1,9 @@
+import {
+  CLI_BIN_NAME,
+  DEFAULT_SERVER_PORT,
+  HOME_DIR_NAME,
+  NPM_PACKAGE_NAME,
+} from "@t3tools/shared/branding";
 import type {
   DesktopSshEnvironmentBootstrap,
   DesktopSshEnvironmentTarget,
@@ -49,7 +55,7 @@ import {
   SshReadinessError,
 } from "./errors.ts";
 
-export const DEFAULT_REMOTE_PORT = 3773;
+export const DEFAULT_REMOTE_PORT = DEFAULT_SERVER_PORT;
 const REMOTE_PORT_SCAN_WINDOW = 200;
 const SSH_READY_TIMEOUT_MS = 20_000;
 const SSH_READY_PROBE_TIMEOUT_MS = 1_000;
@@ -423,8 +429,8 @@ if [ -n "$T3_NODE_SCRIPT_PATH" ]; then
   fi
   exec node "$T3_NODE_SCRIPT_PATH" "$@"
 fi
-if command -v t3 >/dev/null 2>&1; then
-  exec t3 "$@"
+if command -v ${CLI_BIN_NAME} >/dev/null 2>&1; then
+  exec ${CLI_BIN_NAME} "$@"
 fi
 # npm extracts a package before it runs the native builds of its dependencies,
 # so a failed build (t3 depends on node-pty, which needs a C toolchain) leaves
@@ -433,11 +439,11 @@ fi
 # never becomes ready. Resolve the CLI once up front so that install failure is
 # reported here, with npm's own output on stderr.
 require_installed_t3_cli() {
-  T3_CLI_PATH="$("$@" -- sh -c 'command -v t3' || true)"
+  T3_CLI_PATH="$("$@" -- sh -c 'command -v ${CLI_BIN_NAME}' || true)"
   if [ -n "$T3_CLI_PATH" ]; then
     return 0
   fi
-  printf 'Remote host installed %s but npm produced no t3 executable, which usually means a native dependency (node-pty) failed to build. Install a C toolchain on the remote host (Debian/Ubuntu: build-essential, Fedora/RHEL: gcc-c++ make, macOS: xcode-select --install) and try again.\\n' @@T3_PACKAGE_SPEC@@ >&2
+  printf 'Remote host installed %s but npm produced no ${CLI_BIN_NAME} executable, which usually means a native dependency (node-pty) failed to build. Install a C toolchain on the remote host (Debian/Ubuntu: build-essential, Fedora/RHEL: gcc-c++ make, macOS: xcode-select --install) and try again.\\n' @@T3_PACKAGE_SPEC@@ >&2
   return 1
 }
 # The launcher records this PID, so exec the CLI without an npm wrapper process.
@@ -449,15 +455,15 @@ if command -v npm >/dev/null 2>&1; then
   require_installed_t3_cli npm exec --yes --package @@T3_PACKAGE_SPEC@@ || exit 1
   exec "$T3_CLI_PATH" "$@"
 fi
-printf 'Remote host is missing the t3 CLI and could not install @@T3_PACKAGE_SPEC@@ because node/npm/npx are unavailable on PATH. Install Node or configure a supported version manager for non-interactive shells.\\n' >&2
+printf 'Remote host is missing the ${CLI_BIN_NAME} CLI and could not install @@T3_PACKAGE_SPEC@@ because node/npm/npx are unavailable on PATH. Install Node or configure a supported version manager for non-interactive shells.\\n' >&2
 exit 1
 `;
 
 export const REMOTE_LAUNCH_SCRIPT = `set -eu
 @@T3_NODE_ENV_SCRIPT@@
 STATE_KEY="$1"
-STATE_DIR="$HOME/.t3/ssh-launch/$STATE_KEY"
-DEFAULT_SERVER_HOME="$HOME/.t3"
+STATE_DIR="$HOME/${HOME_DIR_NAME}/ssh-launch/$STATE_KEY"
+DEFAULT_SERVER_HOME="$HOME/${HOME_DIR_NAME}"
 DEFAULT_RUNTIME_FILE="$DEFAULT_SERVER_HOME/userdata/server-runtime.json"
 PORT_FILE="$STATE_DIR/port"
 PID_FILE="$STATE_DIR/pid"
@@ -613,8 +619,8 @@ printf '{"remotePort":%s,"serverKind":"%s"}\\n' "$REMOTE_PORT" "\${REMOTE_MANAGE
 `;
 
 export const REMOTE_PAIRING_SCRIPT = `set -eu
-STATE_DIR="$HOME/.t3/ssh-launch/@@T3_STATE_KEY@@"
-DEFAULT_SERVER_HOME="$HOME/.t3"
+STATE_DIR="$HOME/${HOME_DIR_NAME}/ssh-launch/@@T3_STATE_KEY@@"
+DEFAULT_SERVER_HOME="$HOME/${HOME_DIR_NAME}"
 RUNNER_FILE="$STATE_DIR/run-t3.sh"
 mkdir -p "$STATE_DIR"
 cat >"$RUNNER_FILE" <<'SH'
@@ -626,7 +632,7 @@ PAIRING_BASE_DIR="$DEFAULT_SERVER_HOME"
 `;
 
 export const REMOTE_STOP_SCRIPT = `set -eu
-STATE_DIR="$HOME/.t3/ssh-launch/@@T3_STATE_KEY@@"
+STATE_DIR="$HOME/${HOME_DIR_NAME}/ssh-launch/@@T3_STATE_KEY@@"
 PID_FILE="$STATE_DIR/pid"
 PORT_FILE="$STATE_DIR/port"
 MANAGED_FILE="$STATE_DIR/managed"
@@ -645,7 +651,7 @@ printf '{"stopped":true}\\n'
 `;
 
 const REMOTE_LOG_TAIL_SCRIPT = `set -eu
-STATE_DIR="$HOME/.t3/ssh-launch/@@T3_STATE_KEY@@"
+STATE_DIR="$HOME/${HOME_DIR_NAME}/ssh-launch/@@T3_STATE_KEY@@"
 LOG_FILE="$STATE_DIR/server.log"
 if [ -f "$LOG_FILE" ]; then
   tail -n 80 "$LOG_FILE" 2>/dev/null || true
@@ -653,7 +659,7 @@ fi
 `;
 
 export function buildRemoteT3RunnerScript(input?: RemoteT3RunnerOptions): string {
-  const packageSpec = shellSingleQuote(input?.packageSpec?.trim() || "t3@latest");
+  const packageSpec = shellSingleQuote(input?.packageSpec?.trim() || `${NPM_PACKAGE_NAME}@latest`);
   const nodeScriptPath = input?.nodeScriptPath?.trim() || "";
   return stripTrailingNewlines(
     applyScriptPlaceholders(REMOTE_RUNNER_SCRIPT, {

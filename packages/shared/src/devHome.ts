@@ -1,11 +1,23 @@
 /**
- * Where development state lives, and how to keep it away from the shared
- * `~/.t3` that a user's installed T3 Code runs against.
+ * Where development state lives, and how to keep it away from the shared home
+ * directory that a user's installed T3 Code runs against.
  *
  * A linked git worktree gets its own (gitignored) `.t3`: feature work in a
  * throwaway branch must not share a database with the real app, and an ambient
  * `T3CODE_HOME` counts as an explicit base dir — flipping the state directory
  * from `<base>/dev` to `<base>/userdata`, the live production database.
+ *
+ * ## Why this name is NOT `HOME_DIR_NAME`
+ *
+ * The fork namespaces its home directory (see `@t3tools/shared/branding`) so it
+ * can be installed beside upstream. That collision is a `$HOME`-level one: both
+ * builds resolved the same absolute `~/.t3`. This directory is worktree-local,
+ * so it is already isolated by its containing path — an upstream checkout and a
+ * fork checkout are different directories and can never resolve to the same
+ * place. Following `HOME_DIR_NAME` here would buy no isolation while costing
+ * two things: the repo's `.gitignore` entry is literally `.t3`, so a rename
+ * would silently start tracking worktree dev state (databases, secrets), and
+ * every existing worktree would strand its state behind under the old name.
  */
 
 import * as Effect from "effect/Effect";

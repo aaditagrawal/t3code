@@ -1,3 +1,4 @@
+import { HOME_DIR_NAME } from "@t3tools/shared/branding";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeOS from "node:os";
 import { describe, expect, it } from "@effect/vitest";
@@ -876,6 +877,28 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         });
 
         const result = yield* runScan({ claudeHomePath, codexHomePath });
+
+        expect(result.candidates).toEqual([]);
+      }),
+    );
+
+    it.effect("excludes default fork worktrees when another server home is configured", () =>
+      Effect.gen(function* () {
+        const path = yield* Path.Path;
+        const claudeHomePath = yield* makeClaudeConfigDir("t3code-claude-home-");
+        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
+        const fileSystem = yield* FileSystem.FileSystem;
+
+        const configBaseDir = yield* makeTempDir("t3code-scanner-other-base-");
+        const worktreeCwd = path.join(claudeHomePath, HOME_DIR_NAME, "worktrees", "t3code", "wt-1");
+        yield* fileSystem.makeDirectory(worktreeCwd, { recursive: true });
+        yield* writeTranscript({
+          filePath: path.join(claudeHomePath, "projects", "-slug", "a.jsonl"),
+          contents: claudeSessionLine(worktreeCwd),
+          mtimeMs: Date.parse("2026-01-01T00:00:00.000Z"),
+        });
+
+        const result = yield* runScan({ claudeHomePath, codexHomePath, configBaseDir });
 
         expect(result.candidates).toEqual([]);
       }),

@@ -1,4 +1,6 @@
 import * as NetService from "@t3tools/shared/Net";
+import { HOME_DIR_NAME, LEGACY_HOME_DIR_NAME } from "@t3tools/shared/branding";
+import * as NodeOS from "node:os";
 import { parsePersistedServerObservabilitySettings } from "@t3tools/shared/serverSettings";
 import { DesktopBackendBootstrap, PortSchema } from "@t3tools/contracts";
 import * as Config from "effect/Config";
@@ -16,6 +18,7 @@ import { Argument, Flag } from "effect/unstable/cli";
 import { readBootstrapEnvelope } from "../bootstrap.ts";
 import * as ServerConfig from "../config.ts";
 import { expandHomePath, resolveBaseDir } from "../os-jank.ts";
+import { importLegacyStateIfNeeded } from "../persistence/LegacyStateImport.ts";
 
 export const modeFlag = Flag.choice("mode", ServerConfig.RuntimeMode.literals).pipe(
   Flag.withDescription("Runtime mode. `desktop` keeps loopback defaults unless overridden."),
@@ -285,6 +288,15 @@ export const resolveServerConfig = (
     yield* fs.makeDirectory(cwd, { recursive: true });
     const derivedPaths = yield* ServerConfig.deriveServerPaths(baseDir, devUrl, {
       baseDirIsExplicit: Option.isSome(explicitBaseDir),
+    });
+    // Import before any service initializes identity, secrets, or settings in
+    // the new home. Persistence is acquired after those services at startup.
+    const home = NodeOS.homedir();
+    yield* importLegacyStateIfNeeded({
+      baseDir,
+      stateDir: derivedPaths.stateDir,
+      defaultBaseDir: path.join(home, HOME_DIR_NAME),
+      legacyBaseDir: path.join(home, LEGACY_HOME_DIR_NAME),
     });
     yield* ServerConfig.ensureServerDirectories(derivedPaths);
     const persistedObservabilitySettings = yield* loadPersistedObservabilitySettings(

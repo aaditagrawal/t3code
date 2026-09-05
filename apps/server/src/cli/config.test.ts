@@ -10,6 +10,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
+import { afterEach, vi } from "vite-plus/test";
 
 import {
   DesktopBackendBootstrap,
@@ -18,7 +19,18 @@ import {
 import * as NetService from "@t3tools/shared/Net";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { deriveServerPaths } from "../config.ts";
+import * as ServerConfig from "../config.ts";
+import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import { HOME_DIR_NAME, LEGACY_HOME_DIR_NAME } from "@t3tools/shared/branding";
+import { makeSqlitePersistenceLive } from "../persistence/Layers/Sqlite.ts";
 import { resolveServerConfig } from "./config.ts";
+
+vi.mock("node:os", async (importOriginal) => {
+  const os = await importOriginal<typeof import("node:os")>();
+  return { ...os, homedir: vi.fn(os.homedir) };
+});
+
+afterEach(() => vi.mocked(NodeOS.homedir).mockReset());
 
 const deriveExplicitServerPaths = (baseDir: string, devUrl: URL | undefined) =>
   deriveServerPaths(baseDir, devUrl, { baseDirIsExplicit: true });
@@ -40,6 +52,67 @@ const makeDesktopBootstrap = (
 });
 
 it.layer(NodeServices.layer)("cli config resolution", (it) => {
+  it.effect("imports legacy identity and settings before initializing runtime services", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const home = yield* fs.makeTempDirectoryScoped({ prefix: "t3-cli-legacy-startup-" });
+      vi.mocked(NodeOS.homedir).mockReturnValue(home);
+      const legacyPaths = yield* deriveServerPaths(
+        path.join(home, LEGACY_HOME_DIR_NAME),
+        undefined,
+      );
+      yield* Effect.provide(Effect.void, makeSqlitePersistenceLive(legacyPaths.dbPath));
+      const legacyId = "7a15b1c3-6f81-47fa-b3d9-9f43acd7072d";
+      yield* fs.writeFileString(legacyPaths.environmentIdPath, `${legacyId}\n`);
+      yield* fs.writeFileString(
+        legacyPaths.settingsPath,
+        '{"observability":{"otlpTracesUrl":"http://localhost:4318/v1/traces"}}',
+      );
+
+      const resolved = yield* resolveServerConfig(
+        {
+          mode: Option.some("desktop"),
+          port: Option.some(4888),
+          host: Option.none(),
+          baseDir: Option.none(),
+          cwd: Option.none(),
+          devUrl: Option.none(),
+          noBrowser: Option.none(),
+          bootstrapFd: Option.none(),
+          autoBootstrapProjectFromCwd: Option.none(),
+          logWebSocketEvents: Option.none(),
+          tailscaleServeEnabled: Option.none(),
+          tailscaleServePort: Option.none(),
+        },
+        Option.none(),
+      ).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })),
+            NetService.layer,
+          ),
+        ),
+      );
+
+      expect(resolved.baseDir).toBe(path.join(home, HOME_DIR_NAME));
+      // Production acquires this identity before persistence. It must see the
+      // imported value, not publish a fresh identity that blocks the import.
+      const environmentId = yield* Effect.gen(function* () {
+        const identity = yield* ServerEnvironment.ServerEnvironmentIdentity;
+        return yield* identity.getEnvironmentId;
+      }).pipe(
+        Effect.provide(
+          ServerEnvironment.identityLayer.pipe(Layer.provide(ServerConfig.layer(resolved))),
+        ),
+      );
+      expect(environmentId).toBe(legacyId);
+      expect(resolved.otlpTracesUrl).toBe("http://localhost:4318/v1/traces");
+      expect(yield* fs.readFileString(resolved.environmentIdPath)).toBe(`${legacyId}\n`);
+      expect(yield* fs.readFileString(legacyPaths.environmentIdPath)).toBe(`${legacyId}\n`);
+    }),
+  );
+
   const defaultObservabilityConfig = {
     traceMinLevel: "Info",
     traceTimingEnabled: true,

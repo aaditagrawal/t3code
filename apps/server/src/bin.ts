@@ -5,6 +5,7 @@ import * as Layer from "effect/Layer";
 import { Argument, Command } from "effect/unstable/cli";
 import * as CliError from "effect/unstable/cli/CliError";
 
+import { CLI_BIN_NAME } from "@t3tools/shared/branding";
 import * as NetService from "@t3tools/shared/Net";
 import packageJson from "../package.json" with { type: "json" };
 import { authCommand } from "./cli/auth.ts";
@@ -40,7 +41,7 @@ const connectUnavailableCommand = Command.make("connect", {
   Command.withHandler(() =>
     Effect.fail(
       new CliError.ShowHelp({
-        commandPath: ["t3", "connect"],
+        commandPath: [CLI_BIN_NAME, "connect"],
         errors: [new ConnectPublicConfigMissingError({ cause: connectPublicConfigMissingMessage })],
       }),
     ),
@@ -48,7 +49,7 @@ const connectUnavailableCommand = Command.make("connect", {
 );
 
 export const makeCli = ({ cloudEnabled = hasCloudPublicConfig } = {}) =>
-  Command.make("t3", { ...sharedServerCommandFlags }).pipe(
+  Command.make(CLI_BIN_NAME, { ...sharedServerCommandFlags }).pipe(
     Command.withDescription("Run the T3 Code server."),
     Command.withHandler((flags) => runServerCommand(flags)),
     Command.withSubcommands([

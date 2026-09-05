@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./branding": {
+      "types": "./src/branding.ts",
+      "import": "./src/branding.ts"
+    },
     "./themePalettes": {
       "types": "./src/themePalettes.ts",
       "import": "./src/themePalettes.ts"
