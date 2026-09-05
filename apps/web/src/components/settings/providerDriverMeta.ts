@@ -67,13 +67,6 @@ export interface ProviderClientDefinition {
 
 export const PROVIDER_CLIENT_DEFINITIONS: readonly ProviderClientDefinition[] = [
   {
-    value: ProviderDriverKind.make("primeAgent"),
-    label: "Prime Agent",
-    icon: PrimeAgentIcon,
-    settingsSchema: PrimeAgentSettings,
-    badgeLabel: "Fork Extension",
-  },
-  {
     value: ProviderDriverKind.make("acp"),
     label: "ACP Agent",
     icon: ACPRegistryIcon,
@@ -179,6 +172,13 @@ export const PROVIDER_CLIENT_DEFINITIONS: readonly ProviderClientDefinition[] = 
     label: "Oh My Pi",
     icon: OhMyPiIcon,
     settingsSchema: OhMyPiSettings,
+    badgeLabel: "Fork Extension",
+  },
+  {
+    value: ProviderDriverKind.make("primeAgent"),
+    label: "Prime Agent",
+    icon: PrimeAgentIcon,
+    settingsSchema: PrimeAgentSettings,
     badgeLabel: "Fork Extension",
   },
 ];
