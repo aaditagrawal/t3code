@@ -1,11 +1,14 @@
 import {
   APP_BASE_NAME,
   DESKTOP_APP_ID,
+  LINUX_DESKTOP_ENTRY_NAME,
+  LINUX_WM_CLASS,
   URL_SCHEME,
   URL_SCHEME_DEV,
 } from "@t3tools/shared/branding";
 import desktopPackageJson from "../apps/desktop/package.json" with { type: "json" };
 import * as NodeCrypto from "node:crypto";
+import * as NodeFs from "node:fs";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
@@ -688,7 +691,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         iconTextSize: 12,
       });
       // Linux must register the renderer schemes so the generated .desktop
-      // entry advertises MimeType=x-scheme-handler/t3code; for OAuth deep links.
+      // entry advertises MimeType=x-scheme-handler/<URL_SCHEME>; for OAuth deep links.
       assert.deepStrictEqual((linux.linux as Record<string, unknown>).protocols, [
         { name: APP_BASE_NAME, schemes: [URL_SCHEME, URL_SCHEME_DEV] },
       ]);
@@ -707,6 +710,21 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
       "!**/node_modules/node-pty/third_party/conpty/**/*",
     ]);
+  });
+
+  it("installs fork Linux AppImage icons from AUR PKGBUILDs", () => {
+    const sourceIconGlob = `"$srcdir"/squashfs-root/usr/share/icons/hicolor/*/apps/${LINUX_DESKTOP_ENTRY_NAME}.png`;
+    const mimeType = `x-scheme-handler/${URL_SCHEME};x-scheme-handler/${URL_SCHEME_DEV};`;
+    for (const pkg of ["t3code-bin", "t3code-nightly-bin"] as const) {
+      const pkgbuild = NodeFs.readFileSync(
+        new URL(`../packaging/aur/${pkg}/PKGBUILD`, import.meta.url),
+        "utf8",
+      );
+      assert.include(pkgbuild, sourceIconGlob);
+      assert.include(pkgbuild, `StartupWMClass=${LINUX_WM_CLASS}`);
+      assert.include(pkgbuild, mimeType);
+      assert.notInclude(pkgbuild, "StartupWMClass=t3code\n");
+    }
   });
 
   it("stages only server runtime externals in macOS packages", () => {
