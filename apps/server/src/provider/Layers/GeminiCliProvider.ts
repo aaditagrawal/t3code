@@ -15,7 +15,6 @@
 import {
   type GenericProviderSettings,
   type ModelCapabilities,
-  ProviderDriverKind,
   type ServerProviderModel,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
@@ -37,7 +36,6 @@ import {
   type ServerProviderDraft,
 } from "../providerSnapshot.ts";
 
-const PROVIDER = ProviderDriverKind.make("geminiCli");
 const GEMINI_PRESENTATION = {
   displayName: "Gemini CLI",
   showInteractionModeToggle: true,

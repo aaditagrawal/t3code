@@ -3,9 +3,23 @@ import * as Schema from "effect/Schema";
 
 import * as CodexSchema from "./schema.ts";
 
+const isCodexSchema_ServerNotification__CollabAgentTool = Schema.is(
+  CodexSchema.ServerNotification__CollabAgentTool,
+);
+const isCodexSchema_V2ThreadResumeResponse__CollabAgentTool = Schema.is(
+  CodexSchema.V2ThreadResumeResponse__CollabAgentTool,
+);
+const isCodexSchema_ServerNotification__CollabAgentToolCallStatus = Schema.is(
+  CodexSchema.ServerNotification__CollabAgentToolCallStatus,
+);
+const isCodexSchema_V2ThreadResumeResponse__CollabAgentToolCallStatus = Schema.is(
+  CodexSchema.V2ThreadResumeResponse__CollabAgentToolCallStatus,
+);
+const isCodexSchema_V2ThreadResumeResponse = Schema.is(CodexSchema.V2ThreadResumeResponse);
+
 const isGetAccountResponse = Schema.is(CodexSchema.V2GetAccountResponse);
 const isThreadReadResponse = Schema.is(CodexSchema.V2ThreadReadResponse);
-const isThreadResumeResponse = Schema.is(CodexSchema.V2ThreadResumeResponse);
+const isThreadResumeResponse = isCodexSchema_V2ThreadResumeResponse;
 const isThreadRollbackResponse = Schema.is(CodexSchema.V2ThreadRollbackResponse);
 
 it("keeps async questions in live notifications and thread history", () => {
@@ -45,16 +59,13 @@ it("accepts Codex 0.150 multi-agent values", () => {
   }
 
   for (const tool of ["sendMessage", "followupTask", "interruptAgent", "listAgents"]) {
-    assert.equal(Schema.is(CodexSchema.ServerNotification__CollabAgentTool)(tool), true);
-    assert.equal(Schema.is(CodexSchema.V2ThreadResumeResponse__CollabAgentTool)(tool), true);
+    assert.equal(isCodexSchema_ServerNotification__CollabAgentTool(tool), true);
+    assert.equal(isCodexSchema_V2ThreadResumeResponse__CollabAgentTool(tool), true);
   }
 
+  assert.equal(isCodexSchema_ServerNotification__CollabAgentToolCallStatus("interrupted"), true);
   assert.equal(
-    Schema.is(CodexSchema.ServerNotification__CollabAgentToolCallStatus)("interrupted"),
-    true,
-  );
-  assert.equal(
-    Schema.is(CodexSchema.V2ThreadResumeResponse__CollabAgentToolCallStatus)("interrupted"),
+    isCodexSchema_V2ThreadResumeResponse__CollabAgentToolCallStatus("interrupted"),
     true,
   );
 
@@ -97,7 +108,7 @@ it("accepts Codex 0.150 multi-agent values", () => {
     },
   };
 
-  assert.equal(Schema.is(CodexSchema.V2ThreadResumeResponse)(resumeResponse), true);
+  assert.equal(isCodexSchema_V2ThreadResumeResponse(resumeResponse), true);
 });
 
 it("accepts Codex rate limit errors for thread responses", () => {

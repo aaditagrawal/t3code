@@ -22,6 +22,10 @@ import { makeAcpAdapter } from "./AcpAdapter.ts";
 import { makeHermesAdapter } from "./HermesAdapter.ts";
 import { makePiAdapter } from "./PiAdapter.ts";
 
+const decodeUnknownEffectHermesSettings = Schema.decodeUnknownEffect(HermesSettings);
+const decodeUnknownEffectPiSettings = Schema.decodeUnknownEffect(PiSettings);
+const decodeUnknownEffectAcpSettings = Schema.decodeUnknownEffect(AcpSettings);
+
 interface LiveAcpCase {
   readonly name: string;
   readonly kind: "acp" | "hermes" | "pi";
@@ -33,16 +37,16 @@ interface LiveAcpCase {
 
 function makeLiveAdapter(testCase: LiveAcpCase, environment: NodeJS.ProcessEnv) {
   if (testCase.kind === "hermes") {
-    return Schema.decodeUnknownEffect(HermesSettings)({ binaryPath: testCase.command }).pipe(
+    return decodeUnknownEffectHermesSettings({ binaryPath: testCase.command }).pipe(
       Effect.flatMap((settings) => makeHermesAdapter(settings, { environment })),
     );
   }
   if (testCase.kind === "pi") {
-    return Schema.decodeUnknownEffect(PiSettings)({ binaryPath: testCase.command }).pipe(
+    return decodeUnknownEffectPiSettings({ binaryPath: testCase.command }).pipe(
       Effect.flatMap((settings) => makePiAdapter(settings, { environment })),
     );
   }
-  return Schema.decodeUnknownEffect(AcpSettings)({
+  return decodeUnknownEffectAcpSettings({
     binaryPath: testCase.command,
     arguments: testCase.args?.join("\n") ?? "",
   }).pipe(Effect.flatMap((settings) => makeAcpAdapter(settings, { environment })));

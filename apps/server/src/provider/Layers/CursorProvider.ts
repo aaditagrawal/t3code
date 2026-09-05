@@ -4,7 +4,6 @@ import type {
   ServerProviderAuth,
   ServerProviderModel,
 } from "@t3tools/contracts";
-import { ProviderDriverKind } from "@t3tools/contracts";
 import { causeErrorTag } from "@t3tools/shared/observability";
 import * as Cause from "effect/Cause";
 import * as Data from "effect/Data";
@@ -36,7 +35,6 @@ import {
   buildCursorDiscoveredModelsFromSdkModels,
 } from "../cursor/CursorSdkMappings.ts";
 
-const PROVIDER = ProviderDriverKind.make("cursor");
 const CURSOR_PRESENTATION = {
   displayName: "Cursor",
   badgeLabel: "SDK",
