@@ -11,22 +11,16 @@ describe("resolveClerkSignInProps", () => {
     });
   });
 
-  it("removes a Clerk virtual pathname and callback params while preserving the desktop route", () => {
+  it("uses Electron OAuth defaults even from a virtual sign-up route", () => {
     expect(
       resolveClerkSignInProps(
-        "t3code://app/CLERK-ROUTER/VIRTUAL/sign-up?__clerk_status=complete#/settings/connections",
+        "t3code-fork://app/CLERK-ROUTER/VIRTUAL/sign-up?__clerk_status=complete#/settings/connections",
         true,
       ),
-    ).toEqual({
-      forceRedirectUrl: "t3code://app/#/settings/connections",
-      signUpForceRedirectUrl: "t3code://app/#/settings/connections",
-    });
+    ).toEqual({});
   });
 
-  it("preserves a clean development desktop route", () => {
-    expect(resolveClerkSignInProps("t3code-dev://app/#/settings/general", true)).toEqual({
-      forceRedirectUrl: "t3code-dev://app/#/settings/general",
-      signUpForceRedirectUrl: "t3code-dev://app/#/settings/general",
-    });
+  it("uses Electron OAuth defaults for development routes", () => {
+    expect(resolveClerkSignInProps("t3code-fork-dev://app/#/settings/general", true)).toEqual({});
   });
 });

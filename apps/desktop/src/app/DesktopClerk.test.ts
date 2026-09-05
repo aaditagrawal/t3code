@@ -1,3 +1,9 @@
+import {
+  DESKTOP_USER_DATA_DIR_NAME,
+  DESKTOP_USER_DATA_DIR_NAME_DEV,
+  URL_SCHEME,
+  URL_SCHEME_DEV,
+} from "@t3tools/shared/branding";
 import { assert, describe, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
@@ -34,8 +40,10 @@ const makeDesktopClerkLayer = (isDevelopment = true, events: string[] = []) => {
     stateDir: "/tmp/t3-state",
     isDevelopment,
     appDataDirectory: "/tmp/app-data",
-    userDataDirName: isDevelopment ? "t3code-dev" : "t3code",
-    legacyUserDataDirName: isDevelopment ? "T3 Code (Dev)" : "T3 Code (Alpha)",
+    userDataDirName: isDevelopment ? DESKTOP_USER_DATA_DIR_NAME_DEV : DESKTOP_USER_DATA_DIR_NAME,
+    legacyUserDataDirNames: isDevelopment
+      ? DesktopEnvironment.LEGACY_USER_DATA_DIR_NAMES_DEV
+      : DesktopEnvironment.LEGACY_USER_DATA_DIR_NAMES,
     path: { join: (...parts: ReadonlyArray<string>) => parts.join("/") },
   } as unknown as DesktopEnvironment.DesktopEnvironment["Service"]);
 
@@ -91,7 +99,7 @@ describe("DesktopClerk", () => {
           {
             storage: storageAdapter,
             passkeys: true,
-            renderer: { scheme: "t3code-dev", host: "app" },
+            renderer: { scheme: URL_SCHEME_DEV, host: "app" },
           },
         ],
       ]);
@@ -99,7 +107,10 @@ describe("DesktopClerk", () => {
       // The bridge acquires Electron's single-instance lock at creation, and
       // the lock both lives in and creates the userData directory — so the
       // real path must be set before the bridge exists.
-      assert.deepEqual(events, ["setPath:userData:/tmp/app-data/t3code-dev", "createClerkBridge"]);
+      assert.deepEqual(events, [
+        `setPath:userData:/tmp/app-data/${DESKTOP_USER_DATA_DIR_NAME_DEV}`,
+        "createClerkBridge",
+      ]);
       storageMock.mockClear();
       createClerkBridgeMock.mockClear();
     });
@@ -210,8 +221,8 @@ describe("DesktopClerk", () => {
   });
 
   it.each([
-    { isDevelopment: true, scheme: "t3code-dev" },
-    { isDevelopment: false, scheme: "t3code" },
+    { isDevelopment: true, scheme: URL_SCHEME_DEV },
+    { isDevelopment: false, scheme: URL_SCHEME },
   ])("configures the SDK with the $scheme renderer origin", ({ isDevelopment, scheme }) => {
     const bridge = { cleanup: vi.fn(), isPrimaryInstance: true };
     storageMock.mockReturnValue(storageAdapter);

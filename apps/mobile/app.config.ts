@@ -1,6 +1,21 @@
 import type { ExpoConfig } from "expo/config";
 
 import { BRAND_ASSET_PATHS } from "../../scripts/lib/brand-assets.ts";
+// Imported by repo-relative path, not by the `@t3tools/shared/branding`
+// package specifier: Expo reads this config through a CommonJS loader, and
+// `@t3tools/shared`'s export map declares only `types`/`import` conditions, so
+// a subpath import fails there with ERR_PACKAGE_PATH_NOT_EXPORTED. (Metro
+// resolves the package specifier fine, which is why app code under `src/` uses
+// it.) The sibling imports above establish repo-relative `.ts` as the working
+// pattern here; this is still the same single source of truth.
+import {
+  APP_BASE_NAME,
+  DESKTOP_APP_ID,
+  DESKTOP_APP_ID_DEV,
+  URL_SCHEME,
+  URL_SCHEME_DEV,
+} from "../../packages/shared/src/branding.ts";
+import { PREVIEW_URL_SCHEME } from "./src/lib/appUrlSchemes.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
 
 type AppVariant = "development" | "preview" | "production";
@@ -67,28 +82,39 @@ const RELEASE_ASSETS = {
   androidNotificationColor: "#FFFFFF",
 } as const;
 
+// Every installable identity below must differ from upstream's so this fork and
+// an upstream build can coexist on one device: iOS refuses to install two apps
+// sharing a bundle identifier, Android replaces the app with the matching
+// package name, and a duplicate URL scheme is resolved non-deterministically by
+// whichever app registered it last.
+//
+// `DESKTOP_APP_ID*` is reused as the reverse-DNS root: it is the fork's app
+// identity, and platforms namespace their own ids, so a desktop build and a
+// mobile build sharing the string cannot collide with each other.
+const PREVIEW_APP_ID = `${DESKTOP_APP_ID}.preview`;
+
 const VARIANT_CONFIG = {
   development: {
-    appName: "T3 Code Dev",
-    scheme: "t3code-dev",
-    iosBundleIdentifier: "com.t3tools.t3code.dev",
-    androidPackage: "com.t3tools.t3code.dev",
+    appName: `${APP_BASE_NAME} Dev`,
+    scheme: URL_SCHEME_DEV,
+    iosBundleIdentifier: DESKTOP_APP_ID_DEV,
+    androidPackage: DESKTOP_APP_ID_DEV,
     relyingParty: "clerk.t3.codes",
     assets: DEVELOPMENT_ASSETS,
   },
   preview: {
-    appName: "T3 Code Preview",
-    scheme: "t3code-preview",
-    iosBundleIdentifier: "com.t3tools.t3code.preview",
-    androidPackage: "com.t3tools.t3code.preview",
+    appName: `${APP_BASE_NAME} Preview`,
+    scheme: PREVIEW_URL_SCHEME,
+    iosBundleIdentifier: PREVIEW_APP_ID,
+    androidPackage: PREVIEW_APP_ID,
     relyingParty: "clerk.t3.codes",
     assets: PREVIEW_ASSETS,
   },
   production: {
-    appName: "T3 Code",
-    scheme: "t3code",
-    iosBundleIdentifier: "com.t3tools.t3code",
-    androidPackage: "com.t3tools.t3code",
+    appName: APP_BASE_NAME,
+    scheme: URL_SCHEME,
+    iosBundleIdentifier: DESKTOP_APP_ID,
+    androidPackage: DESKTOP_APP_ID,
     relyingParty: "clerk.t3.codes",
     assets: RELEASE_ASSETS,
   },
@@ -146,7 +172,7 @@ const widgetsPlugin: NonNullable<ExpoConfig["plugins"]>[number] = [
       {
         name: "AgentActivity",
         displayName: "Agent Activity",
-        description: "Shows the current state of active T3 Code agents.",
+        description: `Shows the current state of active ${APP_BASE_NAME} agents.`,
         supportedFamilies: ["systemSmall", "systemMedium", "accessoryRectangular"],
       },
     ],
@@ -222,9 +248,8 @@ const config: ExpoConfig = {
       NSAppTransportSecurity: {
         NSAllowsArbitraryLoads: true,
       },
-      NSLocalNetworkUsageDescription:
-        "Allow T3 Code to connect to T3 Code servers on your local network or tailnet.",
-      NSPhotoLibraryAddUsageDescription: "Allow T3 Code to save images to your photo library.",
+      NSLocalNetworkUsageDescription: `Allow ${APP_BASE_NAME} to connect to servers on your local network or tailnet.`,
+      NSPhotoLibraryAddUsageDescription: `Allow ${APP_BASE_NAME} to save images to your photo library.`,
       ITSAppUsesNonExemptEncryption: false,
       // The App Store screenshot harness rotates the iPad interface from
       // inside the app (CI denies osascript the Accessibility access that
@@ -319,7 +344,7 @@ const config: ExpoConfig = {
     [
       "expo-audio",
       {
-        microphonePermission: "Allow T3 Code to use your microphone for voice input.",
+        microphonePermission: `Allow ${APP_BASE_NAME} to use your microphone for voice input.`,
         recordAudioAndroid: false,
         enableBackgroundPlayback: false,
         enableBackgroundRecording: false,
@@ -328,7 +353,7 @@ const config: ExpoConfig = {
     [
       "expo-camera",
       {
-        cameraPermission: "Allow T3 Code to access your camera so you can scan pairing QR codes.",
+        cameraPermission: `Allow ${APP_BASE_NAME} to access your camera so you can scan pairing QR codes.`,
         microphonePermission: false,
         barcodeScannerEnabled: true,
         recordAudioAndroid: false,

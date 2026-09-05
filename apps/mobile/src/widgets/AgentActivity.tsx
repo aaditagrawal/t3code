@@ -16,6 +16,8 @@ import {
   type LiveActivityLayout,
 } from "expo-widgets";
 
+import { URL_SCHEME } from "@t3tools/shared/branding";
+
 type LiveActivityEnvironment = Parameters<LiveActivityComponent<AgentActivityProps>>[1];
 
 export type AgentActivityPhase =
@@ -151,7 +153,7 @@ export function AgentActivity(
   const deepLinkRow = attentionRow ?? row0;
   const deepLink =
     deepLinkRow && deepLinkRow.deepLink.startsWith("/") && !deepLinkRow.deepLink.startsWith("//")
-      ? `t3code://${deepLinkRow.deepLink.slice(1)}`
+      ? `${URL_SCHEME}://${deepLinkRow.deepLink.slice(1)}`
       : null;
 
   // A scannable status glyph per phase — reads faster than colored words and

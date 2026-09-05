@@ -9,6 +9,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { createStaticNavigation } from "@react-navigation/native";
 
 import { RegistryContext } from "@effect/atom-react";
+import { APP_URL_SCHEMES } from "./lib/appUrlSchemes";
 import { ConfirmDialogHost } from "./components/ConfirmDialogHost";
 import { CloudAuthProvider } from "./features/cloud/CloudAuthProvider";
 import { prepareNativeShowcaseCapture } from "./features/showcase/nativeShowcaseScene";
@@ -34,7 +35,7 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 const appLinking = {
-  prefixes: [Linking.createURL("/"), "t3code://", "t3code-dev://", "t3code-preview://"],
+  prefixes: [Linking.createURL("/"), ...APP_URL_SCHEMES.map((scheme) => `${scheme}://`)],
   // The Expo dev client launches the app via
   // <scheme>://expo-development-client/?url=<packager> — that URL addresses
   // the launcher, not app navigation. Without this filter it falls through

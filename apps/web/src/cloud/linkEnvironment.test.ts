@@ -5,6 +5,7 @@ import {
   WS_METHODS,
 } from "@t3tools/contracts";
 import { RelayWebClientId } from "@t3tools/contracts/relay";
+import { URL_SCHEME } from "@t3tools/shared/branding";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -198,7 +199,7 @@ describe("web cloud link environment client", () => {
       );
       vi.stubGlobal("fetch", fetchMock);
       vi.stubGlobal("window", {
-        location: { origin: "t3code://app" },
+        location: { origin: `${URL_SCHEME}://app` },
         desktopBridge: {
           getLocalEnvironmentBearerToken: vi.fn().mockResolvedValue("desktop-bearer-token"),
         } as unknown as DesktopBridge,

@@ -1,3 +1,6 @@
+import { URL_SCHEME } from "@t3tools/shared/branding";
+
+import { APP_URL_SCHEMES } from "../../lib/appUrlSchemes";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -37,9 +40,24 @@ describe("extractPairingUrlFromQrPayload", () => {
   it("unwraps mobile deep links that carry an encoded pairing url", () => {
     expect(
       extractPairingUrlFromQrPayload(
-        "t3code://pair?pairingUrl=https%3A%2F%2Fremote.example.com%2Fpair%23token%3Dpairing-token",
+        `${URL_SCHEME}://pair?pairingUrl=https%3A%2F%2Fremote.example.com%2Fpair%23token%3Dpairing-token`,
       ),
     ).toBe("https://remote.example.com/pair#token=pairing-token");
+  });
+
+  it("unwraps deep links minted by any build variant", () => {
+    for (const scheme of APP_URL_SCHEMES) {
+      expect(
+        extractPairingUrlFromQrPayload(
+          `${scheme}://pair?pairingUrl=https%3A%2F%2Fremote.example.com%2Fpair%23token%3Dpairing-token`,
+        ),
+      ).toBe("https://remote.example.com/pair#token=pairing-token");
+    }
+  });
+
+  it("leaves foreign deep links untouched", () => {
+    const foreign = "othertool://pair?pairingUrl=https%3A%2F%2Fremote.example.com%2Fpair";
+    expect(extractPairingUrlFromQrPayload(foreign)).toBe(foreign);
   });
 
   it("rejects empty qr payloads", () => {
