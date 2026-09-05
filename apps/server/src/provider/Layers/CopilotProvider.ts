@@ -11,11 +11,7 @@
  * a missing CLI / unauthenticated SDK should still produce a valid (but
  * not-ready) snapshot rather than tear the driver down.
  */
-import {
-  type ModelCapabilities,
-  ProviderDriverKind,
-  type ServerProviderModel,
-} from "@t3tools/contracts";
+import { type ModelCapabilities, type ServerProviderModel } from "@t3tools/contracts";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -39,8 +35,6 @@ import {
   withSanitizedCopilotDesktopEnv,
 } from "./copilotCliPath.ts";
 import type { CopilotSettings } from "../Drivers/CopilotSettings.ts";
-
-const PROVIDER = ProviderDriverKind.make("copilot");
 
 const COPILOT_PRESENTATION = {
   displayName: "GitHub Copilot",
