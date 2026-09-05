@@ -1,4 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import { APP_BASE_NAME, DESKTOP_USER_DATA_DIR_NAME } from "@t3tools/shared/branding";
 import { assert, describe, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -96,6 +97,16 @@ const makeEnvironmentLayer = (overrides: TestEnvironmentInput = {}) => {
   );
 };
 
+interface RecordedFileSystemCalls {
+  readonly makeDirectory: string[];
+  readonly copy: Array<{ readonly from: string; readonly to: string }>;
+}
+
+const APP_DATA_DIRECTORY = "/Users/alice/Library/Application Support";
+const USER_DATA_PATH = `${APP_DATA_DIRECTORY}/${DESKTOP_USER_DATA_DIR_NAME}`;
+const SHARED_LEGACY_PATH = `${APP_DATA_DIRECTORY}/t3code`;
+const PRODUCT_NAME_LEGACY_PATH = `${APP_DATA_DIRECTORY}/T3 Code (Alpha)`;
+
 const withIdentity = <A, E, R>(
   effect: Effect.Effect<
     A,
@@ -108,8 +119,12 @@ const withIdentity = <A, E, R>(
   input: {
     readonly calls?: ElectronAppCalls;
     readonly environment?: TestEnvironmentInput;
-    readonly legacyPathExists?: boolean;
-    readonly legacyPathProbeError?: PlatformError.PlatformError;
+    /** Absolute paths the fake filesystem should report as existing. */
+    readonly existingPaths?: readonly string[];
+    readonly legacyEntries?: readonly string[];
+    readonly copyError?: PlatformError.PlatformError;
+    readonly existsError?: PlatformError.PlatformError;
+    readonly fileSystemCalls?: RecordedFileSystemCalls;
     readonly packageJson?: string;
     readonly pngIconPath?: Option.Option<string>;
   } = {},
@@ -119,6 +134,11 @@ const withIdentity = <A, E, R>(
     setDockIcon: [],
     setName: [],
   };
+  const fileSystemCalls: RecordedFileSystemCalls = input.fileSystemCalls ?? {
+    makeDirectory: [],
+    copy: [],
+  };
+  const existingPaths = new Set(input.existingPaths ?? []);
 
   return effect.pipe(
     Effect.provide(
@@ -126,11 +146,20 @@ const withIdentity = <A, E, R>(
         Layer.provideMerge(
           FileSystem.layerNoop({
             exists: (path) =>
-              input.legacyPathProbeError
-                ? Effect.fail(input.legacyPathProbeError)
-                : Effect.succeed(
-                    input.legacyPathExists === true && path.includes("T3 Code (Alpha)"),
-                  ),
+              input.existsError
+                ? Effect.fail(input.existsError)
+                : Effect.succeed(existingPaths.has(path)),
+            readDirectory: () => Effect.succeed([...(input.legacyEntries ?? [])]),
+            makeDirectory: (path) =>
+              Effect.sync(() => {
+                fileSystemCalls.makeDirectory.push(path);
+              }),
+            copy: (from, to) =>
+              input.copyError
+                ? Effect.fail(input.copyError)
+                : Effect.sync(() => {
+                    fileSystemCalls.copy.push({ from, to });
+                  }),
             readFileString: () =>
               Effect.succeed(input.packageJson ?? '{"t3codeCommitHash":"abcdef1234567890"}'),
           }),
@@ -144,26 +173,135 @@ const withIdentity = <A, E, R>(
 };
 
 describe("DesktopAppIdentity", () => {
-  it.effect("keeps using the legacy userData path when it already exists", () =>
+  it("skips regenerable Chromium caches when migrating legacy user data", () => {
+    assert.equal(DesktopAppIdentity.shouldMigrateLegacyUserDataEntry("Local Storage"), true);
+    assert.equal(DesktopAppIdentity.shouldMigrateLegacyUserDataEntry("config.json"), true);
+    assert.equal(DesktopAppIdentity.shouldMigrateLegacyUserDataEntry("Cache"), false);
+    assert.equal(DesktopAppIdentity.shouldMigrateLegacyUserDataEntry("GPUCache"), false);
+    assert.equal(DesktopAppIdentity.shouldMigrateLegacyUserDataEntry("Code Cache"), false);
+  });
+
+  it.effect(
+    "uses the namespaced userData path once it exists, without touching legacy state",
+    () => {
+      const fileSystemCalls: RecordedFileSystemCalls = { makeDirectory: [], copy: [] };
+
+      return withIdentity(
+        Effect.gen(function* () {
+          const identity = yield* DesktopAppIdentity.DesktopAppIdentity;
+          const userDataPath = yield* identity.resolveUserDataPath;
+
+          assert.equal(userDataPath, USER_DATA_PATH);
+          assert.deepEqual(fileSystemCalls.copy, []);
+          assert.deepEqual(fileSystemCalls.makeDirectory, []);
+        }),
+        {
+          existingPaths: [USER_DATA_PATH, SHARED_LEGACY_PATH, PRODUCT_NAME_LEGACY_PATH],
+          fileSystemCalls,
+        },
+      );
+    },
+  );
+
+  it.effect("copies the shared legacy userData directory into the namespaced one once", () => {
+    const fileSystemCalls: RecordedFileSystemCalls = { makeDirectory: [], copy: [] };
+
+    return withIdentity(
+      Effect.gen(function* () {
+        const identity = yield* DesktopAppIdentity.DesktopAppIdentity;
+        const userDataPath = yield* identity.resolveUserDataPath;
+
+        // The legacy directory may still belong to a concurrently installed
+        // upstream build, so it is copied rather than reused or moved.
+        assert.equal(userDataPath, USER_DATA_PATH);
+        assert.deepEqual(fileSystemCalls.makeDirectory, [USER_DATA_PATH]);
+        assert.deepEqual(fileSystemCalls.copy, [
+          {
+            from: `${SHARED_LEGACY_PATH}/Local Storage`,
+            to: `${USER_DATA_PATH}/Local Storage`,
+          },
+          {
+            from: `${SHARED_LEGACY_PATH}/config.json`,
+            to: `${USER_DATA_PATH}/config.json`,
+          },
+        ]);
+      }),
+      {
+        existingPaths: [SHARED_LEGACY_PATH, PRODUCT_NAME_LEGACY_PATH],
+        legacyEntries: ["Local Storage", "Cache", "config.json", "GPUCache"],
+        fileSystemCalls,
+      },
+    );
+  });
+
+  it.effect("falls back to the older productName userData directory", () => {
+    const fileSystemCalls: RecordedFileSystemCalls = { makeDirectory: [], copy: [] };
+
+    return withIdentity(
+      Effect.gen(function* () {
+        const identity = yield* DesktopAppIdentity.DesktopAppIdentity;
+        const userDataPath = yield* identity.resolveUserDataPath;
+
+        assert.equal(userDataPath, USER_DATA_PATH);
+        assert.deepEqual(fileSystemCalls.copy, [
+          {
+            from: `${PRODUCT_NAME_LEGACY_PATH}/config.json`,
+            to: `${USER_DATA_PATH}/config.json`,
+          },
+        ]);
+      }),
+      {
+        existingPaths: [PRODUCT_NAME_LEGACY_PATH],
+        legacyEntries: ["config.json", "Crashpad"],
+        fileSystemCalls,
+      },
+    );
+  });
+
+  it.effect("starts fresh when no legacy userData directory exists", () => {
+    const fileSystemCalls: RecordedFileSystemCalls = { makeDirectory: [], copy: [] };
+
+    return withIdentity(
+      Effect.gen(function* () {
+        const identity = yield* DesktopAppIdentity.DesktopAppIdentity;
+        const userDataPath = yield* identity.resolveUserDataPath;
+
+        assert.equal(userDataPath, USER_DATA_PATH);
+        assert.deepEqual(fileSystemCalls.copy, []);
+      }),
+      { existingPaths: [], fileSystemCalls },
+    );
+  });
+
+  it.effect("keeps starting up when the legacy userData migration fails", () =>
     withIdentity(
       Effect.gen(function* () {
         const identity = yield* DesktopAppIdentity.DesktopAppIdentity;
         const userDataPath = yield* identity.resolveUserDataPath;
 
-        assert.equal(userDataPath, "/Users/alice/Library/Application Support/T3 Code (Alpha)");
+        assert.equal(userDataPath, USER_DATA_PATH);
       }),
-      { legacyPathExists: true },
+      {
+        existingPaths: [SHARED_LEGACY_PATH],
+        legacyEntries: ["config.json"],
+        copyError: PlatformError.systemError({
+          _tag: "PermissionDenied",
+          module: "FileSystem",
+          method: "copy",
+          description: "permission denied",
+          pathOrDescriptor: SHARED_LEGACY_PATH,
+        }),
+      },
     ),
   );
 
-  it.effect("preserves failures while inspecting the legacy userData path", () => {
-    const legacyPath = "/Users/alice/Library/Application Support/T3 Code (Alpha)";
+  it.effect("preserves failures while inspecting userData paths", () => {
     const cause = PlatformError.systemError({
       _tag: "PermissionDenied",
       module: "FileSystem",
       method: "exists",
       description: "permission denied",
-      pathOrDescriptor: legacyPath,
+      pathOrDescriptor: USER_DATA_PATH,
     });
 
     return withIdentity(
@@ -172,14 +310,10 @@ describe("DesktopAppIdentity", () => {
         const error = yield* identity.resolveUserDataPath.pipe(Effect.flip);
 
         assert.instanceOf(error, DesktopAppIdentity.DesktopUserDataPathResolutionError);
-        assert.equal(error.legacyPath, legacyPath);
+        assert.equal(error.legacyPath, USER_DATA_PATH);
         assert.strictEqual(error.cause, cause);
-        assert.equal(
-          error.message,
-          `Failed to inspect legacy desktop user-data path at "${legacyPath}".`,
-        );
       }),
-      { legacyPathProbeError: cause },
+      { existsError: cause },
     );
   });
 
@@ -195,8 +329,8 @@ describe("DesktopAppIdentity", () => {
         const identity = yield* DesktopAppIdentity.DesktopAppIdentity;
         yield* identity.configure;
 
-        assert.deepEqual(calls.setName, ["T3 Code (Alpha)"]);
-        assert.equal(calls.setAboutPanelOptions[0]?.applicationName, "T3 Code (Alpha)");
+        assert.deepEqual(calls.setName, [`${APP_BASE_NAME} (Alpha)`]);
+        assert.equal(calls.setAboutPanelOptions[0]?.applicationName, `${APP_BASE_NAME} (Alpha)`);
         assert.equal(calls.setAboutPanelOptions[0]?.applicationVersion, "1.2.3");
         assert.equal(calls.setAboutPanelOptions[0]?.version, "0123456789ab");
         // Packaged: the bundle's own icon stands, so a custom one the user

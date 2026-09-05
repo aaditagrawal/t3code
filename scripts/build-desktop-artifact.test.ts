@@ -1,5 +1,13 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import {
+  APP_BASE_NAME,
+  DESKTOP_APP_ID,
+  URL_SCHEME,
+  URL_SCHEME_DEV,
+} from "@t3tools/shared/branding";
 import { assert, it } from "@effect/vitest";
+
+import desktopPackageJson from "../apps/desktop/package.json" with { type: "json" };
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as FileSystem from "effect/FileSystem";
 import * as Effect from "effect/Effect";
@@ -157,8 +165,18 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   });
 
   it("switches desktop packaging product names to nightly for nightly builds", () => {
-    assert.equal(resolveDesktopProductName("0.0.17"), "T3 Code (Alpha)");
-    assert.equal(resolveDesktopProductName("0.0.17-nightly.20260413.42"), "T3 Code (Nightly)");
+    assert.equal(resolveDesktopProductName("0.0.17"), `${APP_BASE_NAME} (Alpha)`);
+    assert.equal(
+      resolveDesktopProductName("0.0.17-nightly.20260413.42"),
+      `${APP_BASE_NAME} (Nightly)`,
+    );
+  });
+
+  // apps/desktop/package.json cannot reference a constant, so this guards the
+  // one branded literal that has to stay duplicated against drift. Upstream and
+  // this fork must never resolve the same macOS bundle name or NSIS install dir.
+  it("keeps the desktop productName literal in sync with the shared branding", () => {
+    assert.equal(desktopPackageJson.productName, `${APP_BASE_NAME} (Alpha)`);
   });
 
   it("switches desktop packaging icons to the nightly artwork for nightly versions", () => {
@@ -282,12 +300,14 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   it("installs optional native dependencies for the target desktop architecture", () => {
     assert.deepStrictEqual(STAGE_INSTALL_ARGS, ["install", "--prod"]);
     assert.deepStrictEqual(createStageWorkspaceConfig({ platform: "mac", arch: "x64" }), {
+      nodeLinker: "hoisted",
       supportedArchitectures: {
         os: ["darwin"],
         cpu: ["x64"],
       },
     });
     assert.deepStrictEqual(createStageWorkspaceConfig({ platform: "linux", arch: "x64" }), {
+      nodeLinker: "hoisted",
       supportedArchitectures: {
         os: ["linux"],
         cpu: ["x64"],
@@ -297,6 +317,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     // The Windows app stage only serves the desktop main process; the server
     // sidecar stage is the one that needs Linux natives (below).
     assert.deepStrictEqual(createStageWorkspaceConfig({ platform: "win", arch: "x64" }), {
+      nodeLinker: "hoisted",
       supportedArchitectures: {
         os: ["win32"],
         cpu: ["x64"],
@@ -309,26 +330,27 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     assert.deepStrictEqual(
       createStageWorkspaceConfig({ platform: "win", arch: "x64", linuxServerBackend: true }),
       {
+        nodeLinker: "hoisted",
         supportedArchitectures: {
           os: ["win32", "linux"],
           cpu: ["x64"],
           libc: ["glibc"],
         },
-        nodeLinker: "hoisted",
       },
     );
     assert.deepStrictEqual(
       createStageWorkspaceConfig({ platform: "win", arch: "arm64", linuxServerBackend: true }),
       {
+        nodeLinker: "hoisted",
         supportedArchitectures: {
           os: ["win32", "linux"],
           cpu: ["arm64"],
           libc: ["glibc"],
         },
-        nodeLinker: "hoisted",
       },
     );
     assert.deepStrictEqual(createStageWorkspaceConfig({ platform: "mac", arch: "universal" }), {
+      nodeLinker: "hoisted",
       supportedArchitectures: {
         os: ["darwin"],
         cpu: ["arm64", "x64"],
@@ -354,6 +376,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         },
       }),
       {
+        nodeLinker: "hoisted",
         supportedArchitectures: {
           os: ["linux"],
           cpu: ["x64"],
@@ -385,6 +408,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         overrides: {},
       }),
       {
+        nodeLinker: "hoisted",
         supportedArchitectures: {
           os: ["darwin"],
           cpu: ["arm64"],
@@ -470,7 +494,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         "**/node_modules/.bin/**",
       ]);
       assert.deepStrictEqual(mac.dmg, {
-        title: "T3 Code (Alpha) 1.2.3 Installer",
+        title: "T3 Code Fork (Alpha) 1.2.3 Installer",
         background: "dmg/dmg-background-latest.png",
         window: { width: 540, height: 412 },
         contents: [
@@ -481,9 +505,9 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         iconTextSize: 12,
       });
       // Linux must register the renderer schemes so the generated .desktop
-      // entry advertises MimeType=x-scheme-handler/t3code; for OAuth deep links.
+      // entry advertises MimeType=x-scheme-handler/<scheme>; for OAuth deep links.
       assert.deepStrictEqual((linux.linux as Record<string, unknown>).protocols, [
-        { name: "T3 Code", schemes: ["t3code", "t3code-dev"] },
+        { name: APP_BASE_NAME, schemes: [URL_SCHEME, URL_SCHEME_DEV] },
       ]);
       for (const config of [mac, linux, win]) {
         assert.deepStrictEqual(config.electronLanguages, DESKTOP_ELECTRON_LANGUAGES);
@@ -1001,7 +1025,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     });
 
     assert.deepStrictEqual(configuration, {
-      appId: "com.t3tools.t3code",
+      appId: DESKTOP_APP_ID,
       teamId: "ABC1234567",
       rpDomains: ["example.clerk.accounts.dev"],
       provisioningProfilePath: "/tmp/t3code.provisionprofile",
@@ -1021,7 +1045,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       "clerk.example.com",
       "example.clerk.accounts.dev",
     ]);
-    assert.include(entitlements, "<string>ABC1234567.com.t3tools.t3code</string>");
+    assert.include(entitlements, `<string>ABC1234567.${DESKTOP_APP_ID}</string>`);
     assert.include(entitlements, "<string>webcredentials:clerk.example.com</string>");
     assert.include(entitlements, "<string>webcredentials:example.clerk.accounts.dev</string>");
     assert.include(entitlements, "<key>com.apple.security.cs.allow-jit</key>");
@@ -1116,11 +1140,11 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       });
 
       const mac = config.mac as Record<string, unknown>;
-      assert.equal(config.appId, "com.t3tools.t3code");
+      assert.equal(config.appId, DESKTOP_APP_ID);
       assert.equal(mac.entitlements, "/tmp/entitlements.mac.plist");
       assert.equal(mac.provisioningProfile, "/tmp/t3code.provisionprofile");
       assert.deepStrictEqual(mac.protocols, [
-        { name: "T3 Code", schemes: ["t3code", "t3code-dev"] },
+        { name: APP_BASE_NAME, schemes: [URL_SCHEME, URL_SCHEME_DEV] },
       ]);
       // macOS stays packed apart from the spawnable Copilot CLI.
       assert.deepStrictEqual(config.asarUnpack, ["node_modules/@github/copilot*/**/*"]);

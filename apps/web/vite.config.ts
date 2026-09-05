@@ -10,6 +10,7 @@ import "vite-plus/test/config";
 import { defineConfig, type Connect, type Plugin } from "vite-plus";
 import pkg from "./package.json" with { type: "json" };
 
+import { APP_BASE_NAME } from "@t3tools/shared/branding";
 import { DEV_PROXIED_PATH_PREFIXES } from "@t3tools/shared/devProxy";
 
 import { loadRepoEnv } from "../../scripts/lib/public-config";
@@ -151,6 +152,21 @@ const configuredAllowedHosts = (process.env.T3CODE_DEV_ALLOWED_HOSTS ?? "")
   .filter((entry) => entry.length > 0);
 const allowedHosts = [".ts.net", ...configuredAllowedHosts];
 
+// `index.html` is static, so it cannot import the branding module — but its
+// `<title>` and splash alt text are the first thing a user sees, before
+// `main.tsx` sets `document.title` from `APP_BASE_NAME`. Rewriting the upstream
+// product name at build time keeps the fork name in the pre-hydration shell
+// without editing `index.html`, so upstream edits to that file never conflict.
+// A no-op when the fork name and the upstream name are equal.
+const UPSTREAM_APP_BASE_NAME: string = "T3 Code";
+
+const forkBrandIndexHtmlPlugin = {
+  name: "t3code-fork:brand-index-html",
+  transformIndexHtml(html: string) {
+    return html.replaceAll(UPSTREAM_APP_BASE_NAME, APP_BASE_NAME);
+  },
+} as const;
+
 export default defineConfig(() => {
   return {
     assetsInclude: ["**/*.wasm"],
@@ -167,6 +183,7 @@ export default defineConfig(() => {
         presets: [reactCompilerPreset()],
       }),
       tailwindcss(),
+      forkBrandIndexHtmlPlugin,
     ],
     optimizeDeps: {
       include: [

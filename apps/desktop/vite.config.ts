@@ -1,6 +1,12 @@
 import { defineConfig } from "vite-plus";
 
+import { NPM_PACKAGE_NAME } from "@t3tools/shared/branding";
+
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
+
+// The server package is published under a fork-specific name; the task graph
+// resolves dependencies by package name, so this must track `branding.ts`.
+const serverBuildTask = `${NPM_PACKAGE_NAME}#build`;
 
 const repoEnv = loadRepoEnv();
 const shouldLaunchElectronAfterPack = process.env.T3CODE_DESKTOP_DEV === "1";
@@ -15,13 +21,13 @@ export default defineConfig({
     tasks: {
       build: {
         command: "node scripts/build-preview-annotation-css.mjs && vp pack",
-        dependsOn: ["t3#build"],
+        dependsOn: [serverBuildTask],
         cache: false,
       },
       dev: {
         command:
           "node scripts/build-preview-annotation-css.mjs && cross-env T3CODE_DESKTOP_DEV=1 vp pack --watch",
-        dependsOn: ["t3#build"],
+        dependsOn: [serverBuildTask],
         cache: false,
       },
       "dev:bundle": {
@@ -30,7 +36,7 @@ export default defineConfig({
       },
       "dev:electron": {
         command: "node scripts/dev-electron.mjs",
-        dependsOn: ["t3#build"],
+        dependsOn: [serverBuildTask],
         cache: false,
       },
     },
