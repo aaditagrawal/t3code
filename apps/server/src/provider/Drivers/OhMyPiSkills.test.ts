@@ -197,9 +197,7 @@ it.layer(NodeServices.layer)("discoverOhMyPiSkills", (it) => {
       const path = yield* Path.Path;
       const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-oh-my-pi-skills-" });
       const profileHome = path.join(root, "profiles", "work");
-      yield* writeSkill(path.join(profileHome, "agent", "skills"), "profiled", [
-        "name: profiled",
-      ]);
+      yield* writeSkill(path.join(profileHome, "agent", "skills"), "profiled", ["name: profiled"]);
 
       const skills = yield* discoverOhMyPiSkills({
         PI_CONFIG_DIR: root,

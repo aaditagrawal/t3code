@@ -172,7 +172,11 @@ export const resolveOhMyPiHomePath = Effect.fn("OhMyPiSkills.resolveHomePath")(f
   const configured = environment.PI_CODING_AGENT_DIR?.trim();
   if (configured) return path.resolve(configured);
   const configDirName = environment.PI_CONFIG_DIR?.trim() || DEFAULT_CONFIG_DIR_NAME;
-  const root = path.join(NodeOS.homedir(), configDirName);
+  // Node's path.join treats an absolute PI_CONFIG_DIR as the whole root; Effect
+  // Path.join does not, so resolve absolute overrides explicitly.
+  const root = path.isAbsolute(configDirName)
+    ? path.resolve(configDirName)
+    : path.join(NodeOS.homedir(), configDirName);
   const profile = (environment.OMP_PROFILE ?? environment.PI_PROFILE)?.trim();
   if (profile && profile !== "default") return path.join(root, "profiles", profile);
   return root;
