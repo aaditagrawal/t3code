@@ -1,3 +1,4 @@
+import type { CustomModelSetting } from "@t3tools/contracts";
 import {
   type ProviderDriverKind,
   type ServerProvider,
@@ -46,7 +47,7 @@ export interface StandardAcpCliSettings {
   readonly enabled: boolean;
   readonly binaryPath: string;
   readonly arguments?: string;
-  readonly customModels: ReadonlyArray<string>;
+  readonly customModels: ReadonlyArray<CustomModelSetting>;
 }
 
 export type StandardAcpCliDriverEnv =

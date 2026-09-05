@@ -1,3 +1,4 @@
+import { CustomModelSetting } from "@t3tools/contracts";
 /**
  * CopilotSettings — local typed config schema for the GitHub Copilot driver.
  *
@@ -13,7 +14,7 @@
  *   - `binaryPath`     — Path to the Copilot CLI binary; empty defaults to
  *                         the bundled CLI (see `copilotCliPath.ts`).
  *   - `configDir`      — Optional override for the Copilot config dir.
- *   - `customModels`   — User-added model slugs.
+ *   - `customModels`   — User-added model slugs, names, and capability descriptors.
  */
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -22,6 +23,8 @@ export const CopilotSettings = Schema.Struct({
   enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   binaryPath: Schema.Trim.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   configDir: Schema.Trim.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
-  customModels: Schema.Array(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+  customModels: Schema.Array(CustomModelSetting).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
 });
 export type CopilotSettings = typeof CopilotSettings.Type;
