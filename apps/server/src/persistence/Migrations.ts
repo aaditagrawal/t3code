@@ -89,6 +89,9 @@ import Migration0050 from "./Migrations/050_ProjectionProjectsAutoPull.ts";
 // Upstream RepairAutomaticSettlementTimestamps was runtime ID 46. Append it
 // after auto-pull so deployed fork IDs remain append-only.
 import Migration0051 from "./Migrations/051_RepairAutomaticSettlementTimestamps.ts";
+// Upstream ProjectionProjectIcon was runtime ID 47. Append it after the fork's
+// already-deployed settlement-repair migration.
+import Migration0052 from "./Migrations/052_ProjectionProjectIcon.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -152,6 +155,7 @@ export const migrationEntries = [
   [49, "ClearAutomaticProjectModelDefaults", Migration0049],
   [50, "ProjectionProjectsAutoPull", Migration0050],
   [51, "RepairAutomaticSettlementTimestamps", Migration0051],
+  [52, "ProjectionProjectIcon", Migration0052],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

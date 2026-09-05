@@ -56,6 +56,9 @@ T3 Code works with the platforms your team already uses:
   brought in from the base branch
 - While working in a thread, open linked reviews in the same compact right-panel tabs without
   leaving the conversation
+- Show a file tree next to a review's **Code** tab, or a thread's **Diff** panel, to browse the
+  changed files as folders and jump straight to any of them. The toolbar toggle remembers your
+  choice.
 - Enable **Settings → General → Proactive panels** to open a newly linked review automatically and
   switch to the completed turn's diff when agent work finishes
 - Open the review directly in your browser with one click
@@ -73,6 +76,8 @@ T3 Code works with the platforms your team already uses:
 - Rewrite your own comments the same way, wherever they are shown
 - Works on GitHub, GitLab, and Bitbucket. Azure DevOps takes a new title and description; its
   comments stay read-only here, as they already were
+- On GitHub, put a label on a pull request or take one off from the **Labels** row of the review.
+  Changing labels needs triage access or better on the repository
 
 ### Know Your Setup at a Glance
 
