@@ -66,9 +66,20 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
     };
   }, []);
 
-  useEffect(() => {
+  const nextStackExpandedResetInputs = [items.length];
+  const [stackExpandedResetInputs, setStackExpandedResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    stackExpandedResetInputs === null ||
+    nextStackExpandedResetInputs.some(
+      (value, index) => !Object.is(value, stackExpandedResetInputs[index]),
+    )
+  ) {
+    setStackExpandedResetInputs(nextStackExpandedResetInputs);
+
     if (items.length < 2) setStackExpanded(false);
-  }, [items.length]);
+  }
 
   useLayoutEffect(() => {
     if (stackExpanded && pendingFocusRef.current === "notice") {

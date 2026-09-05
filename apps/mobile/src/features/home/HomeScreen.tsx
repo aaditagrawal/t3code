@@ -1,3 +1,6 @@
+import { useIsFocused } from "@react-navigation/native";
+import { useNowMinute } from "@t3tools/client-runtime/react-clock";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import {
   LegendList,
   type LegendListRef,
@@ -20,7 +23,6 @@ import {
 } from "@t3tools/contracts";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/unstable/reactivity";
-import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Platform, Pressable, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
@@ -262,7 +264,7 @@ export function HomeScreen(props: HomeScreenProps) {
     return next;
   }, [groupDisplayStates, preferencesResult]);
   const effectiveGroupDisplayStatesRef = useRef(effectiveGroupDisplayStates);
-  effectiveGroupDisplayStatesRef.current = effectiveGroupDisplayStates;
+  useCommitRef(effectiveGroupDisplayStatesRef, effectiveGroupDisplayStates);
 
   const updateGroupDisplay = useCallback(
     (key: string, action: HomeGroupDisplayAction) => {
@@ -441,14 +443,7 @@ export function HomeScreen(props: HomeScreenProps) {
         pendingTasks: props.pendingTasks,
         projectSortOrder: props.projectSortOrder,
       }),
-    [
-      props.pendingTasks,
-      props.projects,
-      props.projectSortOrder,
-      props.selectedEnvironmentId,
-      props.threads,
-      projectScopes,
-    ],
+    [props.pendingTasks, props.projectSortOrder, props.threads, projectScopes],
   );
   const v2ScopedProjectGroup = useMemo(
     () =>
@@ -496,47 +491,54 @@ export function HomeScreen(props: HomeScreenProps) {
   // Settled threads stay in the live shell stream (settled ≠ archived), so
   // the partition works directly off live shells — no snapshot merging or
   // optimistic holds.
+  const propsOnSettleThread = props.onSettleThread;
   const handleSettleThread = useCallback(
     (thread: EnvironmentThreadShell) => {
-      void props.onSettleThread(thread);
+      void propsOnSettleThread(thread);
     },
-    [props.onSettleThread],
+    [propsOnSettleThread],
   );
+  const propsOnSnoozeThread = props.onSnoozeThread;
   const handleSnoozeThread = useCallback(
     (thread: EnvironmentThreadShell, snoozedUntil: string) => {
-      void props.onSnoozeThread(thread, snoozedUntil);
+      void propsOnSnoozeThread(thread, snoozedUntil);
     },
-    [props.onSnoozeThread],
+    [propsOnSnoozeThread],
   );
+  const propsOnUnsnoozeThread = props.onUnsnoozeThread;
   const handleUnsnoozeThread = useCallback(
     (thread: EnvironmentThreadShell) => {
-      void props.onUnsnoozeThread(thread);
+      void propsOnUnsnoozeThread(thread);
     },
-    [props.onUnsnoozeThread],
+    [propsOnUnsnoozeThread],
   );
+  const propsOnPinThread = props.onPinThread;
   const handlePinThread = useCallback(
     (thread: EnvironmentThreadShell) => {
-      void props.onPinThread(thread);
+      void propsOnPinThread(thread);
     },
-    [props.onPinThread],
+    [propsOnPinThread],
   );
+  const propsOnMovePinnedThread = props.onMovePinnedThread;
   const handleMovePinnedThread = useCallback(
     (thread: EnvironmentThreadShell, direction: "up" | "down") => {
-      void props.onMovePinnedThread(thread, direction);
+      void propsOnMovePinnedThread(thread, direction);
     },
-    [props.onMovePinnedThread],
+    [propsOnMovePinnedThread],
   );
+  const propsOnUnpinThread = props.onUnpinThread;
   const handleUnpinThread = useCallback(
     (thread: EnvironmentThreadShell) => {
-      void props.onUnpinThread(thread);
+      void propsOnUnpinThread(thread);
     },
-    [props.onUnpinThread],
+    [propsOnUnpinThread],
   );
+  const propsOnRegenerateThreadTitle = props.onRegenerateThreadTitle;
   const handleRegenerateThreadTitle = useCallback(
     (thread: EnvironmentThreadShell) => {
-      void props.onRegenerateThreadTitle(thread);
+      void propsOnRegenerateThreadTitle(thread);
     },
-    [props.onRegenerateThreadTitle],
+    [propsOnRegenerateThreadTitle],
   );
   const handleDeleteThread = props.onDeleteThread;
   const handleUnsettleThread = props.onUnsettleThread;
@@ -546,9 +548,9 @@ export function HomeScreen(props: HomeScreenProps) {
     THREAD_LIST_V2_SETTLED_INITIAL_COUNT,
   );
   const settledResetKey = `${props.selectedEnvironmentId ?? "all"}:${v2ProjectScopeKey ?? "all"}:${props.searchQuery.trim()}`;
-  const lastSettledResetKeyRef = useRef(settledResetKey);
-  if (lastSettledResetKeyRef.current !== settledResetKey) {
-    lastSettledResetKeyRef.current = settledResetKey;
+  const [lastSettledResetKey, setLastSettledResetKey] = useState(settledResetKey);
+  if (lastSettledResetKey !== settledResetKey) {
+    setLastSettledResetKey(settledResetKey);
     setSettledVisibleCount(THREAD_LIST_V2_SETTLED_INITIAL_COUNT);
   }
   const showMoreSettled = useCallback(
@@ -563,20 +565,13 @@ export function HomeScreen(props: HomeScreenProps) {
     toggleSnoozedShelf,
   } = useThreadListV2ShelfPreferences();
   // The queued-start and snooze helpers need a clock while the list stays open.
-  const [nowMinute, setNowMinute] = useState(() => new Date().toISOString().slice(0, 16));
+  const clockFocused = useIsFocused();
+  const nowMinute = useNowMinute(threadListV2Enabled && clockFocused);
   // Snooze wake times are second-precise; a counter bumped exactly at the
   // next wake boundary re-runs the partition with a fresh clock so a woken
   // thread reappears immediately instead of on the next minute tick.
-  const [snoozeWakeTick, bumpSnoozeWakeTick] = useState(0);
-  useFocusEffect(
-    useCallback(() => {
-      if (!threadListV2Enabled) return;
-      // Refresh immediately on enable or focus because the previous value can be hours old.
-      setNowMinute(new Date().toISOString().slice(0, 16));
-      const id = setInterval(() => setNowMinute(new Date().toISOString().slice(0, 16)), 60_000);
-      return () => clearInterval(id);
-    }, [threadListV2Enabled]),
-  );
+  const [snoozeWakeTick, bumpSnoozeWakeTick] = useState(Date.now);
+
   // Threads on servers without the settlement capability never classify as
   // settled (the user could neither un-settle nor pin them).
   const serverConfigs = useAtomValue(environmentServerConfigsAtom);
@@ -675,7 +670,7 @@ export function HomeScreen(props: HomeScreenProps) {
       settlementEnvironmentIds,
       snoozeEnvironmentIds,
       settledLimit: settledVisibleCount,
-      now: new Date().toISOString(),
+      now: new Date(Math.max(Date.parse(`${nowMinute}:00Z`), snoozeWakeTick)).toISOString(),
       snoozedShelfExpanded,
       settledShelfExpanded,
       selectedThreadKey: null,
@@ -703,7 +698,7 @@ export function HomeScreen(props: HomeScreenProps) {
     const wakeAtMs = Date.parse(nextSnoozeWakeAt);
     if (Number.isNaN(wakeAtMs)) return;
     const delayMs = Math.min(Math.max(0, wakeAtMs - Date.now()) + 50, 2_147_483_647);
-    const id = setTimeout(() => bumpSnoozeWakeTick((tick) => tick + 1), delayMs);
+    const id = setTimeout(() => bumpSnoozeWakeTick(Date.now()), delayMs);
     return () => clearTimeout(id);
     // snoozeWakeTick must re-arm the timer even when nextSnoozeWakeAt is
     // unchanged: after a clamped fire (wake beyond the 32-bit setTimeout
@@ -742,7 +737,7 @@ export function HomeScreen(props: HomeScreenProps) {
         settledShelfHeaderIndex: threadListV2Layout.settledShelfHeaderIndex,
         snoozeLabelNow: `${nowMinute}:00.000Z`,
       }),
-    [settledShelfExpanded, snoozedShelfExpanded, threadListV2Layout, v2PendingTasks],
+    [settledShelfExpanded, snoozedShelfExpanded, threadListV2Layout, v2PendingTasks, nowMinute],
   );
 
   const renderV2Item = useCallback(

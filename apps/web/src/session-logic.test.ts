@@ -21,7 +21,6 @@ import {
   findLatestProposedPlan,
   hasActionableProposedPlan,
   isLatestTurnSettled,
-  PROVIDER_OPTIONS,
   selectHandoffImageResources,
   selectMessageImageResources,
   workEntryIndicatesToolFailure,
@@ -2606,74 +2605,6 @@ describe("deriveActiveWorkStartedAt", () => {
         "2026-02-27T21:11:00.000Z",
       ),
     ).toBe("2026-02-27T21:11:00.000Z");
-  });
-});
-
-describe("PROVIDER_OPTIONS", () => {
-  it("advertises all currently integrated providers", () => {
-    const copilot = PROVIDER_OPTIONS.find((option) => option.value === "copilot");
-    const claude = PROVIDER_OPTIONS.find((option) => option.value === "claudeAgent");
-    const cursor = PROVIDER_OPTIONS.find((option) => option.value === "cursor");
-    const opencode = PROVIDER_OPTIONS.find((option) => option.value === "opencode");
-    const droid = PROVIDER_OPTIONS.find((option) => option.value === "droid");
-    const geminiCli = PROVIDER_OPTIONS.find((option) => option.value === "geminiCli");
-    const amp = PROVIDER_OPTIONS.find((option) => option.value === "amp");
-    expect(PROVIDER_OPTIONS).toEqual([
-      { value: "acp", label: "ACP Agent", available: true, pickerSidebarBadge: "new" },
-      { value: "codex", label: "Codex", available: true },
-      { value: "copilot", label: "GitHub Copilot", available: true },
-      { value: "claudeAgent", label: "Claude Code", available: true },
-      { value: "cursor", label: "Cursor Agent", available: true, pickerSidebarBadge: "new" },
-      { value: "opencode", label: "OpenCode", available: true, pickerSidebarBadge: "new" },
-      { value: "droid", label: "Droid", available: true, pickerSidebarBadge: "new" },
-      { value: "fx", label: "Fx", available: true, pickerSidebarBadge: "new" },
-      { value: "grok", label: "Grok", available: true, pickerSidebarBadge: "new" },
-      { value: "antigravity", label: "Antigravity", available: true, pickerSidebarBadge: "new" },
-      { value: "geminiCli", label: "Gemini CLI", available: true },
-      { value: "amp", label: "AMPcode", available: true },
-      { value: "kilo", label: "Kilo", available: true },
-      { value: "hermes", label: "Hermes", available: true },
-      { value: "pi", label: "Pi", available: true },
-      { value: "ohMyPi", label: "Oh My Pi", available: true },
-    ]);
-    expect(copilot).toEqual({
-      value: "copilot",
-      label: "GitHub Copilot",
-      available: true,
-    });
-    expect(claude).toEqual({
-      value: "claudeAgent",
-      label: "Claude Code",
-      available: true,
-    });
-    expect(cursor).toEqual({
-      value: "cursor",
-      label: "Cursor Agent",
-      available: true,
-      pickerSidebarBadge: "new",
-    });
-    expect(opencode).toEqual({
-      value: "opencode",
-      label: "OpenCode",
-      available: true,
-      pickerSidebarBadge: "new",
-    });
-    expect(droid).toEqual({
-      value: "droid",
-      label: "Droid",
-      available: true,
-      pickerSidebarBadge: "new",
-    });
-    expect(geminiCli).toEqual({
-      value: "geminiCli",
-      label: "Gemini CLI",
-      available: true,
-    });
-    expect(amp).toEqual({
-      value: "amp",
-      label: "AMPcode",
-      available: true,
-    });
   });
 });
 

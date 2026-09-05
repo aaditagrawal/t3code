@@ -120,17 +120,13 @@ export function FontFamilyPicker({
   initialOpen?: boolean;
   onSelect: (family: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [query, setQuery] = useState("");
   // Open after mount rather than mounting open: a popup that first renders in
   // its open state never receives Base UI's entrance style baseline, so the
   // exit transition on close has no style delta, never fires transitionend,
   // and the popup lingers on screen forever.
-  useEffect(() => {
-    if (initialOpen) setOpen(true);
-    // The prop is only meaningful at mount - the control just swapped in
-    // under an active focus - so later changes are deliberately ignored.
-  }, []);
+
   const listRef = useRef<LegendListRef | null>(null);
   const enumeration = useFontEnumeration();
 

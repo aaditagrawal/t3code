@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import {
   ActivityIcon,
   AlertTriangleIcon,
@@ -27,7 +29,7 @@ import type {
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -847,10 +849,10 @@ export function ResourceTelemetryDiagnostics() {
     reportFailure: false,
   });
   const [signalingKeys, setSignalingKeys] = useState<ReadonlySet<string>>(() => new Set());
-  const signalingKeysRef = useRef<ReadonlySet<string>>(new Set());
-  signalingKeysRef.current = signalingKeys;
+  const signalingKeysRef = useRef<ReadonlySet<string>>(signalingKeys);
+  useCommitRef(signalingKeysRef, signalingKeys);
   const primaryEnvironmentIdRef = useRef(primaryEnvironment?.environmentId);
-  primaryEnvironmentIdRef.current = primaryEnvironment?.environmentId;
+  useCommitRef(primaryEnvironmentIdRef, primaryEnvironment?.environmentId);
   const [isRetrying, setIsRetrying] = useState(false);
   const snapshot = telemetry.data;
   const allT3 = snapshot?.groups.allT3;

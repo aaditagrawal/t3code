@@ -105,7 +105,7 @@ function useAction<
             execute,
           );
     },
-    [input.action, input.label, input.managedExternally, input.onSuccess, input.scope, operation],
+    [operation, input],
   );
 
   return {

@@ -204,16 +204,17 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
     }
   }, [onPull, openExistingPr, quickAction, runActionWithPrompt]);
 
+  const propsOnOpenFilesInspector = props.onOpenFilesInspector;
   const openFiles = useCallback(() => {
-    if (props.onOpenFilesInspector) {
-      props.onOpenFilesInspector();
+    if (propsOnOpenFilesInspector) {
+      propsOnOpenFilesInspector();
       return;
     }
     navigation.navigate("ThreadFiles", {
       environmentId: String(environmentId),
       threadId: String(threadId),
     });
-  }, [environmentId, props.onOpenFilesInspector, navigation, threadId]);
+  }, [environmentId, propsOnOpenFilesInspector, navigation, threadId]);
 
   const openReview = useCallback(() => {
     navigation.navigate("ThreadReview", {
@@ -222,16 +223,17 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
     });
   }, [environmentId, navigation, threadId]);
 
+  const propsOnOpenGitInspector = props.onOpenGitInspector;
   const openGitInspector = useCallback(() => {
-    if (props.onOpenGitInspector) {
-      props.onOpenGitInspector();
+    if (propsOnOpenGitInspector) {
+      propsOnOpenGitInspector();
       return;
     }
     navigation.navigate("GitOverview", {
       environmentId: String(environmentId),
       threadId: String(threadId),
     });
-  }, [environmentId, props.onOpenGitInspector, navigation, threadId]);
+  }, [environmentId, propsOnOpenGitInspector, navigation, threadId]);
 
   return {
     currentBranchLabel,

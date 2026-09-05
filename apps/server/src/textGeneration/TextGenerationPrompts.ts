@@ -12,6 +12,26 @@ import type { ChatAttachment } from "@t3tools/contracts";
 import { limitSection } from "./TextGenerationUtils.ts";
 import type { TextGenerationPolicy } from "./TextGenerationPolicy.ts";
 
+export const CommitMessageWithBranchOutput = Schema.Struct({
+  subject: Schema.String,
+  body: Schema.String,
+  branch: Schema.String,
+});
+export const CommitMessageOutput = Schema.Struct({
+  subject: Schema.String,
+  body: Schema.String,
+});
+export const PrContentOutput = Schema.Struct({
+  title: Schema.String,
+  body: Schema.String,
+});
+export const BranchNameOutput = Schema.Struct({
+  branch: Schema.String,
+});
+export const ThreadTitleOutput = Schema.Struct({
+  title: Schema.String,
+});
+
 const EARLIER_CONTENT_TRUNCATION_MARKER = "[Earlier content truncated]\n\n";
 
 function policyInstruction(instruction: string | undefined): ReadonlyArray<string> {
@@ -60,20 +80,13 @@ export function buildCommitMessagePrompt(input: CommitMessagePromptInput) {
   if (wantsBranch) {
     return {
       prompt,
-      outputSchema: Schema.Struct({
-        subject: Schema.String,
-        body: Schema.String,
-        branch: Schema.String,
-      }),
+      outputSchema: CommitMessageWithBranchOutput,
     };
   }
 
   return {
     prompt,
-    outputSchema: Schema.Struct({
-      subject: Schema.String,
-      body: Schema.String,
-    }),
+    outputSchema: CommitMessageOutput,
   };
 }
 
@@ -129,10 +142,7 @@ export function buildPrContentPrompt(input: PrContentPromptInput) {
     limitSection(input.diffPatch, 40_000),
   ].join("\n");
 
-  const outputSchema = Schema.Struct({
-    title: Schema.String,
-    body: Schema.String,
-  });
+  const outputSchema = PrContentOutput;
 
   return { prompt, outputSchema };
 }
@@ -196,9 +206,7 @@ export function buildBranchNamePrompt(input: BranchNamePromptInput) {
     attachments: input.attachments,
     additionalInstructions: input.policy?.branchInstructions,
   });
-  const outputSchema = Schema.Struct({
-    branch: Schema.String,
-  });
+  const outputSchema = BranchNameOutput;
 
   return { prompt, outputSchema };
 }
@@ -314,9 +322,7 @@ export function buildThreadTitlePrompt(input: ThreadTitlePromptInput) {
     const message = preserveMessageEnd(input.message);
     prompt = `${regenerateThreadTitlePrompt(input.previousTitle)}\n\nThread contents:\n${message}${threadTitlePromptSuffix(input)}`;
   }
-  const outputSchema = Schema.Struct({
-    title: Schema.String,
-  });
+  const outputSchema = ThreadTitleOutput;
 
   return { prompt, outputSchema };
 }

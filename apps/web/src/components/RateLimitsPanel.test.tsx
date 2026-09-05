@@ -25,6 +25,30 @@ function makeActivity(
 }
 
 describe("RateLimitsPanel helpers", () => {
+  it("expires unchanged activity snapshots when the subscribed clock advances", () => {
+    const threads = [
+      {
+        activities: [
+          makeActivity("clock-window", "account.rate-limits.updated", {
+            provider: "codex",
+            limits: [
+              {
+                window: "5h",
+                usedPercent: 90,
+                resetsAt: "2099-04-08T20:00:00.000Z",
+                windowDurationMins: 300,
+              },
+            ],
+          }),
+        ],
+      },
+    ];
+    expect(deriveAccountRateLimits(threads, Date.parse("2099-04-08T19:59:00.000Z"))).toHaveLength(
+      1,
+    );
+    expect(deriveAccountRateLimits(threads, Date.parse("2099-04-08T20:01:00.000Z"))).toEqual([]);
+  });
+
   it("normalizes direct rate-limit snapshots into visible 5h and Weekly rows", () => {
     const rateLimits = deriveAccountRateLimits([
       {

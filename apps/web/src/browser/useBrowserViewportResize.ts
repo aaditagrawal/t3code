@@ -1,4 +1,5 @@
 "use client";
+import { useCommitRef } from "@t3tools/client-runtime/react";
 
 import type { PreviewViewportSetting, PreviewViewportSize } from "@t3tools/contracts";
 import {
@@ -44,7 +45,7 @@ export function useBrowserViewportResize(options: {
   const [dragViewport, setDragViewport] = useState<ViewportDrag | null>(null);
   const sourceViewportKey = browserViewportSettingKey(viewport);
   const sourceViewportKeyRef = useRef(sourceViewportKey);
-  sourceViewportKeyRef.current = sourceViewportKey;
+  useCommitRef(sourceViewportKeyRef, sourceViewportKey);
   const activeDrag = dragViewport?.sourceKey === sourceViewportKey ? dragViewport : null;
   const effectiveViewport = activeDrag
     ? ({

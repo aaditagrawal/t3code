@@ -214,6 +214,14 @@
     "./work-log/scroll-anchor": {
       "types": "./src/work-log/scrollAnchor.ts",
       "default": "./src/work-log/scrollAnchor.ts"
+    },
+    "./react": {
+      "types": "./src/react.ts",
+      "default": "./src/react.ts"
+    },
+    "./react-clock": {
+      "types": "./src/reactClock.ts",
+      "default": "./src/reactClock.ts"
     }
   },
   "scripts": {
@@ -232,7 +240,12 @@
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
+    "@types/react": "~19.2.14",
     "micromark-util-types": "^2.0.2",
+    "react": "19.2.6",
     "vite-plus": "catalog:"
+  },
+  "peerDependencies": {
+    "react": ">=19.1.0"
   }
 }
