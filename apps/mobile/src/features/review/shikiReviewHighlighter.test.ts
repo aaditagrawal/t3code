@@ -144,31 +144,40 @@ describe("highlightSourceFile", () => {
     vi.resetModules();
     const highlighter = await import("./shikiReviewHighlighter");
     const source = "const answer: number = 42;";
+    // Shiki's 500ms tokenization budget uses Date.now. A loaded CI worker can
+    // exhaust it during the cold call and return a partially colored suffix.
+    // Keep this initialization comparison independent of wall-clock contention.
+    const tokenizationClock = vi.spyOn(Date, "now").mockReturnValue(0);
 
-    const highlighted = await highlighter.highlightSourceFile({
-      path: "example.ts",
-      contents: source,
-      theme: "dark",
-    });
+    try {
+      const highlighted = await highlighter.highlightSourceFile({
+        path: "example.ts",
+        contents: source,
+        theme: "dark",
+      });
 
-    expect(
-      highlighted
-        .flat()
-        .map((token) => token.content)
-        .join(""),
-    ).toBe(source);
-    expect(highlighted.flat().some((token) => token.color !== null)).toBe(true);
-    const snippet = await highlighter.highlightCodeSnippet({
-      code: source,
-      language: "ts",
-      theme: "dark",
-    });
-    expect(
-      snippet
-        .flat()
-        .map((token) => token.content)
-        .join(""),
-    ).toBe(source);
-    expect(snippet.flat().some((token) => token.color !== null)).toBe(true);
+      expect(
+        highlighted
+          .flat()
+          .map((token) => token.content)
+          .join(""),
+      ).toBe(source);
+      expect(highlighted.flat().some((token) => token.color !== null)).toBe(true);
+      const snippet = await highlighter.highlightCodeSnippet({
+        code: source,
+        language: "ts",
+        theme: "dark",
+      });
+      expect(
+        snippet
+          .flat()
+          .map((token) => token.content)
+          .join(""),
+      ).toBe(source);
+      expect(snippet.flat().some((token) => token.color !== null)).toBe(true);
+      expect(snippet).toEqual(highlighted);
+    } finally {
+      tokenizationClock.mockRestore();
+    }
   });
 });
