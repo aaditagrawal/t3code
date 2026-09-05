@@ -124,10 +124,21 @@ function OpenContentSearchDialog(props: {
   const visibleMatches = useMemo(() => matches.slice(0, visibleCount), [matches, visibleCount]);
   const groups = useMemo(() => groupMatches(visibleMatches), [visibleMatches]);
 
-  useEffect(() => {
+  const nextSelectedIndexResetInputs = [matches];
+  const [selectedIndexResetInputs, setSelectedIndexResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    selectedIndexResetInputs === null ||
+    nextSelectedIndexResetInputs.some(
+      (value, index) => !Object.is(value, selectedIndexResetInputs[index]),
+    )
+  ) {
+    setSelectedIndexResetInputs(nextSelectedIndexResetInputs);
+
     setSelectedIndex(0);
     setVisibleCount(VISIBLE_MATCH_WINDOW);
-  }, [matches]);
+  }
 
   useEffect(() => {
     if (selectedIndex >= visibleCount) {

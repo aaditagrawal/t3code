@@ -1,3 +1,4 @@
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { pullRequestHostOf, resolveEnvironmentMachineKind, ThreadId } from "@t3tools/contracts";
 import type {
@@ -626,8 +627,14 @@ function PullRequestsRouteView() {
   // Page size is view state, not a URL concern: a shared link should open the first page.
   const scopeKey = `${environmentKey}:${assignmentKey}:${search.state}:${search.involvement}:${scopedProjectId ?? ""}:${search.host ?? ""}:${search.draft ?? ""}:${search.review ?? ""}:${search.checks ?? ""}:${search.author ?? ""}:${search.labels?.join("\u0000") ?? ""}`;
   const filterKey = `${scopeKey}:${sentQuery}`;
-  const statsScopeRef = useRef<PullRequestStatsScope>({ key: filterKey, policy: statsPolicy });
-  statsScopeRef.current = { key: filterKey, policy: statsPolicy };
+  const statsScopeRef = useRef<PullRequestStatsScope>({
+    key: filterKey,
+    policy: statsPolicy,
+  });
+  useCommitRef(statsScopeRef, {
+    key: filterKey,
+    policy: statsPolicy,
+  });
   // Where the next slice carries on from, per repository within each environment, as that
   // environment handed it back. Sending it is what makes a second page cost a second page rather
   // than the whole list again — and a repository it does not name has run out and is not read a
@@ -651,9 +658,16 @@ function PullRequestsRouteView() {
   // Typing a search, or clearing one, starts the list again at its first page. Without this the
   // paging state from before the search is still filed under these filters and comes back with
   // it, so clearing would return to the slice that had been scrolled to rather than to the list.
-  useEffect(() => {
+  const nextPageResetInputs = [filterKey];
+  const [pageResetInputs, setPageResetInputs] = useState<readonly unknown[] | null>(null);
+  if (
+    pageResetInputs === null ||
+    nextPageResetInputs.some((value, index) => !Object.is(value, pageResetInputs[index]))
+  ) {
+    setPageResetInputs(nextPageResetInputs);
+
     setPage({ key: filterKey, size: PAGE_SIZE, cursors: null, regrown: [] });
-  }, [filterKey]);
+  }
 
   /** The listing input each environment is asked for, which differs only in its continuation. */
   const listTargets = useMemo(
@@ -1257,15 +1271,20 @@ function PullRequestsRouteView() {
   // Date sorts keep optional line-count reads near the viewport. Size and readiness sorts need
   // every loaded count before their order is final. Counts stay cached across both policies.
   const entriesByStatsKey = useRef<ReadonlyMap<string, EnvironmentPullRequestEntry>>(new Map());
-  entriesByStatsKey.current = new Map(
-    groups.flatMap((group) =>
-      group.entries.map((entry) => [pullRequestEntryKey(entry), entry] as const),
-    ),
+  const currentEntriesByStatsKey = useMemo(
+    () =>
+      new Map(
+        groups.flatMap((group) =>
+          group.entries.map((entry) => [pullRequestEntryKey(entry), entry] as const),
+        ),
+      ),
+    [groups],
   );
+  useCommitRef(entriesByStatsKey, currentEntriesByStatsKey);
   const visibleStatsKeys = useRef({ key: filterKey, values: new Set<string>() });
   const [statsByRow, setStatsByRow] = useState<PullRequestDiffStats>(() => new Map());
   const statsByRowRef = useRef(statsByRow);
-  statsByRowRef.current = statsByRow;
+  useCommitRef(statsByRowRef, statsByRow);
   const [statsTargetState, setStatsTargetState] = useState<{
     readonly key: string;
     readonly batches: ReadonlyArray<PullRequestStatsBatch>;
@@ -1283,7 +1302,7 @@ function PullRequestsRouteView() {
   const statsRows = useRef(new Set<HTMLButtonElement>());
   const statsPending = useRef(true);
   const statsPolicyRef = useRef(statsPolicy);
-  statsPolicyRef.current = statsPolicy;
+  useCommitRef(statsPolicyRef, statsPolicy);
   const registerStatsRow = useCallback((node: HTMLButtonElement | null) => {
     if (node === null || typeof IntersectionObserver === "undefined") return;
     statsRows.current.add(node);
@@ -1371,7 +1390,7 @@ function PullRequestsRouteView() {
     };
   }, [filterKey, statsPolicy]);
   const statsQuery = usePullRequestListStats(statsTargets);
-  statsPending.current = statsQuery.isPending;
+  useCommitRef(statsPending, statsQuery.isPending);
   useEffect(() => {
     if (statsPolicy !== "visible" || statsQuery.isPending) return;
     const visible = visibleStatsKeys.current;

@@ -1,6 +1,6 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { ArrowLeftIcon, ChevronRightIcon, LoaderCircleIcon, RotateCwIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { PierreEntryIcon } from "~/components/chat/PierreEntryIcon";
 import {
@@ -196,10 +196,17 @@ function DirectoryBreadcrumb(props: FileBreadcrumbsProps & { readonly crumb: Fil
   const [open, setOpen] = useState(false);
   const [directoryPath, setDirectoryPath] = useState(props.crumb.path);
 
-  useEffect(() => {
+  const nextOpenResetInputs = [props.crumb.path, props.relativePath];
+  const [openResetInputs, setOpenResetInputs] = useState<readonly unknown[] | null>(null);
+  if (
+    openResetInputs === null ||
+    nextOpenResetInputs.some((value, index) => !Object.is(value, openResetInputs[index]))
+  ) {
+    setOpenResetInputs(nextOpenResetInputs);
+
     setOpen(false);
     setDirectoryPath(props.crumb.path);
-  }, [props.crumb.path, props.relativePath]);
+  }
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);

@@ -1594,9 +1594,20 @@ export default function ChatView(props: ChatViewProps) {
     ApprovalRequestId[]
   >([]);
 
-  useEffect(() => {
+  const nextIsWorkspaceFileDragActiveResetInputs = [draftId, routeThreadKey];
+  const [isWorkspaceFileDragActiveResetInputs, setIsWorkspaceFileDragActiveResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    isWorkspaceFileDragActiveResetInputs === null ||
+    nextIsWorkspaceFileDragActiveResetInputs.some(
+      (value, index) => !Object.is(value, isWorkspaceFileDragActiveResetInputs[index]),
+    )
+  ) {
+    setIsWorkspaceFileDragActiveResetInputs(nextIsWorkspaceFileDragActiveResetInputs);
+
     setIsWorkspaceFileDragActive(false);
-  }, [draftId, routeThreadKey]);
+  }
 
   useEffect(() => {
     if (!isWorkspaceFileDragActive) return;
@@ -2975,7 +2986,9 @@ export default function ChatView(props: ChatViewProps) {
     }
     return byMessageId;
   }, [turnDiffSummaries]);
-  const lastRevertTurnCountRef = useRef<Map<MessageId, number> | null>(null);
+  const [lastRevertTurnCount, setLastRevertTurnCount] = useState<Map<MessageId, number> | null>(
+    null,
+  );
   const revertTurnCountByUserMessageId = useMemo(() => {
     const next = buildRevertTurnCountByUserMessageId(
       {
@@ -2984,16 +2997,18 @@ export default function ChatView(props: ChatViewProps) {
         turnDiffSummaryByAssistantMessageId,
         inferredCheckpointTurnCountByTurnId,
       },
-      lastRevertTurnCountRef.current,
+      lastRevertTurnCount,
     );
-    lastRevertTurnCountRef.current = next;
     return next;
   }, [
     supportsConversationRollback,
     inferredCheckpointTurnCountByTurnId,
     timelineEntries,
     turnDiffSummaryByAssistantMessageId,
+    lastRevertTurnCount,
   ]);
+  if (revertTurnCountByUserMessageId !== lastRevertTurnCount)
+    setLastRevertTurnCount(revertTurnCountByUserMessageId);
 
   const gitCwd = activeProject
     ? projectScriptCwd({
@@ -3062,11 +3077,26 @@ export default function ChatView(props: ChatViewProps) {
   const [dismissedProviderStatusBannerKey, setDismissedProviderStatusBannerKey] = useState<
     string | null
   >(null);
-  useEffect(() => {
+  const nextDismissedProviderStatusBannerKeyResetInputs = [
+    dismissedProviderStatusBannerKey,
+    providerStatusBannerKey,
+  ];
+  const [
+    dismissedProviderStatusBannerKeyResetInputs,
+    setDismissedProviderStatusBannerKeyResetInputs,
+  ] = useState<readonly unknown[] | null>(null);
+  if (
+    dismissedProviderStatusBannerKeyResetInputs === null ||
+    nextDismissedProviderStatusBannerKeyResetInputs.some(
+      (value, index) => !Object.is(value, dismissedProviderStatusBannerKeyResetInputs[index]),
+    )
+  ) {
+    setDismissedProviderStatusBannerKeyResetInputs(nextDismissedProviderStatusBannerKeyResetInputs);
+
     if (providerStatusBannerKey === null && dismissedProviderStatusBannerKey !== null) {
       setDismissedProviderStatusBannerKey(null);
     }
-  }, [dismissedProviderStatusBannerKey, providerStatusBannerKey]);
+  }
   const visibleProviderStatus = shouldShowProviderStatusBanner(
     activeProviderStatus,
     dismissedProviderStatusBannerKey,
@@ -4914,9 +4944,20 @@ export default function ChatView(props: ChatViewProps) {
     // activeThreadRef resets transitively with the active thread.
   }, [activeThread?.id]);
 
-  useEffect(() => {
+  const nextIsRevertingCheckpointResetInputs = [activeThread?.id];
+  const [isRevertingCheckpointResetInputs, setIsRevertingCheckpointResetInputs] = useState<
+    readonly unknown[] | null
+  >(null);
+  if (
+    isRevertingCheckpointResetInputs === null ||
+    nextIsRevertingCheckpointResetInputs.some(
+      (value, index) => !Object.is(value, isRevertingCheckpointResetInputs[index]),
+    )
+  ) {
+    setIsRevertingCheckpointResetInputs(nextIsRevertingCheckpointResetInputs);
+
     setIsRevertingCheckpoint(false);
-  }, [activeThread?.id]);
+  }
 
   useEffect(() => {
     if (!activeThread?.id || terminalUiState.terminalOpen) return;
@@ -5404,18 +5445,15 @@ export default function ChatView(props: ChatViewProps) {
   const activeBackgroundLiveness =
     !isWorking && activeThread ? (activeThreadShell?.backgroundLiveness ?? null) : null;
   const [isStoppingBackgroundWork, setIsStoppingBackgroundWork] = useState(false);
-  useEffect(() => {
-    // "Stopping..." holds until the liveness clears; the interrupt command
-    // returning only means the request was accepted.
-    if (activeBackgroundLiveness === null) {
-      setIsStoppingBackgroundWork(false);
-    }
-  }, [activeBackgroundLiveness]);
-  useEffect(() => {
-    // Per-thread state: switching threads while A's stop is pending must not
-    // disable B's Stop button (review finding).
+  const [backgroundWorkScope, setBackgroundWorkScope] = useState(activeThreadId);
+  if (backgroundWorkScope !== activeThreadId) {
+    setBackgroundWorkScope(activeThreadId);
     setIsStoppingBackgroundWork(false);
-  }, [activeThreadId]);
+  }
+  // The acknowledgement only accepts the request. Keep stopping until liveness clears.
+  if (isStoppingBackgroundWork && activeBackgroundLiveness === null) {
+    setIsStoppingBackgroundWork(false);
+  }
   const handleStopBackgroundWork = useCallback(async () => {
     if (!activeThread) return;
     setIsStoppingBackgroundWork(true);
@@ -5717,10 +5755,20 @@ export default function ChatView(props: ChatViewProps) {
     systemComposerBannerItems,
     wokeThreadBannerItem,
   ]);
-  useEffect(() => {
+  const nextPendingServerThreadEnvModeResetInputs = [activeThread?.id];
+  const [pendingServerThreadEnvModeResetInputs, setPendingServerThreadEnvModeResetInputs] =
+    useState<readonly unknown[] | null>(null);
+  if (
+    pendingServerThreadEnvModeResetInputs === null ||
+    nextPendingServerThreadEnvModeResetInputs.some(
+      (value, index) => !Object.is(value, pendingServerThreadEnvModeResetInputs[index]),
+    )
+  ) {
+    setPendingServerThreadEnvModeResetInputs(nextPendingServerThreadEnvModeResetInputs);
+
     setPendingServerThreadEnvMode(null);
     setPendingServerThreadBranch(undefined);
-  }, [activeThread?.id]);
+  }
 
   useEffect(() => {
     if (canOverrideServerThreadEnvMode) {

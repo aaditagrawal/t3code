@@ -333,6 +333,18 @@ export function ThemeEditorPanel({
     width: number;
     height: number;
   } | null>(null);
+  const clampPosition = useCallback((x: number, y: number, widthOverride?: number) => {
+    const panel = panelRef.current;
+    const margin = 8;
+    // The caller passes a width when it has just shrunk the panel: the DOM
+    // still reports the old one until React commits.
+    const width = widthOverride ?? panel?.offsetWidth ?? 0;
+    return {
+      x: Math.min(Math.max(x, margin), Math.max(margin, window.innerWidth - width - margin)),
+      // Keep at least the header on screen even when dragged far down.
+      y: Math.min(Math.max(y, margin), Math.max(margin, window.innerHeight - 48)),
+    };
+  }, []);
   useEffect(() => {
     if (!open) return;
     // A panel sized wider than the window can no longer be clamped back into
@@ -1077,19 +1089,6 @@ export function ThemeEditorPanel({
         ))}
       </div>
     );
-  };
-
-  const clampPosition = (x: number, y: number, widthOverride?: number) => {
-    const panel = panelRef.current;
-    const margin = 8;
-    // The caller passes a width when it has just shrunk the panel: the DOM
-    // still reports the old one until React commits.
-    const width = widthOverride ?? panel?.offsetWidth ?? 0;
-    return {
-      x: Math.min(Math.max(x, margin), Math.max(margin, window.innerWidth - width - margin)),
-      // Keep at least the header on screen even when dragged far down.
-      y: Math.min(Math.max(y, margin), Math.max(margin, window.innerHeight - 48)),
-    };
   };
 
   const handleDragPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {

@@ -1,3 +1,4 @@
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import type {
   ApprovalRequestId,
   AssistantCitation,
@@ -61,7 +62,6 @@ import {
 import {
   composerFloatingLayerProps,
   isInsideCollapsedComposerControls,
-  isInsideComposerFloatingLayer,
   isInsideRestingComposerControlScope,
 } from "./composerEventScope";
 import {
@@ -258,6 +258,7 @@ function useComposerRestingTransition(
 ) {
   const elementRef = useRef<HTMLDivElement>(null);
   const isCollapsedRef = useRef(isCollapsed);
+  useCommitRef(isCollapsedRef, isCollapsed);
   const previousCollapsedRef = useRef(isCollapsed);
   const previousRestingRef = useRef(isResting);
   const previousHeightRef = useRef<number | null>(null);
@@ -302,8 +303,6 @@ function useComposerRestingTransition(
     footer?.style.removeProperty("height");
     clearOverlayPin();
   }, [clearOverlayPin]);
-
-  isCollapsedRef.current = isCollapsed;
 
   const transitionToCurrentGeometry = useCallback(
     (stateChanged: boolean) => {
@@ -854,7 +853,7 @@ const terminalContextIdListsEqual = (
 function useRestingComposerControlsLayout(host: HTMLDivElement | null) {
   const controlsRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef(host);
-  hostRef.current = host;
+  useCommitRef(hostRef, host);
   const [layout, setLayout] = useState({ hiddenCount: 0, visible: true });
 
   const measure = useCallback(() => {
@@ -1372,8 +1371,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const composerDraft = useComposerThreadDraft(composerDraftTarget);
   // Live target key, for async flows that must notice a thread switch that
   // happened while they awaited.
-  const composerDraftTargetKeyRef = useRef("");
-  composerDraftTargetKeyRef.current = composerTargetKey(composerDraftTarget);
+  const composerDraftTargetKeyRef = useRef(composerTargetKey(composerDraftTarget));
+  useCommitRef(composerDraftTargetKeyRef, composerTargetKey(composerDraftTarget));
   const prompt = composerDraft.prompt;
   const composerImages = composerDraft.images;
   const composerFiles = composerDraft.files;
@@ -1814,7 +1813,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const desktopOutsidePointerInFlightRef = useRef(false);
   const desktopOutsidePointerReleaseTimeoutRef = useRef<number | null>(null);
   const composerScrollCollapseTimeoutRef = useRef<number | null>(null);
-  const composerScrollCollapseEligibleRef = useRef(false);
   const windowRefocusInFlightRef = useRef(false);
   const composerScrollGestureRef = useRef(createComposerScrollGestureState());
   const stashPulseKeyRef = useRef(0);
@@ -1977,7 +1975,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     selectedProvider,
     selectedProviderSkills,
     selectedProviderSlashCommands,
-    selectedProviderStatus,
     settings.showSkillsInSlashMenu,
     workspaceEntries.entries,
   ]);
@@ -2001,9 +1998,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     composerMenuSearchKey,
   ]);
 
-  composerMenuOpenRef.current = composerMenuOpen;
-  composerMenuItemsRef.current = composerMenuItems;
-  activeComposerMenuItemRef.current = activeComposerMenuItem;
+  useCommitRef(composerMenuOpenRef, composerMenuOpen);
+  useCommitRef(composerMenuItemsRef, composerMenuItems);
+  useCommitRef(activeComposerMenuItemRef, activeComposerMenuItem);
 
   const nonPersistedComposerImageIdSet = useMemo(
     () => new Set(nonPersistedComposerImageIds),
@@ -2225,9 +2222,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }
   }, [composerSubmissionError, prompt]);
 
-  useEffect(() => {
-    setProviderInputSubmissionError(null);
-  }, [
+  const nextProviderInputSubmissionErrorResetInputs = [
     composerElementContexts,
     composerPreviewAnnotations,
     composerReviewComments,
@@ -2236,7 +2231,19 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     selectedModel,
     selectedPromptEffort,
     selectedProvider,
-  ]);
+  ];
+  const [providerInputSubmissionErrorResetInputs, setProviderInputSubmissionErrorResetInputs] =
+    useState<readonly unknown[] | null>(null);
+  if (
+    providerInputSubmissionErrorResetInputs === null ||
+    nextProviderInputSubmissionErrorResetInputs.some(
+      (value, index) => !Object.is(value, providerInputSubmissionErrorResetInputs[index]),
+    )
+  ) {
+    setProviderInputSubmissionErrorResetInputs(nextProviderInputSubmissionErrorResetInputs);
+
+    setProviderInputSubmissionError(null);
+  }
 
   useEffect(() => {
     composerImagesRef.current = composerImages;
@@ -2951,7 +2958,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   // Entries are built on the keypress, not per render: the timeline changes
   // on every streamed delta and ArrowUp is rare.
   const promptHistoryMessagesRef = useRef(promptHistoryMessages);
-  promptHistoryMessagesRef.current = promptHistoryMessages;
+  useCommitRef(promptHistoryMessagesRef, promptHistoryMessages);
 
   // The composer persists across threads. A recall from thread A must not
   // be treated as active in thread B, where the text-match fallback could
@@ -3754,10 +3761,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     settings.composerCollapseOnScroll &&
     !composerHasExpandedChrome &&
     !showInlineTasksBadge;
+  const composerScrollCollapseEligibleRef = useRef(canScrollCollapseComposer && !isComposerResting);
+  useCommitRef(composerScrollCollapseEligibleRef, canScrollCollapseComposer && !isComposerResting);
   // Scrolling only has something to collapse while the composer is expanded.
   // With blur collapse off that includes an unfocused composer, so the wheel
   // handler keys off this rather than editor focus.
-  composerScrollCollapseEligibleRef.current = canScrollCollapseComposer && !isComposerResting;
 
   useEffect(() => {
     if (!canScrollCollapseComposer) {
@@ -4053,34 +4061,41 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const bannerStackItems = activityStackItem
     ? [activityStackItem, ...props.bannerItems]
     : props.bannerItems;
-  useEffect(() => {
-    if (activeTasksProgress === null || activeTaskSteps === null) {
+  const drawerInputs = {
+    activeTaskSteps,
+    activeTasksProgress,
+    hasBlockingComposerTopDrawer,
+    activeThreadId,
+    composerMenuOpen,
+    prompt,
+  };
+  const [previousDrawerInputs, setPreviousDrawerInputs] = useState(drawerInputs);
+  if (
+    previousDrawerInputs.activeTaskSteps !== activeTaskSteps ||
+    previousDrawerInputs.activeTasksProgress !== activeTasksProgress ||
+    previousDrawerInputs.hasBlockingComposerTopDrawer !== hasBlockingComposerTopDrawer ||
+    previousDrawerInputs.activeThreadId !== activeThreadId ||
+    previousDrawerInputs.composerMenuOpen !== composerMenuOpen ||
+    previousDrawerInputs.prompt !== prompt
+  ) {
+    setPreviousDrawerInputs(drawerInputs);
+    if (
+      activeTasksProgress === null ||
+      activeTaskSteps === null ||
+      hasBlockingComposerTopDrawer ||
+      previousDrawerInputs.activeThreadId !== activeThreadId
+    ) {
       setIsTasksDrawerOpen(false);
     }
-  }, [activeTaskSteps, activeTasksProgress]);
-
-  useEffect(() => {
-    if (hasBlockingComposerTopDrawer) {
-      setIsTasksDrawerOpen(false);
+    // The stash picker closes when typing resumes or a competing drawer opens.
+    if (
+      hasBlockingComposerTopDrawer ||
+      composerMenuOpen ||
+      previousDrawerInputs.prompt !== prompt
+    ) {
       setIsStashMenuOpen(false);
     }
-  }, [hasBlockingComposerTopDrawer]);
-
-  useEffect(() => {
-    setIsTasksDrawerOpen(false);
-  }, [activeThreadId]);
-
-  // Close the stash menu whenever the trigger-driven command menu opens so
-  // the two popovers never stack in the same layer, and when the user
-  // resumes typing (the menu is a transient picker, not a panel).
-  useEffect(() => {
-    if (composerMenuOpen) {
-      setIsStashMenuOpen(false);
-    }
-  }, [composerMenuOpen]);
-  useEffect(() => {
-    setIsStashMenuOpen(false);
-  }, [prompt]);
+  }
 
   useEffect(() => {
     const handler = (event: globalThis.KeyboardEvent) => {

@@ -709,7 +709,7 @@ export function PullRequestCodeTab({
           ) : null}
         </div>
       ),
-    [nextCursor, diffQuery.error, diffQuery.isPending, diffQuery.refresh],
+    [nextCursor, diffQuery],
   );
 
   const renderHeaderPrefix = useCallback(

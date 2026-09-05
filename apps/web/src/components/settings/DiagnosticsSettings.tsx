@@ -1,3 +1,4 @@
+import { useCommitRef } from "@t3tools/client-runtime/react";
 import {
   AlertTriangleIcon,
   ChevronDownIcon,
@@ -826,9 +827,9 @@ export function DiagnosticsSettingsPanel() {
   const [signalingPid, setSignalingPid] = useState<number | null>(null);
   const signalingPidRef = useRef<number | null>(null);
   const environmentIdRef = useRef(environmentId);
+  useCommitRef(environmentIdRef, environmentId);
   const processDataRef = useRef(processData);
-  environmentIdRef.current = environmentId;
-  processDataRef.current = processData;
+  useCommitRef(processDataRef, processData);
 
   const openLogsDirectory = useCallback(() => {
     const logsDirectoryPath = observability?.logsDirectoryPath ?? null;
@@ -866,90 +867,87 @@ export function DiagnosticsSettingsPanel() {
 
   const isInitialLoading = isPending && data === null;
   const isProcessInitialLoading = isProcessPending && processData === null;
-  const signalProcess = useCallback(
-    async (pid: number, signal: ServerProcessSignal) => {
-      if (signalingPidRef.current !== null) return;
-      signalingPidRef.current = pid;
-      setSignalingPid(pid);
-      const clearSignaling = () => {
-        signalingPidRef.current = null;
-        setSignalingPid(null);
-      };
-      if (signal === "SIGKILL") {
-        let confirmed = false;
-        try {
-          confirmed = await ensureLocalApi().dialogs.confirm(
-            `Send SIGKILL to process ${pid}? This cannot be handled by the process.`,
-            { variant: "destructive" },
-          );
-        } catch (error) {
-          clearSignaling();
-          toastManager.add({
-            type: "error",
-            title: "Could not confirm signal",
-            description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
-          });
-          return;
-        }
-        if (!confirmed) {
-          clearSignaling();
-          return;
-        }
-      }
-      const currentEnvironmentId = environmentIdRef.current;
-      if (currentEnvironmentId === null) {
-        clearSignaling();
-        return;
-      }
-      const process = processDataRef.current?.processes.find((entry) => entry.pid === pid);
-      if (process === undefined) {
-        clearSignaling();
-        return;
-      }
-
+  const signalProcess = useCallback(async (pid: number, signal: ServerProcessSignal) => {
+    if (signalingPidRef.current !== null) return;
+    signalingPidRef.current = pid;
+    setSignalingPid(pid);
+    const clearSignaling = () => {
+      signalingPidRef.current = null;
+      setSignalingPid(null);
+    };
+    if (signal === "SIGKILL") {
+      let confirmed = false;
       try {
-        const result = await signalServerProcess({
-          environmentId: currentEnvironmentId,
-          input: { pid, startTimeMs: process.startTimeMs, signal },
+        confirmed = await ensureLocalApi().dialogs.confirm(
+          `Send SIGKILL to process ${pid}? This cannot be handled by the process.`,
+          { variant: "destructive" },
+        );
+      } catch (error) {
+        clearSignaling();
+        toastManager.add({
+          type: "error",
+          title: "Could not confirm signal",
+          description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
         });
-        if (result._tag === "Failure") {
-          if (!isAtomCommandInterrupted(result)) {
-            const error = squashAtomCommandFailure(result);
-            toastManager.add({
-              type: "error",
-              title: `Could not send ${signal}`,
-              description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
-            });
-          }
-          return;
-        }
-        if (!result.value.signaled) {
-          const message = Option.getOrUndefined(result.value.message);
-          refreshProcesses();
-          if (isStaleProcessSignalMessage(message)) {
-            toastManager.add({
-              type: "info",
-              title: "Process already exited",
-              description:
-                "The process is not a child of the T3 Server. It might already have exited.",
-            });
-            return;
-          }
+        return;
+      }
+      if (!confirmed) {
+        clearSignaling();
+        return;
+      }
+    }
+    const currentEnvironmentId = environmentIdRef.current;
+    if (currentEnvironmentId === null) {
+      clearSignaling();
+      return;
+    }
+    const process = processDataRef.current?.processes.find((entry) => entry.pid === pid);
+    if (process === undefined) {
+      clearSignaling();
+      return;
+    }
 
+    try {
+      const result = await signalServerProcess({
+        environmentId: currentEnvironmentId,
+        input: { pid, startTimeMs: process.startTimeMs, signal },
+      });
+      if (result._tag === "Failure") {
+        if (!isAtomCommandInterrupted(result)) {
+          const error = squashAtomCommandFailure(result);
           toastManager.add({
             type: "error",
             title: `Could not send ${signal}`,
-            description: message ?? `Failed to send ${signal}.`,
+            description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
+          });
+        }
+        return;
+      }
+      if (!result.value.signaled) {
+        const message = Option.getOrUndefined(result.value.message);
+        refreshProcesses();
+        if (isStaleProcessSignalMessage(message)) {
+          toastManager.add({
+            type: "info",
+            title: "Process already exited",
+            description:
+              "The process is not a child of the T3 Server. It might already have exited.",
           });
           return;
         }
-        refreshProcesses();
-      } finally {
-        clearSignaling();
+
+        toastManager.add({
+          type: "error",
+          title: `Could not send ${signal}`,
+          description: message ?? `Failed to send ${signal}.`,
+        });
+        return;
       }
-    },
-    [refreshProcesses, signalServerProcess],
-  );
+      refreshProcesses();
+    } finally {
+      clearSignaling();
+    }
+  }, []);
 
   const processDiagnosticsError = processData ? Option.getOrNull(processData.error) : null;
   const processResourceError = resourceData ? Option.getOrNull(resourceData.error) : null;

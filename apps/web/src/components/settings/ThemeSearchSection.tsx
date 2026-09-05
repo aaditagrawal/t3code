@@ -48,15 +48,16 @@ const SORT_OPTIONS: ReadonlyArray<{ value: OpenVsxThemeSort; label: string }> = 
 const SEARCH_DEBOUNCE_MS = 350;
 
 function SourceLinkIcon({ url }: { url: string }) {
+  let host: string | null = null;
   try {
-    const host = new URL(url).hostname.toLowerCase();
-    if (host === "github.com" || host.endsWith(".github.com"))
-      return <GitHubIcon className="size-3.5" />;
-    if (host === "gitlab.com" || host.endsWith(".gitlab.com"))
-      return <GitLabIcon className="size-3.5" monochrome />;
+    host = new URL(url).hostname.toLowerCase();
   } catch {
-    // Fall through to the generic external-link icon.
+    /* Invalid URLs use the generic icon. */
   }
+  if (host === "github.com" || host?.endsWith(".github.com"))
+    return <GitHubIcon className="size-3.5" />;
+  if (host === "gitlab.com" || host?.endsWith(".gitlab.com"))
+    return <GitLabIcon className="size-3.5" monochrome />;
   return <ExternalLinkIcon className="size-3.5" />;
 }
 
