@@ -1,0 +1,28 @@
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as SqlClient from "effect/unstable/sql/SqlClient";
+import type { SqlError } from "effect/unstable/sql/SqlError";
+
+export type RuntimeSqliteLayerConfig = {
+  readonly filename: string;
+  readonly readonly?: boolean;
+  readonly spanAttributes?: Record<string, unknown>;
+};
+
+type Loader = {
+  layer: (config: RuntimeSqliteLayerConfig) => Layer.Layer<SqlClient.SqlClient, SqlError>;
+};
+
+const defaultSqliteClientLoaders = {
+  bun: () => import("@effect/sql-sqlite-bun/SqliteClient"),
+  node: () => import("@t3tools/shared/nodeSqliteClient"),
+} satisfies Record<string, () => Promise<Loader>>;
+
+export const makeRuntimeSqliteLayer = Effect.fn("makeRuntimeSqliteLayer")(function* (
+  config: RuntimeSqliteLayerConfig,
+) {
+  const runtime = process.versions.bun !== undefined ? "bun" : "node";
+  const loader = defaultSqliteClientLoaders[runtime];
+  const clientModule = yield* Effect.promise<Loader>(loader);
+  return clientModule.layer(config);
+}, Layer.unwrap);
