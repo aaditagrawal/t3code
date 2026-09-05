@@ -575,6 +575,7 @@ export function makePrimeAgentAdapter(
             ...(options?.environment ? { environment: options.environment } : {}),
             childProcessSpawner,
             cwd,
+            cancelBehavior: "wait-for-prompt",
             ...(pinnedModelId ? { model: pinnedModelId } : {}),
             clientInfo: { name: "t3-code", version: "0.0.0" },
             ...(mcpSession
@@ -809,7 +810,7 @@ export function makePrimeAgentAdapter(
             Effect.catch((cause) =>
               Effect.logError("Failed to process Prime Agent runtime notification.", { cause }),
             ),
-            Effect.forkChild,
+            Effect.forkIn(ctx.scope),
           );
 
           ctx.notificationFiber = notificationFiber;

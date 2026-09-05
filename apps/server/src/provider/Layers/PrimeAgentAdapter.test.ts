@@ -54,6 +54,54 @@ exec ${JSON.stringify(mockAgentCommand)} ${JSON.stringify(mockAgentPath)} "$@"
   return wrapperPath;
 }
 
+async function makeDelayedCancellationAgent() {
+  const dir = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "prime-agent-cancel-"));
+  const releasePath = NodePath.join(dir, "release");
+  const cancelledPath = NodePath.join(dir, "cancelled");
+  const agentPath = NodePath.join(dir, "agent.cjs");
+  await NodeFSP.writeFile(
+    agentPath,
+    `
+const fs = require("node:fs");
+const readline = require("node:readline");
+const send = (message) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\\n");
+let active;
+readline.createInterface({ input: process.stdin }).on("line", (line) => {
+  const request = JSON.parse(line);
+  const reply = (result) => send({ id: request.id, result });
+  if (request.method === "initialize") reply({ protocolVersion: 1, agentCapabilities: {} });
+  else if (request.method === "session/new") reply({ sessionId: "cancel-session" });
+  else if (request.method === "session/prompt") {
+    if (active !== undefined) {
+      send({ id: request.id, error: { code: -32603, message: "A prompt turn is already running for this ACP session" } });
+    } else if (request.params.prompt[0].text === "first") {
+      active = request.id;
+      send({ method: "session/update", params: { sessionId: "cancel-session", update: {
+        sessionUpdate: "agent_message_chunk", content: { type: "text", text: "running" }
+      } } });
+    } else reply({ stopReason: "end_turn" });
+  } else if (request.method === "session/cancel") {
+    fs.writeFileSync(${JSON.stringify(cancelledPath)}, "cancel received");
+    const timer = setInterval(() => {
+      if (!fs.existsSync(${JSON.stringify(releasePath)})) return;
+      clearInterval(timer);
+      const id = active;
+      active = undefined;
+      send({ id, result: { stopReason: "cancelled" } });
+    }, 5);
+  }
+});
+`,
+  );
+  const wrapperPath = NodePath.join(dir, "agent.sh");
+  await NodeFSP.writeFile(
+    wrapperPath,
+    `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(agentPath)} "$@"\n`,
+  );
+  await NodeFSP.chmod(wrapperPath, 0o755);
+  return { wrapperPath, releasePath, cancelledPath };
+}
+
 /**
  * Reads the mock agent's raw incoming JSON-RPC log. The mock only flushes a
  * line once the client actually sends the request, so callers must sequence
@@ -228,6 +276,33 @@ it.layer(primeAgentAdapterTestLayer)("PrimeAgentAdapterLive", (it) => {
     }),
   );
 
+  it.effect("keeps consuming session events after the startup fiber finishes", () =>
+    Effect.gen(function* () {
+      const threadId = ThreadId.make("prime-agent-detached-startup");
+      const wrapperPath = yield* Effect.promise(() => makeMockPrimeAgentWrapper());
+      const adapter = yield* makeTestAdapter(wrapperPath);
+      const events: ProviderRuntimeEvent[] = [];
+      const eventsFiber = yield* Stream.runForEach(adapter.streamEvents, (event) =>
+        Effect.sync(() => void events.push(event)),
+      ).pipe(Effect.forkChild);
+
+      const startupFiber = yield* adapter
+        .startSession({
+          threadId,
+          provider: PRIME_AGENT,
+          cwd: process.cwd(),
+          runtimeMode: "full-access",
+        })
+        .pipe(Effect.forkChild);
+      yield* Fiber.join(startupFiber);
+
+      yield* adapter.sendTurn({ threadId, input: "after startup exits", attachments: [] });
+      assert.isTrue(events.some((event) => event.type === "content.delta"));
+      yield* Fiber.interrupt(eventsFiber);
+      yield* adapter.stopSession(threadId);
+    }),
+  );
+
   it.effect("never sends `authenticate` because Prime Agent does not implement it", () =>
     Effect.gen(function* () {
       const threadId = ThreadId.make("prime-agent-no-authenticate");
@@ -358,16 +433,14 @@ it.layer(primeAgentAdapterTestLayer)("PrimeAgentAdapterLive", (it) => {
   it.effect("cancels an in-flight turn on interrupt", () =>
     Effect.gen(function* () {
       const threadId = ThreadId.make("prime-agent-interrupt");
-      const wrapperPath = yield* Effect.promise(() =>
-        makeMockPrimeAgentWrapper({ T3_ACP_HANG_PROMPT_FOREVER: "1" }),
-      );
-      const adapter = yield* makeTestAdapter(wrapperPath);
+      const mock = yield* Effect.promise(makeDelayedCancellationAgent);
+      const adapter = yield* makeTestAdapter(mock.wrapperPath);
 
       const turnStarted = yield* Deferred.make<void>();
       const turnCompleted =
         yield* Deferred.make<Extract<ProviderRuntimeEvent, { type: "turn.completed" }>>();
       const eventsFiber = yield* Stream.runForEach(adapter.streamEvents, (event) =>
-        event.type === "turn.started"
+        event.type === "content.delta"
           ? Deferred.succeed(turnStarted, undefined).pipe(Effect.asVoid)
           : event.type === "turn.completed"
             ? Deferred.succeed(turnCompleted, event).pipe(Effect.asVoid)
@@ -381,10 +454,11 @@ it.layer(primeAgentAdapterTestLayer)("PrimeAgentAdapterLive", (it) => {
         runtimeMode: "full-access",
       });
       const sendTurnFiber = yield* adapter
-        .sendTurn({ threadId, input: "hang forever", attachments: [] })
+        .sendTurn({ threadId, input: "first", attachments: [] })
         .pipe(Effect.forkChild);
       yield* Deferred.await(turnStarted);
 
+      yield* Effect.promise(() => NodeFSP.writeFile(mock.releasePath, "release"));
       yield* adapter.interruptTurn(threadId);
 
       const completed = yield* Deferred.await(turnCompleted);
@@ -396,6 +470,31 @@ it.layer(primeAgentAdapterTestLayer)("PrimeAgentAdapterLive", (it) => {
       yield* Fiber.interrupt(sendTurnFiber);
       yield* Fiber.interrupt(eventsFiber);
       yield* adapter.stopSession(threadId);
+    }),
+  );
+
+  it.effect("waits for the agent to finish cancellation before accepting another prompt", () =>
+    Effect.gen(function* () {
+      const mock = yield* Effect.promise(makeDelayedCancellationAgent);
+      const adapter = yield* makeTestAdapter(mock.wrapperPath);
+      const threadId = ThreadId.make("prime-agent-cancel-acknowledgement");
+      const started = yield* Deferred.make<void>();
+      const eventsFiber = yield* Stream.runForEach(adapter.streamEvents, (event) =>
+        event.type === "content.delta" ? Deferred.succeed(started, undefined) : Effect.void,
+      ).pipe(Effect.forkChild);
+      yield* adapter.startSession({ threadId, cwd: process.cwd(), runtimeMode: "full-access" });
+      const first = yield* adapter.sendTurn({ threadId, input: "first" }).pipe(Effect.forkChild);
+      yield* Deferred.await(started);
+      const interrupt = yield* adapter.interruptTurn(threadId).pipe(Effect.forkChild);
+      yield* waitForFileContent(mock.cancelledPath);
+      const returnedBeforeAcknowledgement = interrupt.pollUnsafe() !== undefined;
+      yield* Effect.promise(() => NodeFSP.writeFile(mock.releasePath, "release"));
+      yield* Fiber.join(interrupt);
+      yield* Fiber.join(first);
+      yield* adapter.sendTurn({ threadId, input: "second" });
+      yield* Fiber.interrupt(eventsFiber);
+      yield* adapter.stopSession(threadId);
+      assert.isFalse(returnedBeforeAcknowledgement);
     }),
   );
 
@@ -463,7 +562,7 @@ function waitForFileContent(filePath: string, attempts = 40): Effect.Effect<stri
       if (raw.trim().length > 0) {
         return raw;
       }
-      yield* Effect.sleep("25 millis");
+      yield* Effect.promise(() => new Promise<void>((resolve) => setTimeout(resolve, 25)));
       return yield* readAttempt(remainingAttempts - 1);
     });
   return readAttempt(attempts);
