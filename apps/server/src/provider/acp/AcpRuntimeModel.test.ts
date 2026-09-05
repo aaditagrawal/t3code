@@ -339,21 +339,27 @@ describe("AcpRuntimeModel", () => {
     ]);
   });
 
-  it("parses available_commands_update into a CommandsUpdated event", () => {
-    const result = parseSessionUpdateEvent({
+  it("parses available_commands_update into native and normalized command events", () => {
+    const availableCommands = [
+      { name: "/help", description: "List available commands" },
+      { name: "model", description: "Show or switch model", input: { hint: "model name" } },
+      { name: "queue", description: "Queue a prompt", input: { hint: "prompt to run" } },
+      { name: "steer", description: "Inject guidance" },
+    ] satisfies ReadonlyArray<EffectAcpSchema.AvailableCommand>;
+    const notification = {
       sessionId: "session-1",
       update: {
         sessionUpdate: "available_commands_update",
-        availableCommands: [
-          { name: "/help", description: "List available commands" },
-          { name: "model", description: "Show or switch model", input: { hint: "model name" } },
-          { name: "queue", description: "Queue a prompt", input: { hint: "prompt to run" } },
-          { name: "steer", description: "Inject guidance" },
-        ],
+        availableCommands,
       },
-    } satisfies EffectAcpSchema.SessionNotification);
+    } satisfies EffectAcpSchema.SessionNotification;
 
-    expect(result.events).toEqual([
+    expect(parseSessionUpdateEvent(notification).events).toEqual([
+      {
+        _tag: "AvailableCommandsUpdated",
+        availableCommands,
+        rawPayload: notification,
+      },
       {
         _tag: "CommandsUpdated",
         commands: [
@@ -362,38 +368,59 @@ describe("AcpRuntimeModel", () => {
           { name: "queue", description: "Queue a prompt", inputHint: "prompt to run" },
           { name: "steer", description: "Inject guidance" },
         ],
-        rawPayload: {
-          sessionId: "session-1",
-          update: {
-            sessionUpdate: "available_commands_update",
-            availableCommands: [
-              { name: "/help", description: "List available commands" },
-              { name: "model", description: "Show or switch model", input: { hint: "model name" } },
-              { name: "queue", description: "Queue a prompt", input: { hint: "prompt to run" } },
-              { name: "steer", description: "Inject guidance" },
-            ],
-          },
-        },
+        rawPayload: notification,
       },
     ]);
   });
 
-  it("preserves an empty available_commands_update", () => {
+  it("keeps thought chunks separate from assistant text", () => {
     const notification = {
       sessionId: "session-1",
       update: {
-        sessionUpdate: "available_commands_update",
-        availableCommands: [],
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "text", text: "Inspect the current implementation first." },
       },
     } satisfies EffectAcpSchema.SessionNotification;
 
     expect(parseSessionUpdateEvent(notification).events).toEqual([
       {
-        _tag: "CommandsUpdated",
-        commands: [],
+        _tag: "ThoughtDelta",
+        text: "Inspect the current implementation first.",
         rawPayload: notification,
       },
     ]);
+  });
+
+  it("preserves native command inputs and empty command lists", () => {
+    const availableCommands = [
+      { name: "plan", description: "Plan a task", input: { hint: "task" } },
+      { name: "logout", description: "Sign out" },
+    ] satisfies ReadonlyArray<EffectAcpSchema.AvailableCommand>;
+
+    for (const commands of [availableCommands, []]) {
+      const notification = {
+        sessionId: "session-1",
+        update: { sessionUpdate: "available_commands_update", availableCommands: commands },
+      } satisfies EffectAcpSchema.SessionNotification;
+      expect(parseSessionUpdateEvent(notification).events).toEqual([
+        {
+          _tag: "AvailableCommandsUpdated",
+          availableCommands: commands,
+          rawPayload: notification,
+        },
+        {
+          _tag: "CommandsUpdated",
+          commands:
+            commands.length === 0
+              ? []
+              : [
+                  { name: "plan", description: "Plan a task", inputHint: "task" },
+                  { name: "logout", description: "Sign out" },
+                ],
+          rawPayload: notification,
+        },
+      ]);
+    }
   });
 
   it("keeps permission request parsing compatible with loose extension payloads", () => {

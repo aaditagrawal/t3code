@@ -1,5 +1,6 @@
 import { ProviderDriverKind } from "@t3tools/contracts";
 import {
+  AntigravityIcon,
   ClaudeAI,
   CursorIcon,
   DroidIcon,
@@ -22,6 +23,7 @@ export const PROVIDER_ICON_BY_PROVIDER: Partial<Record<ProviderDriverKind, Icon>
   [ProviderDriverKind.make("hermes")]: HermesIcon,
   [ProviderDriverKind.make("pi")]: PiAgentIcon,
   [ProviderDriverKind.make("ohMyPi")]: OhMyPiIcon,
+  [ProviderDriverKind.make("antigravity")]: AntigravityIcon,
 };
 
 export type ModelEsque = {
@@ -29,6 +31,8 @@ export type ModelEsque = {
   name: string;
   shortName?: string | undefined;
   subProvider?: string | undefined;
+  aliases?: ReadonlyArray<string> | undefined;
+  isDefault?: boolean | undefined;
   badge?: "new" | undefined;
   isLegacy?: boolean | undefined;
   isUnavailable?: boolean | undefined;

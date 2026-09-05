@@ -251,6 +251,30 @@ describe("derivePendingApprovals", () => {
 });
 
 describe("derivePendingUserInputs", () => {
+  it("preserves native choice values and the custom-answer restriction", () => {
+    const question = {
+      id: "interaction-result",
+      header: "Result",
+      question: "Which result should be used?",
+      options: [
+        { value: " first\t", label: "Result", description: "First result" },
+        { value: "second", label: "Result", description: "Second result" },
+      ],
+      allowCustomAnswer: false,
+      multiSelect: false,
+    };
+    const activities = [
+      makeActivity({
+        id: "native-user-input",
+        kind: "user-input.requested",
+        summary: "User input requested",
+        payload: { requestId: "req-native-choice", questions: [question] },
+      }),
+    ];
+
+    expect(derivePendingUserInputs(activities)[0]?.questions).toEqual([question]);
+  });
+
   it("tracks open structured prompts and removes resolved ones", () => {
     const activities: OrchestrationThreadActivity[] = [
       makeActivity({
@@ -2241,6 +2265,7 @@ describe("PROVIDER_OPTIONS", () => {
       { value: "droid", label: "Droid", available: true, pickerSidebarBadge: "new" },
       { value: "fx", label: "Fx", available: true, pickerSidebarBadge: "new" },
       { value: "grok", label: "Grok", available: true, pickerSidebarBadge: "new" },
+      { value: "antigravity", label: "Antigravity", available: true, pickerSidebarBadge: "new" },
       { value: "geminiCli", label: "Gemini CLI", available: true },
       { value: "amp", label: "AMPcode", available: true },
       { value: "kilo", label: "Kilo", available: true },

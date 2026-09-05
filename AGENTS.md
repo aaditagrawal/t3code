@@ -1,5 +1,7 @@
 # AGENTS.md
 
+T3 Code is a multi-provider GUI for coding agents. A Node WebSocket server wraps provider CLIs and agents (ACP Agent, Codex, Claude Code, Cursor, Droid, Fx, Grok, OpenCode, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, Pi, and Antigravity) and serves web, desktop, and mobile clients.
+
 ## Git & GitHub Policy (CRITICAL — DO NOT VIOLATE)
 
 - This is a FORK of `pingdotgg/t3code`. The upstream remote is READ-ONLY for us.
@@ -19,7 +21,7 @@
 
 When syncing upstream, preserve these fork features unless the user explicitly asks to remove them:
 
-1. Multi-provider runtime support for the built-in drivers: configurable ACP, Codex CLI, Claude Code, Cursor, Droid, Fx, Grok Build, OpenCode, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, and Pi.
+1. Multi-provider runtime support for the built-in drivers: configurable ACP, Codex CLI, Claude Code, Cursor, Droid, Fx, Grok Build, OpenCode, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, Pi, and Antigravity.
 2. Usage and limit monitoring, including token/context usage snapshots, provider usage events, Codex account rate-limit streams, and the web rate-limit banner/panel UX.
 3. Provider management UX, including custom provider instances, per-instance environment/config/model state, custom model slugs, and provider-scoped traits such as reasoning, context window, fast mode, and agent selection.
 4. Provider-neutral orchestration reliability, including SQLite event persistence, command receipts, replay/live stream ordering, session restart/reconnect behavior, and projection consistency.
@@ -39,7 +41,7 @@ When syncing upstream, preserve these fork features unless the user explicitly a
 
 ## Project Snapshot
 
-T3 Code is a multi-provider web GUI for coding agents. This fork supports 15 built-in provider drivers. `BUILT_IN_DRIVERS` in `apps/server/src/provider/builtInDrivers.ts` is the source of truth:
+T3 Code is a multi-provider web GUI for coding agents. This fork supports 16 built-in provider drivers. `BUILT_IN_DRIVERS` in `apps/server/src/provider/builtInDrivers.ts` is the source of truth:
 
 - **ACP Agent** — configurable executable and arguments for any stdio ACP implementation
 - **Codex CLI** (v0.37.0+) — JSON-RPC over stdio
@@ -49,6 +51,7 @@ T3 Code is a multi-provider web GUI for coding agents. This fork supports 15 bui
 - **Fx** — `fx acp` over stdio
 - **Grok Build** — ACP over stdio with xAI protocol extensions
 - **OpenCode** — SDK CLI server
+- **Antigravity** — official Google ACP agent with managed install and Google sign-in
 - **Amp** — Amp Code headless mode (no `/mode free`)
 - **Copilot** — GitHub Copilot CLI
 - **Gemini CLI** — Google Gemini CLI with persistent JSON
@@ -103,6 +106,18 @@ Adapters are registered in `provider/Layers/ProviderAdapterRegistry.ts` and look
 - `apps/server/src/orchestration/Layers/ProviderRuntimeIngestion.ts` — Normalizes provider events into canonical `OrchestrationEvent` type.
 - `apps/server/src/orchestration/Layers/ProjectionPipeline.ts` — Projects events into queryable state.
 - `apps/server/src/ws.ts` — WebSocket RPC server using Effect's `RpcServer.toHttpEffectWebsocket()`.
+
+### Hit every surface
+
+The most common defect in this repo is a change that works on the path you tested and is missing everywhere else. Before calling frontend work done, walk this list and say which entries applied:
+
+- **Entry points.** A behavior reachable from the chat view is usually also reachable from Settings, the command palette, and a keybinding. Fixing one is not fixing the feature.
+- **Clients.** Web, desktop (wraps web, adds Electron shell/IPC), and mobile (React Native, separate navigation). Shared logic lives in `packages/client-runtime`.
+- **Providers.** ACP Agent, Codex, Claude, Cursor, Droid, Fx, Grok, OpenCode, Antigravity, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, and Pi each have an adapter. Provider-shaped features need a decision per adapter, even if the decision is "not supported here".
+- **Contracts.** Anything crossing the wire is typed in `packages/contracts`. Change the schema and the server, web, mobile, and desktop all follow.
+- **Reverse states.** If you added a way in, add the way out and the way to see it. Snooze needs unsnooze. Close needs reopen. A one-way door is a bug.
+- **Connection modes.** Local, remote/relay, and tunnel behave differently. Multi-device and multi-environment cases are real.
+- **Docs.** `docs/` splits by audience. Behavior changes that a user would notice belong in `docs/user/` (shipped-product voice, no repo tooling or source paths); architecture and contributor changes in `docs/internals/`; runbooks in `docs/operations/`; new vocabulary in `docs/internals/glossary.md`.
 
 ### Event Sourcing & Orchestration
 
