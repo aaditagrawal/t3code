@@ -41,7 +41,7 @@ function TaskSegments({
         <span
           key={key}
           className={cn(
-            "h-[3px] min-w-0 flex-1 rounded-full",
+            "h-0.75 min-w-0 flex-1 rounded-full",
             step.status === "completed"
               ? "bg-success"
               : step.status === "inProgress"
@@ -206,7 +206,7 @@ export const ComposerTasksDrawer = memo(function ComposerTasksDrawer({
             <span
               aria-hidden
               className={cn(
-                "w-3 shrink-0 text-center font-mono text-[10px]",
+                "w-3 shrink-0 text-center font-mono text-xs",
                 step.status === "completed"
                   ? "text-success"
                   : step.status === "inProgress"
@@ -229,7 +229,7 @@ export const ComposerTasksDrawer = memo(function ComposerTasksDrawer({
               {step.step}
             </span>
             <span
-              className="ml-auto w-10 shrink-0 text-right text-[10px] text-muted-foreground/45 tabular-nums"
+              className="ml-auto w-10 shrink-0 text-right text-xs text-muted-foreground/45 tabular-nums"
               data-composer-task-duration="true"
             >
               {step.durationMs !== undefined

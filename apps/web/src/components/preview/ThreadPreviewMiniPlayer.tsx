@@ -231,15 +231,20 @@ export function ThreadPreviewMiniPlayer({ threadRef, tabId, bottomInset }: Props
       ref={rootRef}
       aria-label="Floating browser preview"
       data-preview-mini-player={tabId}
-      className="pointer-events-none absolute select-none"
+      className="pointer-events-none absolute select-none right-(--right) top-(--top) w-(--width) h-(--height) left-(--left)"
       style={
         position
-          ? { left: position.x, top: position.y, width: size.width, height: size.height }
+          ? {
+              "--left": `${position.x}px`,
+              "--top": `${position.y}px`,
+              "--width": `${size.width}px`,
+              "--height": `${size.height}px`,
+            }
           : {
-              right: PREVIEW_MINI_PLAYER_EDGE_GAP,
-              top: PREVIEW_MINI_PLAYER_EDGE_GAP,
-              width: size.width,
-              height: size.height,
+              "--right": `${PREVIEW_MINI_PLAYER_EDGE_GAP}px`,
+              "--top": `${PREVIEW_MINI_PLAYER_EDGE_GAP}px`,
+              "--width": `${size.width}px`,
+              "--height": `${size.height}px`,
             }
       }
     >

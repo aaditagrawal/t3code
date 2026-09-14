@@ -136,7 +136,7 @@ export function FontSizeSliderRow(props: {
   };
 
   return (
-    <View className={disabled ? "gap-1 p-4 opacity-[0.45]" : "gap-1 p-4"}>
+    <View className={disabled ? "gap-1 p-4 opacity-45" : "gap-1 p-4"}>
       <View className="flex-row items-center gap-4">
         <SymbolView
           name={props.icon}

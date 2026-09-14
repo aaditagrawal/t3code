@@ -153,12 +153,12 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
                     {stashEntrySnippet(entry)}
                   </span>
                   {entry.pendingImageCount ? (
-                    <span className="shrink-0 text-[10px] text-secondary-label">
+                    <span className="shrink-0 text-xs text-secondary-label">
                       saving {entry.pendingImageCount} image
                       {entry.pendingImageCount === 1 ? "" : "s"}…
                     </span>
                   ) : missingImageCount(entry) > 0 ? (
-                    <span className="shrink-0 text-[10px] text-warning-foreground">
+                    <span className="shrink-0 text-xs text-warning-foreground">
                       {missingImageCount(entry)} image
                       {missingImageCount(entry) === 1 ? "" : "s"} dropped
                     </span>
@@ -182,7 +182,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    className="pointer-events-none shrink-0 [--control-icon-color:currentColor] opacity-0 shadow-none! transition-opacity pointer-coarse:pointer-events-auto pointer-coarse:opacity-100 group-hover/stash:pointer-events-auto group-hover/stash:opacity-100 group-focus-within/stash:pointer-events-auto group-focus-within/stash:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
+                    className="pointer-events-none shrink-0 opacity-0 shadow-none! transition-opacity pointer-coarse:pointer-events-auto pointer-coarse:opacity-100 group-hover/stash:pointer-events-auto group-hover/stash:opacity-100 group-focus-within/stash:pointer-events-auto group-focus-within/stash:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
                     aria-label="Delete stashed prompt"
                     onClick={(event) => {
                       event.stopPropagation();

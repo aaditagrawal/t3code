@@ -442,7 +442,7 @@ function ArchivedThreadRow(props: {
             borderBottomWidth: props.isLast ? 0 : 1,
           }}
         >
-          <View className="h-[34px] w-[34px] items-center justify-center rounded-[11px] bg-subtle">
+          <View className="h-8.5 w-8.5 items-center justify-center rounded-xl bg-subtle">
             <SymbolView name="archivebox.fill" size={15} tintColor={iconColor} type="monochrome" />
           </View>
 
@@ -454,7 +454,7 @@ function ArchivedThreadRow(props: {
               >
                 {props.thread.title}
               </Text>
-              <Text className="min-w-[30px] text-right text-xs tabular-nums text-foreground-tertiary">
+              <Text className="min-w-7.5 text-right text-xs tabular-nums text-foreground-tertiary">
                 {timestamp}
               </Text>
             </View>
@@ -483,7 +483,7 @@ function ArchivedThreadRow(props: {
 
 function ArchiveError(props: { readonly message: string; readonly onRetry: () => void }) {
   return (
-    <View className="rounded-[20px] border border-danger-border bg-danger p-4">
+    <View className="rounded-2xl border border-danger-border bg-danger p-4">
       <Text className="text-base font-t3-bold text-danger-foreground">
         Could not load every archive
       </Text>

@@ -52,7 +52,7 @@ function DefaultBadge() {
   return (
     <Badge
       variant="outline"
-      className="inline-flex h-4 w-fit min-w-0 items-center justify-center gap-0 border-border/70 bg-muted/60 px-1.5 py-0 font-semibold text-[10px] text-muted-foreground leading-none sm:h-4"
+      className="inline-flex h-4 w-fit min-w-0 items-center justify-center gap-0 border-border/70 bg-muted/60 px-1.5 py-0 font-semibold text-xs text-muted-foreground leading-none sm:h-4"
     >
       Default
     </Badge>
@@ -220,7 +220,7 @@ export interface TraitsMenuContentProps {
   allowPromptInjectedEffort?: boolean;
   planModeEnabled: boolean;
   triggerVariant?: VariantProps<typeof buttonVariants>["variant"];
-  triggerClassName?: string;
+  className?: string;
 }
 
 export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
@@ -463,7 +463,7 @@ export const TraitsPicker = memo(function TraitsPicker({
   allowPromptInjectedEffort = true,
   planModeEnabled,
   triggerVariant,
-  triggerClassName,
+  className,
   ...persistence
 }: TraitsMenuContentProps & TraitsPersistence) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -503,7 +503,7 @@ export const TraitsPicker = memo(function TraitsPicker({
         icon={ZapIcon}
         className={cn(
           "fill-current opacity-80",
-          provider === "claudeAgent" ? "text-[#d97757]" : "text-foreground",
+          provider === "claudeAgent" ? "text-brand-claude" : "text-foreground",
         )}
       />
       <span className="sr-only">Fast mode on</span>
@@ -527,7 +527,7 @@ export const TraitsPicker = memo(function TraitsPicker({
               isCodexStyle
                 ? "min-w-0 max-w-40 shrink justify-start overflow-hidden whitespace-nowrap sm:max-w-48"
                 : "shrink-0 whitespace-nowrap",
-              triggerClassName,
+              className,
             )}
           />
         }

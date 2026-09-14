@@ -330,7 +330,7 @@ function OnboardingStepper({
           >
             {index < currentIndex ? <CheckIcon className="size-3" /> : null}
           </span>
-          <span className="text-[10px] font-medium uppercase text-muted-foreground">
+          <span className="text-xs font-medium uppercase text-muted-foreground">
             Step {index + 1}
           </span>
           <span className="truncate text-xs font-semibold text-foreground">

@@ -257,10 +257,10 @@ const ComposerConnectionStatusPill = memo(function ComposerConnectionStatusPill(
         {isReconnecting ? (
           <ActivityIndicator size="small" color={indicatorColor} />
         ) : (
-          <View className="h-2 w-2 rounded-full bg-red-500" />
+          <View className="h-2 w-2 rounded-full bg-danger-foreground" />
         )}
         <Text
-          className="max-w-[260px] text-sm font-t3-bold leading-snug text-foreground"
+          className="max-w-65 text-sm font-t3-bold leading-snug text-foreground"
           numberOfLines={1}
         >
           {props.status.label}
@@ -843,7 +843,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                 </Pressable>
               ))}
               {props.draftAttachments.length > 3 ? (
-                <View className="size-[30px] items-center justify-center rounded-lg bg-subtle-strong">
+                <View className="size-7.5 items-center justify-center rounded-lg bg-subtle-strong">
                   <Text className="text-foreground-muted text-2xs font-t3-bold">
                     +{props.draftAttachments.length - 3}
                   </Text>

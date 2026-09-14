@@ -61,7 +61,7 @@ export function EnvironmentConnectionNotice(props: {
 
   return (
     <View className="flex-1 items-center justify-center px-8">
-      <View className="max-w-[320px] items-center gap-3">
+      <View className="max-w-80 items-center gap-3">
         {isRetrying ? (
           <ActivityIndicator size="small" color={iconColor} />
         ) : (

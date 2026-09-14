@@ -204,7 +204,7 @@ export function FileMarkdownPreview(props: {
         ) : undefined
       }
     >
-      <View className="mx-auto w-full max-w-[760px]">
+      <View className="mx-auto w-full max-w-190">
         {hasNativeSelectableMarkdownText() ? (
           <SelectableMarkdownText
             markdown={props.markdown}

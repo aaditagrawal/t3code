@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { XIcon } from "lucide-react";
 
 import { cn } from "~/lib/utils";
@@ -6,21 +6,6 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from "../ui/alert";
 import { Button } from "../ui/button";
 
 const DISMISS_TRANSITION_MS = 220;
-const frontExitStyle = {
-  opacity: 0,
-  transform: "translate3d(0, 4rem, 0)",
-} satisfies CSSProperties;
-const stackedExitStyle = {
-  opacity: 0,
-  transform: "translate3d(0, 7rem, 0)",
-} satisfies CSSProperties;
-const restingStyle = {
-  opacity: 1,
-  transform: "none",
-} satisfies CSSProperties;
-const exitTransitionStyle = {
-  transition: `transform ${DISMISS_TRANSITION_MS}ms ease-in, opacity ${DISMISS_TRANSITION_MS}ms ease-in`,
-} satisfies CSSProperties;
 
 // The collapsed cap peeking above the front banner is the only hint that more
 // banners are stacked behind it, so its border must match the severity of the
@@ -43,8 +28,9 @@ export interface ComposerBannerStackItem {
   readonly title: ReactNode;
   readonly description?: ReactNode;
   readonly actions?: ReactNode;
-  readonly className?: string;
-  readonly actionClassName?: string;
+  // Drops the alert's shadow in dark mode (used by the branch-mismatch banner,
+  // which already reads as a tinted surface).
+  readonly flatInDark?: boolean;
   readonly dismissLabel?: string;
   readonly onDismiss?: () => void;
 }
@@ -112,24 +98,23 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
           <div
             className={cn(
               "pointer-events-none absolute inset-x-0 -top-3 z-0 mx-auto h-3 rounded-t-2xl",
-              "chat-composer-banner-stack-cap border border-b-0 shadow-[0_6px_18px_rgba(0,0,0,0.06)]",
+              "chat-composer-banner-stack-cap border border-b-0 shadow-banner-pop",
               stackCapBorderClass[firstStackedItem.variant],
               "transition-opacity duration-150 ease-out",
               "group-hover/banner-stack:opacity-0 group-focus-within/banner-stack:opacity-0",
+              "w-(--width)",
             )}
-            style={{ width: "96%" }}
+            style={{ "--width": "96%" }}
             aria-hidden="true"
           />
         ) : null}
         <div
           className={cn(
-            "relative z-10",
-            exitingItemId === frontItem.id ? "pointer-events-none" : null,
+            "banner-stack-exit relative z-10",
+            exitingItemId === frontItem.id
+              ? "pointer-events-none translate-y-16 opacity-0"
+              : "translate-y-0 opacity-100",
           )}
-          style={{
-            ...exitTransitionStyle,
-            ...(exitingItemId === frontItem.id ? frontExitStyle : restingStyle),
-          }}
         >
           <ComposerBannerStackAlert
             item={frontItem}
@@ -158,11 +143,12 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
                 {stackedItems.map((item) => (
                   <div
                     key={item.id}
-                    className={cn(exitingItemId === item.id ? "pointer-events-none" : null)}
-                    style={{
-                      ...exitTransitionStyle,
-                      ...(exitingItemId === item.id ? stackedExitStyle : restingStyle),
-                    }}
+                    className={cn(
+                      "banner-stack-exit",
+                      exitingItemId === item.id
+                        ? "pointer-events-none translate-y-28 opacity-0"
+                        : "translate-y-0 opacity-100",
+                    )}
                   >
                     <ComposerBannerStackAlert
                       item={item}
@@ -200,8 +186,8 @@ function ComposerBannerStackAlert({
       className={cn(
         attached
           ? "chat-composer-drawer-surface chat-composer-drawer-attached px-3 pt-2 pb-[calc(var(--chat-composer-attachment-overlap)_+_0.375rem)] text-xs sm:px-4"
-          : "alert-glass rounded-[22px]",
-        item.className,
+          : "alert-glass rounded-3xl",
+        item.flatInDark && "dark:shadow-none",
       )}
       data-variant={item.variant}
     >
@@ -211,10 +197,7 @@ function ComposerBannerStackAlert({
       {item.actions || item.onDismiss ? (
         <AlertAction
           className={cn(
-            item.actionClassName,
-            dismissOnly
-              ? "max-sm:col-start-3 max-sm:row-start-1 max-sm:mt-0 max-sm:self-start"
-              : undefined,
+            dismissOnly && "max-sm:col-start-3 max-sm:row-start-1 max-sm:mt-0 max-sm:self-start",
           )}
         >
           {item.actions}

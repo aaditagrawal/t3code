@@ -135,11 +135,11 @@ function FileContent(props: {
   return (
     <View className="flex-1 bg-sheet">
       {props.truncated ? (
-        <View className="border-b border-amber-200 bg-amber-50 px-4 py-2 dark:border-amber-900/60 dark:bg-amber-950/40">
-          <Text className="text-2xs font-t3-bold uppercase text-amber-700 dark:text-amber-300">
+        <View className="border-b border-warning-border bg-warning px-4 py-2 dark:border-warning-border dark:bg-warning">
+          <Text className="text-2xs font-t3-bold uppercase text-warning-foreground">
             Partial file
           </Text>
-          <Text className="text-xs leading-snug text-amber-800 dark:text-amber-200">
+          <Text className="text-xs leading-snug text-warning-foreground">
             Preview limited to the first 1 MB of a truncated file.
           </Text>
         </View>

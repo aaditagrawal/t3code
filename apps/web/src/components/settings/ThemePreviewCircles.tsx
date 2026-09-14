@@ -1,5 +1,5 @@
 import { MoonIcon, SunIcon } from "lucide-react";
-import type { CSSProperties } from "react";
+
 import {
   STANDARD_THEME_PREVIEW_COLORS as SHARED_STANDARD_THEME_PREVIEW_COLORS,
   THEME_PREVIEW_RENDER_SPECS,
@@ -101,7 +101,7 @@ export function getThemeCardDefinition(theme: ThemeDefinition): ThemeCardDefinit
 function getThemePreviewStyle(
   colors: ThemeCardPreviewColors,
   mode: ThemeAppearance,
-): CSSProperties {
+): { color: string; image: string } {
   const spec = THEME_PREVIEW_RENDER_SPECS[mode];
   // The canvas carries the ball's light/dark identity, so it stays dominant:
   // a near-true base with a contained accent glow, instead of an accent wash
@@ -110,8 +110,8 @@ function getThemePreviewStyle(
   const accentPosition = `${spec.accent.center[0] * 100}% ${spec.accent.center[1] * 100}%`;
   const actionPosition = `${spec.action.center[0] * 100}% ${spec.action.center[1] * 100}%`;
   return {
-    backgroundColor: modeBase,
-    backgroundImage: [
+    color: modeBase,
+    image: [
       `radial-gradient(circle at ${accentPosition} in oklab, ${colors.accent} 0%, color-mix(in oklab, ${colors.accent} ${spec.accent.middleOpacity * 100}%, transparent) ${spec.accent.middleOffset * 100}%, transparent ${spec.accent.endOffset * 100}%)`,
       // The action color is a soft tint from the opposite corner, not a second
       // light source — two bright hotspots read as headlights.
@@ -135,18 +135,20 @@ export function ThemePreviewCircle({
   colors: ThemeCardPreviewColors;
   mode: ThemeAppearance;
 }) {
+  const previewBackground = getThemePreviewStyle(colors, mode);
   return (
     <span
       aria-hidden
-      className="relative block size-14 shrink-0 overflow-hidden rounded-full border-2 border-background"
-      style={{ boxShadow: themePreviewEdgeShadow(mode) }}
+      className="relative block size-14 shrink-0 overflow-hidden rounded-full border-2 border-background shadow-(--box-shadow)"
+      style={{ "--box-shadow": themePreviewEdgeShadow(mode) }}
     >
       <span
-        className="absolute inset-0 rounded-full"
+        className="bg-(--background-color) bg-(image:--background-image) filter-runtime scale-(--preview-scale) absolute inset-0 rounded-full"
         style={{
-          ...getThemePreviewStyle(colors, mode),
-          filter: `blur(${THEME_PREVIEW_RENDER_SPECS[mode].blurAt56Px}px)`,
-          transform: `scale(${THEME_PREVIEW_RENDER_SPECS[mode].scale})`,
+          "--background-color": previewBackground.color,
+          "--background-image": previewBackground.image,
+          "--runtime-filter": `blur(${THEME_PREVIEW_RENDER_SPECS[mode].blurAt56Px}px)`,
+          "--preview-scale": THEME_PREVIEW_RENDER_SPECS[mode].scale,
         }}
       />
     </span>
@@ -182,7 +184,7 @@ export function ThemePreviewCircles({
                   aria-label={`Use ${label} ${mode} mode`}
                   aria-pressed={isPicked}
                   className={cn(
-                    "relative flex size-[68px] shrink-0 transform-gpu cursor-pointer items-center justify-center rounded-full p-1 outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+                    "relative flex size-17 shrink-0 transform-gpu cursor-pointer items-center justify-center rounded-full p-1 outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
                     isPicked && "hover:scale-100",
                   )}
                   onClick={(event) => {
@@ -196,8 +198,8 @@ export function ThemePreviewCircles({
                     <>
                       <span
                         aria-hidden
-                        className="pointer-events-none absolute inset-0 rounded-full"
-                        style={{ boxShadow: "inset 0 0 0 2px var(--ring)" }}
+                        className="pointer-events-none absolute inset-0 rounded-full shadow-(--box-shadow)"
+                        style={{ "--box-shadow": "inset 0 0 0 2px var(--ring)" }}
                       />
                       <span
                         aria-hidden

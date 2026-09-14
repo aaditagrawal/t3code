@@ -68,7 +68,7 @@ export function GitBranchesSheet(_props: GitBranchesSheetProps) {
         contentInset={{ bottom: Math.max(insets.bottom, 18) + 18 }}
         contentContainerClassName="gap-4 px-5 pt-2"
       >
-        <View className="gap-2 rounded-[18px] border border-border bg-card px-4 py-4">
+        <View className="gap-2 rounded-2xl border border-border bg-card px-4 py-4">
           <Text className="text-foreground-secondary text-2xs font-t3-bold tracking-[1px] uppercase">
             New branch
           </Text>
@@ -76,7 +76,7 @@ export function GitBranchesSheet(_props: GitBranchesSheetProps) {
             value={newBranchName}
             onChangeText={setNewBranchName}
             placeholder="feature/mobile-polish"
-            className="rounded-[18px]"
+            className="rounded-2xl"
           />
           <SheetActionButton
             icon="plus"
@@ -94,7 +94,7 @@ export function GitBranchesSheet(_props: GitBranchesSheetProps) {
           />
         </View>
 
-        <View className="gap-2 rounded-[18px] border border-border bg-card px-4 py-4">
+        <View className="gap-2 rounded-2xl border border-border bg-card px-4 py-4">
           <Text className="text-foreground-secondary text-2xs font-t3-bold tracking-[1px] uppercase">
             New worktree
           </Text>
@@ -102,13 +102,13 @@ export function GitBranchesSheet(_props: GitBranchesSheetProps) {
             value={worktreeBaseBranch}
             onChangeText={setWorktreeBaseBranch}
             placeholder="main"
-            className="rounded-[18px]"
+            className="rounded-2xl"
           />
           <TextInput
             value={worktreeBranchName}
             onChangeText={setWorktreeBranchName}
             placeholder="feature/mobile-thread"
-            className="rounded-[18px]"
+            className="rounded-2xl"
           />
           <SheetActionButton
             icon="square.split.2x1"
@@ -159,7 +159,7 @@ export function GitBranchesSheet(_props: GitBranchesSheetProps) {
               <Pressable
                 key={branch.name}
                 className={cn(
-                  "gap-1 rounded-[18px] border px-4 py-3 disabled:opacity-[0.45]",
+                  "gap-1 rounded-2xl border px-4 py-3 disabled:opacity-45",
                   branch.current ? "border-subtle-strong" : "border-border",
                 )}
                 disabled={busy || disabled}
@@ -169,7 +169,7 @@ export function GitBranchesSheet(_props: GitBranchesSheetProps) {
                   });
                 }}
               >
-                <View className="absolute inset-0 rounded-[18px] bg-card" />
+                <View className="absolute inset-0 rounded-2xl bg-card" />
                 <Text className="text-foreground text-base font-t3-bold">{branch.name}</Text>
                 <Text className="text-foreground-secondary text-xs font-medium">{subtitle}</Text>
               </Pressable>

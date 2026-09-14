@@ -175,7 +175,7 @@ export function ProjectSettingsPage({ projectKey }: { projectKey: string }) {
   }, [navigateBackWithinApp]);
 
   return (
-    <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none bg-background text-foreground isolate">
+    <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none text-foreground isolate">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
         <WorkspacePageHeader electron={isElectron}>
           <ProjectSettingsBreadcrumb projectKey={projectKey} />
@@ -831,7 +831,7 @@ function ProjectDetail({ group }: { group: SidebarProjectSnapshot }) {
                     instanceEntries={instanceEntries}
                     modelOptionsByInstance={modelOptionsByInstance}
                     triggerVariant="outline"
-                    triggerClassName="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"
+                    className="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"
                     onInstanceModelChange={(instanceId, model) => {
                       setDefaultModel(createModelSelection(instanceId, model));
                     }}
@@ -846,7 +846,7 @@ function ProjectDetail({ group }: { group: SidebarProjectSnapshot }) {
                     allowPromptInjectedEffort={false}
                     planModeEnabled={settings.planModeEnabled}
                     triggerVariant="outline"
-                    triggerClassName="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"
+                    className="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"
                     onModelOptionsChange={(nextOptions) => {
                       setDefaultModel(
                         createModelSelection(
@@ -1101,12 +1101,12 @@ function ProjectDetail({ group }: { group: SidebarProjectSnapshot }) {
                         {script.command}
                       </code>
                       {script.runOnWorktreeCreate ? (
-                        <span className="shrink-0 rounded-sm border border-border/60 px-1.5 py-px text-[11px] font-normal text-muted-foreground">
+                        <span className="shrink-0 rounded-sm border border-border/60 px-1.5 py-px text-xs font-normal text-muted-foreground">
                           setup
                         </span>
                       ) : null}
                       {script.previewUrl ? (
-                        <span className="shrink-0 rounded-sm border border-border/60 px-1.5 py-px text-[11px] font-normal text-muted-foreground max-sm:hidden">
+                        <span className="shrink-0 rounded-sm border border-border/60 px-1.5 py-px text-xs font-normal text-muted-foreground max-sm:hidden">
                           preview · desktop only
                         </span>
                       ) : null}

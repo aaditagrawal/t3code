@@ -216,7 +216,7 @@ export const ThreadTerminalPanel = memo(function ThreadTerminalPanel(
   }
 
   return (
-    <View className="absolute inset-x-3 bottom-28 top-28 overflow-hidden rounded-[8px] border border-border bg-screen shadow-2xl">
+    <View className="absolute inset-x-3 bottom-28 top-28 overflow-hidden rounded-lg border border-border bg-screen shadow-2xl">
       <View className="flex-row items-center justify-between border-b border-border px-3 py-2">
         <View className="min-w-0 flex-1">
           <Text className="font-t3-bold text-sm text-foreground" numberOfLines={1}>
@@ -228,12 +228,12 @@ export const ThreadTerminalPanel = memo(function ThreadTerminalPanel(
         </View>
         <View className="flex-row items-center gap-2">
           {terminal.error ? (
-            <Text className="max-w-44 text-right text-2xs text-red-300" numberOfLines={1}>
+            <Text className="max-w-44 text-right text-2xs text-danger-foreground" numberOfLines={1}>
               {terminal.error}
             </Text>
           ) : null}
           <Pressable
-            className="h-8 w-8 items-center justify-center rounded-[8px] bg-subtle"
+            className="h-8 w-8 items-center justify-center rounded-lg bg-subtle"
             onPress={props.onClose}
           >
             <SymbolView name="xmark" size={13} tintColor={iconColor} type="monochrome" />

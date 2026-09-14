@@ -323,7 +323,7 @@ function PullRequestBaseFreshnessWarning({
           <button
             type="button"
             aria-label={summary}
-            className="inline-flex shrink-0 cursor-help items-center rounded-sm text-amber-600 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex shrink-0 cursor-help items-center rounded-sm text-warning outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         }
       >
@@ -1271,10 +1271,7 @@ export function PullRequestDetailPanel({
                 <Tooltip>
                   <TooltipTrigger
                     render={
-                      <Badge
-                        variant="info"
-                        className="h-5 shrink-0 gap-1 rounded px-1.5 text-[10px]"
-                      >
+                      <Badge variant="info" className="h-5 shrink-0 rounded px-1.5 text-xs">
                         <GitMergeIcon aria-hidden className="size-3" />
                         Auto-merge
                       </Badge>
@@ -1527,7 +1524,7 @@ export function PullRequestDetailPanel({
                     <span className="shrink-0">{formatRelativeTimeLabel(detail.updatedAt)}</span>
                   </span>
                   <span aria-hidden className="h-3 w-px shrink-0 bg-border/70" />
-                  <span className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-[11px] text-muted-foreground/65">
+                  <span className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-xs text-muted-foreground/65">
                     <Tooltip>
                       <TooltipTrigger
                         render={
@@ -1570,7 +1567,7 @@ export function PullRequestDetailPanel({
                       <TooltipPopup side="top">{detail.headBranch}</TooltipPopup>
                     </Tooltip>
                   </span>
-                  <span className="ml-auto inline-flex shrink-0 items-center justify-end gap-2 text-[11px]">
+                  <span className="ml-auto inline-flex shrink-0 items-center justify-end gap-2 text-xs">
                     <span
                       className="inline-flex items-center gap-1 tabular-nums"
                       aria-label={`${detail.changedFiles.toLocaleString()} changed ${
@@ -1583,7 +1580,7 @@ export function PullRequestDetailPanel({
                     <PullRequestDiffStat
                       additions={detail.additions}
                       deletions={detail.deletions}
-                      className="shrink-0 font-mono text-[11px]"
+                      className="shrink-0 font-mono text-xs"
                     />
                   </span>
                 </div>
@@ -1803,7 +1800,7 @@ export function PullRequestDetailPanel({
               <div className="ml-auto flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
                 <PullRequestMetaLine
                   className={cn(
-                    "whitespace-nowrap text-[11px] transition-opacity",
+                    "whitespace-nowrap text-xs transition-opacity",
                     (activityPending || activityError) && "opacity-35",
                   )}
                 >
@@ -1859,7 +1856,7 @@ export function PullRequestDetailPanel({
                 <Button
                   size="xs"
                   variant="ghost"
-                  className="h-7 px-2 text-[10px] text-muted-foreground"
+                  className="h-7 px-2 text-xs text-muted-foreground"
                   aria-label={
                     timelineOrder === "newest"
                       ? "Show oldest activity first"

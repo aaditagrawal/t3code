@@ -595,7 +595,7 @@ function PublishRepositoryDialog(props: PublishRepositoryDialogProps) {
                     >
                       {isComplete ? <CheckIcon className="size-3" /> : null}
                     </span>
-                    <span className="text-[10px] font-medium uppercase text-muted-foreground">
+                    <span className="text-xs font-medium uppercase text-muted-foreground">
                       Step {index + 1}
                     </span>
                     <span className="truncate text-xs font-semibold text-foreground">
@@ -650,7 +650,7 @@ function PublishRepositoryDialog(props: PublishRepositoryDialogProps) {
                                 <Button
                                   variant="outline"
                                   size="xs"
-                                  className="h-5 rounded-[.25rem] px-1.5 text-[10px] text-warning-foreground"
+                                  className="h-5 rounded-xs px-1.5 text-xs text-warning-foreground"
                                   onClick={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
@@ -1709,7 +1709,7 @@ export default function GitActionsControl({
                 render={
                   <Button
                     aria-disabled="true"
-                    className="cursor-not-allowed rounded-e-none border-e-0 ps-[8.5px] opacity-64 before:rounded-e-none"
+                    className="cursor-not-allowed rounded-e-none border-e-0 ps-[calc(var(--spacing)*2.125)] opacity-64 before:rounded-e-none"
                     size="xs"
                     variant="outline"
                   />
@@ -1731,7 +1731,7 @@ export default function GitActionsControl({
             <Button
               variant="outline"
               size="xs"
-              className="ps-[8.5px]"
+              className="ps-[calc(var(--spacing)*2.125)]"
               disabled={isGitActionRunning || quickAction.disabled}
               onClick={runQuickAction}
             >

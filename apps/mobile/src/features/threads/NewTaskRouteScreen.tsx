@@ -248,7 +248,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
         }}
       >
         {projectScopes.length === 0 ? (
-          <View collapsable={false} className="items-center gap-3 rounded-[24px] bg-card px-6 py-8">
+          <View collapsable={false} className="items-center gap-3 rounded-3xl bg-card px-6 py-8">
             {projectEmptyState.loading ? <ActivityIndicator color={accentColor} /> : null}
             <Text className="text-center text-lg font-t3-bold text-foreground">
               {projectEmptyState.title}
@@ -281,7 +281,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
             )}
           </View>
         ) : (
-          <View collapsable={false} className="overflow-hidden rounded-[24px] bg-card">
+          <View collapsable={false} className="overflow-hidden rounded-3xl bg-card">
             {projectScopes.map((scope, scopeIndex) => {
               const hasMultipleProjects = scope.projects.length > 1;
               const selectionTarget = getProjectScopeSelectionTarget(scope, selectedEnvironmentId);

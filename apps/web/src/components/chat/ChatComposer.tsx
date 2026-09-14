@@ -206,13 +206,13 @@ function ComposerCommandMenuLayer(props: { anchor: HTMLElement | null; children:
 
   return createPortal(
     <div
-      className="pointer-events-auto fixed z-[70]"
+      className="pointer-events-auto fixed z-[70] bottom-(--bottom) left-(--left) max-h-(--max-height) w-(--width)"
       data-composer-drawer-layer="true"
       style={{
-        bottom: position.bottom,
-        left: position.left,
-        maxHeight: position.maxHeight,
-        width: position.width,
+        "--bottom": `${position.bottom}px`,
+        "--left": `${position.left}px`,
+        "--max-height": `${position.maxHeight}px`,
+        "--width": `${position.width}px`,
       }}
     >
       {props.children}
@@ -2963,7 +2963,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         <div
           data-chat-composer-main-surface="true"
           className={cn(
-            "group relative z-10 rounded-[22px] p-px transition-colors duration-200",
+            "group relative z-10 rounded-3xl p-px transition-colors duration-200",
             composerProviderState.composerFrameClassName,
           )}
         >
@@ -2972,7 +2972,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             data-chat-composer-surface="true"
             data-chat-composer-mobile-collapsed={isComposerCollapsedMobile ? "true" : "false"}
             className={cn(
-              "rounded-[20px] transition-[background-color] duration-200",
+              "rounded-2xl transition-[background-color] duration-200",
               isDragOverComposer ? "bg-accent/45 ring-1 ring-primary/70" : null,
               projectSelectionRequired ? "opacity-75" : null,
               composerProviderState.composerSurfaceClassName,
@@ -2983,7 +2983,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 <button
                   type="button"
                   className={cn(
-                    "min-w-0 flex-1 truncate bg-transparent p-0 text-left text-[14px] focus:outline-none",
+                    "min-w-0 flex-1 truncate bg-transparent p-0 text-left text-sm focus:outline-none",
                     (activePendingProgress ? activePendingProgress.customAnswer : prompt.trim())
                       ? "text-foreground"
                       : "text-placeholder",
@@ -3141,7 +3141,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                               />
                             </button>
                           ) : (
-                            <div className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] text-secondary-label">
+                            <div className="flex h-full w-full items-center justify-center px-1 text-center text-xs text-secondary-label">
                               {image.name}
                             </div>
                           )}
@@ -3152,7 +3152,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                                   <span
                                     role="img"
                                     aria-label="Draft attachment may not persist"
-                                    className="absolute left-1 top-1 inline-flex items-center justify-center rounded bg-background/85 p-0.5 text-amber-600"
+                                    className="absolute left-1 top-1 inline-flex items-center justify-center rounded bg-background/85 p-0.5 text-warning"
                                   >
                                     <CircleAlertIcon className="size-3" />
                                   </span>
@@ -3278,7 +3278,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       variant="ghost"
                       disabled
                       data-chat-provider-unavailable="true"
-                      className="shrink-0 gap-2 px-2 text-secondary-label sm:px-3"
+                      className="shrink-0 px-2 text-secondary-label sm:px-3"
                     >
                       <CircleAlertIcon className="size-4" />
                       No provider available
@@ -3293,7 +3293,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       instanceEntries={providerInstanceEntries}
                       keybindings={keybindings}
                       modelOptionsByInstance={modelOptionsByInstance}
-                      triggerClassName="-ms-2.5"
+                      className="-ms-2.5"
                       terminalOpen={terminalOpen}
                       open={isComposerModelPickerOpen}
                       {...(composerProviderState.modelPickerIconClassName

@@ -191,7 +191,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
             {activeQuestion.header}
           </span>
           {prompt.questions.length > 1 ? (
-            <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
+            <span className="text-xs font-medium text-muted-foreground tabular-nums">
               {questionIndex + 1}/{prompt.questions.length}
             </span>
           ) : null}
@@ -245,7 +245,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
                   <div className="min-w-0 flex-1 flex flex-col gap-0.5">
                     <span className="text-sm font-medium">{option.label}</span>
                     {option.description && option.description !== option.label ? (
-                      <span className="text-secondary-label text-[11px]">{option.description}</span>
+                      <span className="text-secondary-label text-xs">{option.description}</span>
                     ) : null}
                   </div>
                   {isSelected ? (
@@ -253,7 +253,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
                   ) : shortcutKey !== null ? (
                     <kbd
                       className={cn(
-                        "flex size-5 shrink-0 items-center justify-center text-[10px] font-medium text-muted-foreground tabular-nums",
+                        "flex size-5 shrink-0 items-center justify-center text-xs font-medium text-muted-foreground tabular-nums",
                       )}
                     >
                       {shortcutKey}

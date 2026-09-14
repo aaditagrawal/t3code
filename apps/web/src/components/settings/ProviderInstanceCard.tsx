@@ -238,7 +238,7 @@ function ProviderEnvironmentSection(props: {
       ) : (
         <div className="overflow-hidden rounded-md border border-border/70">
           <Table>
-            <TableHeader className="bg-muted/25 text-[11px] text-muted-foreground">
+            <TableHeader className="bg-muted/25 text-xs text-muted-foreground">
               <TableRow className="hover:bg-transparent">
                 <TableHead>Variable</TableHead>
                 <TableHead>Value</TableHead>
@@ -515,7 +515,7 @@ export function ProviderInstanceCard({
       indicatorBackground="var(--card)"
       className="size-5"
       iconClassName="size-4 text-foreground/80"
-      badgeClassName="right-[-0.125rem] bottom-[-0.125rem] h-3 min-w-3 px-0.5 text-[7px]"
+      badgeClassName="right-[-0.125rem] bottom-[-0.125rem] h-3 min-w-3 px-0.5 text-xs"
     />
   ) : FallbackIconComponent ? (
     <span className="relative inline-flex size-5 shrink-0 items-center justify-center">
@@ -539,7 +539,7 @@ export function ProviderInstanceCard({
         {displayName}
       </h3>
       {String(instanceId) !== String(instance.driver) ? (
-        <code className="truncate rounded bg-muted/60 px-1 py-0.5 text-[10px] text-muted-foreground">
+        <code className="truncate rounded bg-muted/60 px-1 py-0.5 text-xs text-muted-foreground">
           {instanceId}
         </code>
       ) : null}
@@ -582,7 +582,7 @@ export function ProviderInstanceCard({
   );
 
   const authRowNode = (
-    <p className="flex min-w-0 flex-wrap items-center gap-x-1 text-[13px] leading-[1.45] text-muted-foreground/80">
+    <p className="flex min-w-0 flex-wrap items-center gap-x-1 text-xs leading-[1.45] text-muted-foreground/80">
       {hasAuthenticatedEmail ? (
         <>
           <span>Authenticated as</span>
@@ -638,7 +638,7 @@ export function ProviderInstanceCard({
                   >
                     <div className="grid min-w-0 gap-3">
                       <div className="grid gap-0.5">
-                        <p className="text-[13px] font-semibold leading-tight text-foreground">
+                        <p className="text-xs font-semibold leading-tight text-foreground">
                           Update available
                         </p>
                         <p
@@ -666,7 +666,7 @@ export function ProviderInstanceCard({
                         </Button>
                       ) : null}
                       {onRunUpdate && updateCommand ? (
-                        <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           <span aria-hidden className="h-px flex-1 bg-border" />
                           or, update manually using
                           <span aria-hidden className="h-px flex-1 bg-border" />
@@ -675,7 +675,7 @@ export function ProviderInstanceCard({
                       {updateCommand ? (
                         <div className="flex min-w-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 py-0.5 pr-0.5 pl-2">
                           <ScrollArea scrollFade className="h-8 min-w-0 flex-1 rounded-none">
-                            <code className="flex h-full w-max items-center whitespace-nowrap pr-3 font-mono text-[11px] text-foreground">
+                            <code className="flex h-full w-max items-center whitespace-nowrap pr-3 font-mono text-xs text-foreground">
                               {updateCommand}
                             </code>
                           </ScrollArea>

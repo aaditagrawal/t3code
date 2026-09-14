@@ -168,13 +168,14 @@ export function FontFamilyPicker({
     return (
       <ComboboxItem hideIndicator index={index} key={item} value={item}>
         <div className="flex w-full min-w-0 items-center justify-between gap-2">
-          <span className="min-w-0 truncate" style={{ fontFamily: family }}>
+          <span
+            className="font-runtime min-w-0 truncate"
+            style={{ "--runtime-font-family": family }}
+          >
             {family}
           </span>
           <span className="flex shrink-0 items-center gap-1.5">
-            {isDefault ? (
-              <span className="text-[10px] text-muted-foreground/60">default</span>
-            ) : null}
+            {isDefault ? <span className="text-xs text-muted-foreground/60">default</span> : null}
             {item === selectedValue ? (
               <CheckIcon className="size-3.5 text-muted-foreground" />
             ) : null}
@@ -205,7 +206,7 @@ export function FontFamilyPicker({
     >
       <ComboboxTrigger
         aria-label={ariaLabel}
-        className="relative inline-flex min-h-9 w-full min-w-36 cursor-pointer select-none items-center justify-between gap-2 rounded-lg border border-input bg-background px-[calc(--spacing(3)-1px)] text-left text-base text-foreground shadow-xs/5 outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/24 sm:min-h-8 sm:text-sm dark:bg-input/32"
+        className="relative inline-flex min-h-9 w-full min-w-36 cursor-pointer select-none items-center justify-between gap-2 rounded-lg border border-input bg-background px-2.75 text-left text-base text-foreground shadow-xs/5 outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/24 sm:min-h-8 sm:text-sm dark:bg-input/32"
       >
         <span className="min-w-0 truncate">
           {selectedFamily.length === 0 ? defaultFamily : selectedFamily}
@@ -242,7 +243,7 @@ export function FontFamilyPicker({
                 renderItem={({ item, index }) => renderItem(item, index)}
                 estimatedItemSize={30}
                 drawDistance={360}
-                style={{ height: Math.min(items.length * 30, 288) }}
+                style={{ "--height": `${Math.min(items.length * 30, 288)}px` }}
               />
             </ComboboxListVirtualized>
           </div>

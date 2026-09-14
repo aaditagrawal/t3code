@@ -978,7 +978,7 @@ export function TerminalViewport({
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden bg-[var(--terminal-background)]"
+      className="relative h-full w-full overflow-hidden bg-(--terminal-background)"
     />
   );
 }
@@ -1393,8 +1393,9 @@ export default function ThreadTerminalDrawer({
         className={cn(
           "thread-terminal-drawer relative flex min-w-0 flex-col overflow-hidden bg-background",
           isPanel ? "h-full flex-1" : "shrink-0 border-t border-border/80",
+          "h-(--height)",
         )}
-        style={isPanel ? undefined : { height: `${drawerHeight}px` }}
+        style={isPanel ? undefined : { "--height": `${drawerHeight}px` }}
       >
         {!isPanel ? (
           <div
@@ -1423,8 +1424,9 @@ export default function ThreadTerminalDrawer({
       className={cn(
         "thread-terminal-drawer relative flex min-w-0 flex-col overflow-hidden bg-background",
         isPanel ? "h-full flex-1" : "shrink-0 border-t border-border/80",
+        "h-(--height)",
       )}
-      style={isPanel ? undefined : { height: `${drawerHeight}px` }}
+      style={isPanel ? undefined : { "--height": `${drawerHeight}px` }}
     >
       {!isPanel ? (
         <div
@@ -1485,21 +1487,21 @@ export default function ThreadTerminalDrawer({
       <div className="min-h-0 w-full flex-1">
         <div
           className={cn(
-            "flex h-full min-h-0 bg-[var(--terminal-background)]",
+            "flex h-full min-h-0 bg-(--terminal-background)",
             hasTerminalSidebar && "gap-1.5",
           )}
         >
           <div className="min-w-0 flex-1">
             {isSplitView ? (
               <div
-                className="grid h-full w-full min-w-0 gap-0 overflow-hidden"
+                className="grid h-full w-full min-w-0 gap-0 overflow-hidden [grid-template-columns:var(--grid-template-columns)] [grid-template-rows:var(--grid-template-rows)]"
                 style={
                   splitDirection === "vertical"
                     ? {
-                        gridTemplateRows: `repeat(${visibleTerminalIds.length}, minmax(0, 1fr))`,
+                        "--grid-template-rows": `repeat(${visibleTerminalIds.length}, minmax(0, 1fr))`,
                       }
                     : {
-                        gridTemplateColumns: `repeat(${visibleTerminalIds.length}, minmax(0, 1fr))`,
+                        "--grid-template-columns": `repeat(${visibleTerminalIds.length}, minmax(0, 1fr))`,
                       }
                 }
               >
@@ -1580,7 +1582,7 @@ export default function ThreadTerminalDrawer({
 
           {hasTerminalSidebar && (
             <aside className="flex w-36 min-w-36 flex-col border border-border/70 bg-muted/10">
-              <div className="flex h-[22px] items-stretch justify-end border-b border-border/70">
+              <div className="flex h-5.5 items-stretch justify-end border-b border-border/70">
                 <div className="inline-flex h-full items-stretch">
                   <TerminalActionButton
                     className={`inline-flex h-full items-center px-1 text-foreground/90 transition-colors ${
@@ -1634,7 +1636,7 @@ export default function ThreadTerminalDrawer({
                       {showGroupHeaders && (
                         <button
                           type="button"
-                          className={`flex w-full items-center rounded px-1 py-0.5 text-[10px] uppercase tracking-[0.08em] ${
+                          className={`flex w-full items-center rounded px-1 py-0.5 text-xs uppercase tracking-[0.08em] ${
                             isGroupActive
                               ? "bg-accent/70 text-foreground"
                               : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
@@ -1656,14 +1658,14 @@ export default function ThreadTerminalDrawer({
                           return (
                             <div
                               key={terminalId}
-                              className={`group flex items-center gap-1 rounded px-1 py-0.5 text-[11px] ${
+                              className={`group flex items-center gap-1 rounded px-1 py-0.5 text-xs ${
                                 isActive
                                   ? "bg-accent text-foreground"
                                   : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                               }`}
                             >
                               {showGroupHeaders && (
-                                <span className="text-[10px] text-muted-foreground/80">└</span>
+                                <span className="text-xs text-muted-foreground/80">└</span>
                               )}
                               <button
                                 type="button"

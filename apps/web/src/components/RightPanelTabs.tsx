@@ -400,7 +400,7 @@ function RightPanelEmptyState(props: {
         {action.badgeCount > 0 ? (
           <span
             aria-hidden
-            className="absolute -top-1.5 -right-2 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-info px-1 text-[9px] font-semibold tabular-nums text-white"
+            className="absolute -top-1.5 -right-2 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-info px-1 text-xs font-semibold tabular-nums text-white"
           >
             {action.badgeCount}
           </span>
@@ -581,13 +581,13 @@ function SurfaceIcon({
       const status = pullRequestStatuses?.[surface.id] ?? null;
       const toneClassName =
         status?.state === "merged"
-          ? "text-violet-600 dark:text-violet-300/90"
+          ? "text-merged"
           : status?.state === "closed"
-            ? "text-red-600 dark:text-red-300/90"
+            ? "text-error-foreground/90"
             : status?.isDraft
-              ? "text-zinc-500 dark:text-zinc-400/80"
+              ? "text-muted-foreground"
               : status?.state === "open"
-                ? "text-emerald-600 dark:text-emerald-300/90"
+                ? "text-success-foreground/90"
                 : "text-muted-foreground";
       return <GitPullRequest className={cn("size-3 shrink-0", toneClassName)} />;
     }
@@ -778,7 +778,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     >
       <div
         className={cn(
-          "flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center gap-1 pl-2",
+          "flex h-(--workspace-topbar-height) min-h-(--workspace-topbar-height) shrink-0 items-center gap-1 pl-2",
           // The sheet overlays from the viewport top, so its tab bar keeps
           // the titlebar's height: a compact row re-centers the layout
           // controls a few pixels higher and the cluster jumps on open.

@@ -31,7 +31,7 @@ export function EmptyState(props: {
   }
 
   return (
-    <View className="rounded-[22px] border border-border bg-card p-5">
+    <View className="rounded-3xl border border-border bg-card p-5">
       <Text className="font-t3-bold text-lg text-foreground">{props.title}</Text>
       <Text className="mt-2 font-sans text-sm leading-relaxed text-foreground-muted">
         {props.detail}

@@ -86,10 +86,7 @@ export function AndroidScreenHeader(props: {
             {props.title}
           </Text>
           {props.subtitle ? (
-            <Text
-              numberOfLines={1}
-              className="mt-px text-[13px] font-t3-medium text-foreground-muted"
-            >
+            <Text numberOfLines={1} className="mt-px text-xs font-t3-medium text-foreground-muted">
               {props.subtitle}
             </Text>
           ) : null}

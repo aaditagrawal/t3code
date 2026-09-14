@@ -140,10 +140,15 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono:
     ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  /* Headings share the interface stack until a dedicated face is chosen. */
+  --font-heading: var(--font-sans);
 }
 
 @theme inline {
   --color-zinc-25: oklch(99.2% 0 0);
+  /* Neutral hairlines and elevation tint for the theme-preview wireframe. */
+  --color-wireframe-line: rgb(127 127 127 / 0.25);
+  --color-wireframe-elevation: rgb(0 0 0 / 0.14);
   --animate-skeleton: skeleton 2s infinite linear;
   /* Duty-cycled indicator animations: long holds with stepped ramps, so the
      compositor updates discrete frames instead of every vsync. */
@@ -156,6 +161,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --color-error-foreground: var(--error-foreground);
   --color-error: var(--error);
   --color-error-surface: var(--error-surface);
+  /* Neutral meter fill for the context-window usage gauge (below overload). */
+  --color-usage-meter: color-mix(in oklab, var(--color-muted-foreground) 72%, transparent);
   --color-update-foreground: var(--update-foreground);
   --color-update: var(--update);
   --color-update-surface: var(--update-surface);
@@ -188,6 +195,11 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --color-surface-raised: var(--surface-raised);
   --color-message: var(--message-surface);
   --color-message-foreground: var(--contrast-message-foreground);
+  --color-inline-skill-background: var(--inline-skill-background);
+  --color-inline-skill-border: var(--inline-skill-border);
+  --color-inline-skill-foreground: var(--inline-skill-foreground);
+  /* GitHub-style "merged" state uses a violet accent distinct from info/error. */
+  --color-merged: var(--merged);
   --color-message-action: var(--message-action);
   --color-message-action-foreground: var(--message-action-foreground);
   --color-message-action-hover: var(--message-action-hover);
@@ -199,6 +211,28 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --color-sidebar-row-active: var(--sidebar-row-active);
   --color-sidebar-row-selected: var(--sidebar-row-selected);
   --color-sidebar-border: var(--contrast-sidebar-border);
+  /* Claude brand accent used for Claude-specific traits/indicators. */
+  --color-brand-claude: #d97757;
+  /* Low-key elevation shadows for telemetry/stat surfaces. */
+  --shadow-hairline: 0 1px 1px rgb(0 0 0 / 0.03);
+  --shadow-lifted: 0 1px 1px rgb(0 0 0 / 0.03), 0 8px 30px rgb(0 0 0 / 0.035);
+  /* Color-swatch wells and selection/focus rings in theme pickers. */
+  --shadow-swatch: 0 0 0 1px rgb(0 0 0 / 0.4);
+  --shadow-swatch-soft: 0 0 0 1px rgb(0 0 0 / 0.35);
+  --shadow-swatch-inset: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+  --shadow-swatch-focus: inset 0 0 0 1px var(--ring);
+  /* Top-edge sheen on glossy pills and the segmented-control press line. */
+  --shadow-top-sheen: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --shadow-press-line: 0 1px rgb(0 0 0 / 0.04);
+  --inset-shadow-sheen: 0 1px rgb(255 255 255 / 0.16);
+  --inset-shadow-press: 0 1px rgb(0 0 0 / 0.08);
+  /* Pop shadow on stacked composer banners. */
+  --shadow-banner-pop: 0 6px 18px rgb(0 0 0 / 0.06);
+  /* Sub-scale blurs for redacted text and thin glass veils. */
+  --blur-2xs: 2px;
+  --blur-3xs: 1px;
+  /* 1.8px strokes read crisply on the 16px work-entry glyphs. */
+  --stroke-width-icon: 1.8;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -1376,6 +1410,169 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   background-size: var(--surface-grain-size);
 }
 
+/* Runtime-var utilities: pair with style={{ "--runtime-<prop>": value }} for
+   values that can only be known at render time (drag offsets, measured
+   geometry, picker gradients). Tailwind cannot express shorthand/dynamic
+   values for these props through ordinary utilities. */
+@utility transition-runtime {
+  transition: var(--runtime-transition);
+}
+@utility bg-runtime {
+  background: var(--runtime-background);
+}
+@utility font-runtime {
+  font-family: var(--runtime-font-family);
+}
+@utility mix-blend-runtime {
+  mix-blend-mode: var(--runtime-mix-blend-mode);
+}
+@utility filter-runtime {
+  filter: var(--runtime-filter);
+}
+
+/* Hosted browser webview wrapper geometry (position/size/z-index come from the
+   browser surface store at runtime, so they flow in via custom properties). */
+@utility hosted-webview-wrapper {
+  left: var(--hosted-left);
+  top: var(--hosted-top);
+  width: var(--hosted-width);
+  height: var(--hosted-height);
+  z-index: var(--hosted-z-index);
+  pointer-events: var(--hosted-pointer-events);
+  border-radius: var(--hosted-border-radius, 0);
+  visibility: var(--hosted-visibility, visible);
+}
+
+/* Bottom fade used on collapsed user messages (was an inline mask). */
+@utility mask-fade-collapsed-bottom {
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 1.75rem), transparent);
+  mask-image: linear-gradient(to bottom, black calc(100% - 1.75rem), transparent);
+}
+
+/* Color-picker swatches: hue comes from runtime state via --picker-hue. */
+@utility picker-saturation-plane {
+  background-color: hsl(var(--picker-hue, 0) 100% 50%);
+  background-image:
+    linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent);
+}
+@utility picker-hue-spectrum {
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+@utility picker-hue-fill {
+  background-color: hsl(var(--picker-hue, 0) 100% 50%);
+}
+
+/* Search-line syntax tokens: color/weight/style arrive from the highlighter
+   at runtime via --token-* custom properties. */
+@utility syntax-token {
+  color: var(--token-color);
+  font-style: var(--token-font-style);
+  font-weight: var(--token-font-weight);
+  text-decoration: var(--token-text-decoration);
+}
+
+/* Update tooltip surface: update-accented glass (was an inline style). */
+@utility update-pill-tooltip {
+  background: color-mix(
+    in srgb,
+    var(--update) 18%,
+    color-mix(in srgb, var(--popover) var(--glass-opacity), transparent)
+  );
+  border-color: var(--update-foreground);
+}
+
+/* Composer banner stack dismiss animation (was an inline style object). */
+@utility banner-stack-exit {
+  transition:
+    transform 220ms ease-in,
+    opacity 220ms ease-in;
+}
+
+/* Ambient tinted glows + diagonal darkening veils layered behind auth and
+   workspace surfaces. Tints stay theme-derived via --color-* mixes. */
+@utility aurora-top-emerald {
+  background-image: radial-gradient(
+    44rem 16rem at top,
+    color-mix(in srgb, var(--color-emerald-500) 14%, transparent),
+    transparent
+  );
+}
+@utility aurora-top-blue {
+  background-image: radial-gradient(
+    48rem 20rem at top,
+    color-mix(in srgb, var(--color-blue-500) 12%, transparent),
+    transparent
+  );
+}
+@utility aurora-top-red {
+  background-image: radial-gradient(
+    44rem 16rem at top,
+    color-mix(in srgb, var(--color-red-500) 16%, transparent),
+    transparent
+  );
+}
+@utility aurora-left-sky {
+  background-image: radial-gradient(
+    28rem 18rem at left,
+    color-mix(in srgb, var(--color-sky-500) 10%, transparent),
+    transparent
+  );
+}
+@utility aurora-veil {
+  background-image: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--background) 90%, var(--color-black)) 0%,
+    var(--background) 55%
+  );
+}
+@utility aurora-veil-soft {
+  background-image: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--background) 94%, var(--color-black)) 0%,
+    var(--background) 62%
+  );
+}
+
+/* Auth/pairing stage header art. The brand blues are fixed decoration, not
+   theme tokens, so they live here instead of in class names. */
+@utility auth-stage-base {
+  background-image: linear-gradient(135deg, #1e61de, #17348e);
+}
+@utility auth-stage-glow {
+  background-image:
+    radial-gradient(circle at 75% 25%, rgb(136 204 255 / 0.5), transparent 38%),
+    linear-gradient(135deg, #2468df, #172f82);
+}
+@utility auth-stage-shade {
+  background-image: linear-gradient(to bottom, transparent 20%, rgb(7 18 55 / 0.46) 100%);
+}
+
+/* Foreground wash over popover surfaces for hovered/highlighted rows. */
+@utility bg-row-hover {
+  background-color: color-mix(in srgb, var(--popover) 90%, var(--contrast-foreground));
+}
+
+/* Faint foreground wash used to lift sticky rows in dark mode. */
+@utility bg-veil {
+  background-color: color-mix(in srgb, var(--contrast-foreground) 2.5%, var(--background));
+}
+
+/* Muted thin scrollbar for horizontally scrolling chips (paths, refs). */
+@utility scrollbar-muted {
+  scrollbar-color: color-mix(in srgb, var(--contrast-border) 78%, transparent) transparent;
+  scrollbar-width: thin;
+  &::-webkit-scrollbar {
+    height: 0.375rem;
+  }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: color-mix(in srgb, var(--contrast-border) 78%, transparent);
+  }
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+}
+
 /* Suppress all transitions during theme changes */
 .no-transitions,
 .no-transitions *,
@@ -1433,6 +1630,12 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --warning: var(--color-amber-500);
   --warning-foreground: var(--color-amber-700);
   --warning-surface: color-mix(in srgb, var(--warning) 8%, transparent);
+  /* Inline skill chips mirror apps/mobile/global.css so both surfaces render
+     the same fuchsia treatment. */
+  --inline-skill-background: --alpha(var(--color-fuchsia-500) / 12%);
+  --inline-skill-border: --alpha(var(--color-fuchsia-500) / 25%);
+  --inline-skill-foreground: var(--color-fuchsia-700);
+  --merged: var(--color-violet-600);
   --update: var(--primary);
   --update-foreground: var(--primary);
   --update-surface: color-mix(in srgb, var(--update) 12%, transparent);
@@ -1483,6 +1686,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     --warning-surface: color-mix(in srgb, var(--warning) 16%, transparent);
     --update-foreground: var(--color-blue-400);
     --update-surface: color-mix(in srgb, var(--update) 18%, transparent);
+    --inline-skill-foreground: var(--color-fuchsia-300);
+    --merged: --alpha(var(--color-violet-300) / 90%);
     --sidebar: var(--card);
     --sidebar-control-surface: var(--muted);
     --sidebar-row-hover: var(--accent);
@@ -2520,4 +2725,20 @@ code {
   .preview-loading-progress[data-loading="true"] {
     transform: scaleX(0.9);
   }
+}
+
+/* Marker classes: they carry no styles but are referenced from DOM queries,
+   group-has selectors, tests, and platform styling hooks. Declared here so the
+   design-system linter recognizes them as intentional. */
+.provider-update-main,
+.stage-art,
+.stage-nightly,
+.stage-blueprint,
+.chat-composer-tasks-tab,
+.chat-composer-stash-tab,
+.thread-terminal-drawer,
+.ghostty-pane,
+.ghostty-split-view,
+.chat-markdown-details,
+.sidebar-translucent {
 }

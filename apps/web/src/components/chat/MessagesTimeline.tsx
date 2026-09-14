@@ -806,6 +806,7 @@ function TimelineMinimap({
             // The strip is width-capped to the side gutter so it never overlays
             // the centered content column; with no usable gutter it goes inert.
             hitStripWidth > 0 ? "pointer-events-auto" : "pointer-events-none",
+            "h-(--height) w-(--width)",
           )}
           onBlur={() => setActiveIndex(null)}
           onClick={(event) => {
@@ -849,8 +850,8 @@ function TimelineMinimap({
             event.preventDefault();
           }}
           style={{
-            height: resolveTimelineMinimapHeightStyle(items.length),
-            width: resolveTimelineMinimapInteractiveWidth(hitStripWidth, activeItem !== null),
+            "--height": resolveTimelineMinimapHeightStyle(items.length),
+            "--width": resolveTimelineMinimapInteractiveWidth(hitStripWidth, activeItem !== null),
           }}
           type="button"
         >
@@ -863,7 +864,7 @@ function TimelineMinimap({
               <span
                 aria-hidden="true"
                 className={cn(
-                  "pointer-events-none absolute left-0 h-0.5 -translate-y-1/2 rounded-full bg-muted-foreground/35 transition-[background-color,width] duration-150 data-[in-view=true]:bg-foreground/90",
+                  "pointer-events-none absolute left-0 top-(--minimap-strip-top) h-0.5 -translate-y-1/2 rounded-full bg-muted-foreground/35 transition-[background-color,width] duration-150 data-[in-view=true]:bg-foreground/90",
                   activeDistance === 0
                     ? "w-6 bg-muted-foreground/75"
                     : activeDistance === 1
@@ -882,18 +883,18 @@ function TimelineMinimap({
                     stripMap.delete(item.id);
                   }
                 }}
-                style={{ top }}
+                style={{ "--minimap-strip-top": top }}
               />
             );
           })}
           {activeItem ? (
             <span
-              className="pointer-events-auto absolute left-8 w-80 cursor-text select-text"
+              className="pointer-events-auto absolute left-8 w-80 cursor-text select-text top-(--top) [transform:var(--transform)]"
               data-minimap-preview
               onMouseMove={(event) => event.stopPropagation()}
               style={{
-                top: `${activeTopPercent}%`,
-                transform: `translateY(${activeTooltipTranslate})`,
+                "--top": `${activeTopPercent}%`,
+                "--transform": `translateY(${activeTooltipTranslate})`,
               }}
             >
               <span className="dropdown-glass block rounded-xl p-3 text-left text-popover-foreground shadow-xl shadow-black/25">
@@ -902,12 +903,8 @@ function TimelineMinimap({
                 </span>
                 {activeItem.assistantText ? (
                   <span
-                    className="mt-1 max-h-[3.75rem] overflow-hidden text-muted-foreground text-sm leading-5"
-                    style={{
-                      display: "-webkit-box",
-                      WebkitBoxOrient: "vertical",
-                      WebkitLineClamp: 3,
-                    }}
+                    className="mt-1 max-h-[3.75rem] overflow-hidden text-muted-foreground text-sm leading-5 [display:-webkit-box] [-webkit-box-orient:vertical] line-clamp-3"
+                    style={{}}
                   >
                     {activeItem.assistantText}
                   </span>
@@ -1014,7 +1011,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
     <div className="group flex flex-col items-end gap-1">
       <div className="relative max-w-[80%] rounded-2xl bg-message p-3 text-message-foreground">
         {regularImages.length > 0 && (
-          <div className="mb-2 grid max-w-[420px] grid-cols-2 gap-2">
+          <div className="mb-2 grid max-w-105 grid-cols-2 gap-2">
             {regularImages.map((image: NonNullable<TimelineMessage["attachments"]>[number]) => (
               <div
                 key={image.id}
@@ -1034,11 +1031,11 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                     <img
                       src={image.previewUrl}
                       alt={image.name}
-                      className="block h-auto max-h-[220px] w-full object-cover"
+                      className="block h-auto max-h-55 w-full object-cover"
                     />
                   </button>
                 ) : (
-                  <div className="flex min-h-[72px] items-center justify-center px-2 py-3 text-center text-secondary-label text-[11px]">
+                  <div className="flex min-h-18 items-center justify-center px-2 py-3 text-center text-secondary-label text-xs">
                     {image.name}
                   </div>
                 )}
@@ -1191,7 +1188,7 @@ function MessageAttachments(props: {
   return (
     <>
       {images.length > 0 ? (
-        <div className="mt-2 grid max-w-[560px] grid-cols-2 gap-2">
+        <div className="mt-2 grid max-w-140 grid-cols-2 gap-2">
           {images.map((image) => (
             <div key={image.id} className="overflow-hidden rounded-lg border border-border/80">
               {image.previewUrl ? (
@@ -1207,7 +1204,7 @@ function MessageAttachments(props: {
                   <img
                     src={image.previewUrl}
                     alt={image.name}
-                    className="block h-auto max-h-[320px] w-full object-contain"
+                    className="block h-auto max-h-80 w-full object-contain"
                   />
                 </button>
               ) : (
@@ -1229,7 +1226,7 @@ function MessageFileAttachments(props: {
 }) {
   if (props.attachments.length === 0) return null;
   return (
-    <div className="mt-2 flex max-w-[560px] flex-col gap-1.5">
+    <div className="mt-2 flex max-w-140 flex-col gap-1.5">
       {props.attachments.map((file) =>
         file.previewUrl ? (
           <a
@@ -1317,7 +1314,7 @@ const TurnPlanTimelineRow = memo(function TurnPlanTimelineRow({
     <div className="min-w-0 px-1 py-0.5">
       <button
         type="button"
-        className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-0.5 py-0.5 text-left text-[12px] leading-5 transition-colors duration-150 hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
+        className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-0.5 py-0.5 text-left text-xs leading-5 transition-colors duration-150 hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
         aria-expanded={expanded}
         onClick={() => setExpanded((value) => !value)}
       >
@@ -1328,7 +1325,7 @@ const TurnPlanTimelineRow = memo(function TurnPlanTimelineRow({
               <span
                 key={step.step}
                 className={cn(
-                  "h-[3px] w-2.5 rounded-full",
+                  "h-0.75 w-2.5 rounded-full",
                   step.status === "completed"
                     ? "bg-success"
                     : step.status === "inProgress"
@@ -1356,10 +1353,10 @@ const TurnPlanTimelineRow = memo(function TurnPlanTimelineRow({
       {expanded ? (
         <div className="mt-0.5 space-y-px pl-6">
           {steps.map((step) => (
-            <div key={step.step} className="flex items-baseline gap-2 text-[12px] leading-5">
+            <div key={step.step} className="flex items-baseline gap-2 text-xs leading-5">
               <span
                 className={cn(
-                  "w-3 shrink-0 text-center font-mono text-[10px]",
+                  "w-3 shrink-0 text-center font-mono text-xs",
                   step.status === "completed"
                     ? "text-success"
                     : step.status === "inProgress"
@@ -1480,7 +1477,7 @@ const WorkGroupSection = memo(function WorkGroupSection({
       aria-label={isExpandedToolGroupEntry ? undefined : groupLabel}
     >
       {!onlyToolEntries && (
-        <p className="px-0.5 pb-0.5 font-medium text-secondary-label text-[11px]">{groupLabel}</p>
+        <p className="px-0.5 pb-0.5 font-medium text-secondary-label text-xs">{groupLabel}</p>
       )}
       <div className="space-y-px">
         {nonEmptyEntries.map((workEntry) => (
@@ -1565,7 +1562,7 @@ function LiveActivityContent({
         >
           <WorkEntryIconSvg
             name={resolvedIconName}
-            className={cn("block size-4 shrink-0 stroke-[1.8]", !highlighted && "opacity-70")}
+            className={cn("block size-4 shrink-0 stroke-icon", !highlighted && "opacity-70")}
           />
         </span>
       ) : null}
@@ -1645,7 +1642,7 @@ function WorkGroupToggleTimelineRow({
         >
           <WorkEntryIconSvg
             name={row.hasFailure ? "x" : toolGroupSummaryIconName(row.summaryKind)}
-            className="size-4 shrink-0 stroke-[1.8] opacity-70"
+            className="size-4 shrink-0 stroke-icon opacity-70"
           />
         </span>
         <span className="min-w-0 flex-1 truncate text-secondary-label">{row.summary}</span>
@@ -1677,7 +1674,7 @@ function WorkGroupToggleTimelineRow({
         aria-label={showHiddenFailure ? "Hidden work includes a failure" : undefined}
       >
         {showHiddenFailure ? (
-          <WorkEntryIconSvg name="x" className="size-4 shrink-0 stroke-[1.8] opacity-70" />
+          <WorkEntryIconSvg name="x" className="size-4 shrink-0 stroke-icon opacity-70" />
         ) : (
           <ChevronDownIcon
             className={cn(
@@ -1843,7 +1840,7 @@ function UserMessagePreviewAnnotationCard(props: {
         ) : null}
         <div
           className={cn(
-            "flex items-center gap-2 text-secondary-label text-[10px]",
+            "flex items-center gap-2 text-secondary-label text-xs",
             props.annotation.comment && "mt-1",
           )}
         >
@@ -1864,8 +1861,9 @@ function UserMessagePreviewAnnotationCard(props: {
 
 const MAX_COLLAPSED_USER_MESSAGE_LINES = 8;
 const MAX_COLLAPSED_USER_MESSAGE_LENGTH = 600;
-const COLLAPSED_USER_MESSAGE_FADE_HEIGHT_REM = 1.75;
-const COLLAPSED_USER_MESSAGE_FADE_MASK = `linear-gradient(to bottom, black calc(100% - ${COLLAPSED_USER_MESSAGE_FADE_HEIGHT_REM}rem), transparent)`;
+/* The collapsed-message fade is the `mask-fade-collapsed-bottom` utility in
+   index.css (kept there because the mask contains raw colors, which the
+   design-system lint forbids inline). */
 
 function shouldCollapseUserMessage(text: string): boolean {
   if (text.trim().length === 0) {
@@ -1894,19 +1892,14 @@ const CollapsibleUserMessageBody = memo(function CollapsibleUserMessageBody(prop
     <div>
       {hasVisibleBody ? (
         <div
-          className={cn("relative", isCollapsed && "max-h-44 overflow-hidden")}
+          className={cn(
+            "relative",
+            isCollapsed && "max-h-44 overflow-hidden mask-fade-collapsed-bottom",
+          )}
           data-user-message-body="true"
           data-user-message-collapsed={isCollapsed ? "true" : "false"}
           data-user-message-collapsible={canCollapse ? "true" : "false"}
           data-user-message-fade={isCollapsed ? "true" : "false"}
-          style={
-            isCollapsed
-              ? {
-                  WebkitMaskImage: COLLAPSED_USER_MESSAGE_FADE_MASK,
-                  maskImage: COLLAPSED_USER_MESSAGE_FADE_MASK,
-                }
-              : undefined
-          }
         >
           <UserMessageBody
             text={props.text}
@@ -2130,7 +2123,7 @@ function UserMessageReviewCommentCard({ comment }: { comment: ReviewCommentConte
         <div className="text-message-foreground text-xs font-medium">
           {formatWorkspaceRelativePath(comment.filePath, ctx.workspaceRoot)}
         </div>
-        <div className="text-secondary-label text-[11px]">
+        <div className="text-secondary-label text-xs">
           {comment.sectionTitle} · {comment.rangeLabel}
         </div>
       </div>
@@ -2655,7 +2648,7 @@ const AgentSpawnCtaRow = memo(function AgentSpawnCtaRow(props: { workEntry: Time
     <button
       type="button"
       onClick={onOpenAgents}
-      className="flex w-full items-center gap-2 rounded-md border border-border/60 bg-card/50 px-2.5 py-1.5 text-left text-[13px] transition hover:bg-accent/50"
+      className="flex w-full items-center gap-2 rounded-md border border-border/60 bg-card/50 px-2.5 py-1.5 text-left text-xs transition hover:bg-accent/50"
     >
       <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", dotClass)} />
       <WorkEntryIconSvg name="bot" className="size-3.5 shrink-0 text-muted-foreground" />
@@ -2663,7 +2656,7 @@ const AgentSpawnCtaRow = memo(function AgentSpawnCtaRow(props: { workEntry: Time
         <span className="font-medium">{lead}</span>
         {workflowName ? <span className="text-muted-foreground"> · {workflowName}</span> : null}
       </span>
-      <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[.7rem] text-muted-foreground">
+      <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-xs text-muted-foreground">
         <span>{status}</span>
         {totalTokens > 0 ? (
           <span className="tabular-nums">Σ {formatSubagentTokenCount(totalTokens)}</span>
@@ -2767,7 +2760,7 @@ const PlainWorkEntryRow = memo(function PlainWorkEntryRow(props: {
         >
           <WorkEntryIconSvg
             name={entryIconName}
-            className="block size-4 shrink-0 stroke-[1.8] opacity-70"
+            className="block size-4 shrink-0 stroke-icon opacity-70"
           />
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-1.5">

@@ -63,8 +63,8 @@ export function ConnectionSheetButton(props: {
       accessibilityState={{ disabled: props.disabled ?? false }}
       className={cn(
         props.compact
-          ? "min-h-[42px] flex-row items-center justify-center gap-1.5 rounded-[14px] px-3.5 py-2.5"
-          : "min-h-[48px] flex-row items-center justify-center gap-2 rounded-[16px] px-4 py-3",
+          ? "min-h-10.5 flex-row items-center justify-center gap-1.5 rounded-xl px-3.5 py-2.5"
+          : "min-h-12 flex-row items-center justify-center gap-2 rounded-2xl px-4 py-3",
         "disabled:opacity-50",
         tone === "primary"
           ? "bg-primary"

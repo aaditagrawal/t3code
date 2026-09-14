@@ -125,12 +125,8 @@ function ProviderCustomColorPanel(props: {
   return (
     <div className="w-56 bg-popover">
       <div
-        className="relative h-36 cursor-crosshair touch-none"
-        style={{
-          backgroundColor: `hsl(${hsv.h} 100% 50%)`,
-          backgroundImage:
-            "linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)",
-        }}
+        className="relative h-36 cursor-crosshair touch-none picker-saturation-plane"
+        style={{ "--picker-hue": hsv.h }}
         onPointerDown={handlePointerDown(updateFromPlane)}
         onPointerMove={(event) => {
           if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -139,16 +135,13 @@ function ProviderCustomColorPanel(props: {
         }}
       >
         <span
-          className="pointer-events-none absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_rgb(0_0_0/0.35)]"
-          style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }}
+          className="pointer-events-none absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-swatch-soft left-(--left) top-(--top)"
+          style={{ "--left": `${hsv.s * 100}%`, "--top": `${(1 - hsv.v) * 100}%` }}
         />
       </div>
       <div className="grid gap-3 p-3">
         <div
-          className="relative h-3 cursor-pointer touch-none rounded-full"
-          style={{
-            background: "linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)",
-          }}
+          className="picker-hue-spectrum relative h-3 cursor-pointer touch-none rounded-full"
           onPointerDown={handlePointerDown(updateFromHue)}
           onPointerMove={(event) => {
             if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -157,8 +150,8 @@ function ProviderCustomColorPanel(props: {
           }}
         >
           <span
-            className="pointer-events-none absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_rgb(0_0_0/0.35)]"
-            style={{ left: `${(hsv.h / 360) * 100}%`, backgroundColor: currentColor }}
+            className="pointer-events-none absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-swatch-soft left-(--left) bg-(--background-color)"
+            style={{ "--left": `${(hsv.h / 360) * 100}%`, "--background-color": currentColor }}
           />
         </div>
         <input
@@ -195,14 +188,13 @@ function ProviderCustomColorPicker(props: {
             className={cn(
               "flex size-6 cursor-pointer items-center justify-center rounded-full text-white transition-transform duration-200 active:scale-90",
               "hover:scale-105",
+              "bg-(--swatch-color) shadow-(--box-shadow)",
             )}
             style={{
-              backgroundColor: normalized,
-              ...(props.selected
-                ? {
-                    boxShadow: `inset 0 0 0 2px var(--card), 0 0 0 2px ${normalized}`,
-                  }
-                : {}),
+              "--swatch-color": normalized,
+              "--box-shadow": props.selected
+                ? `inset 0 0 0 2px var(--card), 0 0 0 2px ${normalized}`
+                : undefined,
             }}
             aria-label={`Choose custom accent color for ${props.displayName}`}
           >

@@ -297,24 +297,20 @@ function ThemeColorPickerPanel({
       <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
         <div className="min-w-0">
           <p className="truncate text-xs font-semibold text-foreground">{label}</p>
-          <p className="text-[11px] text-muted-foreground">Choose a color</p>
+          <p className="text-xs text-muted-foreground">Choose a color</p>
         </div>
         <span
-          className="size-7 shrink-0 rounded-full shadow-sm"
-          style={{ backgroundColor: currentColor }}
+          className="size-7 shrink-0 rounded-full shadow-sm bg-(--background-color)"
+          style={{ "--background-color": currentColor }}
         />
       </div>
       <div className="grid gap-3 px-3 pb-3 pt-3">
         <div
           aria-label={`${label} saturation and brightness`}
           aria-valuetext={`saturation ${Math.round(hsv.s * 100)}%, brightness ${Math.round(hsv.v * 100)}%`}
-          className="relative h-32 cursor-crosshair touch-none overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover"
+          className="picker-saturation-plane relative h-32 cursor-crosshair touch-none overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover"
           role="slider"
-          style={{
-            backgroundColor: `hsl(${hsv.h} 100% 50%)`,
-            backgroundImage:
-              "linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)",
-          }}
+          style={{ "--picker-hue": hsv.h }}
           tabIndex={0}
           onKeyDown={handlePlaneKeyDown}
           onLostPointerCapture={stopDragging}
@@ -325,11 +321,11 @@ function ThemeColorPickerPanel({
           onPointerUp={stopDragging}
         >
           <span
-            className="pointer-events-none absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_rgb(0_0_0/0.4)]"
+            className="pointer-events-none absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-swatch left-(--left) top-(--top) transition-runtime"
             style={{
-              left: `calc(${hsv.s} * (100% - 0.75rem) + 0.375rem)`,
-              top: `calc(${1 - hsv.v} * (100% - 0.75rem) + 0.375rem)`,
-              transition: thumbTransition,
+              "--left": `calc(${hsv.s} * (100% - 0.75rem) + 0.375rem)`,
+              "--top": `calc(${1 - hsv.v} * (100% - 0.75rem) + 0.375rem)`,
+              "--runtime-transition": thumbTransition,
             }}
           />
         </div>
@@ -351,31 +347,28 @@ function ThemeColorPickerPanel({
         >
           <span
             aria-hidden
-            className="h-2.5 w-full rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0_/_12%)]"
-            style={{
-              background: "linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)",
-            }}
+            className="picker-hue-spectrum h-2.5 w-full rounded-full shadow-swatch-inset"
           />
           <span
-            className="pointer-events-none absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_rgb(0_0_0/0.4)]"
+            className="picker-hue-fill transition-runtime pointer-events-none absolute top-1/2 left-(--picker-thumb-left) size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-swatch"
             style={{
-              left: `calc(${hsv.h / 360} * (100% - 1rem) + 0.5rem)`,
+              "--picker-thumb-left": `calc(${hsv.h / 360} * (100% - 1rem) + 0.5rem)`,
               // The ball shows the pure hue so it stays visually anchored to
               // the track; the header swatch carries the full current color.
-              backgroundColor: `hsl(${hsv.h} 100% 50%)`,
-              transition: thumbTransition,
+              "--picker-hue": hsv.h,
+              "--runtime-transition": thumbTransition,
             }}
           />
         </div>
         <div className="grid grid-cols-[1fr_1.2fr] gap-2">
           <label className="grid min-w-0 gap-1">
-            <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <span className="px-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               HEX
             </span>
             <span className="flex min-w-0 items-center gap-2 rounded-lg border border-input bg-background px-2 focus-within:border-ring">
               <span
-                className="size-3.5 shrink-0 rounded-full"
-                style={{ backgroundColor: currentColor }}
+                className="size-3.5 shrink-0 rounded-full bg-(--background-color)"
+                style={{ "--background-color": currentColor }}
               />
               <input
                 aria-label={`${label} picker hex value`}
@@ -395,7 +388,7 @@ function ThemeColorPickerPanel({
             </span>
           </label>
           <label className="grid min-w-0 gap-1">
-            <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <span className="px-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               RGB
             </span>
             <span className="flex min-w-0 items-center rounded-lg border border-input bg-background px-2 focus-within:border-ring">
@@ -448,8 +441,8 @@ function ThemeColorPicker({
                   type="button"
                 >
                   <span
-                    className="absolute inset-0 rounded-full shadow-sm"
-                    style={{ backgroundColor: value }}
+                    className="absolute inset-0 rounded-full shadow-sm bg-(--background-color)"
+                    style={{ "--background-color": value }}
                   />
                 </button>
               }
@@ -499,7 +492,7 @@ export const ThemeColorField = memo(function ThemeColorField({
     <div
       className={cn(
         "flex min-h-11 min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 transition-[background-color,box-shadow]",
-        selected && "bg-accent/60 shadow-[inset_0_0_0_1px_var(--ring)]",
+        selected && "bg-accent/60 shadow-swatch-focus",
       )}
       data-theme-color-role={role}
     >

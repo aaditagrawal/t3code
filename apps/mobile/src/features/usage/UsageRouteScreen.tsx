@@ -200,7 +200,7 @@ function ChartCard(props: {
   const hasActivity = props.daily.some((period) => period.totalTokens > 0);
 
   return (
-    <View className="gap-4 rounded-[24px] border-continuous bg-card p-4">
+    <View className="gap-4 rounded-3xl border-continuous bg-card p-4">
       <View className="flex-row items-start justify-between gap-3">
         <View className="min-w-0 flex-1 gap-0.5">
           <Text className="text-sm text-foreground-muted">
@@ -473,7 +473,7 @@ function UsageCoverageNotice(props: {
   }
 
   return (
-    <View className="gap-1 rounded-[16px] border-continuous bg-card px-4 py-3">
+    <View className="gap-1 rounded-2xl border-continuous bg-card px-4 py-3">
       {props.isPartial ? (
         <Text className="text-sm text-foreground-muted">
           Some environments are still reporting. Totals are partial.

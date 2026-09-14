@@ -128,8 +128,8 @@ function ThemeCard(props: {
       accessibilityState={{ checked: selected, disabled: props.disabled }}
       className={
         selected
-          ? "size-[66px] items-center justify-center rounded-full border-[3px] border-primary"
-          : "size-[66px] items-center justify-center rounded-full border-[3px] border-transparent"
+          ? "size-16.5 items-center justify-center rounded-full border-3 border-primary"
+          : "size-16.5 items-center justify-center rounded-full border-3 border-transparent"
       }
       disabled={props.disabled}
       onPress={() => props.onSelect(appearance)}
@@ -153,13 +153,13 @@ function ThemeCard(props: {
   );
 
   return (
-    <View className="min-w-36 flex-1 basis-[47%] gap-3 rounded-[24px] border border-border bg-card px-2 py-4">
+    <View className="min-w-36 flex-1 basis-[47%] gap-3 rounded-3xl border border-border bg-card px-2 py-4">
       <Pressable
         accessibilityHint="Sets both light and dark appearances"
         accessibilityLabel={`${props.label} theme`}
         accessibilityRole="button"
         accessibilityState={{ disabled: props.disabled }}
-        className="absolute inset-0 rounded-[24px] active:bg-subtle"
+        className="absolute inset-0 rounded-3xl active:bg-subtle"
         disabled={props.disabled}
         onPress={props.onSelectBoth}
       />
@@ -183,7 +183,7 @@ function PreviewPane(props: { readonly colors: MobileThemeVariables; readonly co
       style={{ backgroundColor: props.colors["--color-screen"] }}
     >
       <View
-        className={props.compact ? "h-[18px] gap-0.5 px-1" : "h-[18px] gap-1 px-1.5"}
+        className={props.compact ? "h-4.5 gap-0.5 px-1" : "h-4.5 gap-1 px-1.5"}
         style={{ backgroundColor: props.colors["--color-card"] }}
       >
         <View className="mt-2 flex-row items-center gap-1">
@@ -254,10 +254,10 @@ function ModePreview(props: { readonly mode: MobileThemeMode; readonly themeIds:
 
   return (
     <View
-      className="h-24 w-14 self-center rounded-[16px] p-[3px]"
+      className="h-24 w-14 self-center rounded-2xl p-0.75"
       style={{ backgroundColor: frameBackground, borderColor: frameColor, borderWidth: 1.5 }}
     >
-      <View className="flex-1 flex-row overflow-hidden rounded-[11px]">
+      <View className="flex-1 flex-row overflow-hidden rounded-xl">
         {props.mode === "system" ? (
           <>
             <PreviewPane colors={light} compact />
@@ -268,7 +268,7 @@ function ModePreview(props: { readonly mode: MobileThemeMode; readonly themeIds:
         )}
       </View>
       <View
-        className="absolute bottom-[6px] left-1/2 h-1 w-4 -translate-x-1/2 rounded-full"
+        className="absolute bottom-1.5 left-1/2 h-1 w-4 -translate-x-1/2 rounded-full"
         style={{ backgroundColor: indicatorColor }}
       />
     </View>
@@ -290,8 +290,8 @@ function ModeCard(props: {
       accessibilityState={{ checked: props.selected, disabled: props.disabled }}
       className={
         props.selected
-          ? "min-w-0 flex-1 gap-2 rounded-[24px] border-2 border-primary bg-subtle p-2"
-          : "min-w-0 flex-1 gap-2 rounded-[24px] border border-border bg-card p-2"
+          ? "min-w-0 flex-1 gap-2 rounded-3xl border-2 border-primary bg-subtle p-2"
+          : "min-w-0 flex-1 gap-2 rounded-3xl border border-border bg-card p-2"
       }
       disabled={props.disabled}
       onPress={props.onPress}

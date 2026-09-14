@@ -15,8 +15,8 @@ export function SettingsSection(props: {
       <View
         className={
           props.card
-            ? "overflow-hidden rounded-[24px] border-continuous bg-card"
-            : "overflow-hidden rounded-[24px] border-continuous bg-card android:bg-transparent"
+            ? "overflow-hidden rounded-3xl border-continuous bg-card"
+            : "overflow-hidden rounded-3xl border-continuous bg-card android:bg-transparent"
         }
       >
         {props.children}

@@ -44,11 +44,11 @@ export function ReviewChangeBar(props: {
   const height = props.height ?? REVIEW_DIFF_LINE_HEIGHT;
   if (props.change === "delete") {
     return (
-      <View className="w-[5px] overflow-hidden" style={{ height }}>
+      <View className="w-1.25 overflow-hidden" style={{ height }}>
         <View>
           {Array.from({ length: Math.ceil(height / 2) }, (_, index) => (
             <View key={index}>
-              <View className="h-px w-[5px] bg-rose-400" />
+              <View className="h-px w-1.25 bg-danger-foreground" />
               <View className="h-px" />
             </View>
           ))}
@@ -58,8 +58,8 @@ export function ReviewChangeBar(props: {
   }
 
   return (
-    <View className="w-[5px] overflow-hidden" style={{ height }}>
-      <View className={cn("h-full w-[5px] flex-1", changeBarTone(props.change))} />
+    <View className="w-1.25 overflow-hidden" style={{ height }}>
+      <View className={cn("h-full w-1.25 flex-1", changeBarTone(props.change))} />
     </View>
   );
 }

@@ -318,7 +318,7 @@ function SidebarUpdateControl() {
                 "inline-flex size-8 items-center justify-center rounded-full outline-hidden ring-ring transition-colors enabled:cursor-pointer focus-visible:ring-2 disabled:cursor-not-allowed",
                 showUpdateIconState
                   ? "bg-update-surface text-update-foreground enabled:hover:bg-update/12"
-                  : "text-[var(--sidebar-icon-color)] enabled:hover:bg-sidebar-row-hover enabled:hover:text-sidebar-foreground",
+                  : "text-(--sidebar-icon-color) enabled:hover:bg-sidebar-row-hover enabled:hover:text-sidebar-foreground",
                 disabled && !showUpdateIconState && "opacity-60",
               )}
               onClick={handleAction}
@@ -335,23 +335,15 @@ function SidebarUpdateControl() {
         />
         <TooltipPopup
           align="center"
-          className={
+          className={cn(
+            showUpdateDetails && "update-pill-tooltip",
             showUpdateDetails && state?.channel === "nightly" && state.releaseNotes.length > 0
               ? // pointer-events-auto overrides the positioner's pointer-events-none so the
                 // release notes stay open (and scrollable) when the cursor moves into them.
-                "pointer-events-auto max-w-none text-balance"
-              : undefined
-          }
+                "pointer-events-auto max-w-none"
+              : undefined,
+          )}
           side="top"
-          style={
-            showUpdateDetails
-              ? {
-                  background:
-                    "color-mix(in srgb, var(--update) 18%, color-mix(in srgb, var(--popover) var(--glass-opacity), transparent))",
-                  borderColor: "var(--update-foreground)",
-                }
-              : undefined
-          }
           variant={showUpdateDetails ? "glass" : "default"}
         >
           {showUpdateDetails && state ? (

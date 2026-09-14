@@ -237,7 +237,7 @@ export function ConnectionsNewRouteScreen({
         <View collapsable={false} className="gap-5">
           {showScanner ? (
             cameraPermission?.granted ? (
-              <View className="overflow-hidden rounded-[24px] border-continuous">
+              <View className="overflow-hidden rounded-3xl border-continuous">
                 <CameraView
                   barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
                   onBarcodeScanned={handleQrScan}
@@ -245,7 +245,7 @@ export function ConnectionsNewRouteScreen({
                 />
               </View>
             ) : (
-              <View className="items-center gap-3 rounded-[24px] border-continuous bg-card px-5 py-8">
+              <View className="items-center gap-3 rounded-3xl border-continuous bg-card px-5 py-8">
                 <Text className="text-center text-sm leading-normal text-foreground-muted">
                   Camera permission is required to scan a QR code.
                 </Text>
@@ -261,7 +261,7 @@ export function ConnectionsNewRouteScreen({
               </View>
             )
           ) : (
-            <View collapsable={false} className="gap-4 rounded-[24px] bg-card p-4">
+            <View collapsable={false} className="gap-4 rounded-3xl bg-card p-4">
               <View collapsable={false} className="gap-1.5">
                 <Text className="text-2xs font-t3-bold tracking-[0.8px] uppercase text-foreground-muted">
                   Host
@@ -273,7 +273,7 @@ export function ConnectionsNewRouteScreen({
                   placeholder="192.168.1.100:8080"
                   value={hostInput}
                   onChangeText={handleHostChange}
-                  className="rounded-[14px] border border-input-border bg-input px-4 py-3.5 text-base text-foreground"
+                  className="rounded-xl border border-input-border bg-input px-4 py-3.5 text-base text-foreground"
                 />
               </View>
 
@@ -287,7 +287,7 @@ export function ConnectionsNewRouteScreen({
                   placeholder="abc-123-xyz"
                   value={codeInput}
                   onChangeText={handleCodeChange}
-                  className="rounded-[14px] border border-input-border bg-input px-4 py-3.5 text-base text-foreground"
+                  className="rounded-xl border border-input-border bg-input px-4 py-3.5 text-base text-foreground"
                 />
               </View>
 

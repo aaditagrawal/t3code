@@ -240,12 +240,25 @@ export function HostedBrowserWebview(props: {
   return (
     <div
       ref={wrapperRef}
-      className="fixed overflow-hidden bg-muted/35"
-      style={{ ...wrapperStyle, overscrollBehavior: "contain" }}
+      className="hosted-webview-wrapper fixed overflow-hidden bg-muted/35 overscroll-contain"
+      style={{
+        "--hosted-left": `${wrapperStyle.left}px`,
+        "--hosted-top": `${wrapperStyle.top}px`,
+        "--hosted-width": `${wrapperStyle.width}px`,
+        "--hosted-height": `${wrapperStyle.height}px`,
+        "--hosted-z-index": wrapperStyle.zIndex,
+        "--hosted-pointer-events": wrapperStyle.pointerEvents,
+        "--hosted-border-radius":
+          wrapperStyle.borderRadius === undefined ? undefined : `${wrapperStyle.borderRadius}px`,
+        "--hosted-visibility": wrapperStyle.visibility,
+      }}
       onScroll={syncContentPresentation}
       data-preview-viewport={runtimeTabId}
     >
-      <div className="relative" style={{ width: layout.canvasWidth, height: layout.canvasHeight }}>
+      <div
+        className="relative w-(--width) h-(--height)"
+        style={{ "--width": `${layout.canvasWidth}px`, "--height": `${layout.canvasHeight}px` }}
+      >
         {deviceToolbarVisible && effectiveViewport._tag !== "fill" ? (
           <BrowserDeviceToolbar
             setting={effectiveViewport}
@@ -284,14 +297,14 @@ export function HostedBrowserWebview(props: {
           className={cn(
             "absolute flex overflow-hidden bg-background",
             active && !layout.fillsPanel && "ring-1 ring-border/70 shadow-sm",
+            "left-(--left) top-(--top) w-(--width) h-(--height) [transform:var(--transform)] [transform-origin:top_left]",
           )}
           style={{
-            left: layout.viewportX,
-            top: layout.viewportY,
-            width: layout.viewportWidth / layout.viewportScale,
-            height: layout.viewportHeight / layout.viewportScale,
-            transform: layout.viewportScale < 1 ? `scale(${layout.viewportScale})` : undefined,
-            transformOrigin: "top left",
+            "--left": `${layout.viewportX}px`,
+            "--top": `${layout.viewportY}px`,
+            "--width": `${layout.viewportWidth / layout.viewportScale}px`,
+            "--height": `${layout.viewportHeight / layout.viewportScale}px`,
+            "--transform": layout.viewportScale < 1 ? `scale(${layout.viewportScale})` : undefined,
           }}
         />
         {active && effectiveViewport._tag !== "fill" && !fittedSourceViewport ? (
@@ -304,10 +317,10 @@ export function HostedBrowserWebview(props: {
             />
             {activeDrag ? (
               <div
-                className="pointer-events-none absolute z-40 -translate-x-1/2 rounded-md border border-border/80 bg-background/95 px-2 py-1 text-[11px] font-medium tabular-nums text-foreground shadow-md backdrop-blur-sm"
+                className="pointer-events-none absolute z-40 -translate-x-1/2 rounded-md border border-border/80 bg-background/95 px-2 py-1 text-xs font-medium tabular-nums text-foreground shadow-md backdrop-blur-sm left-(--left) top-(--top)"
                 style={{
-                  left: layout.viewportX + layout.viewportWidth / 2,
-                  top: layout.viewportY + 10,
+                  "--left": `${layout.viewportX + layout.viewportWidth / 2}px`,
+                  "--top": `${layout.viewportY + 10}px`,
                 }}
                 aria-hidden="true"
               >

@@ -152,10 +152,11 @@ function ThemeLibraryCard({
             className={cn(
               "cursor-pointer overflow-hidden rounded-xl border border-border/70 bg-card/60 transition-colors hover:bg-accent/10",
               isActive && "bg-accent/30",
+              "shadow-(--box-shadow)",
             )}
             data-theme-library-card={theme.id}
             onClick={onUse}
-            style={isActive ? { boxShadow: "inset 0 0 0 1px var(--ring)" } : undefined}
+            style={isActive ? { "--box-shadow": "inset 0 0 0 1px var(--ring)" } : undefined}
           >
             <div className="relative">
               {variantNavigation ? (
@@ -193,10 +194,8 @@ function ThemeLibraryCard({
                                 : `Use ${mode} variant, currently ${selected.option.label}`
                             }
                             aria-pressed={isActive}
-                            className="absolute left-1/2 top-2 z-20 flex size-14 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            style={{
-                              transform: `translateX(calc(-50% + ${rootOffsetX}px))`,
-                            }}
+                            className="absolute left-1/2 top-2 z-20 flex size-14 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring [transform:var(--transform)]"
+                            style={{ "--transform": `translateX(calc(-50% + ${rootOffsetX}px))` }}
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation();
@@ -227,12 +226,12 @@ function ThemeLibraryCard({
                           </button>
                         </ThemeVariantTooltip>
                         <span
-                          className="pointer-events-none absolute bottom-0 left-1/2 inline-flex max-w-24 -translate-x-1/2 items-center gap-1 text-[11px] font-medium text-foreground"
-                          style={{ marginLeft: rootOffsetX }}
+                          className="pointer-events-none absolute bottom-0 left-1/2 inline-flex max-w-24 -translate-x-1/2 items-center gap-1 text-xs font-medium text-foreground ml-(--margin-left)"
+                          style={{ "--margin-left": `${rootOffsetX}px` }}
                         >
                           <span className="truncate">{selected.option.label}</span>
                           {options.length > 1 ? (
-                            <span className="shrink-0 rounded-full bg-muted px-1 text-[9px] text-muted-foreground">
+                            <span className="shrink-0 rounded-full bg-muted px-1 text-xs text-muted-foreground">
                               +{options.length - 1}
                             </span>
                           ) : null}
@@ -254,12 +253,15 @@ function ThemeLibraryCard({
                                     className={cn(
                                       "absolute left-1/2 top-1 z-30 flex size-7 items-center justify-center rounded-full bg-background shadow-sm outline-none transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-ring",
                                       optionIsActive ? "ring-2 ring-ring" : "ring-1 ring-border/70",
+                                      "opacity-(--opacity) [pointer-events:var(--pointer-events)] [transform:var(--transform)] delay-(--transition-delay)",
                                     )}
                                     style={{
-                                      opacity: isOpen ? 1 : 0,
-                                      pointerEvents: isOpen ? "auto" : "none",
-                                      transform: `translate(calc(-50% + ${isOpen ? childOffsetX : rootOffsetX}px), ${isOpen ? childOffsetY : 28}px) scale(${isOpen ? 1 : 0.55})`,
-                                      transitionDelay: isOpen ? `${optionIndex * 35}ms` : "0ms",
+                                      "--opacity": isOpen ? 1 : 0,
+                                      "--pointer-events": isOpen ? "auto" : "none",
+                                      "--transform": `translate(calc(-50% + ${isOpen ? childOffsetX : rootOffsetX}px), ${isOpen ? childOffsetY : 28}px) scale(${isOpen ? 1 : 0.55})`,
+                                      "--transition-delay": isOpen
+                                        ? `${optionIndex * 35}ms`
+                                        : "0ms",
                                     }}
                                     type="button"
                                     onClick={(event) => {
@@ -725,9 +727,10 @@ export function ThemeLibrary({
               isActive
                 ? "border-transparent bg-accent/30"
                 : "border-border/70 bg-card/60 hover:bg-accent/10",
+              "shadow-(--box-shadow)",
             )}
             key={mode}
-            style={isActive ? { boxShadow: "inset 0 0 0 1px var(--ring)" } : undefined}
+            style={isActive ? { "--box-shadow": "inset 0 0 0 1px var(--ring)" } : undefined}
             onClick={() => setMode(mode)}
             type="button"
           >
@@ -767,8 +770,8 @@ export function ThemeLibrary({
     // accepted — scoping the group tighter makes the handoffs feel sluggish.
     <TooltipProvider>
       <div
-        className="mx-auto grid w-full max-w-[56rem] gap-2 px-3 sm:px-4"
-        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 16rem), 1fr))" }}
+        className="mx-auto grid w-full max-w-[56rem] gap-2 px-3 sm:px-4 [grid-template-columns:var(--grid-template-columns)]"
+        style={{ "--grid-template-columns": "repeat(auto-fit, minmax(min(100%, 16rem), 1fr))" }}
       >
         {STANDARD_THEME_CARDS.map((standardTheme) => (
           <ThemeLibraryCard
@@ -848,7 +851,7 @@ export function ThemeLibrary({
 
   return (
     <div className="space-y-3">
-      <p className="px-3 text-[13px] leading-[1.45] text-muted-foreground/80 sm:px-4">
+      <p className="px-3 text-xs leading-[1.45] text-muted-foreground/80 sm:px-4">
         Choose how T3 Code looks. Use a built-in theme or make your own.
       </p>
       <h3 className="px-3 text-sm font-medium tracking-[-0.005em] text-foreground sm:px-4">

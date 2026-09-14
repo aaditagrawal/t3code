@@ -22,7 +22,7 @@ function TargetStat(props: { icon: ReactNode; count: number; label: string }) {
     <Tooltip>
       <TooltipTrigger
         render={
-          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
             {props.icon}
             {props.count}
           </span>
@@ -91,13 +91,13 @@ export function ComposerPreviewAnnotationCards({
                     {elementLabels.slice(0, 2).map(({ id, label }) => (
                       <span
                         key={id}
-                        className="max-w-40 truncate font-mono text-secondary-label text-[10px]"
+                        className="max-w-40 truncate font-mono text-secondary-label text-xs"
                       >
                         {label}
                       </span>
                     ))}
                     {elementLabels.length > 2 ? (
-                      <span className="text-secondary-label text-[10px]">
+                      <span className="text-secondary-label text-xs">
                         +{elementLabels.length - 2}
                       </span>
                     ) : null}
@@ -139,7 +139,7 @@ export function ComposerPreviewAnnotationCards({
               size="icon-micro"
               variant="ghost-muted"
               aria-label="Remove preview annotation"
-              className="absolute right-1.5 top-1.5 [--control-icon-color:currentColor] rounded text-icon-muted hover:bg-muted"
+              className="absolute right-1.5 top-1.5 rounded text-icon-muted hover:bg-muted"
               onClick={() => onRemove(annotation.id)}
             >
               <X className="size-3" />

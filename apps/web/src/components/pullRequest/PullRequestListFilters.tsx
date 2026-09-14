@@ -276,7 +276,7 @@ export function PullRequestFiltersMenu({
       <MenuTrigger
         render={
           <Button
-            className={cn("relative", filtered && "[--control-icon-color:currentColor]")}
+            className={cn("relative", filtered && "")}
             size="icon"
             variant="outline"
             aria-label="Filter pull requests"
@@ -406,7 +406,7 @@ export function PullRequestFiltersMenu({
                     />
                     <span className="min-w-0 flex-1 truncate">{project.title}</span>
                     {reason === undefined ? null : (
-                      <span className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-px text-[10px] font-medium text-amber-600 dark:text-amber-400/90">
+                      <span className="shrink-0 rounded-full border border-warning/40 bg-warning/10 px-1.5 py-px text-xs font-medium text-warning-foreground/90">
                         Unavailable
                       </span>
                     )}

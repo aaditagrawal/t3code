@@ -143,8 +143,8 @@ export const ThreadListGroupHeader = memo(function ThreadListGroupHeader(props: 
         <Text
           className={
             compact
-              ? "flex-shrink text-base font-t3-bold tracking-[0.2px] text-foreground-muted"
-              : "flex-shrink text-sm font-t3-bold tracking-[0.2px] text-foreground-muted"
+              ? "shrink text-base font-t3-bold tracking-[0.2px] text-foreground-muted"
+              : "shrink text-sm font-t3-bold tracking-[0.2px] text-foreground-muted"
           }
           numberOfLines={1}
         >
@@ -294,8 +294,8 @@ export const PendingTaskListRow = memo(function PendingTaskListRow(props: {
   );
 
   const statusPill = (
-    <View className="rounded-full bg-zinc-500/12 px-1.5 py-0.5 dark:bg-zinc-500/16">
-      <Text className="text-3xs font-t3-bold text-zinc-600 dark:text-zinc-300">Pending</Text>
+    <View className="rounded-full bg-foreground-muted/12 px-1.5 py-0.5 dark:bg-foreground-muted/16">
+      <Text className="text-3xs font-t3-bold text-foreground-secondary">Pending</Text>
     </View>
   );
 
@@ -380,7 +380,7 @@ export const PendingTaskListRow = memo(function PendingTaskListRow(props: {
         paddingVertical: 10,
       })}
     >
-      <View className="gap-[3px]">
+      <View className="gap-0.75">
         <View className="flex-row items-center justify-between gap-2">
           <Text className="flex-1 text-base font-t3-medium text-foreground" numberOfLines={1}>
             {pendingTask.title}
@@ -642,7 +642,7 @@ export const ThreadListRow = memo(function ThreadListRow(props: {
           paddingVertical: 10,
         })}
       >
-        <View className="gap-[3px]">
+        <View className="gap-0.75">
           <View className="flex-row items-center justify-between gap-2">
             <Text
               className={cn(

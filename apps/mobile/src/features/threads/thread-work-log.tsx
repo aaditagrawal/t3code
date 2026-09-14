@@ -184,7 +184,7 @@ export function ThreadWorkLog(props: {
                 className="rounded-md px-0.5 py-0"
               >
                 <View className="min-h-8 flex-row items-center gap-1.5">
-                  <View className="h-[18px] w-5 shrink-0 items-center justify-center">
+                  <View className="h-4.5 w-5 shrink-0 items-center justify-center">
                     <SymbolView
                       name={workRowSymbolName(row.icon)}
                       size={13}
@@ -198,7 +198,7 @@ export function ThreadWorkLog(props: {
                     <Text
                       className={cn(
                         "font-t3-medium text-foreground",
-                        iconIsDestructive && "text-rose-600 dark:text-rose-400",
+                        iconIsDestructive && "text-danger-foreground",
                       )}
                     >
                       {row.summary}
@@ -210,7 +210,7 @@ export function ThreadWorkLog(props: {
 
                   <View className="shrink-0 flex-row items-center gap-px">
                     {props.copiedRowId === row.id ? (
-                      <Text className="pr-1 font-t3-medium text-3xs text-emerald-600 dark:text-emerald-400">
+                      <Text className="pr-1 font-t3-medium text-3xs text-success-foreground">
                         Copied
                       </Text>
                     ) : null}
@@ -249,7 +249,7 @@ export function ThreadWorkLog(props: {
               </Pressable>
 
               {fullDetail ? (
-                <View className="ml-7 border-l border-neutral-300/60 pb-1 pl-3 pt-0.5 dark:border-white/[0.12]">
+                <View className="ml-7 border-l border-border pb-1 pl-3 pt-0.5 dark:border-white/[0.12]">
                   <ScrollView
                     nestedScrollEnabled
                     directionalLockEnabled
@@ -310,7 +310,7 @@ export function ThreadWorkGroupToggle(props: {
         })}
         className="min-h-8 flex-row items-center gap-1.5 rounded-md px-0.5 py-0"
       >
-        <View className="h-[18px] w-5 items-center justify-center">
+        <View className="h-4.5 w-5 items-center justify-center">
           <SymbolView
             name={
               props.expanded

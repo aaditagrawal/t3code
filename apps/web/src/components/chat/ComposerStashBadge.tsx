@@ -27,7 +27,7 @@ export const ComposerStashBadge = memo(function ComposerStashBadge(props: {
     <span
       key={props.pulseKey}
       className={cn(
-        "text-[10px] font-medium leading-none tabular-nums",
+        "text-xs font-medium leading-none tabular-nums",
         props.pulsing
           ? "animate-[prompt-stash-count-enter_180ms_ease-out_both] text-primary motion-reduce:animate-none"
           : "text-muted-foreground",
@@ -47,8 +47,7 @@ export const ComposerStashBadge = memo(function ComposerStashBadge(props: {
         aria-expanded={props.menuOpen}
         className={cn(
           "shrink-0 gap-1 px-1.5",
-          (props.menuOpen || props.pulsing) &&
-            "[--control-icon-color:currentColor] text-foreground",
+          (props.menuOpen || props.pulsing) && "text-foreground",
         )}
         onPointerDown={(event) => event.preventDefault()}
         onClick={props.onToggleMenu}

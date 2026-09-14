@@ -26,7 +26,7 @@ export function SettingsRow(props: {
     <View
       className={
         props.disabled
-          ? "flex-row items-center gap-4 p-4 opacity-[0.45]"
+          ? "flex-row items-center gap-4 p-4 opacity-45"
           : "flex-row items-center gap-4 p-4"
       }
     >
@@ -37,7 +37,7 @@ export function SettingsRow(props: {
       <View className="min-w-0 flex-1 items-end">
         {props.value ? (
           <Text
-            className="max-w-[180px] text-right text-base text-foreground-muted"
+            className="max-w-45 text-right text-base text-foreground-muted"
             ellipsizeMode="middle"
             numberOfLines={1}
           >

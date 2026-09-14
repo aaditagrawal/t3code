@@ -1074,7 +1074,7 @@ export function HomeScreen(props: HomeScreenProps) {
           paddingTop: NATIVE_LIQUID_GLASS_SUPPORTED ? insets.top + 72 : 0,
         }}
       >
-        <View className="w-full max-w-[430px]">
+        <View className="w-full max-w-107.5">
           <EmptyState
             title={emptyState.title}
             detail={emptyState.detail}

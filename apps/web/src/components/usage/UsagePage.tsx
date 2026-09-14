@@ -191,7 +191,7 @@ export function UsagePage() {
   );
 
   return (
-    <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none bg-background text-foreground isolate">
+    <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none text-foreground isolate">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
         <WorkspacePageHeader electron={isElectron}>{topbarContent}</WorkspacePageHeader>
 
@@ -239,9 +239,9 @@ export function UsagePage() {
                             <span className="flex min-w-0 items-center gap-2 text-sm text-foreground">
                               <span
                                 aria-hidden
-                                className="size-2 shrink-0 rounded-full"
+                                className="size-2 shrink-0 rounded-full bg-(--background-color)"
                                 style={{
-                                  backgroundColor: PROVIDER_PRESENTATION[provider].color,
+                                  "--background-color": PROVIDER_PRESENTATION[provider].color,
                                 }}
                               />
                               <ProviderMark provider={provider} className="size-4" />
@@ -249,7 +249,7 @@ export function UsagePage() {
                                 <span className="truncate">
                                   {PROVIDER_PRESENTATION[provider].label}
                                 </span>
-                                <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground tabular-nums">
+                                <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground tabular-nums">
                                   {sessionLabel}
                                 </span>
                               </span>
@@ -521,7 +521,7 @@ function UsageDeviceStrip({
               key={environment.environmentId}
               className="flex items-center gap-1 text-foreground"
             >
-              <CheckIcon className="size-3 text-emerald-600 dark:text-emerald-300/90" aria-hidden />
+              <CheckIcon className="size-3 text-success-foreground/90" aria-hidden />
               {environment.label}
             </span>
           );
@@ -574,8 +574,8 @@ function UsageSkeleton() {
                 <span className="flex items-center gap-2">
                   <span
                     aria-hidden
-                    className="size-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: PROVIDER_PRESENTATION[provider].color }}
+                    className="size-2 shrink-0 rounded-full bg-(--background-color)"
+                    style={{ "--background-color": PROVIDER_PRESENTATION[provider].color }}
                   />
                   <ProviderMark provider={provider} className="size-4" />
                   <div className="h-3.5 w-20 rounded-sm bg-muted" />

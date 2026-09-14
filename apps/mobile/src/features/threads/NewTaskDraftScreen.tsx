@@ -874,7 +874,7 @@ export function NewTaskDraftScreen(props: {
             accessibilityRole="button"
             disabled={isIncomingShareTransferPending}
             onPress={chooseProject}
-            className="min-w-0 max-w-[250px] active:opacity-65"
+            className="min-w-0 max-w-62.5 active:opacity-65"
             style={{
               borderBottomColor: projectUnderlineColor,
               borderBottomWidth: 1,
@@ -912,7 +912,7 @@ export function NewTaskDraftScreen(props: {
         alwaysBounceVertical={isKeyboardVisible}
         className="flex-1"
         contentInsetAdjustmentBehavior="never"
-        contentContainerClassName="grow items-center pb-[236px] pt-12 ios:pt-[72px]"
+        contentContainerClassName="grow items-center pb-59 pt-12 ios:pt-18"
         keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}

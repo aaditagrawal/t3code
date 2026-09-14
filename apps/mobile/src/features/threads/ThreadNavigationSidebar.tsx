@@ -1369,7 +1369,7 @@ function ThreadNavigationSidebarPane(
             <Rect width="100%" height="100%" fill="url(#sidebar-header-wash)" />
           </Svg>
         </View>
-        <View className="h-[50px] flex-row items-end gap-0.5 pr-2 pl-5">
+        <View className="h-12.5 flex-row items-end gap-0.5 pr-2 pl-5">
           {/* Title slot doubles as the connection status surface: while an
               environment reconnects, "Threads" fades to a status label in
               place (no layout shift in the list below). */}
@@ -1378,7 +1378,7 @@ function ThreadNavigationSidebarPane(
             onPress={props.onOpenEnvironmentSettings}
             size="pageTitle"
             brand={
-              <Text className="flex-1 text-[34px] font-t3-bold text-foreground" numberOfLines={1}>
+              <Text className="flex-1 text-4xl font-t3-bold text-foreground" numberOfLines={1}>
                 Threads
               </Text>
             }
@@ -1395,7 +1395,7 @@ function ThreadNavigationSidebarPane(
           </SidebarHeaderButtonGroup>
         </View>
 
-        <View className="mx-4 mt-[9px] h-[38px] flex-row items-center gap-1.5 rounded-xl bg-sidebar-search pr-2.5 pl-[11px]">
+        <View className="mx-4 mt-2.25 h-9.5 flex-row items-center gap-1.5 rounded-xl bg-sidebar-search pr-2.5 pl-2.75">
           <SymbolView name="magnifyingglass" size={15} tintColor={mutedColor} type="monochrome" />
           <TextInput
             ref={searchInputRef}
@@ -1407,7 +1407,7 @@ function ThreadNavigationSidebarPane(
             placeholder="Search"
             placeholderTextColor={placeholderColor}
             returnKeyType="search"
-            className="h-[34px] flex-1 px-0 py-0 font-sans text-base text-foreground"
+            className="h-8.5 flex-1 px-0 py-0 font-sans text-base text-foreground"
             value={props.searchQuery}
           />
         </View>

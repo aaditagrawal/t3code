@@ -65,8 +65,8 @@ export function ThreadSearchMatchExcerpt(props: {
           props.selected
             ? "text-user-bubble-foreground"
             : isUser
-              ? "text-blue-500 dark:text-blue-400"
-              : "text-emerald-600 dark:text-emerald-400",
+              ? "text-info-strong dark:text-info-foreground"
+              : "text-success-foreground",
         )}
       >
         {isUser ? "You:" : "Agent:"}{" "}

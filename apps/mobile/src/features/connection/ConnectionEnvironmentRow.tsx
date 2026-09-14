@@ -85,7 +85,7 @@ export function ConnectionEnvironmentRow(props: {
             <Text
               className={cn(
                 "text-xs",
-                hasConnectionFailure ? "text-rose-500 dark:text-rose-400" : "text-foreground-muted",
+                hasConnectionFailure ? "text-danger-foreground" : "text-foreground-muted",
               )}
               numberOfLines={props.expanded ? undefined : 1}
               selectable={props.expanded}
@@ -147,7 +147,7 @@ export function ConnectionEnvironmentRow(props: {
                   placeholder="My MacBook"
                   value={label}
                   onChangeText={setLabel}
-                  className="rounded-[14px] border border-input-border bg-input px-4 py-3 text-base text-foreground"
+                  className="rounded-xl border border-input-border bg-input px-4 py-3 text-base text-foreground"
                 />
               </View>
 
@@ -162,7 +162,7 @@ export function ConnectionEnvironmentRow(props: {
                   placeholder="192.168.1.100:8080"
                   value={url}
                   onChangeText={setUrl}
-                  className="rounded-[14px] border border-input-border bg-input px-4 py-3 text-base text-foreground"
+                  className="rounded-xl border border-input-border bg-input px-4 py-3 text-base text-foreground"
                 />
               </View>
             </>
@@ -171,7 +171,7 @@ export function ConnectionEnvironmentRow(props: {
           <View className="flex-row justify-end gap-2">
             {props.environment.isRelayManaged ? null : (
               <Pressable
-                className="min-h-[42px] flex-1 flex-row items-center justify-center gap-1.5 rounded-[14px] bg-primary px-3.5 py-2.5 active:opacity-70"
+                className="min-h-10.5 flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-primary px-3.5 py-2.5 active:opacity-70"
                 onPress={handleSave}
               >
                 <SymbolView name="checkmark" size={13} tintColor={primaryFg} type="monochrome" />
@@ -182,7 +182,7 @@ export function ConnectionEnvironmentRow(props: {
             )}
 
             <Pressable
-              className="h-[42px] w-[42px] items-center justify-center rounded-[14px] border border-input-border bg-input active:opacity-70"
+              className="h-10.5 w-10.5 items-center justify-center rounded-xl border border-input-border bg-input active:opacity-70"
               onPress={() => props.onReconnect(props.environment.environmentId)}
             >
               <SymbolView
@@ -194,7 +194,7 @@ export function ConnectionEnvironmentRow(props: {
             </Pressable>
 
             <Pressable
-              className="h-[42px] w-[42px] items-center justify-center rounded-[14px] border border-danger-border bg-danger active:opacity-70"
+              className="h-10.5 w-10.5 items-center justify-center rounded-xl border border-danger-border bg-danger active:opacity-70"
               onPress={() => props.onRemove(props.environment.environmentId)}
             >
               <SymbolView name="trash" size={14} tintColor={dangerFg} type="monochrome" />

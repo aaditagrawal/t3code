@@ -1,0 +1,160 @@
+{
+  "jsPlugins": ["@shadcn/lint"],
+  "categories": {
+    "correctness": "off",
+    "suspicious": "off",
+    "perf": "off",
+    "style": "off",
+    "restriction": "off",
+    "pedantic": "off",
+    "nursery": "off"
+  },
+  "settings": {
+    "shadcn": {
+      "ui": "~/components/ui",
+      "ignoreImports": ["^@base-ui/"]
+    }
+  },
+  "ignorePatterns": [
+    ".repos/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/dist-electron/**",
+    "**/routeTree.gen.ts",
+    "apps/mobile/android/**",
+    "apps/mobile/ios/**",
+    "apps/web/public/mockServiceWorker.js"
+  ],
+  "rules": {
+    // This codebase's design-system contract is permissive: the fork's ui/
+    // primitives are low-level building blocks that call sites legitimately
+    // restyle (spacing, typography, color, shape, effects, motion). We allow
+    // every ownership category plus the project's own utility classes so the
+    // rule still catches unclassified (misspelled) classes and anything added
+    // to `deny` later.
+    "shadcn/no-restyle": [
+      "error",
+      {
+        "allow": [
+          "layout",
+          "spacing",
+          "typography",
+          "color",
+          "shape",
+          "effects",
+          "motion",
+          // Project utilities/classes declared in apps/web/src/index.css that
+          // are intentionally applied to design-system components.
+          "*-glass",
+          "alert-glass",
+          "banner-stack-exit",
+          "chat-*",
+          "dialog-*",
+          "drag-region",
+          "ghostty-*",
+          "hosted-webview-wrapper",
+          "live-activity-*",
+          "mask-fade-*",
+          "picker-*",
+          "preview-loading-progress",
+          "provider-update-*",
+          "sidebar-stage-*",
+          "stage-*",
+          "surface-*",
+          "syntax-token",
+          "thread-terminal-drawer",
+          "topbar-*",
+          "transition-runtime",
+          "ultrathink-*",
+          "update-*",
+          "virtualized-*",
+          "*-runtime",
+          "*-safe",
+          "no-transitions",
+          "wco",
+          "electron-windows",
+          "diff-render-surface",
+          "file-preview-virtualizer",
+          "theme-inspector-*",
+          "sidebar-translucent"
+        ]
+      }
+    ],
+    "shadcn/no-inline-styles": [
+      "error",
+      {
+        // Color-picker swatches exist to preview arbitrary user-chosen colors;
+        // those values can never be theme tokens.
+        "allow": ["--swatch-color", "--provider-accent-color"]
+      }
+    ],
+    // The codebase deliberately uses one-off tracking/leading values,
+    // multi-property transition lists, custom easings and bespoke animations —
+    // these are the convention here, so typography and motion stay open while
+    // color/spacing/shape/effects remain enforced.
+    // *-[calc(...)] stays allowed: computed layout math (env() safe-area
+    // insets, --spacing()/theme-var offsets) is dynamic by definition and can
+    // never be a scale value.
+    "shadcn/no-arbitrary-values": [
+      "error",
+      { "allow": ["layout", "typography", "motion", "*-[calc(*)]"] }
+    ],
+    // The theme declares non-color namespaces (--shadow-*, --inset-shadow-*,
+    // --blur-*, --stroke-width-*) and named utilities that the rule's color
+    // heuristics would otherwise read as undeclared color names.
+    "shadcn/no-raw-colors": [
+      "error",
+      {
+        "allow": [
+          "bg-row-hover",
+          "bg-veil",
+          "inset-shadow-press",
+          "inset-shadow-sheen",
+          "shadow-banner-pop",
+          "shadow-hairline",
+          "shadow-lifted",
+          "shadow-press-line",
+          "shadow-swatch",
+          "shadow-swatch-focus",
+          "shadow-swatch-inset",
+          "shadow-swatch-soft",
+          "shadow-top-sheen",
+          "stroke-icon"
+        ]
+      }
+    ],
+    "shadcn/no-unknown-classes": "error",
+    "shadcn/require-static-classes": "error"
+  },
+  "overrides": [
+    {
+      "files": ["apps/web/src/components/ui/**"],
+      "rules": {
+        "shadcn/no-restyle": "off",
+        "shadcn/no-arbitrary-values": "off",
+        "shadcn/require-static-classes": "off"
+      }
+    },
+    {
+      // apps/mobile uses uniwind + @layer theme tokens the plugin cannot
+      // build (see its global.css), so unknown-class checks only produce
+      // false positives there, and inline styles are the RN convention.
+      "files": ["apps/mobile/**"],
+      "rules": {
+        "shadcn/no-inline-styles": "off",
+        "shadcn/no-unknown-classes": "off"
+      }
+    },
+    {
+      // Brand logos must keep their trademarked colors; they cannot become
+      // theme tokens or currentColor without breaking brand identity, and the
+      // wordmark fills that flip with the theme are still brand colors.
+      "files": ["apps/web/src/components/Icons.tsx", "apps/web/src/components/JetBrainsIcons.tsx"],
+      "rules": {
+        "shadcn/no-raw-colors": "off",
+        "shadcn/no-inline-styles": "off",
+        "shadcn/no-arbitrary-values": "off"
+      }
+    }
+  ]
+}

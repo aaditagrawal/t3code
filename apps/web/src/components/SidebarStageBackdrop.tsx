@@ -132,9 +132,9 @@ function NightlySkyArt({ compact = false }: { compact?: boolean }) {
           gradientUnits="userSpaceOnUse"
           spreadMethod="reflect"
         >
-          <stop style={{ stopColor: "var(--stage-night-bottom)" }} />
-          <stop offset="0.5" style={{ stopColor: "var(--stage-night-mid)" }} />
-          <stop offset="1" style={{ stopColor: "var(--stage-night-top)" }} />
+          <stop stopColor="var(--stage-night-bottom)" />
+          <stop offset="0.5" stopColor="var(--stage-night-mid)" />
+          <stop offset="1" stopColor="var(--stage-night-top)" />
         </linearGradient>
         <radialGradient
           id={glowId}
@@ -144,28 +144,20 @@ function NightlySkyArt({ compact = false }: { compact?: boolean }) {
           gradientTransform="translate(216 18) rotate(137) scale(120 84)"
           gradientUnits="userSpaceOnUse"
         >
-          <stop style={{ stopColor: "var(--stage-night-glow-highlight)" }} stopOpacity="0.4" />
-          <stop
-            offset="0.5"
-            style={{ stopColor: "var(--stage-night-glow-secondary)" }}
-            stopOpacity="0.16"
-          />
-          <stop offset="1" style={{ stopColor: "var(--stage-night-bottom)" }} stopOpacity="0" />
+          <stop stopColor="var(--stage-night-glow-highlight)" stopOpacity="0.4" />
+          <stop offset="0.5" stopColor="var(--stage-night-glow-secondary)" stopOpacity="0.16" />
+          <stop offset="1" stopColor="var(--stage-night-bottom)" stopOpacity="0" />
         </radialGradient>
         <linearGradient id={cloudId} x1="0" y1="60" x2="288" y2="96" gradientUnits="userSpaceOnUse">
-          <stop style={{ stopColor: "var(--stage-night-highlight)" }} stopOpacity="0.5" />
-          <stop
-            offset="0.52"
-            style={{ stopColor: "var(--stage-night-secondary)" }}
-            stopOpacity="0.62"
-          />
-          <stop offset="1" style={{ stopColor: "var(--stage-night-tertiary)" }} stopOpacity="0.5" />
+          <stop stopColor="var(--stage-night-highlight)" stopOpacity="0.5" />
+          <stop offset="0.52" stopColor="var(--stage-night-secondary)" stopOpacity="0.62" />
+          <stop offset="1" stopColor="var(--stage-night-tertiary)" stopOpacity="0.5" />
         </linearGradient>
         <filter id={softId} x="-24" y="-24" width="336" height="144" filterUnits="userSpaceOnUse">
           <feGaussianBlur stdDeviation="4" />
         </filter>
         <pattern id={starsId} width="288" height="96" patternUnits="userSpaceOnUse">
-          <g style={{ fill: "var(--stage-night-line)" }}>
+          <g fill="var(--stage-night-line)">
             {NIGHTLY_STARS.map((star) => (
               <circle
                 key={`${star.cx}-${star.cy}`}
@@ -177,7 +169,7 @@ function NightlySkyArt({ compact = false }: { compact?: boolean }) {
             ))}
           </g>
           <g
-            style={{ stroke: "var(--stage-night-sparkle)" }}
+            stroke="var(--stage-night-sparkle)"
             strokeLinecap="round"
             strokeOpacity="0.7"
             strokeWidth="0.6"
@@ -246,9 +238,9 @@ function DevBlueprintArt({ compact = false }: { compact?: boolean }) {
           gradientUnits="userSpaceOnUse"
           spreadMethod="reflect"
         >
-          <stop style={{ stopColor: "var(--stage-art-bottom)" }} />
-          <stop offset="0.5" style={{ stopColor: "var(--stage-art-mid)" }} />
-          <stop offset="1" style={{ stopColor: "var(--stage-art-top)" }} />
+          <stop stopColor="var(--stage-art-bottom)" />
+          <stop offset="0.5" stopColor="var(--stage-art-mid)" />
+          <stop offset="1" stopColor="var(--stage-art-top)" />
         </linearGradient>
         <radialGradient
           id={glowId}
@@ -258,13 +250,9 @@ function DevBlueprintArt({ compact = false }: { compact?: boolean }) {
           gradientTransform="translate(216 14) rotate(137) scale(120 84)"
           gradientUnits="userSpaceOnUse"
         >
-          <stop style={{ stopColor: "var(--stage-art-highlight)" }} stopOpacity="0.4" />
-          <stop
-            offset="0.52"
-            style={{ stopColor: "var(--stage-art-secondary)" }}
-            stopOpacity="0.16"
-          />
-          <stop offset="1" style={{ stopColor: "var(--stage-art-bottom)" }} stopOpacity="0" />
+          <stop stopColor="var(--stage-art-highlight)" stopOpacity="0.4" />
+          <stop offset="0.52" stopColor="var(--stage-art-secondary)" stopOpacity="0.16" />
+          <stop offset="1" stopColor="var(--stage-art-bottom)" stopOpacity="0" />
         </radialGradient>
         <radialGradient
           id={celesteGlowId}
@@ -274,13 +262,9 @@ function DevBlueprintArt({ compact = false }: { compact?: boolean }) {
           gradientTransform="translate(474 44) rotate(166) scale(156 92)"
           gradientUnits="userSpaceOnUse"
         >
-          <stop style={{ stopColor: "var(--stage-art-celeste-highlight)" }} stopOpacity="0.34" />
-          <stop
-            offset="0.5"
-            style={{ stopColor: "var(--stage-art-celeste-secondary)" }}
-            stopOpacity="0.18"
-          />
-          <stop offset="1" style={{ stopColor: "var(--stage-art-bottom)" }} stopOpacity="0" />
+          <stop stopColor="var(--stage-art-celeste-highlight)" stopOpacity="0.34" />
+          <stop offset="0.5" stopColor="var(--stage-art-celeste-secondary)" stopOpacity="0.18" />
+          <stop offset="1" stopColor="var(--stage-art-bottom)" stopOpacity="0" />
         </radialGradient>
         <radialGradient
           id={violetGlowId}
@@ -290,18 +274,14 @@ function DevBlueprintArt({ compact = false }: { compact?: boolean }) {
           gradientTransform="translate(704 18) rotate(145) scale(132 88)"
           gradientUnits="userSpaceOnUse"
         >
-          <stop style={{ stopColor: "var(--stage-art-violet-highlight)" }} stopOpacity="0.3" />
-          <stop
-            offset="0.52"
-            style={{ stopColor: "var(--stage-art-tertiary)" }}
-            stopOpacity="0.14"
-          />
-          <stop offset="1" style={{ stopColor: "var(--stage-art-bottom)" }} stopOpacity="0" />
+          <stop stopColor="var(--stage-art-violet-highlight)" stopOpacity="0.3" />
+          <stop offset="0.52" stopColor="var(--stage-art-tertiary)" stopOpacity="0.14" />
+          <stop offset="1" stopColor="var(--stage-art-bottom)" stopOpacity="0" />
         </radialGradient>
         <pattern id={minorGridId} width="8" height="8" patternUnits="userSpaceOnUse">
           <path
             d="M8 0H0V8"
-            style={{ stroke: "var(--stage-art-grid-line)" }}
+            stroke="var(--stage-art-grid-line)"
             strokeOpacity="0.14"
             strokeWidth="0.5"
           />
@@ -309,7 +289,7 @@ function DevBlueprintArt({ compact = false }: { compact?: boolean }) {
         <pattern id={majorGridId} width="32" height="32" patternUnits="userSpaceOnUse">
           <path
             d="M32 0H0V32"
-            style={{ stroke: "var(--stage-art-grid-line)" }}
+            stroke="var(--stage-art-grid-line)"
             strokeOpacity="0.26"
             strokeWidth="0.6"
           />
@@ -317,7 +297,7 @@ function DevBlueprintArt({ compact = false }: { compact?: boolean }) {
         <pattern id={rulerId} width="32" height="6" patternUnits="userSpaceOnUse">
           <path
             d="M4 0V2.5M12 0V2.5M20 0V4M28 0V2.5"
-            style={{ stroke: "var(--stage-art-line)" }}
+            stroke="var(--stage-art-line)"
             strokeOpacity="0.5"
             strokeWidth="0.5"
           />
@@ -329,7 +309,7 @@ function DevBlueprintArt({ compact = false }: { compact?: boolean }) {
         </pattern>
         <pattern id={annotationsId} width="768" height="96" patternUnits="userSpaceOnUse">
           <g
-            style={{ stroke: "var(--stage-art-line)" }}
+            stroke="var(--stage-art-line)"
             strokeLinecap="round"
             strokeOpacity="0.6"
             strokeWidth="0.7"
@@ -347,7 +327,7 @@ function DevBlueprintArt({ compact = false }: { compact?: boolean }) {
           </g>
 
           <g
-            style={{ stroke: "var(--stage-art-line)" }}
+            stroke="var(--stage-art-line)"
             strokeLinecap="round"
             strokeOpacity="0.55"
             strokeWidth="0.6"
@@ -375,7 +355,7 @@ function DevBlueprintArt({ compact = false }: { compact?: boolean }) {
             </g>
           </g>
 
-          <g style={{ stroke: "var(--stage-art-line)" }} strokeOpacity="0.35" strokeWidth="0.6">
+          <g stroke="var(--stage-art-line)" strokeOpacity="0.35" strokeWidth="0.6">
             <circle cx="196" cy="38" r="13" strokeDasharray="3.5 4" />
             <path d="M196 33V43M191 38H201" strokeOpacity="0.6" strokeWidth="0.4" />
             <circle cx="414" cy="64" r="10" strokeDasharray="2.5 3.5" />

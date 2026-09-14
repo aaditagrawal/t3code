@@ -129,11 +129,11 @@ function ProviderLastChecked({ lastCheckedAt }: { lastCheckedAt: string | null }
   }
 
   if (lastCheckedRelative.status === "invalid") {
-    return <span className="text-[11px] text-muted-foreground/50">Checked unavailable</span>;
+    return <span className="text-xs text-muted-foreground/50">Checked unavailable</span>;
   }
 
   return (
-    <span className="text-[11px] text-muted-foreground/60">
+    <span className="text-xs text-muted-foreground/60">
       {lastCheckedRelative.suffix ? (
         <>
           Checked <span className="font-mono tabular-nums">{lastCheckedRelative.value}</span>{" "}
@@ -260,7 +260,7 @@ export function ProviderSettingsPanel() {
                           {environment.label}
                         </span>
                       </span>
-                      <span className="block truncate pl-[18px] text-xs text-muted-foreground">
+                      <span className="block truncate pl-4.5 text-xs text-muted-foreground">
                         {providerEnvironmentDetail(environment)} · {statusText}
                       </span>
                     </span>

@@ -25,3 +25,12 @@ declare global {
     desktopBridge?: DesktopBridge;
   }
 }
+
+declare module "react" {
+  // Dynamic style values are threaded through CSS custom properties (e.g.
+  // `style={{ "--width": `${width}px` }}`) and consumed by named utilities in
+  // index.css, which keeps runtime values out of Tailwind class strings.
+  interface CSSProperties {
+    [key: `--${string}`]: string | number | undefined;
+  }
+}

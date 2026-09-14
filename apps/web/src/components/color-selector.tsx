@@ -75,12 +75,16 @@ export function ColorSelector({
         return (
           <div
             key={color}
-            className={`${sizeClass} cursor-pointer rounded-full transition-transform duration-200 active:scale-90`}
+            className={cn(
+              `${sizeClass} cursor-pointer rounded-full transition-transform duration-200 active:scale-90`,
+              "bg-(--swatch-color) shadow-(--box-shadow)",
+            )}
             style={{
-              backgroundColor: colorValue,
-              ...(selectedColor === color && {
-                boxShadow: `inset 0 0 0 2px var(--card), 0 0 0 2px ${colorValue}`,
-              }),
+              "--swatch-color": colorValue,
+              "--box-shadow":
+                selectedColor === color
+                  ? `inset 0 0 0 2px var(--card), 0 0 0 2px ${colorValue}`
+                  : undefined,
             }}
             onClick={() => handleColorSelect(color)}
             onKeyDown={(e) => {

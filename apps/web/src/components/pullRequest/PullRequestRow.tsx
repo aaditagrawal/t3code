@@ -99,8 +99,8 @@ function PullRequestRowImpl({
               className={cn(
                 "shrink-0",
                 entry.reviewDecision === "approved"
-                  ? "text-emerald-600/90 dark:text-emerald-400/80"
-                  : "text-amber-600/90 dark:text-amber-400/80",
+                  ? "text-success/90 dark:text-success-foreground/80"
+                  : "text-warning/90 dark:text-warning-foreground/80",
               )}
             >
               {entry.reviewDecision === "approved" ? "Approved" : "Changes requested"}
@@ -118,7 +118,7 @@ function PullRequestRowImpl({
             />
           )}
           {matchedElsewhere ? (
-            <span className="shrink-0 rounded-full border border-border/60 px-1.5 text-[10px]">
+            <span className="shrink-0 rounded-full border border-border/60 px-1.5 text-xs">
               matched in the description
             </span>
           ) : null}

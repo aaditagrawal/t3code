@@ -72,11 +72,14 @@ export function AnimatedHeight({ children }: { readonly children: ReactNode }) {
   return (
     <div
       data-slot="animated-height"
-      className="transition-[height] duration-200 ease-out motion-reduce:transition-none"
+      className="transition-[height] duration-200 ease-out motion-reduce:transition-none h-(--height) [overflow:var(--overflow)]"
       style={
         heightState.height === null
           ? undefined
-          : { height: heightState.height, overflow: heightState.isClipping ? "hidden" : "visible" }
+          : {
+              "--height": `${heightState.height}px`,
+              "--overflow": heightState.isClipping ? "hidden" : "visible",
+            }
       }
       onTransitionEnd={(event) => {
         if (event.target !== event.currentTarget || event.propertyName !== "height") return;

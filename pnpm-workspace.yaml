@@ -76,6 +76,27 @@ minimumReleaseAgeExclude:
   - alchemy@2.0.0-beta.65
   - effect@4.0.0-beta.103
   - "@legendapp/list@3.3.5"
+  - "@oxlint/binding-android-arm-eabi@1.83.0"
+  - "@oxlint/binding-android-arm64@1.83.0"
+  - "@oxlint/binding-darwin-arm64@1.83.0"
+  - "@oxlint/binding-darwin-x64@1.83.0"
+  - "@oxlint/binding-freebsd-x64@1.83.0"
+  - "@oxlint/binding-linux-arm-gnueabihf@1.83.0"
+  - "@oxlint/binding-linux-arm-musleabihf@1.83.0"
+  - "@oxlint/binding-linux-arm64-gnu@1.83.0"
+  - "@oxlint/binding-linux-arm64-musl@1.83.0"
+  - "@oxlint/binding-linux-ppc64-gnu@1.83.0"
+  - "@oxlint/binding-linux-riscv64-gnu@1.83.0"
+  - "@oxlint/binding-linux-riscv64-musl@1.83.0"
+  - "@oxlint/binding-linux-s390x-gnu@1.83.0"
+  - "@oxlint/binding-linux-x64-gnu@1.83.0"
+  - "@oxlint/binding-linux-x64-musl@1.83.0"
+  - "@oxlint/binding-openharmony-arm64@1.83.0"
+  - "@oxlint/binding-win32-arm64-msvc@1.83.0"
+  - "@oxlint/binding-win32-ia32-msvc@1.83.0"
+  - "@oxlint/binding-win32-x64-msvc@1.83.0"
+  - "@shadcn/lint@0.1.0"
+  - oxlint@1.83.0
 
 overrides:
   # The SDK always receives the user's Claude executable, so its bundled binaries are unused.

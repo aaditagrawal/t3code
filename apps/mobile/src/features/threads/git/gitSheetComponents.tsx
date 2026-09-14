@@ -24,7 +24,7 @@ export function SheetActionButton(props: {
   return (
     <Pressable
       className={cn(
-        "min-h-[48px] flex-1 flex-row items-center justify-center gap-2 rounded-[18px] px-4 py-3 disabled:opacity-[0.45]",
+        "min-h-12 flex-1 flex-row items-center justify-center gap-2 rounded-2xl px-4 py-3 disabled:opacity-45",
         tone === "primary"
           ? "bg-primary"
           : tone === "danger"
@@ -53,7 +53,7 @@ export function SheetActionButton(props: {
 
 export function MetaCard(props: { readonly label: string; readonly value: string }) {
   return (
-    <View className="rounded-[18px] border border-border bg-card px-4 py-3">
+    <View className="rounded-2xl border border-border bg-card px-4 py-3">
       <Text className="text-foreground-muted text-2xs font-t3-bold tracking-[0.9px] uppercase">
         {props.label}
       </Text>
@@ -76,7 +76,7 @@ export function SheetListRow(props: {
 
   return (
     <Pressable
-      className="flex-row items-center gap-3 px-1 py-3 disabled:opacity-[0.45]"
+      className="flex-row items-center gap-3 px-1 py-3 disabled:opacity-45"
       disabled={props.disabled}
       onPress={props.onPress}
     >

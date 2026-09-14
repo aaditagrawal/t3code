@@ -1291,7 +1291,7 @@ function OpenCommandPaletteDialog(props: {
                   <Button
                     variant="outline"
                     size="xs"
-                    className="h-5 rounded-[.25rem] px-1.5 text-[10px] text-warning-foreground"
+                    className="h-5 rounded-xs px-1.5 text-xs text-warning-foreground"
                     onClick={() => {
                       openSourceControlSettings();
                     }}
@@ -2473,7 +2473,7 @@ function OpenCommandPaletteDialog(props: {
         setHighlightedItemValue(typeof value === "string" ? value : null);
       }}
       onValueChange={handleQueryChange}
-      panelClassName="max-h-[min(28rem,70vh)]"
+      className="max-h-[min(28rem,70vh)]"
       showBackHint={isSubmenu}
       value={query}
     >

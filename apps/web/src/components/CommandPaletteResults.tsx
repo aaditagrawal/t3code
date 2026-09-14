@@ -71,9 +71,7 @@ function ThreadContentMatch(props: {
   const isUser = props.match.source === "user";
   return (
     <span className="truncate text-xs text-muted-foreground/85">
-      <span className={isUser ? "text-blue-400" : "text-emerald-400"}>
-        {isUser ? "You:" : "Agent:"}
-      </span>{" "}
+      <span className={isUser ? "text-info" : "text-success"}>{isUser ? "You:" : "Agent:"}</span>{" "}
       <HighlightedSearchText text={props.match.snippet} query={props.match.query} />
     </span>
   );
@@ -104,7 +102,7 @@ export function CommandPaletteResults(props: CommandPaletteResultsProps) {
     <CommandList>
       {props.groups.map((group) => (
         <CommandGroup items={group.items} key={group.value}>
-          <CommandGroupLabel className="ps-[9px]">{group.label}</CommandGroupLabel>
+          <CommandGroupLabel className="ps-2.25">{group.label}</CommandGroupLabel>
           <CommandCollection>
             {(item) =>
               item.disabled ? (

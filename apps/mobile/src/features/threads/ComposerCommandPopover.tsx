@@ -179,7 +179,7 @@ export const ComposerCommandPopover = memo(function ComposerCommandPopover(
       ) : null}
       {props.items.length > 0 ? (
         <ScrollView
-          className="max-h-[180px]"
+          className="max-h-45"
           keyboardShouldPersistTaps="always"
           showsVerticalScrollIndicator={false}
         >

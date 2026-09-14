@@ -224,7 +224,7 @@ export function AndroidAnchoredMenu(props: AndroidAnchoredMenuProps) {
             {!placeable || local === null ? null : (
               <Animated.View
                 entering={FadeIn.duration(120)}
-                className="absolute w-[250px] overflow-hidden rounded-[12px] border border-border shadow-2xl"
+                className="absolute w-62.5 overflow-hidden rounded-xl border border-border shadow-2xl"
                 style={{
                   left,
                   maxHeight,

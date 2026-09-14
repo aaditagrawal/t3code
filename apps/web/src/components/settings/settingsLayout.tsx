@@ -182,7 +182,7 @@ export function SettingsRow({
             </span>
           </div>
           {description ? (
-            <p className="max-w-xl text-[13px] leading-[1.45] text-muted-foreground/80">
+            <p className="max-w-xl text-xs leading-[1.45] text-muted-foreground/80">
               {description}
             </p>
           ) : null}

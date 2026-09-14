@@ -77,7 +77,7 @@ export function GitCommitSheet(_props: GitCommitSheetProps) {
         contentInset={{ bottom: Math.max(insets.bottom, 18) + 18 }}
         contentContainerClassName="gap-4 px-5 pt-2"
       >
-        <View className="gap-3 rounded-[22px] border border-border bg-card px-4 py-4">
+        <View className="gap-3 rounded-3xl border border-border bg-card px-4 py-4">
           <View className="flex-row items-center justify-between gap-3">
             <Text className="text-foreground-muted text-sm font-medium">Branch</Text>
             <Text className="text-foreground text-base font-t3-bold">
@@ -85,13 +85,13 @@ export function GitCommitSheet(_props: GitCommitSheetProps) {
             </Text>
           </View>
           {isDefaultRef ? (
-            <Text className="text-xs leading-normal text-amber-700 dark:text-amber-400">
+            <Text className="text-xs leading-normal text-warning-foreground">
               Warning: this is the default branch.
             </Text>
           ) : null}
         </View>
 
-        <View className="gap-3 rounded-[22px] border border-border bg-card px-4 py-4">
+        <View className="gap-3 rounded-3xl border border-border bg-card px-4 py-4">
           <View className="flex-row items-center justify-between gap-3">
             <View className="gap-1">
               <Text className="text-foreground text-base font-t3-bold">Files</Text>
@@ -130,8 +130,10 @@ export function GitCommitSheet(_props: GitCommitSheetProps) {
                   <Text className="text-foreground flex-1 text-sm font-medium" numberOfLines={1}>
                     {file.path}
                   </Text>
-                  <Text className="text-xs font-t3-bold text-emerald-500">+{file.insertions}</Text>
-                  <Text className="text-xs font-t3-bold text-rose-500">-{file.deletions}</Text>
+                  <Text className="text-xs font-t3-bold text-success">+{file.insertions}</Text>
+                  <Text className="text-xs font-t3-bold text-danger-foreground">
+                    -{file.deletions}
+                  </Text>
                 </View>
               ))}
               {selectedFiles.length > selectedFilePreview.length ? (
@@ -148,7 +150,7 @@ export function GitCommitSheet(_props: GitCommitSheetProps) {
                   <Pressable
                     key={file.path}
                     className={cn(
-                      "rounded-[18px] border px-4 py-3",
+                      "rounded-2xl border px-4 py-3",
                       included ? "border-border" : "border-border-subtle",
                     )}
                     onPress={() => {
@@ -164,7 +166,7 @@ export function GitCommitSheet(_props: GitCommitSheetProps) {
                     }}
                   >
                     <View
-                      className={`absolute inset-0 rounded-[18px] ${included ? "bg-card" : "bg-subtle"}`}
+                      className={`absolute inset-0 rounded-2xl ${included ? "bg-card" : "bg-subtle"}`}
                     />
                     <View className="flex-row items-start justify-between gap-3">
                       <View className="flex-1 gap-1">
@@ -181,10 +183,10 @@ export function GitCommitSheet(_props: GitCommitSheetProps) {
                         ) : null}
                       </View>
                       <View className="items-end gap-1">
-                        <Text className="text-xs font-t3-bold text-emerald-500">
+                        <Text className="text-xs font-t3-bold text-success">
                           +{file.insertions}
                         </Text>
-                        <Text className="text-xs font-t3-bold text-rose-500">
+                        <Text className="text-xs font-t3-bold text-danger-foreground">
                           -{file.deletions}
                         </Text>
                       </View>
@@ -204,7 +206,7 @@ export function GitCommitSheet(_props: GitCommitSheetProps) {
             onChangeText={setDialogCommitMessage}
             placeholder="Leave empty to auto-generate"
             textAlignVertical="top"
-            className="min-h-[128px] rounded-[20px] px-4 py-3.5"
+            className="min-h-32 rounded-2xl px-4 py-3.5"
           />
         </View>
 

@@ -367,7 +367,7 @@ export function ThreadStatusLabel({
           }
         >
           <span
-            className={`size-[9px] rounded-full ${status.dotClass} ${
+            className={`size-2.25 rounded-full ${status.dotClass} ${
               status.pulse ? "animate-status-pulse" : ""
             }`}
           />
@@ -383,7 +383,7 @@ export function ThreadStatusLabel({
         render={
           <span
             aria-label={status.label}
-            className={`inline-flex items-center gap-1 text-[10px] ${status.colorClass}`}
+            className={`inline-flex items-center gap-1 text-xs ${status.colorClass}`}
           />
         }
       >

@@ -375,10 +375,10 @@ export default function FileBrowserPanel({
         <FileTree
           model={model}
           aria-label={`${projectName} files`}
-          className="min-h-0 flex-1 overflow-hidden"
+          className="min-h-0 flex-1 overflow-hidden [color-scheme:var(--color-scheme)]"
           style={{
-            colorScheme: resolvedTheme,
-            ["--trees-fg-override" as string]: "var(--contrast-foreground)",
+            "--color-scheme": resolvedTheme,
+            "--trees-fg-override": "var(--contrast-foreground)",
           }}
         />
       )}

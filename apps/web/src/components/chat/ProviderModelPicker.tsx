@@ -38,7 +38,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   terminalOpen?: boolean;
   open?: boolean;
   triggerVariant?: VariantProps<typeof buttonVariants>["variant"];
-  triggerClassName?: string;
+  className?: string;
   triggerAriaLabel?: string;
   onOpenChange?: (open: boolean) => void;
   getModelDisabledReason?: (instanceId: ProviderInstanceId, model: string) => string | null;
@@ -151,7 +151,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             className={cn(
               "min-w-0 justify-between whitespace-nowrap",
               props.compact ? "max-w-42 shrink-0" : "max-w-48 shrink sm:max-w-56",
-              props.triggerClassName,
+              props.className,
             )}
             disabled={props.disabled}
           />
@@ -169,7 +169,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
               indicatorBackground="var(--contrast-input)"
               badgeClassName={cn(
                 "right-[-0.125rem] bottom-[-0.125rem] h-3 min-w-3",
-                "px-0.5 text-[7px]",
+                "px-0.5 text-xs",
               )}
             />
           ) : null}

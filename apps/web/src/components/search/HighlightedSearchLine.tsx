@@ -1,6 +1,6 @@
 import { getFiletypeFromFileName } from "@pierre/diffs";
 import type { ProjectContentMatch } from "@t3tools/contracts";
-import { memo, Suspense, use, useMemo, type CSSProperties } from "react";
+import { memo, Suspense, use, useMemo } from "react";
 
 import { resolveDiffThemeName } from "~/lib/diffRendering";
 import { getSyntaxHighlighterPromise } from "~/lib/syntaxHighlighting";
@@ -91,13 +91,16 @@ function splitToken(line: string, token: CodeToken, ranges: ReadonlyArray<Range>
   return segments;
 }
 
-function tokenStyle(token: CodeToken): CSSProperties {
+// Token styles ride through CSS custom properties (consumed by the
+// `syntax-token` utility in index.css) so style objects stay statically
+// checkable per the design-system lint rules.
+function tokenStyleVars(token: CodeToken) {
   const fontStyle = token.fontStyle ?? 0;
   return {
-    ...(token.color ? { color: token.color } : {}),
-    ...(fontStyle & 1 ? { fontStyle: "italic" } : {}),
-    ...(fontStyle & 2 ? { fontWeight: 700 } : {}),
-    ...(fontStyle & 4 ? { textDecoration: "underline" } : {}),
+    color: token.color,
+    fontStyle: fontStyle & 1 ? ("italic" as const) : undefined,
+    fontWeight: fontStyle & 2 ? (700 as const) : undefined,
+    textDecoration: fontStyle & 4 ? ("underline" as const) : undefined,
   };
 }
 
@@ -108,21 +111,28 @@ function HighlightedTokens(props: {
 }) {
   return props.tokens
     .flatMap((token) => splitToken(props.line, token, props.ranges))
-    .map((segment) =>
-      segment.isMatch ? (
+    .map((segment) => {
+      const vars = tokenStyleVars(segment.token);
+      const style = {
+        "--token-color": vars.color,
+        "--token-font-style": vars.fontStyle,
+        "--token-font-weight": vars.fontWeight,
+        "--token-text-decoration": vars.textDecoration,
+      };
+      return segment.isMatch ? (
         <mark
-          className="rounded-[2px] bg-primary/25 text-inherit"
+          className="syntax-token rounded-xs bg-primary/25 text-inherit"
           key={`${segment.start}:${segment.end}:match`}
-          style={tokenStyle(segment.token)}
+          style={style}
         >
           {segment.content}
         </mark>
       ) : (
-        <span key={`${segment.start}:${segment.end}:code`} style={tokenStyle(segment.token)}>
+        <span className="syntax-token" key={`${segment.start}:${segment.end}:code`} style={style}>
           {segment.content}
         </span>
-      ),
-    );
+      );
+    });
 }
 
 function SyntaxHighlightedTokens(props: {

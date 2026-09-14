@@ -45,7 +45,7 @@ export const ProviderInstanceIcon = memo(function ProviderInstanceIcon(props: {
       {Icon ? (
         <Icon className={cn("size-5 shrink-0", props.iconClassName)} aria-hidden />
       ) : (
-        <span className={cn("text-[10px] font-semibold leading-none", props.iconClassName)}>
+        <span className={cn("text-xs font-semibold leading-none", props.iconClassName)}>
           {providerInstanceInitials(props.displayName)}
         </span>
       )}
@@ -54,21 +54,23 @@ export const ProviderInstanceIcon = memo(function ProviderInstanceIcon(props: {
           className={cn(
             "pointer-events-none absolute -left-0.5 -top-0.5 z-10 size-2 rounded-full",
             props.statusDotClassName,
+            "shadow-(--box-shadow)",
           )}
-          style={{ boxShadow: `0 0 0 2px ${indicatorBackground}` }}
+          style={{ "--box-shadow": `0 0 0 2px ${indicatorBackground}` }}
           aria-hidden
         />
       ) : null}
       {props.showBadge ? (
         <span
           className={cn(
-            "pointer-events-none absolute right-0 bottom-0 z-10 flex h-3.5 min-w-3.5 items-center justify-center rounded-full border px-0.5 text-[8px] font-semibold leading-none shadow-sm",
+            "pointer-events-none absolute right-0 bottom-0 z-10 flex h-3.5 min-w-3.5 items-center justify-center rounded-full border px-0.5 text-xs font-semibold leading-none shadow-sm",
             props.accentColor
-              ? "bg-[var(--provider-accent)] text-white"
+              ? "bg-(--provider-accent) text-white"
               : "bg-muted text-muted-foreground",
             props.badgeClassName,
+            "border-(color:--border-color)",
           )}
-          style={{ borderColor: indicatorBackground }}
+          style={{ "--border-color": indicatorBackground }}
           aria-hidden
         >
           {badgeContent === "initials" ? providerInstanceInitials(props.displayName) : null}

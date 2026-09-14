@@ -180,7 +180,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   return (
     <>
       <SidebarContent className="overflow-x-hidden">
-        <SidebarGroup className="gap-2 p-[var(--sidebar-content-inset)]">
+        <SidebarGroup className="gap-2">
           <div className="flex h-8 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground">
             <SearchIcon className="size-4 shrink-0 text-sidebar-muted-foreground/80" />
             <Input
@@ -222,7 +222,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                 <XIcon className="size-3" />
               </Button>
             ) : (
-              <Kbd className="h-4 min-w-0 rounded-sm px-1.5 text-[10px]">/</Kbd>
+              <Kbd className="h-4 min-w-0 rounded-sm px-1.5">/</Kbd>
             )}
           </div>
           {isSearching && results.length === 0 ? (
@@ -249,7 +249,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                       tabIndex={-1}
                       size="sm"
                       isActive={index === activeResultIndex}
-                      className="h-auto min-h-10 items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
+                      className="h-auto min-h-10 items-start gap-2 rounded-md px-2 py-2 text-left hover:text-sidebar-foreground"
                       onMouseMove={() => setActiveResultIndex(index)}
                       onClick={() => handleSearchResultClick(item)}
                     >
@@ -258,7 +258,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                         <span className="block truncate text-sm font-medium text-sidebar-foreground">
                           {item.title}
                         </span>
-                        <span className="block truncate text-[11px] text-sidebar-muted-foreground/75">
+                        <span className="block truncate text-xs text-sidebar-muted-foreground/75">
                           {SETTINGS_SECTION_LABELS[item.to]}
                         </span>
                       </span>
@@ -283,7 +283,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-[var(--sidebar-content-inset)]">
+      <SidebarFooter className="p-(--sidebar-content-inset)">
         <T3ConnectSidebarSignIn />
         <div className="flex items-center gap-1">
           <div className="min-w-0 flex-1">

@@ -709,12 +709,12 @@ function MarkdownCodeBlock({
 
   return (
     <div
-      className="chat-markdown-codeblock my-[0.65rem] overflow-hidden rounded-[var(--radius)] border border-border/70 bg-secondary leading-snug dark:border-transparent dark:bg-input/32"
+      className="chat-markdown-codeblock my-[0.65rem] overflow-hidden rounded-(--radius) border border-border/70 bg-secondary leading-snug dark:border-transparent dark:bg-input/32"
       data-language={language}
       data-wrap={wrapped ? "true" : "false"}
     >
       <div className="chat-markdown-codeblock-header flex items-center justify-between gap-2 pt-1.5 pr-1.5 pb-0 pl-3 select-none">
-        <span className="inline-flex min-w-0 items-center gap-[0.4rem] [font-family:var(--font-mono,ui-monospace,SFMono-Regular,monospace)] [font-size:0.6875rem]">
+        <span className="inline-flex min-w-0 items-center gap-[calc(var(--spacing)*1.6)] [font-family:var(--font-mono,ui-monospace,SFMono-Regular,monospace)] [font-size:0.6875rem]">
           <MarkdownCodeBlockTitleContent
             fenceTitle={fenceTitle}
             language={language}
@@ -955,7 +955,7 @@ const MarkdownLinkFavicon = memo(function MarkdownLinkFavicon({ host }: { host: 
   const [failedHost, setFailedHost] = useState<string | null>(null);
   return (
     <span
-      className="ms-[0.25em] me-[0.2em] inline-flex size-[14px] [vertical-align:-0.125em]"
+      className="ms-[0.25em] me-[0.2em] inline-flex size-3.5 [vertical-align:-0.125em]"
       aria-hidden
     >
       {failedHost === host || failedFaviconHosts.has(host) ? (
@@ -1408,13 +1408,11 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
       />
       <TooltipPopup
         side="top"
-        className="max-w-[min(40rem,calc(100vw-2rem))] font-mono text-[11px] leading-tight"
+        className="max-w-[min(40rem,calc(100vw-2rem))] font-mono leading-tight"
       >
         {/* The full path: the chip already shows the shortened form, and a link
             to the workspace root collapses to a bare label that repeats it. */}
-        <div className="overflow-x-auto whitespace-nowrap [scrollbar-color:color-mix(in_srgb,var(--contrast-border)_78%,transparent)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[color-mix(in_srgb,var(--contrast-border)_78%,transparent)] [&::-webkit-scrollbar-track]:bg-transparent">
-          {targetPath}
-        </div>
+        <div className="overflow-x-auto whitespace-nowrap scrollbar-muted">{targetPath}</div>
       </TooltipPopup>
     </Tooltip>
   );
@@ -1672,7 +1670,13 @@ function ChatMarkdown({
             .length ?? 0;
         const gutterStyle = orderedListGutterStyle(itemCount, start);
         return (
-          <ol {...props} start={start} style={gutterStyle ? { ...style, ...gutterStyle } : style} />
+          <ol
+            {...props}
+            start={start}
+            style={
+              gutterStyle ? { ...style, "--list-gutter": gutterStyle["--list-gutter"] } : style
+            }
+          />
         );
       },
       li({ node, children, ...props }) {

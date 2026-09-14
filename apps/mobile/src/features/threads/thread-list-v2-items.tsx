@@ -134,10 +134,10 @@ export const ThreadListV2SnoozedShelfHeader = memo(function ThreadListV2SnoozedS
       onPress={props.onToggle}
       style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
     >
-      <Text className="text-xs font-t3-medium text-blue-600 dark:text-blue-400">
+      <Text className="text-xs font-t3-medium text-info-foreground">
         {props.expanded ? "Snoozed" : `Snoozed (${props.count})`}
       </Text>
-      <View className="h-px flex-1 bg-blue-500/20 dark:bg-blue-400/15" />
+      <View className="h-px flex-1 bg-info-strong/20 dark:bg-info" />
       <SymbolView
         name="chevron.down"
         size={10}
@@ -730,9 +730,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
           <Text
             className={cn(
               "flex-1 text-xs",
-              selected
-                ? "text-user-bubble-foreground-muted"
-                : "text-red-600/80 dark:text-red-400/80",
+              selected ? "text-user-bubble-foreground-muted" : "text-danger-foreground/80",
             )}
             numberOfLines={1}
           >
@@ -861,7 +859,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         {/* Settled history recedes: dimmed favicon + muted title. */}
         <View
           className={cn(
-            "min-h-[44px] flex-row items-center gap-2.5 py-2",
+            "min-h-11 flex-row items-center gap-2.5 py-2",
             sidebarPane ? "px-3" : "px-5",
           )}
         >
@@ -900,7 +898,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
               selected
                 ? "text-user-bubble-foreground-muted"
                 : snoozedRow
-                  ? "text-blue-600 dark:text-blue-400"
+                  ? "text-info-foreground"
                   : "text-foreground-tertiary",
             )}
             style={{ fontFamily: MONO_FONT }}

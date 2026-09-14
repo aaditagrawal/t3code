@@ -370,12 +370,12 @@ function GhosttyPane({
     return () => window.cancelAnimationFrame(frame);
   }, [containerHeight, resizeEpoch, terminalId, threadId]);
 
+  // MIN_PANE_WIDTH_PX (120px) is expressed as the min-w-30 class below.
   return (
     <div
       className={`ghostty-pane group relative flex h-full min-w-0 flex-1 flex-col overflow-hidden ${
         isActive ? "ring-1 ring-accent/50" : "ring-1 ring-border/30 hover:ring-border/60"
-      }`}
-      style={{ minWidth: `${MIN_PANE_WIDTH_PX}px` }}
+      } min-w-30`}
       onMouseDown={onFocus}
     >
       {/* Pane header */}
@@ -390,7 +390,7 @@ function GhosttyPane({
             {status === "loading" ? "Loading WASM…" : status === "error" ? "Error" : "ghostty"}
           </span>
           {status === "ready" && (
-            <span className="rounded bg-emerald-500/15 px-1 py-px text-[8px] font-semibold uppercase tracking-widest text-emerald-500">
+            <span className="rounded bg-success/15 px-1 py-px text-[8px] font-semibold uppercase tracking-widest text-success">
               libghostty
             </span>
           )}
@@ -586,8 +586,8 @@ export default function GhosttyTerminalSplitView({
   return (
     <div
       ref={containerRef}
-      className="ghostty-split-view relative flex flex-col border-t border-border/60"
-      style={{ height: `${containerHeight}px` }}
+      className="ghostty-split-view h-(--container-height) relative flex flex-col border-t border-border/60"
+      style={{ "--container-height": `${containerHeight}px` }}
     >
       {/* Resize handle (top edge) */}
       <div
@@ -605,7 +605,7 @@ export default function GhosttyTerminalSplitView({
           <span className="text-[11px] font-semibold tracking-wide text-foreground/80">
             Ghostty Split View
           </span>
-          <span className="rounded bg-gradient-to-r from-violet-500/20 to-cyan-500/20 px-1.5 py-px text-[8px] font-bold uppercase tracking-widest text-violet-400">
+          <span className="rounded bg-gradient-to-r from-merged/20 to-info/20 px-1.5 py-px text-[8px] font-bold uppercase tracking-widest text-merged">
             libghostty
           </span>
         </div>

@@ -941,8 +941,8 @@ export function ThemeEditorPanel({
       <Button
         aria-disabled={lockReason !== null}
         aria-pressed={isActive}
-        className={lockReason !== null ? "opacity-50" : undefined}
-        style={isActive ? { boxShadow: "inset 0 0 0 1px var(--ring)" } : undefined}
+        className={cn(lockReason !== null ? "opacity-50" : undefined, "shadow-(--box-shadow)")}
+        style={isActive ? { "--box-shadow": "inset 0 0 0 1px var(--ring)" } : undefined}
         variant={isActive ? "secondary" : "outline"}
         onClick={() => {
           if (lockReason === null) setActiveAppearance(appearance);
@@ -1141,19 +1141,24 @@ export function ThemeEditorPanel({
     <div
       aria-label={isEditing ? "Edit theme" : "Create theme"}
       className={cn(
-        "dialog-glass fixed z-[110] flex max-h-[min(42rem,calc(100dvh-6rem))] w-[min(26rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border text-popover-foreground",
+        "dialog-glass fixed z-[110] flex max-h-(--panel-max-height) w-(--panel-width) flex-col overflow-hidden rounded-xl border text-popover-foreground left-(--panel-left) top-(--panel-top) h-(--panel-height)",
         position === null && "bottom-4 right-4",
-        isMinimized && "max-h-none",
       )}
       data-theme-editor-panel
       ref={panelRef}
       role="dialog"
       style={{
-        ...(position ? { left: position.x, top: position.y } : {}),
-        ...(size ? { width: size.width } : {}),
+        "--panel-left": position === null ? undefined : `${position.x}px`,
+        "--panel-top": position === null ? undefined : `${position.y}px`,
+        "--panel-width": size === null ? "min(26rem, calc(100vw - 2rem))" : `${size.width}px`,
         // A chosen height only applies expanded; minimized keeps hugging the
         // header. The viewport stays the ceiling either way.
-        ...(size && !isMinimized ? { height: size.height, maxHeight: "calc(100dvh - 1rem)" } : {}),
+        "--panel-height": size !== null && !isMinimized ? `${size.height}px` : undefined,
+        "--panel-max-height": isMinimized
+          ? "none"
+          : size !== null
+            ? "calc(100dvh - 1rem)"
+            : "min(42rem, calc(100dvh - 6rem))",
       }}
     >
       <div

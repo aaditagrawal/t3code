@@ -18,6 +18,7 @@ function Input({
   size = "default",
   unstyled = false,
   nativeInput = false,
+  style,
   ...props
 }: InputProps) {
   const inputClassName = cn(
@@ -34,7 +35,7 @@ function Input({
   let inputElement: React.ReactElement;
 
   if (nativeInput) {
-    const { style, onValueChange: _onValueChange, ...nativeInputProps } = props;
+    const { onValueChange: _onValueChange, ...nativeInputProps } = props;
     const nativeStyle = typeof style === "function" ? undefined : style;
 
     inputElement = (
@@ -52,6 +53,7 @@ function Input({
         className={inputClassName}
         data-slot="input"
         size={typeof size === "number" ? size : undefined}
+        style={style}
         {...props}
       />
     );

@@ -56,24 +56,14 @@ describe("ComposerBannerStack", () => {
     expect(markup).toContain("text-xs");
     expect(markup).toContain('data-composer-banner-drawer="true"');
     expect(markup).toContain('data-variant="warning"');
-    expect(markup).toContain("transform:none");
+    expect(markup).toContain("translate-y-0 opacity-100");
     expect(markup).not.toContain("will-change:transform");
   });
-  it("applies item-specific surface and action layout classes", () => {
+  it("applies the flat-in-dark surface flag to the alert", () => {
     const markup = renderToStaticMarkup(
-      <ComposerBannerStack
-        items={[
-          {
-            ...banner("branch"),
-            className: "branch-surface",
-            actionClassName: "branch-actions",
-            actions: <button type="button">Repair</button>,
-          },
-        ]}
-      />,
+      <ComposerBannerStack items={[{ ...banner("branch"), flatInDark: true }]} />,
     );
 
-    expect(markup).toContain("branch-surface");
-    expect(markup).toContain("branch-actions");
+    expect(markup).toContain("dark:shadow-none");
   });
 });

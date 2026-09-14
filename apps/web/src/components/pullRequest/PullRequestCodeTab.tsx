@@ -730,7 +730,7 @@ export function PullRequestCodeTab({
         <PullRequestDiffStat
           additions={additions}
           deletions={deletions}
-          className="font-mono text-[11px]"
+          className="font-mono text-xs"
         />
       );
     },
@@ -969,7 +969,7 @@ export function PullRequestCodeTab({
             <MessageSquareIcon className="size-3.5" />
             Review
             {pendingComments.length > 0 ? (
-              <span className="flex size-4 items-center justify-center rounded-full bg-accent text-[10px] tabular-nums text-accent-foreground">
+              <span className="flex size-4 items-center justify-center rounded-full bg-accent text-xs tabular-nums text-accent-foreground">
                 {pendingComments.length}
               </span>
             ) : null}
@@ -1063,7 +1063,7 @@ export function PullRequestCodeTab({
               <TooltipTrigger render={<span className="flex shrink-0 items-center" />}>
                 <TriangleAlertIcon
                   aria-label="Some of this diff was not shown"
-                  className="size-3.5 text-amber-600 dark:text-amber-500"
+                  className="size-3.5 text-warning"
                 />
               </TooltipTrigger>
               <TooltipPopup side="bottom">

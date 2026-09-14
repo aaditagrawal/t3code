@@ -220,7 +220,7 @@ function MessageAttachmentFile(props: {
       onPress={() => {
         if (uri !== null) void tryOpenExternalUrl(uri, "file-preview");
       }}
-      className="mt-1.5 min-h-12 flex-row items-center gap-2 rounded-[14px] border border-neutral-200 bg-neutral-100 px-3 py-2 dark:border-white/[0.08] dark:bg-neutral-900"
+      className="mt-1.5 min-h-12 flex-row items-center gap-2 rounded-xl border border-border bg-card-alt px-3 py-2 dark:border-white/[0.08] dark:bg-card-alt"
     >
       {uri === null ? (
         <ActivityIndicator size="small" />
@@ -780,7 +780,7 @@ function useMarkdownStyles(
               );
             }
             return (
-              <View className="mb-[3px] flex-row items-start" key={childKey}>
+              <View className="mb-0.75 flex-row items-start" key={childKey}>
                 <NativeText
                   className="font-sans"
                   style={{
@@ -1026,7 +1026,7 @@ function renderFeedEntry(
         accessibilityState={{ expanded: entry.expanded }}
         onPress={() => props.onToggleTurnFold(entry.turnId)}
         hitSlop={4}
-        className="mb-3 min-h-11 flex-row items-center gap-2 border-b border-neutral-200/80 px-2 dark:border-white/[0.08]"
+        className="mb-3 min-h-11 flex-row items-center gap-2 border-b border-border px-2 dark:border-white/[0.08]"
       >
         <Text className="font-t3-medium text-sm tabular-nums text-foreground-muted">
           {entry.label}
@@ -1084,7 +1084,7 @@ function renderFeedEntry(
           {...(enterAnimated ? { entering: FadeInUp.duration(220) } : {})}
         >
           <View
-            className="min-w-0 gap-2 rounded-[20px] px-3.5 py-2.5"
+            className="min-w-0 gap-2 rounded-2xl px-3.5 py-2.5"
             style={{
               backgroundColor: userBubbleColor,
               maxWidth: props.userBubbleMaxWidth,
@@ -1111,7 +1111,7 @@ function renderFeedEntry(
                   key={attachment.id}
                   environmentId={props.environmentId}
                   attachmentId={attachment.id}
-                  className="aspect-[1.3] w-full rounded-[14px] bg-white/15"
+                  className="aspect-[1.3] w-full rounded-xl bg-white/15"
                   onPressImage={props.onPressImage}
                 />
               ) : (
@@ -1126,7 +1126,7 @@ function renderFeedEntry(
             })}
           </View>
           <View className="mt-1 flex-row items-center justify-end gap-1 pr-0.5">
-            <Text className="font-t3-medium text-xs tabular-nums text-neutral-600 dark:text-neutral-400">
+            <Text className="font-t3-medium text-xs tabular-nums text-foreground-muted">
               {timestampLabel}
             </Text>
             {message.text.trim().length > 0 ? (
@@ -1181,7 +1181,7 @@ function renderFeedEntry(
               key={attachment.id}
               environmentId={props.environmentId}
               attachmentId={attachment.id}
-              className="mt-1.5 aspect-[1.3] w-full rounded-[18px] bg-neutral-200 dark:bg-neutral-800"
+              className="mt-1.5 aspect-[1.3] w-full rounded-2xl bg-subtle-strong"
               onPressImage={props.onPressImage}
             />
           ) : (
@@ -1203,7 +1203,7 @@ function renderFeedEntry(
               buttonSize={28}
               iconSize={13}
             />
-            <Text className="font-t3-medium text-xs tabular-nums text-neutral-600 dark:text-neutral-400">
+            <Text className="font-t3-medium text-xs tabular-nums text-foreground-muted">
               {timestampLabel}
             </Text>
           </View>
@@ -1239,11 +1239,11 @@ const WorkingTimelineRow = memo(function WorkingTimelineRow(props: { readonly st
   return (
     <View className="mb-4 flex-row items-center gap-2 px-1.5 py-1">
       <View className="flex-row items-center gap-1">
-        <View className="h-1 w-1 rounded-full bg-neutral-400 dark:bg-neutral-500" />
-        <View className="h-1 w-1 rounded-full bg-neutral-400/80 dark:bg-neutral-500/80" />
-        <View className="h-1 w-1 rounded-full bg-neutral-400/60 dark:bg-neutral-500/60" />
+        <View className="h-1 w-1 rounded-full bg-icon-subtle" />
+        <View className="h-1 w-1 rounded-full bg-icon-subtle/80" />
+        <View className="h-1 w-1 rounded-full bg-icon-subtle/60" />
       </View>
-      <Text className="font-t3-medium text-xs tabular-nums text-neutral-600 dark:text-neutral-400">
+      <Text className="font-t3-medium text-xs tabular-nums text-foreground-muted">
         Working for {durationLabel}
       </Text>
     </View>
@@ -1375,7 +1375,7 @@ const ReviewCommentCard = memo(function ReviewCommentCard(props: {
 
   return (
     <View
-      className="w-full overflow-hidden rounded-[16px] border border-continuous"
+      className="w-full overflow-hidden rounded-2xl border border-continuous"
       style={{
         backgroundColor: props.colors.background,
         borderColor: props.colors.border,
@@ -1386,7 +1386,7 @@ const ReviewCommentCard = memo(function ReviewCommentCard(props: {
         style={{ borderColor: props.colors.border }}
       >
         <View
-          className="size-6 items-center justify-center rounded-[7px] border-continuous"
+          className="size-6 items-center justify-center rounded-md border-continuous"
           style={{ backgroundColor: props.colors.mutedBackground }}
         >
           <SymbolView
@@ -1509,7 +1509,7 @@ function ThreadFeedPlaceholder(props: {
         paddingHorizontal: props.horizontalPadding + 24,
       }}
     >
-      <View className="max-w-[320px] items-center gap-2">
+      <View className="max-w-80 items-center gap-2">
         <Text className="text-center font-t3-bold text-lg text-foreground">{props.title}</Text>
         <Text className="text-center text-sm leading-normal text-foreground-secondary">
           {props.detail}

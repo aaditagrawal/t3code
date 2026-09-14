@@ -1312,7 +1312,7 @@ function PullRequestsRouteView() {
       // anchor the thread view's controls and the sidebar trigger use, so
       // every titlebar cluster in the app sits one shared inset from its
       // edge.
-      className="absolute top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] z-50 mr-px flex h-[var(--workspace-topbar-height)] items-center gap-1 [-webkit-app-region:no-drag]"
+      className="absolute top-(--workspace-controls-top) right-(--workspace-controls-right) z-50 mr-px flex h-(--workspace-topbar-height) items-center gap-1 [-webkit-app-region:no-drag]"
       data-workspace-titlebar-controls
     >
       {panelToggleControls}
@@ -1400,7 +1400,7 @@ function PullRequestsRouteView() {
       )}
 
       {listQuery.error && listData !== null ? (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs">
           <span>The latest request failed. Showing the last pull requests loaded.</span>
           <Button size="xs" variant="outline" onClick={() => listQuery.refresh()}>
             Retry
@@ -1541,7 +1541,7 @@ function PullRequestsRouteView() {
   };
 
   return (
-    <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none bg-background text-foreground">
+    <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none text-foreground">
       <div className="relative flex min-h-0 flex-1">
         {pullRequestsSupported ? openPanelControls : null}
         <PullRequestsColumn {...columnProps} />

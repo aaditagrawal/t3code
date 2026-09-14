@@ -4824,7 +4824,7 @@ function ChatViewContent(props: ChatViewProps) {
             </Tooltip>
           </span>
         ),
-        className: "dark:shadow-none",
+        flatInDark: true,
         actions: (
           <Button
             size="xs"
@@ -6496,7 +6496,7 @@ function ChatViewContent(props: ChatViewProps) {
         // One inset in both states: the controls move between containers when
         // the right panel opens, and a different right offset made them jump
         // sideways on every toggle.
-        "absolute top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] z-50 mr-px flex h-[var(--workspace-topbar-height)] items-center gap-1 [-webkit-app-region:no-drag]",
+        "absolute top-(--workspace-controls-top) right-(--workspace-controls-right) z-50 mr-px flex h-(--workspace-topbar-height) items-center gap-1 [-webkit-app-region:no-drag]",
       )}
       data-workspace-titlebar-controls
     >
@@ -6757,8 +6757,8 @@ function ChatViewContent(props: ChatViewProps) {
               {/* scroll to end pill — shown when user has scrolled away from the live edge */}
               {showScrollToBottom && (
                 <div
-                  className="pointer-events-none absolute left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5"
-                  style={{ bottom: composerOverlayHeight + 4 }}
+                  className="pointer-events-none absolute bottom-(--scroll-to-end-bottom) left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5"
+                  style={{ "--scroll-to-end-bottom": `${composerOverlayHeight + 4}px` }}
                 >
                   <Button
                     aria-label="Scroll to end"
@@ -6792,11 +6792,12 @@ function ChatViewContent(props: ChatViewProps) {
                   {isDraftHeroState ? (
                     <div className="absolute inset-x-0 bottom-full z-0">
                       <div
-                        className="pb-8"
+                        className="pb-8 [view-transition-name:var(--view-transition-name)]"
                         style={
                           forceExpandedMobileComposer
                             ? {
-                                viewTransitionName: MOBILE_DRAFT_HEADLINE_VIEW_TRANSITION_NAME,
+                                "--view-transition-name":
+                                  MOBILE_DRAFT_HEADLINE_VIEW_TRANSITION_NAME,
                               }
                             : undefined
                         }
@@ -6816,10 +6817,10 @@ function ChatViewContent(props: ChatViewProps) {
                     <ThreadSyncStatusPill phase={threadSyncPhase} />
                   ) : null}
                   <div
-                    className="relative"
+                    className="relative [view-transition-name:var(--view-transition-name)]"
                     style={
                       forceExpandedMobileComposer
-                        ? { viewTransitionName: MOBILE_COMPOSER_VIEW_TRANSITION_NAME }
+                        ? { "--view-transition-name": MOBILE_COMPOSER_VIEW_TRANSITION_NAME }
                         : undefined
                     }
                   >
@@ -6830,7 +6831,7 @@ function ChatViewContent(props: ChatViewProps) {
                         showComposerContextStrip && "chat-composer-glass-shell-with-context",
                       )}
                     >
-                      <div className="chat-composer-glass-host relative z-10 w-full rounded-[22px]">
+                      <div className="chat-composer-glass-host relative z-10 w-full rounded-3xl">
                         <div ref={attachDraftHeroComposerAnchorRef} className="relative z-10">
                           <ChatComposer
                             composerRef={composerRef}
