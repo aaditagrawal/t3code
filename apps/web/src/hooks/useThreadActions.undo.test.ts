@@ -25,6 +25,9 @@ vi.mock("react", async (original) => ({
   useCallback: (callback: unknown) => callback,
   useMemo: (create: () => unknown) => create(),
   useRef: (value: unknown) => ({ current: value }),
+  useLayoutEffect: (effect: () => void | (() => void)) => {
+    effect();
+  },
 }));
 vi.mock("@tanstack/react-router", () => ({ useRouter: () => router }));
 vi.mock("./useSettings", () => ({ useClientSettings: () => false }));

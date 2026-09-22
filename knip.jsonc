@@ -29,13 +29,15 @@
         // Retain historical migration sources even when superseded in the registry.
         "src/persistence/Migrations/*.ts",
       ],
-      // Runtime native addons, injected SDKs, and the web build prerequisite.
+      // Runtime native addons, injected SDKs, the web build prerequisite, and
+      // platform peers loaded through RuntimeSqliteLayer's bun/node split.
       "ignoreDependencies": [
         "msgpackr-extract",
         "@t3tools/web",
         "@cursor/sdk",
         "@github/copilot",
         "@effect/platform-node-shared",
+        "@effect/platform-bun",
       ],
     },
     "apps/desktop": {
