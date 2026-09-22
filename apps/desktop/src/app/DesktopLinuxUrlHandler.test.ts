@@ -1,4 +1,9 @@
-import { APP_BASE_NAME, LINUX_WM_CLASS, URL_SCHEME } from "@t3tools/shared/branding";
+import {
+  APP_BASE_NAME,
+  LINUX_DESKTOP_ENTRY_NAME,
+  LINUX_WM_CLASS,
+  URL_SCHEME,
+} from "@t3tools/shared/branding";
 import { assert, describe, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -25,6 +30,7 @@ const makeEnvironment = (overrides: Record<string, unknown> = {}) =>
     isDevelopment: false,
     displayName: `${APP_BASE_NAME} (Alpha)`,
     linuxWmClass: LINUX_WM_CLASS,
+    linuxDesktopEntryName: `${LINUX_DESKTOP_ENTRY_NAME}.desktop`,
     linuxApplicationsDir: "/home/alice/.local/share/applications",
     appImagePath: Option.some("/home/alice/Applications/T3-Code.AppImage"),
     path: { join: (...parts: ReadonlyArray<string>) => parts.join("/") },
@@ -52,6 +58,7 @@ const makeHandlerLayer = (
     readonly environment?: Record<string, unknown>;
     readonly xdgMimeExitCode?: number;
     readonly writeError?: PlatformError.PlatformError;
+    readonly existingEntry?: string;
   } = {},
 ) =>
   DesktopLinuxUrlHandler.layer.pipe(
@@ -59,6 +66,7 @@ const makeHandlerLayer = (
       Layer.mergeAll(
         Layer.succeed(DesktopEnvironment.DesktopEnvironment, makeEnvironment(input.environment)),
         FileSystem.layerNoop({
+          readFileString: () => Effect.succeed(input.existingEntry ?? ""),
           makeDirectory: (path) =>
             Effect.sync(() => {
               recorded.directories.push(path);
@@ -129,7 +137,7 @@ describe("DesktopLinuxUrlHandler", () => {
     const writeError = new DesktopLinuxUrlHandler.DesktopLinuxUrlHandlerRegistrationError({
       step: "write-desktop-entry",
       scheme: URL_SCHEME,
-      desktopEntryPath: `/home/alice/.local/share/applications/${DesktopLinuxUrlHandler.URL_HANDLER_DESKTOP_ENTRY_NAME}`,
+      desktopEntryPath: `/home/alice/.local/share/applications/${LINUX_DESKTOP_ENTRY_NAME}.desktop`,
       cause: new Error("boom"),
     });
     assert.equal(
@@ -138,7 +146,7 @@ describe("DesktopLinuxUrlHandler", () => {
     );
     assert.equal(
       writeError.desktopEntryPath,
-      `/home/alice/.local/share/applications/${DesktopLinuxUrlHandler.URL_HANDLER_DESKTOP_ENTRY_NAME}`,
+      `/home/alice/.local/share/applications/${LINUX_DESKTOP_ENTRY_NAME}.desktop`,
     );
 
     const exitError = new DesktopLinuxUrlHandler.DesktopLinuxUrlHandlerRegistrationError({
@@ -162,7 +170,7 @@ describe("DesktopLinuxUrlHandler", () => {
       assert.equal(recorded.files.length, 1);
       assert.equal(
         recorded.files[0]?.path,
-        `/home/alice/.local/share/applications/${DesktopLinuxUrlHandler.URL_HANDLER_DESKTOP_ENTRY_NAME}`,
+        `/home/alice/.local/share/applications/${LINUX_DESKTOP_ENTRY_NAME}.desktop`,
       );
       assert.include(
         recorded.files[0]?.content,
@@ -174,7 +182,7 @@ describe("DesktopLinuxUrlHandler", () => {
           command: "xdg-mime",
           args: [
             "default",
-            DesktopLinuxUrlHandler.URL_HANDLER_DESKTOP_ENTRY_NAME,
+            `${LINUX_DESKTOP_ENTRY_NAME}.desktop`,
             `x-scheme-handler/${URL_SCHEME}`,
           ],
         },
@@ -195,19 +203,43 @@ describe("DesktopLinuxUrlHandler", () => {
     });
   });
 
-  it.effect("does nothing on other platforms or unpackaged builds", () => {
+  it.effect("does not rewrite the pre-ready entry while the portal can be reading it", () => {
+    const recorded = emptyRecording();
+
+    return Effect.gen(function* () {
+      yield* runRegister(recorded, {
+        existingEntry: DesktopLinuxUrlHandler.renderUrlHandlerDesktopEntry({
+          displayName: `${APP_BASE_NAME} (Alpha)`,
+          execTarget: "/home/alice/Applications/T3-Code.AppImage",
+          scheme: URL_SCHEME,
+        }),
+      });
+
+      assert.deepEqual(recorded.files, []);
+      assert.deepEqual(recorded.directories, []);
+      assert.equal(recorded.commands.length, 1);
+    });
+  });
+
+  it.effect("writes the portal identity without claiming the URL scheme in development", () => {
     const nonLinux = emptyRecording();
     const unpackaged = emptyRecording();
 
     return Effect.gen(function* () {
       yield* runRegister(nonLinux, { environment: { platform: "darwin" } });
-      yield* runRegister(unpackaged, { environment: { isPackaged: false } });
+      yield* runRegister(unpackaged, {
+        environment: {
+          isPackaged: false,
+          linuxDesktopEntryName: `${LINUX_DESKTOP_ENTRY_NAME}-dev.desktop`,
+        },
+      });
 
-      for (const recorded of [nonLinux, unpackaged]) {
-        assert.deepEqual(recorded.directories, []);
-        assert.deepEqual(recorded.files, []);
-        assert.deepEqual(recorded.commands, []);
-      }
+      assert.deepEqual(nonLinux.files, []);
+      assert.equal(
+        unpackaged.files[0]?.path,
+        `/home/alice/.local/share/applications/${LINUX_DESKTOP_ENTRY_NAME}-dev.desktop`,
+      );
+      assert.deepEqual(unpackaged.commands, []);
     });
   });
 
@@ -223,7 +255,7 @@ describe("DesktopLinuxUrlHandler", () => {
           module: "FileSystem",
           method: "writeFileString",
           description: "read-only filesystem",
-          pathOrDescriptor: `/home/alice/.local/share/applications/${DesktopLinuxUrlHandler.URL_HANDLER_DESKTOP_ENTRY_NAME}`,
+          pathOrDescriptor: `/home/alice/.local/share/applications/${LINUX_DESKTOP_ENTRY_NAME}.desktop`,
         }),
       });
 

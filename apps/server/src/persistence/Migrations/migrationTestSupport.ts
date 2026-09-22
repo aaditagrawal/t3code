@@ -17,7 +17,7 @@ import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 
 /** Run one test case against its own empty in-memory database. */
 export const onFreshDatabase = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
-  Effect.provide(effect, NodeSqliteClient.layerMemory());
+  Effect.provide(effect, NodeSqliteClient.layer({ filename: ":memory:" }));
 
 /**
  * Column names of a table, in declaration order.

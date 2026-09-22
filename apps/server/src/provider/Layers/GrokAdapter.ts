@@ -27,6 +27,10 @@ import {
   XAiExitPlanModeRequest,
 } from "../acp/XAiAcpExtension.ts";
 import {
+  buildGrokBackgroundTaskEvents,
+  type GrokBackgroundTaskRecord,
+} from "../acp/XAiBackgroundTasks.ts";
+import {
   makeStandardAcpAdapter,
   standardAcpPromptSettlementBelongsToContext,
   type StandardAcpAdapterLiveOptions,
@@ -140,6 +144,22 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
         nextModeActive: nextGrokPlanModeActive,
         extractToolMarkdown: extractGrokPlanMarkdownFromToolCallData,
         source: "acp.grok.extension",
+      },
+      validatePrompt: (text) =>
+        /^\/always-approve(?:\s|$)/i.test(text?.trim() ?? "")
+          ? "Change permissions with T3's permission selector instead of /always-approve."
+          : undefined,
+      makeTaskEventMapper: () => {
+        const tasks = new Map<string, GrokBackgroundTaskRecord>();
+        return ({ toolCall, turnId }) =>
+          buildGrokBackgroundTaskEvents({
+            tasks,
+            toolCallId: toolCall.toolCallId,
+            rawInput: toolCall.data.rawInput,
+            rawOutput: toolCall.data.rawOutput,
+            toolCallStatus: toolCall.status,
+            turnId,
+          });
       },
       rememberSessionApprovals: true,
       cancelInFlightPromptOnSteer: true,

@@ -1,4 +1,6 @@
 import { useCommitRef } from "@t3tools/client-runtime/react";
+import { ProcessSignalActions } from "./ProcessSignalActions";
+import { RefreshIcon } from "~/components/ui/refresh-icon";
 import {
   AlertTriangleIcon,
   ChevronDownIcon,
@@ -6,14 +8,12 @@ import {
   CopyIcon,
   FolderOpenIcon,
   InfoIcon,
-  RefreshCwIcon,
 } from "lucide-react";
-import { useAtomValue } from "@effect/atom-react";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
   ServerProcessDiagnosticsEntry,
   ServerProcessResourceHistorySummary,
@@ -27,13 +27,8 @@ import { ensureLocalApi } from "../../localApi";
 import { resolveAndPersistPreferredEditor } from "../../editorPreferences";
 import { formatRelativeTimeLabel, getRelativeTimeState } from "../../timestampFormat";
 import { useEnvironmentQuery } from "../../state/query";
-import {
-  primaryServerAvailableEditorsAtom,
-  primaryServerObservabilityAtom,
-  serverEnvironment,
-} from "../../state/server";
+import { serverEnvironment } from "../../state/server";
 import { shellEnvironment } from "../../state/shell";
-import { usePrimaryEnvironment } from "../../state/environments";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
@@ -44,6 +39,7 @@ import { ExpandableText } from "./ExpandableText";
 import { ResourceTelemetryDiagnostics } from "./ResourceTelemetryDiagnostics";
 import { SettingsPageContainer, SettingsSection, useRelativeTimeTick } from "./settingsLayout";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { useSettingsScope } from "./SettingsScopeContext";
 
 const NUMBER_FORMAT = new Intl.NumberFormat();
 
@@ -315,51 +311,6 @@ function ProcessNameCell({
   );
 }
 
-function ProcessSignalActions({
-  process,
-  isSignaling,
-  onSignal,
-}: {
-  process: ServerProcessDiagnosticsEntry;
-  isSignaling: boolean;
-  onSignal: (pid: number, signal: ServerProcessSignal) => void;
-}) {
-  return (
-    <div className="flex items-center justify-end gap-1.5">
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type="button"
-              disabled={isSignaling}
-              className="cursor-pointer text-[11px] font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50"
-              onClick={() => onSignal(process.pid, "SIGINT")}
-            >
-              INT
-            </button>
-          }
-        />
-        <TooltipPopup side="top">Send SIGINT</TooltipPopup>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type="button"
-              disabled={isSignaling}
-              className="cursor-pointer text-[11px] font-medium text-destructive underline-offset-2 hover:underline disabled:pointer-events-none disabled:opacity-50"
-              onClick={() => onSignal(process.pid, "SIGKILL")}
-            >
-              KILL
-            </button>
-          }
-        />
-        <TooltipPopup side="top">Send SIGKILL</TooltipPopup>
-      </Tooltip>
-    </div>
-  );
-}
-
 function ProcessDiagnosticsTable({
   processes,
   signalingPid,
@@ -475,9 +426,8 @@ function ProcessDiagnosticsTable({
               </td>
               <td className="p-2 align-middle sm:pr-4">
                 <ProcessSignalActions
-                  process={process}
-                  isSignaling={signalingPid === process.pid}
-                  onSignal={onSignal}
+                  disabled={signalingPid === process.pid}
+                  onSignal={(signal) => onSignal(process.pid, signal)}
                 />
               </td>
             </tr>
@@ -767,7 +717,7 @@ function DiagnosticsRefreshButton({
             onClick={onClick}
             aria-label={label}
           >
-            <RefreshCwIcon className={cn(isPending && "animate-spin")} />
+            <RefreshIcon refreshing={isPending} />
           </Button>
         }
       />
@@ -777,10 +727,12 @@ function DiagnosticsRefreshButton({
 }
 
 export function DiagnosticsSettingsPanel() {
-  const observability = useAtomValue(primaryServerObservabilityAtom);
-  const availableEditors = useAtomValue(primaryServerAvailableEditorsAtom);
-  const primaryEnvironment = usePrimaryEnvironment();
-  const environmentId = primaryEnvironment?.environmentId ?? null;
+  const { environment } = useSettingsScope();
+  // The boundary only mounts this page when the selection resolves to one
+  // connected environment, so the representative is the one to inspect.
+  const environmentId = environment?.environmentId ?? null;
+  const observability = environment?.serverConfig?.observability;
+  const availableEditors = environment?.serverConfig?.availableEditors;
   const signalServerProcess = useAtomCommand(serverEnvironment.signalProcess, {
     reportFailure: false,
   });
@@ -830,6 +782,12 @@ export function DiagnosticsSettingsPanel() {
   useCommitRef(environmentIdRef, environmentId);
   const processDataRef = useRef(processData);
   useCommitRef(processDataRef, processData);
+  useEffect(() => {
+    environmentIdRef.current = environmentId;
+    return () => {
+      environmentIdRef.current = null;
+    };
+  }, [environmentId]);
 
   const openLogsDirectory = useCallback(() => {
     const logsDirectoryPath = observability?.logsDirectoryPath ?? null;
@@ -867,87 +825,94 @@ export function DiagnosticsSettingsPanel() {
 
   const isInitialLoading = isPending && data === null;
   const isProcessInitialLoading = isProcessPending && processData === null;
-  const signalProcess = useCallback(async (pid: number, signal: ServerProcessSignal) => {
-    if (signalingPidRef.current !== null) return;
-    signalingPidRef.current = pid;
-    setSignalingPid(pid);
-    const clearSignaling = () => {
-      signalingPidRef.current = null;
-      setSignalingPid(null);
-    };
-    if (signal === "SIGKILL") {
-      let confirmed = false;
-      try {
-        confirmed = await ensureLocalApi().dialogs.confirm(
-          `Send SIGKILL to process ${pid}? This cannot be handled by the process.`,
-          { variant: "destructive" },
-        );
-      } catch (error) {
-        clearSignaling();
-        toastManager.add({
-          type: "error",
-          title: "Could not confirm signal",
-          description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
-        });
-        return;
-      }
-      if (!confirmed) {
-        clearSignaling();
-        return;
-      }
-    }
-    const currentEnvironmentId = environmentIdRef.current;
-    if (currentEnvironmentId === null) {
-      clearSignaling();
-      return;
-    }
-    const process = processDataRef.current?.processes.find((entry) => entry.pid === pid);
-    if (process === undefined) {
-      clearSignaling();
-      return;
-    }
-
-    try {
-      const result = await signalServerProcess({
-        environmentId: currentEnvironmentId,
-        input: { pid, startTimeMs: process.startTimeMs, signal },
-      });
-      if (result._tag === "Failure") {
-        if (!isAtomCommandInterrupted(result)) {
-          const error = squashAtomCommandFailure(result);
+  const signalProcess = useCallback(
+    async (pid: number, signal: ServerProcessSignal) => {
+      const targetEnvironmentId = environmentIdRef.current;
+      const process = processDataRef.current?.processes.find((entry) => entry.pid === pid);
+      if (targetEnvironmentId === null || process === undefined) return;
+      if (signalingPidRef.current !== null) return;
+      signalingPidRef.current = pid;
+      setSignalingPid(pid);
+      const clearSignaling = () => {
+        signalingPidRef.current = null;
+        setSignalingPid(null);
+      };
+      if (signal === "SIGKILL") {
+        let confirmed = false;
+        try {
+          confirmed = await ensureLocalApi().dialogs.confirm(
+            `Send SIGKILL to process ${pid}? This cannot be handled by the process.`,
+            { variant: "destructive" },
+          );
+        } catch (error) {
+          clearSignaling();
           toastManager.add({
             type: "error",
-            title: `Could not send ${signal}`,
+            title: "Could not confirm signal",
             description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
-          });
-        }
-        return;
-      }
-      if (!result.value.signaled) {
-        const message = Option.getOrUndefined(result.value.message);
-        refreshProcesses();
-        if (isStaleProcessSignalMessage(message)) {
-          toastManager.add({
-            type: "info",
-            title: "Process already exited",
-            description:
-              "The process is not a child of the T3 Server. It might already have exited.",
           });
           return;
         }
-
-        toastManager.add({
-          type: "error",
-          title: `Could not send ${signal}`,
-          description: message ?? `Failed to send ${signal}.`,
-        });
+        if (!confirmed) {
+          clearSignaling();
+          return;
+        }
+      }
+      if (environmentIdRef.current !== targetEnvironmentId) {
+        clearSignaling();
         return;
       }
-      refreshProcesses();
-    } finally {
-      clearSignaling();
-    }
-  }, []);
+      if (
+        processDataRef.current?.processes.find((entry) => entry.pid === pid)?.startTimeMs !==
+        process.startTimeMs
+      ) {
+        clearSignaling();
+        return;
+      }
+
+      try {
+        const result = await signalServerProcess({
+          environmentId: targetEnvironmentId,
+          input: { pid, startTimeMs: process.startTimeMs, signal },
+        });
+        if (result._tag === "Failure") {
+          if (!isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add({
+              type: "error",
+              title: `Could not send ${signal}`,
+              description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
+            });
+          }
+          return;
+        }
+        if (!result.value.signaled) {
+          const message = Option.getOrUndefined(result.value.message);
+          refreshProcesses();
+          if (isStaleProcessSignalMessage(message)) {
+            toastManager.add({
+              type: "info",
+              title: "Process already exited",
+              description:
+                "The process is not a child of the T3 Server. It might already have exited.",
+            });
+            return;
+          }
+
+          toastManager.add({
+            type: "error",
+            title: `Could not send ${signal}`,
+            description: message ?? `Failed to send ${signal}.`,
+          });
+          return;
+        }
+        refreshProcesses();
+      } finally {
+        clearSignaling();
+      }
+    },
+    [refreshProcesses, signalServerProcess],
+  );
 
   const processDiagnosticsError = processData ? Option.getOrNull(processData.error) : null;
   const processResourceError = resourceData ? Option.getOrNull(resourceData.error) : null;
@@ -958,7 +923,7 @@ export function DiagnosticsSettingsPanel() {
 
   return (
     <SettingsPageContainer width="expanded" className="gap-10">
-      <ResourceTelemetryDiagnostics />
+      <ResourceTelemetryDiagnostics environmentId={environmentId} />
 
       <SettingsSection
         title="Live Processes"

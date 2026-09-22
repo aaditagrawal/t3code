@@ -23,6 +23,7 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 import * as Socket from "effect/unstable/socket/Socket";
 
@@ -527,7 +528,8 @@ export const hermesGatewayWebSocketRouteLayer = Layer.unwrap(
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest;
         const socket = yield* Effect.orDie(request.upgrade);
-        const write = yield* socket.writer;
+        const { write } = yield* socket.writer;
+        const readFrames = yield* Socket.readerString(socket);
         const registration = yield* Ref.make<Option.Option<HermesGatewayConnectionRegistration>>(
           Option.none(),
         );
@@ -548,8 +550,9 @@ export const hermesGatewayWebSocketRouteLayer = Layer.unwrap(
             write(new Socket.CloseEvent(code, reason)).pipe(Effect.ignore),
         };
 
-        yield* socket
-          .runString((frame) =>
+        yield* Stream.runForEach(
+          Stream.fromEffectRepeat(readFrames).pipe(Stream.flatMap(Stream.fromIterable)),
+          (frame) =>
             Effect.gen(function* () {
               const message = yield* decodePluginFrame(frame);
               const current = yield* Ref.get(registration);
@@ -639,22 +642,21 @@ export const hermesGatewayWebSocketRouteLayer = Layer.unwrap(
                 ),
               ),
             ),
-          )
-          .pipe(
-            Effect.catch((cause) =>
-              Effect.logDebug("Hermes gateway WebSocket disconnected", { cause }),
-            ),
-            Effect.ensuring(
-              Ref.get(registration).pipe(
-                Effect.flatMap(
-                  Option.match({
-                    onNone: () => Effect.void,
-                    onSome: broker.disconnect,
-                  }),
-                ),
+        ).pipe(
+          Effect.catch((cause) =>
+            Effect.logDebug("Hermes gateway WebSocket disconnected", { cause }),
+          ),
+          Effect.ensuring(
+            Ref.get(registration).pipe(
+              Effect.flatMap(
+                Option.match({
+                  onNone: () => Effect.void,
+                  onSome: broker.disconnect,
+                }),
               ),
             ),
-          );
+          ),
+        );
 
         return HttpServerResponse.empty();
       }),

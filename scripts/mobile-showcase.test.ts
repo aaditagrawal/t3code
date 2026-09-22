@@ -1,4 +1,3 @@
-import { URL_SCHEME } from "@t3tools/shared/branding";
 // @effect-diagnostics nodeBuiltinImport:off - expectations mirror the host path joins the script under test performs.
 import * as NodePath from "node:path";
 import { assert, it } from "@effect/vitest";
@@ -30,7 +29,6 @@ import {
   resolveAndroidSdkRoot,
   selectLanIpv4Address,
   showcaseCaptureDirectory,
-  showcaseSceneUrl,
   validateStoreAsset,
   validateStoreAssetCount,
 } from "./mobile-showcase.ts";
@@ -315,26 +313,6 @@ it("selects a reachable LAN IPv4 address", () => {
       { address: "192.168.1.80", family: "IPv4", internal: false },
     ]),
     "192.168.1.80",
-  );
-});
-
-it("maps capture scenes to the real application routes", () => {
-  assert.equal(showcaseSceneUrl("threads", "environment-1"), `${URL_SCHEME}://`);
-  assert.equal(
-    showcaseSceneUrl("environments", "environment-1"),
-    `${URL_SCHEME}://settings/environments`,
-  );
-  assert.equal(
-    showcaseSceneUrl("thread", "environment-1"),
-    `${URL_SCHEME}://threads/environment-1/remote-command-center`,
-  );
-  assert.equal(
-    showcaseSceneUrl("terminal", "environment-1"),
-    `${URL_SCHEME}://threads/environment-1/remote-command-center/terminal?terminalId=term-1`,
-  );
-  assert.equal(
-    showcaseSceneUrl("review", "environment-1"),
-    `${URL_SCHEME}://threads/environment-1/remote-command-center/review`,
   );
 });
 

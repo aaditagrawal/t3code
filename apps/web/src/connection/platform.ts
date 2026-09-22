@@ -52,6 +52,7 @@ import {
 } from "../environments/primary/target";
 import { clearComposerDraftsEnvironment } from "../composerDraftStore";
 import { isHostedStaticApp } from "../hostedPairing";
+import { isLocalEnvironmentDisabled } from "../localEnvironment";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { acknowledgeRpcRequest, trackRpcRequestSent } from "../rpc/requestLatencyState";
 import {
@@ -485,7 +486,7 @@ export function secondaryRegistrationsToRetainForPendingBootstraps(
 const platformConnectionSourceLayer = Layer.effect(
   PlatformConnectionSource,
   Effect.gen(function* () {
-    if (isHostedStaticApp()) {
+    if (isHostedStaticApp() || isLocalEnvironmentDisabled()) {
       return PlatformConnectionSource.of({
         registrations: Stream.empty,
       });

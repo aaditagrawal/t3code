@@ -2,6 +2,9 @@ import { URL_SCHEME, URL_SCHEME_DEV } from "@t3tools/shared/branding";
 import { assert, describe, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as FileSystem from "effect/FileSystem";
+import * as Layer from "effect/Layer";
 import { beforeEach, vi } from "vite-plus/test";
 
 const { handleMock, netFetchMock, unhandleMock } = vi.hoisted(() => ({
@@ -17,12 +20,54 @@ vi.mock("electron", () => ({
 
 import * as ElectronProtocol from "./ElectronProtocol.ts";
 
+const protocolLayer = ElectronProtocol.layer.pipe(Layer.provide(NodeServices.layer));
+
 describe("ElectronProtocol", () => {
   beforeEach(() => {
     handleMock.mockReset();
     netFetchMock.mockReset();
     unhandleMock.mockReset();
   });
+
+  it.effect("serves the bundled client from disk without a backend", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const directory = yield* fileSystem.makeTempDirectoryScoped();
+      yield* fileSystem.writeFileString(`${directory}/index.html`, "<html>app</html>");
+      yield* fileSystem.writeFileString(`${directory}/app.js`, "export default 1;");
+      let handler: ((request: Request) => Promise<Response>) | undefined;
+      handleMock.mockImplementation((_scheme, nextHandler) => {
+        handler = nextHandler;
+      });
+      const protocol = yield* ElectronProtocol.ElectronProtocol;
+      yield* protocol.registerDesktopProtocol({
+        scheme: "t3code",
+        assetDirectory: directory,
+        clerkFrontendApiHostname: undefined,
+      });
+      const request = (pathname: string, init?: RequestInit) =>
+        Effect.promise(() => handler!(new Request(`t3code://app${pathname}`, init)));
+
+      // SPA routes fall back to index.html, including ones containing dots.
+      const page = yield* request("/settings/connections");
+      assert.equal(yield* Effect.promise(() => page.text()), "<html>app</html>");
+      assert.include(page.headers.get("content-security-policy") ?? "", "default-src 'self'");
+      const dottedRoute = yield* request("/environment/thread.with.dots", {
+        headers: { accept: "text/html" },
+      });
+      assert.equal(yield* Effect.promise(() => dottedRoute.text()), "<html>app</html>");
+
+      const script = yield* request("/app.js?v=1");
+      assert.equal(yield* Effect.promise(() => script.text()), "export default 1;");
+      assert.include(script.headers.get("content-type") ?? "", "javascript");
+
+      assert.equal((yield* request("/missing.js")).status, 404);
+      assert.equal((yield* request("/%2e%2e%2fsecret.txt")).status, 404);
+      assert.equal((yield* request("/%invalid")).status, 400);
+      assert.equal((yield* request("/", { method: "POST" })).status, 405);
+      assert.equal(netFetchMock.mock.calls.length, 0);
+    }).pipe(Effect.provide(Layer.merge(protocolLayer, NodeServices.layer)), Effect.scoped),
+  );
 
   it.effect("proxies the stable renderer origin to the current app server", () =>
     Effect.gen(function* () {
@@ -38,7 +83,6 @@ describe("ElectronProtocol", () => {
           yield* protocol.registerDesktopProtocol({
             scheme: URL_SCHEME_DEV,
             targetOrigin: new URL("http://127.0.0.1:3773/"),
-            backendOrigin: new URL("http://127.0.0.1:3774/"),
             clerkFrontendApiHostname: "clerk.t3.codes",
           });
           assert.isDefined(handler);
@@ -86,7 +130,7 @@ describe("ElectronProtocol", () => {
       assert.isNull(forwardedHeaders.get("referer"));
       assert.isNull(forwardedHeaders.get("sec-fetch-site"));
       assert.deepEqual(unhandleMock.mock.calls, [[URL_SCHEME_DEV]]);
-    }).pipe(Effect.provide(ElectronProtocol.layer)),
+    }).pipe(Effect.provide(protocolLayer)),
   );
 
   it.effect("rejects custom protocol requests for another host", () =>
@@ -102,7 +146,6 @@ describe("ElectronProtocol", () => {
           yield* protocol.registerDesktopProtocol({
             scheme: URL_SCHEME,
             targetOrigin: new URL("http://127.0.0.1:3773/"),
-            backendOrigin: new URL("http://127.0.0.1:3773/"),
             clerkFrontendApiHostname: undefined,
           });
           return yield* Effect.promise(() => handler!(new Request(`${URL_SCHEME}://other/`)));
@@ -111,7 +154,7 @@ describe("ElectronProtocol", () => {
 
       assert.equal(response.status, 404);
       assert.equal(netFetchMock.mock.calls.length, 0);
-    }).pipe(Effect.provide(ElectronProtocol.layer)),
+    }).pipe(Effect.provide(protocolLayer)),
   );
 
   it.effect("retries transient renderer target failures", () =>
@@ -130,7 +173,6 @@ describe("ElectronProtocol", () => {
           yield* protocol.registerDesktopProtocol({
             scheme: URL_SCHEME_DEV,
             targetOrigin: new URL("http://127.0.0.1:5733/"),
-            backendOrigin: new URL("http://127.0.0.1:3773/"),
             clerkFrontendApiHostname: undefined,
           });
           return yield* Effect.promise(() => handler!(new Request(`${URL_SCHEME_DEV}://app/`)));
@@ -139,7 +181,7 @@ describe("ElectronProtocol", () => {
 
       assert.equal(yield* Effect.promise(() => response.text()), "ready");
       assert.equal(netFetchMock.mock.calls.length, 2);
-    }).pipe(Effect.provide(ElectronProtocol.layer)),
+    }).pipe(Effect.provide(protocolLayer)),
   );
 
   it.effect("uses the latest desktop protocol target for subsequent requests", () =>
@@ -156,7 +198,6 @@ describe("ElectronProtocol", () => {
           yield* protocol.registerDesktopProtocol({
             scheme: URL_SCHEME,
             targetOrigin: new URL("http://127.0.0.1:3773/"),
-            backendOrigin: new URL("http://127.0.0.1:3773/"),
             clerkFrontendApiHostname: undefined,
           });
 
@@ -168,7 +209,7 @@ describe("ElectronProtocol", () => {
 
       assert.equal(netFetchMock.mock.calls[0]?.[0], "http://127.0.0.1:3773/");
       assert.equal(netFetchMock.mock.calls[1]?.[0], "http://172.27.0.99:3773/settings");
-    }).pipe(Effect.provide(ElectronProtocol.layer)),
+    }).pipe(Effect.provide(protocolLayer)),
   );
 
   it.effect("preserves protocol registration failures", () =>
@@ -183,7 +224,6 @@ describe("ElectronProtocol", () => {
         protocol.registerDesktopProtocol({
           scheme: URL_SCHEME_DEV,
           targetOrigin: new URL("http://127.0.0.1:3773/"),
-          backendOrigin: new URL("http://127.0.0.1:3774/"),
           clerkFrontendApiHostname: undefined,
         }),
       ).pipe(Effect.flip);
@@ -195,7 +235,7 @@ describe("ElectronProtocol", () => {
         error.message,
         `Failed to register Electron protocol scheme "${URL_SCHEME_DEV}".`,
       );
-    }).pipe(Effect.provide(ElectronProtocol.layer)),
+    }).pipe(Effect.provide(protocolLayer)),
   );
 
   it.effect("preserves protocol unregistration failures", () =>
@@ -211,7 +251,6 @@ describe("ElectronProtocol", () => {
           protocol.registerDesktopProtocol({
             scheme: URL_SCHEME,
             targetOrigin: new URL("http://127.0.0.1:3773/"),
-            backendOrigin: new URL("http://127.0.0.1:3773/"),
             clerkFrontendApiHostname: undefined,
           }),
         ),
@@ -228,14 +267,13 @@ describe("ElectronProtocol", () => {
           `Failed to unregister Electron protocol scheme "${URL_SCHEME}".`,
         );
       }
-    }).pipe(Effect.provide(ElectronProtocol.layer)),
+    }).pipe(Effect.provide(protocolLayer)),
   );
 
   it("keeps executable sources host-restricted while allowing runtime network resources", () => {
     const policy = ElectronProtocol.makeDesktopContentSecurityPolicy({
       scheme: URL_SCHEME,
       targetOrigin: new URL("http://127.0.0.1:3773/"),
-      backendOrigin: new URL("http://127.0.0.1:3773/"),
       clerkFrontendApiHostname: "clerk.t3.codes",
     });
     const directives = Object.fromEntries(
@@ -269,5 +307,6 @@ describe("ElectronProtocol", () => {
       "https:",
     ]);
     assert.deepEqual(directives["font-src"], ["'self'", `${URL_SCHEME}:`, "data:"]);
+    assert.deepEqual(directives["frame-src"], ["'self'", "blob:", "http:", "https:"]);
   });
 });

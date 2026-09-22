@@ -266,7 +266,7 @@ function withUnifiedCompatSettings(
     | "confirmThreadDelete"
     | "defaultThreadEnvMode"
     | "diffIgnoreWhitespace"
-    | "enableLegacyTokenStreaming"
+    | "responseStreamingMode"
     | "providers"
     | "sidebarProjectSortOrder"
     | "sidebarThreadSortOrder"
@@ -281,11 +281,11 @@ function withUnifiedCompatSettings(
     codexHomePath: unifiedSettings.providers.codex.homePath,
     copilotCliPath: unifiedSettings.providers.copilot.binaryPath,
     copilotConfigDir: unifiedSettings.providers.copilot.configDir,
-    defaultThreadEnvMode: unifiedSettings.defaultThreadEnvMode,
+    defaultThreadEnvMode: unifiedSettings.defaultThreadEnvMode ?? "local",
     confirmThreadDelete: unifiedSettings.confirmThreadDelete,
     diffWordWrap: unifiedSettings.wordWrap,
     diffIgnoreWhitespace: unifiedSettings.diffIgnoreWhitespace,
-    enableAssistantStreaming: unifiedSettings.enableLegacyTokenStreaming,
+    enableAssistantStreaming: unifiedSettings.responseStreamingMode === "token",
     sidebarProjectSortOrder: unifiedSettings.sidebarProjectSortOrder,
     sidebarThreadSortOrder: unifiedSettings.sidebarThreadSortOrder,
     timestampFormat: unifiedSettings.timestampFormat,
@@ -365,7 +365,7 @@ function toUnifiedPatch(patch: Partial<AppSettings>): Partial<UnifiedSettings> {
       ? { defaultThreadEnvMode: patch.defaultThreadEnvMode }
       : {}),
     ...(patch.enableAssistantStreaming !== undefined
-      ? { enableLegacyTokenStreaming: patch.enableAssistantStreaming }
+      ? { responseStreamingMode: patch.enableAssistantStreaming ? "token" : "turn" }
       : {}),
     ...(Object.keys(providersPatch).length > 0
       ? { providers: providersPatch as Partial<UnifiedSettings["providers"]> }
@@ -406,10 +406,10 @@ export function useAppSettings() {
   const compatUnifiedSettings = useMemo(
     () => ({
       confirmThreadDelete: unifiedSettings.confirmThreadDelete,
-      defaultThreadEnvMode: unifiedSettings.defaultThreadEnvMode,
+      defaultThreadEnvMode: unifiedSettings.defaultThreadEnvMode ?? "local",
       wordWrap: unifiedSettings.wordWrap,
       diffIgnoreWhitespace: unifiedSettings.diffIgnoreWhitespace,
-      enableLegacyTokenStreaming: unifiedSettings.enableLegacyTokenStreaming,
+      responseStreamingMode: unifiedSettings.responseStreamingMode,
       providers: unifiedSettings.providers,
       sidebarProjectSortOrder: unifiedSettings.sidebarProjectSortOrder,
       sidebarThreadSortOrder: unifiedSettings.sidebarThreadSortOrder,

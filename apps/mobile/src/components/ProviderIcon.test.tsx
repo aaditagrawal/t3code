@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
+vi.mock("react-native", () => ({ View: "View" }));
+
 vi.mock("react-native-svg", () => ({
   Circle: "Circle",
   Path: "Path",
