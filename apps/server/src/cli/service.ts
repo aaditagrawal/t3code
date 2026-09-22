@@ -89,7 +89,7 @@ export function formatServiceStatus(
       `  Unit: ${status.unitPath}`,
       `  Logs: ${status.logPath}`,
       ...problems,
-      `  Next: Run \`t3 update ${installedVersion}\` to match it, or pass \`--allow-downgrade\` to \`t3 service install\` explicitly.`,
+      `  Next: Run \`${CLI_BIN_NAME} update ${installedVersion}\` to match it, or pass \`--allow-downgrade\` to \`${CLI_BIN_NAME} service install\` explicitly.`,
     ].join("\n");
   }
   return [
@@ -98,7 +98,7 @@ export function formatServiceStatus(
     `  Unit: ${status.unitPath}`,
     `  Logs: ${status.logPath}`,
     ...problems,
-    ...(status.current ? [] : ["  Next: Run `t3 service install` to repair it."]),
+    ...(status.current ? [] : [`  Next: Run \`${CLI_BIN_NAME} service install\` to repair it.`]),
   ].join("\n");
 }
 

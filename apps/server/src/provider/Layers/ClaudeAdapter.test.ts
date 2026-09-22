@@ -47,6 +47,7 @@ import {
   SYNTHETIC_CLAUDE_STANDARD_MODEL,
   SYNTHETIC_CLAUDE_THINKING_MODEL,
 } from "../ClaudeModelCatalog.testFixtures.ts";
+import { resolveClaudeConfigDir } from "../Drivers/ClaudeHome.ts";
 import { ProviderAdapterProcessError, ProviderAdapterValidationError } from "../Errors.ts";
 import type { ClaudeAdapterShape } from "../Services/ClaudeAdapter.ts";
 import type { ClaudeScopedLimitNames } from "./claudeUsageLimits.ts";
@@ -3036,7 +3037,9 @@ describe("ClaudeAdapterLive", () => {
         assert(completed?.type === "turn.completed");
         const actualQuery = harness.getLastCreateQueryInput();
         assert(actualQuery !== undefined);
-        const expectedConfigDir = homePath ? NodePath.resolve(homePath) : inherited;
+        const expectedConfigDir = homePath
+          ? yield* resolveClaudeConfigDir({ homePath })
+          : inherited;
         assert.equal(actualQuery.options.env?.CLAUDE_CONFIG_DIR, expectedConfigDir);
         assert.equal(actualQuery.options.cwd, cwd);
         assert(

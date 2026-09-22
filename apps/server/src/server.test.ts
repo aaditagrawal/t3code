@@ -8589,6 +8589,9 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
           layers: {
             orchestrationEngine: {
               streamDomainEvents: Stream.fromPubSub(liveEvents),
+              subscribeDomainEvents: PubSub.subscribe(liveEvents).pipe(
+                Effect.map(Stream.fromSubscription),
+              ),
               latestSequence: Effect.succeed(3),
               getThreadReplayStats: () =>
                 Effect.succeed({ eventCount: 2, payloadBytes: 200, hasCreateEvent: false }),

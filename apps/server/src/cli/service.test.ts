@@ -1,5 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, expect, it } from "@effect/vitest";
+import { CLI_BIN_NAME } from "@t3tools/shared/branding";
 import { HostProcessEnvironment } from "@t3tools/shared/hostProcess";
 import * as NetService from "@t3tools/shared/Net";
 import * as ConfigProvider from "effect/ConfigProvider";
@@ -45,7 +46,7 @@ it("reports the installed service version and host paths", () => {
 it("gives a direct repair command for a stale service", () => {
   assert.include(
     formatServiceStatus({ ...status, current: false }, "0.0.29"),
-    "Next: Run `t3 service install` to repair it.",
+    `Next: Run \`${CLI_BIN_NAME} service install\` to repair it.`,
   );
 });
 
@@ -64,7 +65,7 @@ it("explains an incomplete nightly installation and keeps repair on its installe
   expect(output).toContain("last login session ends");
   expect(output).toContain('sudo loginctl enable-linger "$(id -un)"');
   expect(output).toContain("[service-stopped]");
-  expect(output).toContain("Run `t3 service install` to repair it.");
+  expect(output).toContain(`Run \`${CLI_BIN_NAME} service install\` to repair it.`);
   expect(output).not.toContain("npx");
 });
 
@@ -73,7 +74,7 @@ it("points an older service at a repair, never at npx", () => {
     { ...status, current: false, installedVersion: "0.0.28" },
     "0.0.29",
   );
-  expect(output).toContain("Run `t3 service install` to repair it.");
+  expect(output).toContain(`Run \`${CLI_BIN_NAME} service install\` to repair it.`);
   expect(output).not.toContain("npx");
 });
 
@@ -91,7 +92,7 @@ it("reports a newer installed service and tells the CLI to catch up to it", () =
   );
 
   assert.include(output, "t3@0.0.32-nightly.1 (newer than this t3@0.0.31 CLI)");
-  assert.include(output, "Run `t3 update 0.0.32-nightly.1` to match it");
+  assert.include(output, `Run \`${CLI_BIN_NAME} update 0.0.32-nightly.1\` to match it`);
   assert.notInclude(output, "npx");
 });
 
