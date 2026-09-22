@@ -473,6 +473,35 @@
         "licenseId": "MIT",
         "copyrights": ["Copyright (c) 2025 opencode"]
       }
+    },
+    {
+      "name": "@bufbuild/protobuf",
+      "sourceUrl": "https://github.com/bufbuild/protobuf-es/tree/main/packages/protobuf",
+      "generatedNotices": [
+        {
+          "licenseId": "Apache-2.0",
+          "copyrights": ["Copyright 2021-2024 Buf Technologies, Inc."]
+        },
+        {
+          "licenseId": "BSD-3-Clause",
+          "copyrights": ["Copyright 2008 Google Inc. All rights reserved."]
+        }
+      ]
+    },
+    {
+      "repositoryUrl": "https://github.com/connectrpc/connect-es",
+      "generatedNotice": {
+        "licenseId": "Apache-2.0",
+        "copyrights": ["Copyright 2021-2024 Buf Technologies, Inc."]
+      }
+    },
+    {
+      "name": "@github/copilot-sdk",
+      "sourceUrl": "https://github.com/github/copilot-sdk",
+      "generatedNotice": {
+        "licenseId": "MIT",
+        "copyrights": ["Copyright (c) GitHub, Inc."]
+      }
     }
   ]
 }
