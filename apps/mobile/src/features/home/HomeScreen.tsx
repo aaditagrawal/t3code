@@ -11,10 +11,7 @@ import {
   threadSearchMatchKey,
   type EnvironmentThreadSearchMatch,
 } from "@t3tools/client-runtime/state/thread-search";
-import {
-  type EnvironmentId,
-  type SidebarProjectGroupingMode,
-} from "@t3tools/contracts";
+import { type EnvironmentId, type SidebarProjectGroupingMode } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";

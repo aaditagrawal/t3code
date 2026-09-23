@@ -1052,7 +1052,8 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
               contentInsetEndAdjustment={combinedContentInsetEndAdjustment}
               contentTopInset={0}
               contentBottomInset={
-                estimatedOverlayHeight + (showFloatingStatus ? FLOATING_WORKING_CONTROL_COVERAGE : 0)
+                estimatedOverlayHeight +
+                (showFloatingStatus ? FLOATING_WORKING_CONTROL_COVERAGE : 0)
               }
               contentMaxWidth={contentMaxWidth}
               historyControls={props.historyControls}
