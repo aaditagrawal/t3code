@@ -9,6 +9,7 @@ import { Alert, Linking, Pressable, ScrollView, TextInput, View } from "react-na
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText as Text } from "../../components/AppText";
+import { ProviderIcon } from "../../components/ProviderIcon";
 import { ScreenScrollView } from "../../components/ScreenScrollView";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
@@ -175,9 +176,12 @@ function ProviderAccount({
   return (
     <View className="border-b border-border-subtle">
       <View className="gap-2 p-4">
-        <Text className="text-lg font-semibold text-foreground">
-          {provider.displayName ?? provider.driver}
-        </Text>
+        <View className="flex-row items-center gap-3">
+          <ProviderIcon iconUrl={provider.iconUrl} provider={provider.driver} size={22} />
+          <Text className="min-w-0 flex-1 text-lg font-semibold text-foreground">
+            {provider.displayName ?? provider.driver}
+          </Text>
+        </View>
         <Text accessibilityLiveRegion="polite" className="text-sm text-foreground-muted">
           {active || state?.phase === "failed" || state?.phase === "cancelled"
             ? state.message
