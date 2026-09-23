@@ -128,7 +128,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="flex items-baseline justify-between gap-2" htmlFor={htmlFor}>
+      <Label className="flex items-baseline justify-between" htmlFor={htmlFor}>
         <span>{label}</span>
         {hint ? (
           <span className="font-normal text-[11px] text-muted-foreground/80">{hint}</span>
@@ -803,7 +803,6 @@ function ScheduledTaskEditorDialog({
                 lockedProvider={null}
                 instanceEntries={instanceEntries}
                 modelOptionsByInstance={modelOptionsByInstance}
-                triggerVariant="outline"
                 triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
                 onInstanceModelChange={(instanceId, model) =>
                   setDraft((current) => ({ ...current, modelKey: `${instanceId}:${model}` }))

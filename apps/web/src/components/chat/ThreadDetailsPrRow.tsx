@@ -236,7 +236,8 @@ export function ThreadDetailsPrRow({
         align="start"
         sideOffset={4}
         variant="glass"
-        className="max-w-80 text-left whitespace-normal [&_[data-slot=tooltip-viewport]]:p-0"
+        padding="none"
+        className="max-w-80 text-left whitespace-normal"
       >
         <div className="flex min-w-0 max-w-80 flex-col gap-2 p-[var(--floating-content-inset)]">
           <div className="flex min-w-0 items-baseline gap-1.5 text-xs leading-none">
@@ -372,10 +373,7 @@ export function ThreadDetailsPrRow({
                 checksState={checksRollup}
                 checks={detail.checks}
                 variant="count"
-                className={cn(
-                  THREAD_DETAILS_PANEL_SPLIT_BUTTON_SURFACE_CLASS,
-                  "text-[13px] sm:text-[13px]",
-                )}
+                className={THREAD_DETAILS_PANEL_SPLIT_BUTTON_SURFACE_CLASS}
               />
             </>
           ) : null}
@@ -387,13 +385,9 @@ export function ThreadDetailsPrRow({
                   render={
                     <Button
                       type="button"
-                      variant="ghost"
                       size="sm"
-                      className={cn(
-                        THREAD_DETAILS_PANEL_LINK_SPLIT_ACTION_CLASS,
-                        trailingAction.destructive &&
-                          "text-destructive hover:text-destructive data-pressed:text-destructive",
-                      )}
+                      variant={trailingAction.destructive ? "ghost-danger" : "ghost"}
+                      className={THREAD_DETAILS_PANEL_LINK_SPLIT_ACTION_CLASS}
                       disabled={actionPending || handoff !== null}
                       onClick={trailingAction.onClick}
                     />

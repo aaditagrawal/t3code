@@ -183,7 +183,7 @@ export function PullRequestChecksPopover({
         {variant === "count" ? (
           <>
             {checks !== undefined && runningCount > 0 ? (
-              <span className="tabular-nums">
+              <span className="text-[13px] tabular-nums sm:text-[13px]">
                 {runningCount}/{checks.length}
               </span>
             ) : null}
