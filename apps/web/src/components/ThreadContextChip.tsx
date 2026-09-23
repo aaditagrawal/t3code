@@ -2,13 +2,8 @@ import type { ThreadContextRecord } from "@t3tools/contracts";
 import { Link } from "@tanstack/react-router";
 import { MessagesSquareIcon } from "lucide-react";
 
-import { cn } from "~/lib/utils";
 import { useThreadShell } from "~/state/entities";
-import {
-  COMPOSER_INLINE_CHIP_ICON_CLASS_NAME,
-  CONTEXT_INLINE_CHIP_INTERACTIVE_CLASS_NAME,
-  CONTEXT_INLINE_CHIP_TONE_CLASS_NAMES,
-} from "./composerInlineChip";
+import { ContextChip, ContextChipLabel } from "./ContextChip";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
 /**
@@ -17,8 +12,6 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
  */
 export function ThreadContextChip(props: {
   record: Pick<ThreadContextRecord, "environmentId" | "threadId" | "title">;
-  className: string;
-  labelClassName: string;
   copyMarkdown?: string;
 }) {
   const { environmentId, threadId } = props.record;
@@ -28,21 +21,21 @@ export function ThreadContextChip(props: {
     <Tooltip>
       <TooltipTrigger
         render={
-          <Link
-            to="/$environmentId/$threadId"
-            params={{ environmentId, threadId }}
-            aria-label={`Thread, ${title}`}
-            data-markdown-copy={props.copyMarkdown}
-            className={cn(
-              props.className,
-              CONTEXT_INLINE_CHIP_TONE_CLASS_NAMES.thread,
-              CONTEXT_INLINE_CHIP_INTERACTIVE_CLASS_NAME,
-              "no-underline",
-            )}
+          <ContextChip
+            kind="thread"
+            render={
+              <Link
+                to="/$environmentId/$threadId"
+                params={{ environmentId, threadId }}
+                aria-label={`Thread, ${title}`}
+                data-markdown-copy={props.copyMarkdown}
+                className="no-underline"
+              />
+            }
           >
-            <MessagesSquareIcon className={COMPOSER_INLINE_CHIP_ICON_CLASS_NAME} />
-            <span className={props.labelClassName}>{title}</span>
-          </Link>
+            <MessagesSquareIcon />
+            <ContextChipLabel>{title}</ContextChipLabel>
+          </ContextChip>
         }
       />
       <TooltipPopup side="top">{shell ? "Open thread" : "Thread no longer available"}</TooltipPopup>
