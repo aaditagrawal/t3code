@@ -7471,7 +7471,9 @@ describe("AcpAdapterV2", () => {
         const interruptFiber = yield* runtime
           .interruptTurn({ providerThread, providerTurnId: firstProviderTurnId })
           .pipe(Effect.forkScoped);
-        yield* TestClock.adjust("10 seconds");
+        // Jump less than the 10s interrupt timeout so cancel can finish without
+        // the TestClock racing session/cancel acknowledgement.
+        yield* TestClock.adjust("1 second");
         yield* Fiber.join(interruptFiber);
 
         let firstTerminalStatus: string | null = null;
