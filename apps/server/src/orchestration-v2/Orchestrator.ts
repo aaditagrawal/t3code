@@ -2246,11 +2246,29 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       }
     }
     if (command.type === "thread.settle") {
-      const projection = yield* loadProjectionForCommand(command, ["runs", "runtimeRequests"], {
-        turnItemTypes: [],
-      });
-      const activeRunExists = projection.runs.some((run) =>
-        ["preparing", "queued", "starting", "running", "waiting"].includes(run.status),
+      const projection = yield* loadProjectionForCommand(
+        command,
+        ["runs", "runtimeRequests", "messages"],
+        { turnItemTypes: [], messageRoles: ["user"] },
+      );
+      // Queued notification and delegated-completion runs only wake the agent.
+      // They are not user messages and are hidden from the queue UI, so they
+      // must not block settling; they are cancelled below instead.
+      const automaticMessageIds = new Set(
+        projection.messages
+          .filter(
+            (message) =>
+              message.notification !== undefined || message.delegatedCompletion !== undefined,
+          )
+          .map((message) => message.id),
+      );
+      const automaticQueuedRuns = projection.runs.filter(
+        (run) => run.status === "queued" && automaticMessageIds.has(run.userMessageId),
+      );
+      const activeRunExists = projection.runs.some(
+        (run) =>
+          ["preparing", "queued", "starting", "running", "waiting"].includes(run.status) &&
+          !automaticQueuedRuns.includes(run),
       );
       const pendingRequests = projection.runtimeRequests.filter(
         (request) => request.status === "pending",
@@ -2280,6 +2298,17 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           },
           events,
           effects,
+        );
+      }
+      for (const run of automaticQueuedRuns) {
+        yield* dispatchQueuedRunCancel(
+          {
+            type: "queued-run.cancel",
+            commandId: command.commandId,
+            threadId: command.threadId,
+            runId: run.id,
+          },
+          events,
         );
       }
     }

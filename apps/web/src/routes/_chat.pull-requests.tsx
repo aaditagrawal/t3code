@@ -2280,7 +2280,7 @@ function CompactFilterMenu<Value extends string>({
           </>
         )}
       </MenuTrigger>
-      <MenuPopup align="start" side="bottom" className="min-w-40">
+      <MenuPopup align="start" side="bottom">
         <MenuRadioGroup value={value} onValueChange={(next) => onChange(next as Value)}>
           {options.map((option) => {
             const item = (
@@ -2301,9 +2301,7 @@ function CompactFilterMenu<Value extends string>({
             ) : (
               <Tooltip key={option.value}>
                 <TooltipTrigger render={item} />
-                <TooltipPopup side="right" className="max-w-64 break-words">
-                  {option.unavailable}
-                </TooltipPopup>
+                <TooltipPopup side="right">{option.unavailable}</TooltipPopup>
               </Tooltip>
             );
           })}

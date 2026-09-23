@@ -788,9 +788,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   </span>
                 }
               />
-              <TooltipPopup side="top" className="max-w-80 whitespace-normal leading-tight">
-                {thread.title}
-              </TooltipPopup>
+              <TooltipPopup side="top">{thread.title}</TooltipPopup>
             </Tooltip>
           )}
         </div>
@@ -1096,7 +1094,6 @@ const SidebarProjectThreadList = memo(function SidebarProjectThreadList(
             render={showMoreButtonRender}
             data-thread-selection-safe
             size="sm"
-            className="h-8 w-full translate-x-0 justify-start px-2 text-left text-xs text-sidebar-muted-foreground/75 hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
             onClick={() => {
               expandThreadListForProject(projectKey);
             }}
@@ -1114,7 +1111,6 @@ const SidebarProjectThreadList = memo(function SidebarProjectThreadList(
             render={showLessButtonRender}
             data-thread-selection-safe
             size="sm"
-            className="h-8 w-full translate-x-0 justify-start px-2 text-left text-xs text-sidebar-muted-foreground/75 hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
             onClick={() => {
               collapseThreadListForProject(projectKey);
             }}
@@ -2526,7 +2522,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
                 : "Update the project title."}
             </DialogDescription>
           </DialogHeader>
-          <DialogPanel className="space-y-4">
+          <DialogPanel>
             <div className="grid gap-1.5">
               <span className="text-xs font-medium text-foreground">Project title</span>
               <Input
@@ -2573,7 +2569,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
                 : "Choose how this project should be grouped in the sidebar."}
             </DialogDescription>
           </DialogHeader>
-          <DialogPanel className="space-y-4">
+          <DialogPanel>
             <div className="grid gap-1.5">
               <span className="text-xs font-medium text-foreground">Grouping rule</span>
               <Select
@@ -2685,20 +2681,15 @@ function LocalSecondaryStatus() {
   }
 
   return (
-    <SidebarGroup className="px-2 pt-2 pb-0">
+    <SidebarGroup>
       {connecting.length > 0 ? (
-        <Alert
-          variant="default"
-          className="rounded-2xl border-border/40 bg-accent/40 text-muted-foreground"
-        >
+        <Alert variant="sidebar">
           <Spinner />
-          <AlertTitle className="text-xs font-medium text-foreground">
-            Connecting {connecting.join(", ")}
-          </AlertTitle>
+          <AlertTitle>Connecting {connecting.join(", ")}</AlertTitle>
         </Alert>
       ) : null}
       {failed.length > 0 ? (
-        <Alert variant="warning" className="rounded-2xl border-warning/40 bg-warning/8">
+        <Alert variant="warning">
           <TriangleAlertIcon />
           <AlertTitle>Couldn't connect {failed.map((entry) => entry.label).join(", ")}</AlertTitle>
           <AlertDescription>
@@ -2759,7 +2750,7 @@ function ProjectSortMenu({
         </TooltipTrigger>
         <TooltipPopup side="right">Sidebar options</TooltipPopup>
       </Tooltip>
-      <MenuPopup align="end" side="bottom" className="min-w-52">
+      <MenuPopup align="end" side="bottom">
         <MenuGroup>
           <div className="px-2 py-1 sm:text-xs font-medium text-muted-foreground">
             Sort projects
@@ -2772,7 +2763,7 @@ function ProjectSortMenu({
           >
             {(Object.entries(SIDEBAR_SORT_LABELS) as Array<[SidebarProjectSortOrder, string]>).map(
               ([value, label]) => (
-                <MenuRadioItem key={value} value={value} className="min-h-7 py-1 sm:text-xs">
+                <MenuRadioItem key={value} value={value}>
                   {label}
                 </MenuRadioItem>
               ),
@@ -2792,7 +2783,7 @@ function ProjectSortMenu({
             {(
               Object.entries(SIDEBAR_THREAD_SORT_LABELS) as Array<[SidebarThreadSortOrder, string]>
             ).map(([value, label]) => (
-              <MenuRadioItem key={value} value={value} className="min-h-7 py-1 sm:text-xs">
+              <MenuRadioItem key={value} value={value}>
                 {label}
               </MenuRadioItem>
             ))}
@@ -2980,11 +2971,10 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
 
   return (
     <SidebarContent
-      className="gap-0"
       fixedHeader={
         // Lifted above the stage backdrop, whose fade bleeds below the
         // header and would otherwise paint across the search row's outline.
-        <SidebarGroup className="relative z-[1] px-2 pt-2 pb-1">
+        <SidebarGroup className="z-[1]">
           <SidebarMenu>
             <SidebarMenuItem>
               <CommandDialogTrigger
@@ -2997,11 +2987,7 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
               >
                 <SearchIcon />
                 <span className="flex-1 truncate">Search</span>
-                {commandPaletteShortcutLabel ? (
-                  <Kbd className="h-4 min-w-0 rounded-sm px-1.5 text-[10px]">
-                    {commandPaletteShortcutLabel}
-                  </Kbd>
-                ) : null}
+                {commandPaletteShortcutLabel ? <Kbd>{commandPaletteShortcutLabel}</Kbd> : null}
               </CommandDialogTrigger>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -3009,8 +2995,8 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
       }
     >
       {showArm64IntelBuildWarning && arm64IntelBuildWarningDescription ? (
-        <SidebarGroup className="px-2 pt-2 pb-0">
-          <Alert variant="warning" className="rounded-2xl border-warning/40 bg-warning/8">
+        <SidebarGroup>
+          <Alert variant="warning">
             <TriangleAlertIcon />
             <AlertTitle>Intel build on Apple Silicon</AlertTitle>
             <AlertDescription>{arm64IntelBuildWarningDescription}</AlertDescription>
@@ -3032,7 +3018,7 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
         </SidebarGroup>
       ) : null}
       <LocalSecondaryStatus />
-      <SidebarGroup className="px-2 py-2">
+      <SidebarGroup>
         <div className="mb-1 flex items-center justify-between pl-2 pr-1.5">
           <span className="text-xs font-medium text-sidebar-muted-foreground/80">Projects</span>
           <div className="flex items-center gap-1">
@@ -3052,7 +3038,6 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
                     variant="ghost-muted"
                     aria-label="Add project"
                     data-testid="sidebar-add-project-trigger"
-                    className="size-6 [--control-icon-color:currentColor] text-icon-muted"
                     onClick={openAddProject}
                   />
                 }

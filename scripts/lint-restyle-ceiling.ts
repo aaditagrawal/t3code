@@ -9,7 +9,7 @@ import * as NodeURL from "node:url";
 // count from growing: CI fails when findings exceed the ceiling. Lower the ceiling when you
 // migrate a file, and delete this script when the rule becomes an error.
 // V2 integration baseline includes the retained fork provider and usage interfaces.
-export const RESTYLE_CEILING = 1257;
+export const RESTYLE_CEILING = 659;
 
 const RULE = "shadcn(no-restyle)";
 

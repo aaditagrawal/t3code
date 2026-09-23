@@ -8,6 +8,8 @@ import { cn } from "~/lib/utils";
 type InputProps = Omit<InputPrimitive.Props & React.RefAttributes<HTMLInputElement>, "size"> & {
   inputClassName?: string;
   size?: "sm" | "compact" | "default" | "lg" | number;
+  /** Monospace with tabular digits, for paths, commands, colors and numbers. */
+  font?: "default" | "mono";
   unstyled?: boolean;
   nativeInput?: boolean;
 };
@@ -16,6 +18,7 @@ function Input({
   className,
   inputClassName: inputClassNameProp,
   size = "default",
+  font = "default",
   unstyled = false,
   nativeInput = false,
   ...props
@@ -66,6 +69,7 @@ function Input({
           !unstyled &&
             size === "compact" &&
             "rounded-md before:rounded-[calc(var(--radius-md)-1px)]",
+          font === "mono" && "font-mono tabular-nums",
           className,
         ) || undefined
       }

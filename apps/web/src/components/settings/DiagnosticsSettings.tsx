@@ -110,12 +110,7 @@ function StatBlock({
                 </button>
               }
             />
-            <TooltipPopup
-              side="top"
-              className="max-w-[min(300px,calc(100vw-2rem))] whitespace-normal text-left text-[11px] leading-relaxed text-wrap"
-            >
-              {tooltip}
-            </TooltipPopup>
+            <TooltipPopup side="top">{tooltip}</TooltipPopup>
           </Tooltip>
         ) : null}
       </div>
@@ -173,10 +168,11 @@ function DiagnosticsTable({
 }) {
   return (
     <ScrollArea
+      radius="none"
       chainVerticalScroll
       scrollFade
       hideScrollbars
-      className="w-full max-w-full rounded-none"
+      className="w-full max-w-full"
     >
       <table
         className={cn("w-full text-left text-xs", minTableWidth, columnWidths && "table-fixed")}
@@ -225,10 +221,7 @@ function TraceIdCell({ traceId }: { traceId: string }) {
             </span>
           }
         />
-        <TooltipPopup
-          side="top"
-          className="max-w-[min(520px,calc(100vw-2rem))] break-all font-mono text-[11px]"
-        >
+        <TooltipPopup side="top" variant="code">
           {traceId}
         </TooltipPopup>
       </Tooltip>
@@ -300,10 +293,7 @@ function ProcessNameCell({
         <TooltipTrigger
           render={<span className="min-w-0 truncate font-medium text-foreground">{name}</span>}
         />
-        <TooltipPopup
-          side="top"
-          className="max-w-[min(440px,calc(100vw-2rem))] whitespace-normal break-words text-left font-mono text-[11px] leading-relaxed text-wrap"
-        >
+        <TooltipPopup side="top" variant="code">
           {process.command}
         </TooltipPopup>
       </Tooltip>
@@ -356,10 +346,11 @@ function ProcessDiagnosticsTable({
 
   return (
     <ScrollArea
+      radius="none"
       chainVerticalScroll
       scrollFade
       hideScrollbars
-      className="max-h-[min(64vh,44rem)] w-full max-w-full rounded-none border-t border-border/60"
+      className="max-h-[min(64vh,44rem)] w-full max-w-full border-t border-border/60"
     >
       <table className="w-full min-w-[1040px] table-fixed text-left text-xs">
         <colgroup>
@@ -410,10 +401,7 @@ function ProcessDiagnosticsTable({
                   <TooltipTrigger
                     render={<span className="block truncate">{process.command}</span>}
                   />
-                  <TooltipPopup
-                    side="top"
-                    className="max-w-[min(440px,calc(100vw-2rem))] whitespace-normal break-words text-left font-mono text-[11px] leading-relaxed text-wrap"
-                  >
+                  <TooltipPopup side="top" variant="code">
                     {process.command}
                   </TooltipPopup>
                 </Tooltip>
@@ -483,10 +471,7 @@ function ResourceHistoryProcessNameCell({
         <TooltipTrigger
           render={<span className="min-w-0 truncate font-medium text-foreground">{name}</span>}
         />
-        <TooltipPopup
-          side="top"
-          className="max-w-[min(440px,calc(100vw-2rem))] whitespace-normal break-words text-left font-mono text-[11px] leading-relaxed text-wrap"
-        >
+        <TooltipPopup side="top" variant="code">
           {process.command}
         </TooltipPopup>
       </Tooltip>
@@ -653,10 +638,7 @@ function ProcessResourceHistoryTable({
                   <TooltipTrigger
                     render={<span className="block truncate">{process.command}</span>}
                   />
-                  <TooltipPopup
-                    side="top"
-                    className="max-w-[min(440px,calc(100vw-2rem))] whitespace-normal break-words text-left font-mono text-[11px] leading-relaxed text-wrap"
-                  >
+                  <TooltipPopup side="top" variant="code">
                     {process.command}
                   </TooltipPopup>
                 </Tooltip>
@@ -1224,10 +1206,11 @@ export function DiagnosticsSettingsPanel() {
       <SettingsSection title="Span Logs">
         {data && data.latestWarningAndErrorLogs.length > 0 ? (
           <ScrollArea
+            radius="none"
             chainVerticalScroll
             scrollFade
             hideScrollbars
-            className="w-full max-w-full rounded-none"
+            className="w-full max-w-full"
           >
             <table className="w-full min-w-[920px] table-fixed text-left text-xs">
               <colgroup>

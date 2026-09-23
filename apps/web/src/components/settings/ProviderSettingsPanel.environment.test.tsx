@@ -64,6 +64,7 @@ vi.mock("./settingsLayout", async (importOriginal) => {
   };
 });
 
+vi.mock("./SettingsScopeSentence", () => ({ SettingsScopeSentence: () => null }));
 vi.mock("react/compiler-runtime", async () => {
   const { reactHookHarness } = await import("../../test/reactHookHarness");
   return { c: reactHookHarness.useMemoCache };
@@ -214,6 +215,64 @@ describe("EnvironmentProviderSettings routing", () => {
     commands.acceptUrlAuth
       .mockReset()
       .mockResolvedValue({ _tag: "Success", value: { accepted: true } });
+  });
+
+  it("shows Codex and Claude while hiding untouched disabled provider slots", () => {
+    const panel = renderPanel();
+    for (const driver of ["codex", "claudeAgent"] as const) {
+      expect(
+        visitElements(
+          panel,
+          (element) => element.props.instanceId === driver && element.props.mode === "list",
+        ),
+      ).not.toBeNull();
+    }
+    for (const driver of ["cursor", "grok", "pi", "opencode", "antigravity"] as const) {
+      expect(
+        visitElements(
+          panel,
+          (element) => element.props.instanceId === driver && element.props.mode === "list",
+        ),
+      ).toBeNull();
+    }
+  });
+
+  it("keeps explicitly configured providers visible when disabled", () => {
+    const grokId = ProviderInstanceId.make("grok");
+    settingsState.value = {
+      ...DEFAULT_UNIFIED_SETTINGS,
+      providerInstances: {
+        [grokId]: { driver: ProviderDriverKind.make("grok"), enabled: false },
+      },
+    };
+    const panel = renderPanel();
+    expect(
+      visitElements(
+        panel,
+        (element) => element.props.instanceId === grokId && element.props.mode === "list",
+      ),
+    ).not.toBeNull();
+  });
+
+  it("keeps legacy provider configuration visible when disabled", () => {
+    settingsState.value = {
+      ...DEFAULT_UNIFIED_SETTINGS,
+      providers: {
+        ...DEFAULT_UNIFIED_SETTINGS.providers,
+        grok: {
+          ...DEFAULT_UNIFIED_SETTINGS.providers.grok,
+          enabled: false,
+          binaryPath: "/custom/grok",
+        },
+      },
+    };
+    const panel = renderPanel();
+    expect(
+      visitElements(
+        panel,
+        (element) => element.props.instanceId === "grok" && element.props.mode === "list",
+      ),
+    ).not.toBeNull();
   });
 
   it("coalesces a nullable provider snapshot before rendering array-backed UI", () => {
@@ -488,6 +547,38 @@ describe("EnvironmentProviderSettings routing", () => {
       environmentId,
       input: { agentId: "kilo" },
     });
+  });
+
+  it("keeps the signed-in ACP account visible when login methods are no longer advertised", () => {
+    const instanceId = ProviderInstanceId.make("acpRegistry_devin");
+    settingsState.value = {
+      ...DEFAULT_UNIFIED_SETTINGS,
+      providerInstances: {
+        [instanceId]: {
+          driver: ProviderDriverKind.make("acpRegistry"),
+          enabled: true,
+          config: { agentId: "devin" },
+        },
+      },
+    };
+    atoms.providers = [
+      {
+        ...provider(),
+        instanceId,
+        driver: ProviderDriverKind.make("acpRegistry"),
+        auth: { status: "authenticated", canLogout: false },
+        setup: { canAuthenticate: false, canInstall: false },
+      },
+    ];
+    const panel = renderPanel({ targetInstanceId: instanceId });
+    expect(
+      visitElements(
+        panel,
+        (element) =>
+          typeof element.type === "function" &&
+          element.type.name === "ProviderAuthenticationSection",
+      ),
+    ).not.toBeNull();
   });
 
   it("routes explicit ACP browser authentication consent to the selected environment", async () => {
