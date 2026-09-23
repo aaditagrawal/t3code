@@ -23,6 +23,7 @@ import { WorkspacePageContainer, type WorkspacePageWidth } from "../WorkspacePag
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useOptionalSettingsScope } from "./SettingsScopeContext";
+import { SettingsScopeSentence } from "./SettingsScopeSentence";
 import {
   isProjectScopedSettingKey,
   listProjectOverrides,
@@ -156,9 +157,7 @@ export function PolicyTooltip({ children }: { readonly children: string }) {
           </Button>
         }
       />
-      <TooltipPopup side="top" className="max-w-72">
-        {children}
-      </TooltipPopup>
+      <TooltipPopup side="top">{children}</TooltipPopup>
     </Tooltip>
   );
 }
@@ -372,9 +371,7 @@ export function SettingsRow({
           {control}
         </div>
       </TooltipTrigger>
-      <TooltipPopup side="top" className="max-w-72">
-        {message}
-      </TooltipPopup>
+      <TooltipPopup side="top">{message}</TooltipPopup>
     </Tooltip>
   );
   // A mixed selection keeps the real control with "Mixed" as its placeholder
@@ -407,11 +404,13 @@ export function SettingsRow({
     ? { state: "mixed", summary: "Mixed across selected environments" }
     : source === "project"
       ? { state: "overridden", summary: "Overridden for this project" }
-      : source === "environment" && scopedKeys.length > 0
-        ? { state: "inherited", summary: `Inherited from ${inheritedFrom}` }
-        : customized
-          ? { state: "environment", summary: "Set on the environment" }
-          : { state: "default", summary: "Built-in default" };
+      : source === "t3.json"
+        ? { state: "inherited", summary: "Inherited from the repository's t3.json" }
+        : source === "environment" && scopedKeys.length > 0
+          ? { state: "inherited", summary: `Inherited from ${inheritedFrom}` }
+          : customized
+            ? { state: "environment", summary: "Set on the environment" }
+            : { state: "default", summary: "Built-in default" };
   const renderedInheritance =
     context && serverScoped && settingKeys.length > 0 ? (
       <SettingInheritance
@@ -547,6 +546,7 @@ export function SettingsPageContainer({
         data-settings-page-scroll
       >
         <WorkspacePageContainer width={width} className={cn("gap-8", className)}>
+          <SettingsScopeSentence />
           {children}
         </WorkspacePageContainer>
       </div>

@@ -36,7 +36,7 @@ import { uuidv4 } from "../lib/uuid";
 
 import { makeQueuedMessageMetadata } from "../lib/commandMetadata";
 import { isModelSelectionUnavailable } from "../lib/modelOptions";
-import { resolveProviderInteractionMode } from "../features/threads/legacy-plan-mode";
+import { resolveProviderInteractionMode } from "./legacy-plan-mode";
 import {
   convertPastedImagesToAttachments,
   createPastedTextComposerAttachment,
@@ -50,7 +50,7 @@ import { scopedThreadKey } from "../lib/scopedEntities";
 import { buildThreadFeed } from "../lib/threadActivity";
 import { acknowledgedThreadMessagesAtom } from "./acknowledged-thread-messages";
 import { appendPendingThreadMessages } from "../features/threads/pending-thread-feed";
-import { threadAllowsProviderSwitch } from "../features/threads/thread-provider-switching";
+import { threadAllowsProviderSwitch } from "./thread-provider-switching";
 import { appAtomRegistry } from "../state/atom-registry";
 import { pendingThreadCreationMessage } from "./pending-thread-creation";
 import {

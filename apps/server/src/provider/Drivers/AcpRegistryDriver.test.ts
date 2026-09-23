@@ -55,6 +55,7 @@ describe("acpRegistrySnapshotReadiness", () => {
         agentId: "test-agent",
         version: "1.0.0",
         distribution: "npx",
+        documentationUrl: "https://example.test/agent/setup",
       },
       probe: {
         probe: {
@@ -84,6 +85,47 @@ describe("acpRegistrySnapshotReadiness", () => {
     expect(provider.iconUrl).toBe(
       "https://cdn.agentclientprotocol.com/registry/v1/latest/test-agent.svg",
     );
+    expect(provider.setup).toMatchObject({
+      canAuthenticate: false,
+      documentationUrl: "https://example.test/agent/setup",
+    });
+  });
+
+  it("keeps authentication unknown when an agent permits a discovery session before sign-in", () => {
+    const snapshot = buildCheckedAcpRegistrySnapshot({
+      ...identity,
+      settings: decodeSettings({ agentId: "test-agent" }),
+      checkedAt: "2026-08-13T10:00:00.000Z",
+      inspection: {
+        status: "ready",
+        agentId: "test-agent",
+        version: "1.0.0",
+        distribution: "binary",
+      },
+      probe: {
+        probe: {
+          instanceId: identity.instanceId,
+          ready: true,
+          icon: null,
+          authMethods: [{ id: "browser", name: "Browser", description: null, type: "agent" }],
+          models: [],
+          currentModelId: null,
+          configOptions: [],
+          sessionManagement: noSessionManagement,
+        },
+        slashCommands: [],
+        skills: [],
+      },
+    });
+    expect(snapshot.auth.status).toBe("unknown");
+    expect(snapshot.setup?.canAuthenticate).toBe(true);
+    expect(
+      applyAcpRegistryLiveConfiguration(
+        snapshot,
+        { models: [], currentModelId: null, configOptions: [] },
+        [],
+      ).auth.status,
+    ).toBe("unknown");
   });
 
   it("overlays live configuration without dropping probe-owned session capabilities", () => {
@@ -131,7 +173,7 @@ describe("acpRegistrySnapshotReadiness", () => {
         [],
       ),
     ).toMatchObject({
-      auth: { status: "authenticated", canLogout: true },
+      auth: { status: "unknown", canLogout: true },
       nativeSessions: { canList: true, canLoad: true, canResume: true },
       models: [{ slug: "live-model", isDefault: true }],
     });
@@ -176,7 +218,7 @@ describe("acpRegistrySnapshotReadiness", () => {
     });
   });
 
-  it("projects authenticated probes, discovered models, custom models, and commands", () => {
+  it("projects discovery without claiming authentication when no login methods are advertised", () => {
     const snapshot = buildCheckedAcpRegistrySnapshot({
       ...identity,
       settings: decodeSettings({
@@ -206,7 +248,7 @@ describe("acpRegistrySnapshotReadiness", () => {
       },
     });
 
-    expect(snapshot.auth).toEqual({ status: "authenticated", canLogout: false });
+    expect(snapshot.auth).toEqual({ status: "unknown", canLogout: false });
     expect(snapshot.supportsTextGeneration).toBe(false);
     expect(
       snapshot.models.map(({ slug, name, isCustom, isDefault }) => ({
@@ -308,8 +350,7 @@ describe("acpRegistrySnapshotReadiness", () => {
         type: "agent",
         label: "Log in with Grok",
       },
-      message:
-        'Complete the advertised "Log in with Grok" authentication method on the server. T3 Code will detect it automatically on the next provider refresh.',
+      message: 'Sign in in provider settings using "Log in with Grok".',
     });
   });
 
@@ -357,7 +398,7 @@ describe("acpRegistrySnapshotReadiness", () => {
 
       expect(receivedEnvironment).toBe(environment);
       expect(snapshot).toMatchObject({
-        auth: { status: "authenticated" },
+        auth: { status: "unknown" },
         models: [{ slug: "agent-model" }],
         slashCommands: [{ name: "review" }],
         skills: [],

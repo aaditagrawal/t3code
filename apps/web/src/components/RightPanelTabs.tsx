@@ -527,7 +527,7 @@ function RightPanelEmptyState(props: {
                       render={
                         <Button
                           aria-label="Open browser in a profile"
-                          className="absolute top-1/2 right-8 -translate-y-1/2 [--control-icon-color:currentColor]"
+                          className="absolute top-1/2 right-8 -translate-y-1/2"
                           size="icon-xs"
                           variant="ghost-muted"
                         />
@@ -535,12 +535,7 @@ function RightPanelEmptyState(props: {
                     >
                       <ChevronDown className="size-3.5" />
                     </MenuTrigger>
-                    <MenuPopup
-                      align="end"
-                      side="bottom"
-                      sideOffset={6}
-                      className="min-w-40 max-w-56"
-                    >
+                    <MenuPopup align="end" side="bottom" sideOffset={6} className="max-w-56">
                       {props.browserProfiles.map((profile) => (
                         <MenuItem
                           key={profile.id}
@@ -1084,10 +1079,11 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
         data-right-panel-tabbar
       >
         <ScrollArea
+          radius="none"
           ref={tabListRef}
           hideScrollbars
           scrollFade
-          className="min-w-0 flex-1 rounded-none"
+          className="min-w-0 flex-1"
           data-right-panel-tab-list
         >
           <div className="flex h-full w-max min-w-full items-center gap-1">
@@ -1217,9 +1213,9 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                   render={
                     <Button
                       aria-label="Add panel surface"
-                      className="size-6 shrink-0 text-muted-foreground hover:text-foreground"
+                      className="shrink-0"
                       size="icon-xs"
-                      variant="ghost"
+                      variant="ghost-muted"
                     />
                   }
                 >
@@ -1229,7 +1225,6 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                   align="start"
                   side="bottom"
                   sideOffset={6}
-                  className="min-w-44"
                   onKeyDownCapture={handleAddSurfaceMenuKeyDown}
                 >
                   {addSurfaceActions.map((action) => {
@@ -1270,7 +1265,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                             and run to 48 characters, which would otherwise widen
                             the popup to fit-content and wrap.
                           */}
-                          <MenuSubPopup className="min-w-40 max-w-56">
+                          <MenuSubPopup className="max-w-56">
                             {browserProfiles.map((profile) => (
                               <MenuItem
                                 key={profile.id}

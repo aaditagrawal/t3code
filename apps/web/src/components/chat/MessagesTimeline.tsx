@@ -2076,7 +2076,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
           {senderThreadId ? (
             <InlineButton
               onClick={() => ctx.onOpenThread(senderThreadId)}
-              underline
+              tone="muted"
               aria-label="Open sending thread"
             >
               Sent by another agent
@@ -4817,7 +4817,7 @@ function workToneIcon(tone: TimelineWorkEntry["tone"]): {
   if (tone === "thinking") {
     return {
       iconName: "brain",
-      className: "text-foreground",
+      className: "text-icon-muted",
     };
   }
   if (tone === "info") {

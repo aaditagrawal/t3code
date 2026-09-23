@@ -2118,6 +2118,131 @@ it.layer(TestLayer)("OrchestrationV2LayerLive lifecycle", (it) => {
     }),
   );
 
+  it.effect("settles past held automatic runs but not held user messages", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* OrchestratorV2;
+      const eventSink = yield* EventSinkV2;
+      const threadId = ThreadId.make("runtime-layer-settle-automatic-queued");
+
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        createdBy: "user",
+        creationSource: "web",
+        commandId: CommandId.make("settle-automatic-create"),
+        threadId,
+        projectId: ProjectId.make("settle-automatic-project"),
+        title: "Settle automatic queued",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: "/tmp/runtime-layer-settle-automatic",
+      });
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        createdBy: "user",
+        creationSource: "web",
+        commandId: CommandId.make("settle-automatic-active"),
+        threadId,
+        messageId: MessageId.make("settle-automatic-active"),
+        text: "Active",
+        attachments: [],
+        modelSelection,
+        dispatchMode: { type: "start_immediately" },
+      });
+      const queueMessage = (id: string, automatic: boolean) =>
+        orchestrator.dispatch({
+          type: "message.dispatch",
+          createdBy: automatic ? "agent" : "user",
+          creationSource: automatic ? "provider" : "web",
+          ...(automatic
+            ? {
+                notification: {
+                  source: { kind: "background_task" as const },
+                  outcome: "updated" as const,
+                  summary: "Background activity updated",
+                },
+              }
+            : {}),
+          commandId: CommandId.make(id),
+          threadId,
+          messageId: MessageId.make(id),
+          text: id,
+          attachments: [],
+          modelSelection,
+          dispatchMode: { type: "queue_after_active" },
+        });
+      yield* queueMessage("settle-automatic-notification", true);
+
+      // Simulate a restart: the active run ends and recovery holds the queue.
+      const holdQueueAfterRestart = (commandId: string) =>
+        Effect.gen(function* () {
+          const projection = yield* orchestrator.getThreadProjection(threadId);
+          const now = yield* DateTime.now;
+          yield* eventSink.commitCommand({
+            commandId: CommandId.make(commandId),
+            threadId,
+            commandType: "provider-runtime.reconcile",
+            acceptedAt: now,
+            events: projection.runs
+              .filter((run) => run.status === "starting" || run.status === "queued")
+              .map((run) => ({
+                id: EventId.make(`${commandId}:${run.id}`),
+                type: "run.updated" as const,
+                threadId,
+                runId: run.id,
+                occurredAt: now,
+                payload:
+                  run.status === "queued"
+                    ? { ...run, queueHeld: true }
+                    : { ...run, status: "cancelled" as const, completedAt: now },
+              })),
+            effects: [],
+          });
+        });
+      yield* holdQueueAfterRestart("settle-automatic-restart");
+
+      yield* orchestrator.dispatch({
+        type: "thread.settle",
+        commandId: CommandId.make("settle-automatic-settle"),
+        threadId,
+      });
+      const settled = yield* orchestrator.getThreadProjection(threadId);
+      assert.isNotNull(settled.thread.settledAt);
+      assert.isTrue(settled.runs.every((run) => run.status === "cancelled"));
+
+      // A held message the user typed still blocks settling.
+      yield* orchestrator.dispatch({
+        type: "thread.unsettle",
+        commandId: CommandId.make("settle-automatic-unsettle"),
+        threadId,
+        reason: "user",
+      });
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        createdBy: "user",
+        creationSource: "web",
+        commandId: CommandId.make("settle-automatic-active-2"),
+        threadId,
+        messageId: MessageId.make("settle-automatic-active-2"),
+        text: "Active again",
+        attachments: [],
+        modelSelection,
+        dispatchMode: { type: "start_immediately" },
+      });
+      yield* queueMessage("settle-automatic-user-queued", false);
+      yield* holdQueueAfterRestart("settle-automatic-restart-2");
+      const error = yield* orchestrator
+        .dispatch({
+          type: "thread.settle",
+          commandId: CommandId.make("settle-automatic-settle-2"),
+          threadId,
+        })
+        .pipe(Effect.flip);
+      assert.equal(error._tag, "OrchestratorDispatchError");
+    }),
+  );
+
   it.effect("cancels queued work when a thread is archived", () =>
     Effect.gen(function* () {
       const orchestrator = yield* OrchestratorV2;

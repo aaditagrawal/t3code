@@ -49,7 +49,9 @@ const buttonVariants = cva(
         ghost:
           "[--control-icon-color:var(--contrast-muted-foreground)] border-transparent text-foreground data-pressed:bg-accent [:hover,[data-pressed]]:bg-accent",
         "ghost-muted":
-          "[--control-icon-color:var(--contrast-muted-foreground)] border-transparent text-muted-foreground data-pressed:bg-accent [:hover,[data-pressed]]:bg-accent [:hover,[data-pressed]]:text-foreground",
+          "[--control-icon-color:currentColor] border-transparent text-muted-foreground data-pressed:bg-accent [:hover,[data-pressed]]:bg-accent [:hover,[data-pressed]]:text-foreground",
+        "ghost-destructive":
+          "[--control-icon-color:currentColor] border-transparent text-muted-foreground data-pressed:bg-accent [:hover,[data-pressed]]:bg-accent [:hover,[data-pressed]]:text-destructive",
         glass:
           "surface-glass [--control-icon-color:var(--contrast-muted-foreground)] border-border/60 text-foreground shadow-sm [:hover,[data-pressed]]:border-border",
         link: "border-transparent underline-offset-4 [:hover,[data-pressed]]:underline",
@@ -95,24 +97,38 @@ function Button({ className, variant, size, render, ...props }: ButtonProps) {
 
 export { Button, buttonVariants };
 
-/** An inline action that keeps the geometry of surrounding text or a graph node. */
+const inlineButtonVariants = cva(
+  "inline-flex shrink-0 cursor-pointer items-center gap-0.5 whitespace-nowrap font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-64",
+  {
+    defaultVariants: { tone: "default" },
+    variants: {
+      tone: {
+        default: "text-foreground",
+        muted: "text-muted-foreground hover:text-foreground",
+        destructive: "text-destructive/80 hover:text-destructive",
+        /** Opens a menu from inside a sentence; the dotted underline marks it as a choice. */
+        picker:
+          "gap-1.5 text-foreground underline decoration-foreground/30 decoration-dotted decoration-from-font underline-offset-4 hover:decoration-foreground hover:decoration-solid data-popup-open:decoration-foreground data-popup-open:decoration-solid",
+      },
+    },
+  },
+);
+
+/** An inline text action that keeps the size of the surrounding text and underlines on hover. */
 export function InlineButton({
   className,
-  underline = false,
-  variant = "default",
+  tone,
+  render,
   ...props
-}: React.ComponentProps<"button"> & { underline?: boolean; variant?: "default" | "link" }) {
-  return (
-    <button
-      type="button"
-      data-slot="inline-button"
-      className={cn(
-        "inline-flex shrink-0 cursor-pointer items-center gap-0.5 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-64",
-        underline && "border-b border-transparent hover:border-current",
-        variant === "link" && "rounded-sm text-primary hover:underline",
-        className,
-      )}
-      {...props}
-    />
-  );
+}: useRender.ComponentProps<"button"> & VariantProps<typeof inlineButtonVariants>) {
+  const defaultProps = {
+    className: cn(inlineButtonVariants({ tone }), className),
+    "data-slot": "inline-button",
+    type: render ? undefined : ("button" as const),
+  };
+  return useRender({
+    defaultTagName: "button",
+    props: mergeProps<"button">(defaultProps, props),
+    render,
+  });
 }

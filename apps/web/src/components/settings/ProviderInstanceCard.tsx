@@ -46,7 +46,7 @@ import { Switch } from "../ui/switch";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { DriverOption, ProviderEnvironmentFieldDefinition } from "./providerDriverMeta";
-import { ProviderSettingsForm } from "./ProviderSettingsForm";
+import { deriveProviderSettingsFields, ProviderSettingsForm } from "./ProviderSettingsForm";
 import { ProviderModelsSection } from "./ProviderModelsSection";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import { ProviderAccentColorPicker } from "./ProviderAccentColorPicker";
@@ -244,36 +244,37 @@ function ProviderEnvironmentFieldRow(props: {
     : props.field.placeholder;
 
   return (
-    <label htmlFor={inputId} className="block">
-      <span className="text-xs font-medium text-foreground">{props.field.label}</span>
-      <div className="mt-1.5 flex min-w-0 items-center gap-2">
-        <DraftInput
-          id={inputId}
-          className="min-w-0 flex-1"
-          type={props.field.sensitive === false ? undefined : "password"}
-          autoComplete="off"
-          value={value}
-          onCommit={(next) => props.onCommit(props.field, next)}
-          placeholder={placeholder}
-          spellCheck={false}
-        />
-        {props.variable ? (
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
-            onClick={() => props.onRemove(props.field)}
-            aria-label={`Clear ${props.field.label}`}
-          >
-            <XIcon className="size-3.5" />
-          </Button>
-        ) : null}
-      </div>
-      {props.field.description ? (
-        <span className="mt-1 block text-xs text-muted-foreground">{props.field.description}</span>
-      ) : null}
-    </label>
+    <SettingsRow
+      title={<label htmlFor={inputId}>{props.field.label}</label>}
+      description={props.field.description}
+      control={
+        <div className="flex w-full min-w-0 items-center gap-2 @min-[32rem]/settings-row:w-56">
+          <DraftInput
+            id={inputId}
+            size="sm"
+            className="min-w-0 flex-1"
+            type={props.field.sensitive === false ? undefined : "password"}
+            autoComplete="off"
+            value={value}
+            onCommit={(next) => props.onCommit(props.field, next)}
+            placeholder={placeholder}
+            spellCheck={false}
+          />
+          {props.variable ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost-muted"
+              className="hover:text-destructive"
+              onClick={() => props.onRemove(props.field)}
+              aria-label={`Clear ${props.field.label}`}
+            >
+              <XIcon className="size-3.5" />
+            </Button>
+          ) : null}
+        </div>
+      }
+    />
   );
 }
 
@@ -375,7 +376,8 @@ function ProviderEnvironmentSection(props: {
             <div key={variable.id} className="flex min-w-0 flex-wrap items-center gap-1.5">
               <DraftInput
                 size="sm"
-                className="w-full min-w-0 font-mono sm:w-44 sm:shrink-0"
+                font="mono"
+                className="w-full min-w-0 sm:w-44 sm:shrink-0"
                 value={variable.name}
                 onCommit={(name) => updateVariable(variable.id, { name: name.trim() })}
                 placeholder="VARIABLE_NAME"
@@ -387,7 +389,8 @@ function ProviderEnvironmentSection(props: {
               </span>
               <DraftInput
                 size="sm"
-                className="min-w-0 flex-1 font-mono"
+                font="mono"
+                className="min-w-0 flex-1"
                 value={variable.valueRedacted ? "" : variable.value}
                 onCommit={(value) => updateVariable(variable.id, { value })}
                 type={variable.sensitive ? "password" : undefined}
@@ -405,10 +408,6 @@ function ProviderEnvironmentSection(props: {
                       type="button"
                       size="icon-micro"
                       variant="ghost-muted"
-                      className={cn(
-                        "[--control-icon-color:currentColor]",
-                        variable.sensitive && "text-foreground",
-                      )}
                       onClick={() => {
                         const sensitive = !variable.sensitive;
                         updateVariable(variable.id, {
@@ -436,8 +435,7 @@ function ProviderEnvironmentSection(props: {
               <Button
                 type="button"
                 size="icon-micro"
-                variant="ghost-muted"
-                className="[--control-icon-color:currentColor] hover:text-destructive"
+                variant="ghost-destructive"
                 onClick={() => removeVariable(variable.id)}
                 aria-label={`Remove environment variable ${variable.name || index + 1}`}
               >
@@ -755,11 +753,6 @@ export function ProviderInstanceCard({
           <span className="min-w-0 flex-1">
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate text-sm font-medium text-foreground">{displayName}</span>
-              {String(instanceId) !== String(instance.driver) ? (
-                <code className="min-w-0 truncate rounded bg-muted/60 px-1 py-0.5 text-[10px] text-muted-foreground">
-                  {instanceId}
-                </code>
-              ) : null}
               {versionLabel ? (
                 <code className="max-w-24 shrink-0 truncate text-xs text-muted-foreground">
                   {versionLabel}
@@ -836,24 +829,16 @@ export function ProviderInstanceCard({
                 <Button
                   type="button"
                   size="icon-xs"
-                  variant="ghost"
-                  className={cn(
-                    "[--control-icon-color:currentColor]",
-                    versionAdvisory.emphasis === "strong"
-                      ? "text-warning hover:text-warning"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
+                  variant="ghost-muted"
                   aria-label="Update available — view details"
                 >
-                  <ArrowUpCircleIcon />
+                  <ArrowUpCircleIcon
+                    className={cn(versionAdvisory.emphasis === "strong" && "text-warning")}
+                  />
                 </Button>
               }
             />
-            <PopoverPopup
-              side="bottom"
-              align="end"
-              className="w-[min(21rem,calc(100vw-1.5rem))] [--popup-width:min(21rem,calc(100vw-1.5rem))]"
-            >
+            <PopoverPopup side="bottom" align="end" width="md">
               <div className="grid min-w-0 gap-3">
                 <div className="grid gap-0.5">
                   <p className="text-[13px] font-semibold leading-tight text-foreground">
@@ -901,8 +886,8 @@ export function ProviderInstanceCard({
                           <Button
                             type="button"
                             size="icon-xs"
-                            variant="ghost"
-                            className="shrink-0 text-muted-foreground hover:text-foreground"
+                            variant="ghost-muted"
+                            className="shrink-0"
                             onClick={() =>
                               copyToClipboard(updateCommand, { providerName: displayName })
                             }
@@ -925,9 +910,8 @@ export function ProviderInstanceCard({
           <Button
             type="button"
             size="icon-xs"
-            variant="ghost-muted"
+            variant="ghost-destructive"
             disabled={readOnly}
-            className="[--control-icon-color:currentColor] hover:text-destructive"
             onClick={onDelete}
             aria-label={`Delete instance ${instanceId}`}
           >
@@ -1003,35 +987,61 @@ export function ProviderInstanceCard({
         />
       </SettingsSection>
 
-      {setup ? <SettingsSection title="Setup">{setup}</SettingsSection> : null}
+      {setup || environmentFields.length > 0 ? (
+        <SettingsSection title="Setup">
+          {setup}
+          <div
+            inert={readOnly}
+            aria-disabled={readOnly || undefined}
+            className={readOnly ? "opacity-50 select-none" : undefined}
+          >
+            {environmentFields.length > 0 ? (
+              <>
+                {environmentFields.map((field) => (
+                  <ProviderEnvironmentFieldRow
+                    key={field.name}
+                    field={field}
+                    variable={readProviderEnvironmentVariable(instance.environment, field.name)}
+                    idPrefix={`provider-instance-${instanceId}`}
+                    onCommit={updateEnvironmentField}
+                    onRemove={removeEnvironmentField}
+                  />
+                ))}
+              </>
+            ) : null}
+          </div>
+        </SettingsSection>
+      ) : null}
 
-      <SettingsSection
-        title="Runtime"
-        inert={readOnly}
-        aria-disabled={readOnly || undefined}
-        className={readOnly ? "opacity-50 select-none" : undefined}
-      >
-        {driverOption ? (
-          <ProviderSettingsForm
-            definition={driverOption}
-            value={instance.config}
-            idPrefix={`provider-instance-${instanceId}`}
-            variant="settings"
-            onChange={updateConfig}
-          />
-        ) : (
-          <SettingsRow
-            title="Driver"
-            description={
-              <span>
-                This instance uses{" "}
-                <code className="text-foreground">{String(instance.driver)}</code>, which is not
-                available in this build. Its configuration is preserved.
-              </span>
-            }
-          />
-        )}
-      </SettingsSection>
+      {!driverOption || deriveProviderSettingsFields(driverOption).length > 0 ? (
+        <SettingsSection
+          title="Runtime"
+          inert={readOnly}
+          aria-disabled={readOnly || undefined}
+          className={readOnly ? "opacity-50 select-none" : undefined}
+        >
+          {driverOption ? (
+            <ProviderSettingsForm
+              definition={driverOption}
+              value={instance.config}
+              idPrefix={`provider-instance-${instanceId}`}
+              variant="settings"
+              onChange={updateConfig}
+            />
+          ) : (
+            <SettingsRow
+              title="Driver"
+              description={
+                <span>
+                  This instance uses{" "}
+                  <code className="text-foreground">{String(instance.driver)}</code>, which is not
+                  available in this build. Its configuration is preserved.
+                </span>
+              }
+            />
+          )}
+        </SettingsSection>
+      ) : null}
 
       <SettingsSection
         title="Environment"
@@ -1039,34 +1049,18 @@ export function ProviderInstanceCard({
         aria-disabled={readOnly || undefined}
         className={readOnly ? "opacity-50 select-none" : undefined}
       >
-        {environmentFields.length > 0 ? (
-          <div className="grid gap-3 px-3 py-3 sm:px-4">
-            {environmentFields.map((field) => (
-              <ProviderEnvironmentFieldRow
-                key={field.name}
-                field={field}
-                variable={readProviderEnvironmentVariable(instance.environment, field.name)}
-                idPrefix={`provider-instance-${instanceId}`}
-                onCommit={updateEnvironmentField}
-                onRemove={removeEnvironmentField}
-              />
-            ))}
-          </div>
-        ) : null}
         <ProviderEnvironmentSection
           environment={genericEnvironment}
           onChange={updateGenericEnvironment}
         />
         {environmentId !== undefined && liveProvider?.driver === "acpRegistry" ? (
-          <div className="px-3 py-3 sm:px-4">
-            <AcpSessionManagementSection
-              environmentId={environmentId}
-              instanceId={instanceId}
-              provider={liveProvider}
-              projects={acpProjects}
-              readOnly={readOnly}
-            />
-          </div>
+          <AcpSessionManagementSection
+            environmentId={environmentId}
+            instanceId={instanceId}
+            provider={liveProvider}
+            projects={acpProjects}
+            readOnly={readOnly}
+          />
         ) : null}
       </SettingsSection>
 

@@ -2860,7 +2860,7 @@ function OpenCommandPaletteDialog(props: {
           }
         >
           <span>{isRemoteProjectPending ? "Working" : remoteProjectButtonLabel}</span>
-          <KbdGroup className="pointer-events-none -me-0.5 items-center gap-1">
+          <KbdGroup className="pointer-events-none -me-0.5">
             <Kbd>Enter</Kbd>
           </KbdGroup>
         </TooltipTrigger>
@@ -2903,7 +2903,7 @@ function OpenCommandPaletteDialog(props: {
           <span>
             {isCloneDestinationStep && isRemoteProjectPending ? "Cloning" : submitActionLabel}
           </span>
-          <KbdGroup className="pointer-events-none -me-0.5 items-center gap-1">
+          <KbdGroup className="pointer-events-none -me-0.5">
             <Kbd>{hasHighlightedBrowseItem ? `${submitModifierLabel} Enter` : "Enter"}</Kbd>
           </KbdGroup>
         </TooltipTrigger>

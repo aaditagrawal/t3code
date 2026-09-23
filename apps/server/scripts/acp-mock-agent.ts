@@ -23,6 +23,7 @@ const emitToolCalls = process.env.T3_ACP_EMIT_TOOL_CALLS === "1";
 const emitInterleavedAssistantToolCalls =
   process.env.T3_ACP_EMIT_INTERLEAVED_ASSISTANT_TOOL_CALLS === "1";
 const emitV2Fidelity = process.env.T3_ACP_EMIT_V2_FIDELITY === "1";
+const vibeRetryOutcome = process.env.T3_ACP_VIBE_RETRY_OUTCOME;
 const emitGenericToolPlaceholders = process.env.T3_ACP_EMIT_GENERIC_TOOL_PLACEHOLDERS === "1";
 const emitPostSettleMonitorFlow = process.env.T3_ACP_EMIT_POST_SETTLE_MONITOR_FLOW === "1";
 const emitInTurnTaskOutputThenLateDuplicate =
@@ -863,6 +864,70 @@ const program = Effect.gen(function* () {
       const requestedSessionId = String(request.sessionId ?? sessionId);
       beginAcpMockPrompt(cancelledSessions, requestedSessionId);
       promptCount += 1;
+
+      if (vibeRetryOutcome !== undefined) {
+        if (vibeRetryOutcome === "recovered") {
+          yield* Effect.sync(() =>
+            writeJsonRpcNotification("session/update", {
+              sessionId: requestedSessionId,
+              update: {
+                sessionUpdate: "tool_call",
+                toolCallId: "tool-before-retry",
+                title: "Read file",
+                kind: "read",
+                status: "in_progress",
+              },
+            }),
+          );
+        }
+        for (const [index, noticeSessionId] of [
+          "unrelated-session",
+          requestedSessionId,
+          requestedSessionId,
+        ].entries()) {
+          // Progress from an earlier tool must not end the retry.
+          if (index === 2 && vibeRetryOutcome === "recovered") {
+            yield* Effect.sync(() =>
+              writeJsonRpcNotification("session/update", {
+                sessionId: requestedSessionId,
+                update: {
+                  sessionUpdate: "tool_call_update",
+                  toolCallId: "tool-before-retry",
+                  status: "in_progress",
+                  rawOutput: { progress: "still reading" },
+                },
+              }),
+            );
+          }
+          yield* Effect.sync(() =>
+            writeJsonRpcNotification("_session/retrying", {
+              sessionId: noticeSessionId,
+              category: "rate_limited",
+              detail: "Rate limit reached. Retrying. api_key=private-key",
+            }),
+          );
+        }
+        if (vibeRetryOutcome === "failed") {
+          return yield* new AcpError.AcpRequestError({
+            code: -31001,
+            errorMessage: "Rate limit exceeded for mistral (model: mistral-vibe-cli-latest).",
+          });
+        }
+        if (vibeRetryOutcome === "completed") {
+          return yield* finishPrompt(requestedSessionId, "end_turn");
+        }
+        if (vibeRetryOutcome === "cancelled") {
+          return yield* finishPrompt(requestedSessionId, "cancelled");
+        }
+        yield* agent.client.sessionUpdate({
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: { type: "text", text: "Recovered answer" },
+          },
+        });
+        return yield* finishPrompt(requestedSessionId, "end_turn");
+      }
 
       if (emitV2Fidelity) {
         yield* agent.client.sessionUpdate({

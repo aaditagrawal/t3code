@@ -87,7 +87,7 @@ import { ExpandableText } from "./ExpandableText";
 import { ProviderInstanceCard } from "./ProviderInstanceCard";
 import { UsageProviderSettings } from "./UsageProviderSettings";
 import { ProviderSetupSection, readAntigravityAuthMethod } from "./ProviderSetupSection";
-import { CursorSetupSection } from "./CursorSetupSection";
+import { ProviderAuthenticationSection } from "./ProviderAuthenticationSection";
 import { DRIVER_OPTIONS, getDriverOption } from "./providerDriverMeta";
 import { searchableSetting } from "./settingsSearch";
 import {
@@ -213,7 +213,7 @@ function ProviderSettingsPlaceholder({
         divided={false}
         className={cn(providerCardHeightClassName, "flex overflow-x-hidden overflow-y-auto")}
       >
-        <Empty className="min-h-88">
+        <Empty>
           <EmptyMedia variant="icon">{icon}</EmptyMedia>
           <EmptyHeader>
             <EmptyTitle>{title}</EmptyTitle>
@@ -344,7 +344,7 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
     options.length === 1 && options[0]?.entry.target._tag === "PrimaryConnectionTarget";
   const deviceTabs =
     !target.scoped && !onlyPrimaryDevice && options.length > 0 ? (
-      <ScrollArea hideScrollbars scrollFade className="h-11 min-w-0 flex-1 rounded-none">
+      <ScrollArea radius="none" hideScrollbars scrollFade className="h-11 min-w-0 flex-1">
         <ToggleGroup
           aria-label="Devices"
           variant="segmented"
@@ -805,13 +805,21 @@ export function EnvironmentProviderSettings({
     if (effectiveInstance !== undefined) {
       const isDirty =
         explicitInstance !== undefined || !Equal.equals(legacyConfig, defaultLegacyConfig);
-      rows.push({
-        instanceId: defaultInstanceId,
-        instance: effectiveInstance,
-        driver,
-        isDefault: true,
-        isDirty,
-      });
+      if (
+        driver === "codex" ||
+        driver === "claudeAgent" ||
+        isDirty ||
+        resolveProviderInstanceEnabled(effectiveInstance) ||
+        defaultInstanceId === targetInstanceId
+      ) {
+        rows.push({
+          instanceId: defaultInstanceId,
+          instance: effectiveInstance,
+          driver,
+          isDefault: true,
+          isDirty,
+        });
+      }
     }
     for (const [id, instance] of instancesByDriver.get(providerSettings.provider) ?? []) {
       if (id === defaultInstanceId) continue;
@@ -1027,14 +1035,26 @@ export function EnvironmentProviderSettings({
               readOnly={readOnly}
               onEnable={() => updateProviderInstance(row, { ...row.instance, enabled: true })}
             />
-          ) : mode === "editor" && row.driver === "cursor" ? (
-            <CursorSetupSection
+          ) : mode === "editor" &&
+            !readOnly &&
+            liveProvider &&
+            (liveProvider.setup?.canAuthenticate ||
+              (liveProvider.driver === "acpRegistry" && liveProvider.installed)) ? (
+            <ProviderAuthenticationSection
+              key={`${environmentId}:${row.instanceId}`}
               environmentId={environmentId}
               environmentLabel={environmentLabel}
               instanceId={row.instanceId}
               provider={liveProvider}
-              enabled={resolveProviderInstanceEnabled(row.instance)}
               readOnly={readOnly}
+            />
+          ) : mode === "editor" &&
+            !readOnly &&
+            row.driver === "cursor" &&
+            liveProvider?.setup?.canAuthenticate === false ? (
+            <SettingsRow
+              title="Cursor account"
+              description="Using CURSOR_API_KEY. Remove it from this provider's environment to use browser sign-in."
             />
           ) : null
         }
@@ -1279,6 +1299,7 @@ export function EnvironmentProviderSettings({
           environmentId={environmentId}
           environmentLabel={environmentLabel}
           onOpenChange={setIsAddInstanceDialogOpen}
+          onCreated={setSelectedInstanceId}
         />
       ) : null}
     </>
