@@ -123,17 +123,17 @@ export function SubagentTooltipContent(props: {
       {metadata.map(({ label, value }) => {
         const Icon = label === "Branch" ? GitBranchIcon : FolderIcon;
         return (
-          <div key={label} className="flex min-w-0 items-center gap-2">
+          <div key={label} className="flex min-w-0 items-center gap-2 text-foreground/75">
             <Icon aria-hidden className="size-3 shrink-0" />
             <span className="sr-only">{label}</span>
-            <MiddleTruncate value={value} className="flex text-foreground/75" showTitle={false} />
+            <MiddleTruncate value={value} className="flex" showTitle={false} />
           </div>
         );
       })}
       {preview ? (
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 text-foreground/75">
           <TerminalIcon aria-hidden className="size-3 shrink-0" />
-          <MiddleTruncate value={preview} className="flex text-foreground/75" showTitle={false} />
+          <MiddleTruncate value={preview} className="flex" showTitle={false} />
         </div>
       ) : null}
     </ThreadHoverCard>

@@ -108,7 +108,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
               variant="ghost"
               size={displayMode === "panel" ? "default" : "xs"}
               className={cn(
-                "min-w-0 max-w-full font-normal text-xs!",
+                "min-w-0 max-w-full",
                 displayMode === "panel" && THREAD_DETAILS_PANEL_SELECT_ROW_CLASS,
               )}
               aria-label="Run on"
@@ -143,7 +143,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
         {...(displayMode === "toolbar" ? composerFloatingLayerProps : {})}
         {...(displayMode === "panel"
           ? {
-              popupClassName: THREAD_DETAILS_PANEL_ROW_POPUP_CLASS,
+              className: THREAD_DETAILS_PANEL_ROW_POPUP_CLASS,
             }
           : {})}
       >

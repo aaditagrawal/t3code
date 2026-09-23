@@ -13,7 +13,12 @@ const refreshIconVariants = cva("", {
       md: "size-4",
       lg: "size-5",
     },
+    tone: {
+      current: "",
+      muted: "opacity-70",
+    },
   },
+  defaultVariants: { tone: "current" },
 });
 
 /** Keep the refresh glyph in place while its owning action is running. */
@@ -21,6 +26,7 @@ export function RefreshIcon({
   refreshing = false,
   className,
   size,
+  tone,
   ...props
 }: React.ComponentPropsWithoutRef<typeof RefreshCwIcon> &
   VariantProps<typeof refreshIconVariants> & { refreshing?: boolean }) {
@@ -29,7 +35,7 @@ export function RefreshIcon({
       aria-hidden
       ref={refreshing ? observeVisibleAnimation : undefined}
       className={cn(
-        refreshIconVariants({ size }),
+        refreshIconVariants({ size, tone }),
         refreshing && "motion-safe:visible-animate-spin",
         className,
       )}
