@@ -372,7 +372,7 @@ export function AddProviderInstanceDialog({
                     setHasAttemptedSubmit(false);
                   }}
                   aria-labelledby="add-instance-driver-label"
-                  className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                  className="grid grid-cols-1 sm:grid-cols-2"
                 >
                   {DRIVER_OPTIONS.filter((option) => option.value !== ACP_REGISTRY_DRIVER_KIND).map(
                     (option) => {

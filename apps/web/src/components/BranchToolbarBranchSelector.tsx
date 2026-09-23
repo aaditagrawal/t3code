@@ -739,7 +739,7 @@ export function BranchToolbarBranchSelector({
               )}
             />
             <ComposerContextLabel displayMode={displayMode}>
-              <MiddleTruncate value={triggerLabel} className="w-full" />
+              <MiddleTruncate value={triggerLabel} />
             </ComposerContextLabel>
             {displayMode === "panel" ? (
               <span data-slot="select-icon">

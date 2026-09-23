@@ -448,9 +448,9 @@ function SidebarThreadTooltip({
           </div>
         ) : null}
         {thread.branch ? (
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2 text-foreground/75">
             <GitBranchIcon className="size-3 shrink-0 stroke-muted-foreground" />
-            <MiddleTruncate value={thread.branch} className="flex text-foreground/75" />
+            <MiddleTruncate value={thread.branch} className="flex" />
           </div>
         ) : null}
         {branchMismatch ? (
@@ -2010,11 +2010,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
               {thread.branch ? (
                 <>
                   <ThreadWorktreeIndicator thread={thread} />
-                  <MiddleTruncate
-                    value={thread.branch}
-                    showTitle={false}
-                    className="flex-1 text-muted-foreground/40"
-                  />
+                  <span className="flex min-w-0 flex-1 text-muted-foreground/40">
+                    <MiddleTruncate value={thread.branch} showTitle={false} />
+                  </span>
                 </>
               ) : (
                 <span className="flex-1" />
@@ -4708,7 +4706,7 @@ export default function SidebarV2() {
           </SidebarGroup>
         }
       >
-        <SidebarGroup className="flex-1 ps-[calc(var(--sidebar-content-inset)+1px)]">
+        <SidebarGroup className="flex-1">
           {isSearchingThreads ? (
             threadSearchResults.length > 0 ? (
               <TooltipProvider

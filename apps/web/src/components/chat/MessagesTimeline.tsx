@@ -3468,7 +3468,7 @@ function BackgroundWorktreeSetupChip({ snapshot }: { snapshot: WorktreeSetupSnap
       <PopoverPopup
         side="bottom"
         align="end"
-        className="surface-glass! w-[28rem] max-w-[calc(100vw-2rem)]"
+        className="w-[28rem] max-w-[calc(100vw-2rem)]"
         padding="compact"
       >
         <WorktreeSetupCard
