@@ -1836,7 +1836,7 @@ export const make = Effect.gen(function* () {
               operation: "getPullRequestSummary",
               query,
               decode: decodePullRequestSummariesJson,
-            });
+            }).pipe(Effect.provideContext(first.context));
       return batched.pipe(
         // A GraphQL error anywhere fails the whole document — one repository gone or out of
         // reach — so a batch that could not be read leaves every entry to its own read. A paused
@@ -1863,6 +1863,7 @@ export const make = Effect.gen(function* () {
             unanswered,
             (entry) =>
               viewPullRequestSummary(entry.request).pipe(
+                Effect.provideContext(entry.context),
                 Effect.exit,
                 Effect.map((exit) => entry.completeUnsafe(exit)),
               ),

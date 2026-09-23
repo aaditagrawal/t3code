@@ -1,5 +1,6 @@
 import { afterEach, assert, expect, it, vi } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Redacted from "effect/Redacted";
 import * as Clock from "effect/Clock";
 import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
@@ -529,6 +530,74 @@ layer("GitHubPullRequestCli.layer", (it) => {
         's0: repository(owner: "acme", name: "web") { pullRequest(number: 7)',
       );
       expect(document).toContain("pullRequest(number: 8)");
+    }),
+  );
+
+  it.effect("keeps each summary read on the credential that asked for it", () =>
+    Effect.gen(function* () {
+      const seen: Array<string | null> = [];
+      mockedExecute.mockImplementation(() =>
+        Effect.gen(function* () {
+          const credential = yield* GitHubCli.PinnedGitHubCredential;
+          seen.push(credential?.credentialFingerprint ?? null);
+          return output(
+            JSON.stringify({
+              data: {
+                s0: {
+                  pullRequest: {
+                    number: 7,
+                    title: "Pinned",
+                    url: "https://github.com/acme/web/pull/7",
+                    author: {
+                      __typename: "User",
+                      login: "octocat",
+                      name: "Octo Cat",
+                      avatarUrl: null,
+                    },
+                    baseRefName: "main",
+                    headRefName: "feat/pinned",
+                    state: "OPEN",
+                    isDraft: false,
+                    mergeable: "MERGEABLE",
+                    reviewDecision: null,
+                    latestReviews: { nodes: [] },
+                    additions: 1,
+                    deletions: 0,
+                    changedFiles: 1,
+                    updatedAt: "2026-08-24T12:34:56.000Z",
+                    mergedAt: null,
+                    closedAt: null,
+                    commits: { nodes: [] },
+                  },
+                },
+              },
+            }),
+          );
+        }),
+      );
+      const cli = yield* GitHubPullRequestCli.GitHubPullRequestCli;
+      const read = (fingerprint: string) =>
+        cli
+          .getPullRequestSummary({
+            cwd: "/w",
+            repository: "acme/web",
+            host: "github.com",
+            number: 7,
+          })
+          .pipe(
+            Effect.provideService(GitHubCli.PinnedGitHubCredential, {
+              host: "github.com",
+              token: Redacted.make(fingerprint),
+              credentialFingerprint: fingerprint,
+            }),
+            Effect.forkChild,
+          );
+      const first = yield* read("cred-a");
+      const second = yield* read("cred-b");
+      yield* TestClock.adjust("10 millis");
+      yield* Fiber.join(first);
+      yield* Fiber.join(second);
+      expect(seen.toSorted()).toEqual(["cred-a", "cred-b"]);
     }),
   );
 
