@@ -1,15 +1,16 @@
 /**
- * The single source of truth for packages the server CLI bundle must NOT inline.
+ * The server CLI's native bundle boundary and disk-backed runtime dependencies.
  *
- * Two consumers derive from this list, and they must never disagree:
+ * Two consumers derive their related boundaries from this module:
  *
  * - apps/server/vite.config.ts decides what stays external to the bundle.
  * - scripts/build-desktop-artifact.ts selects the runtime dependency roots for
  *   the Windows server sidecar.
  *
  * A runtime package that is external but absent from the sidecar fails as soon
- * as Node resolves it from the emitted bundle. Keeping both consumers on one
- * list prevents packaging from drifting away from the bundle boundary.
+ * as Node resolves it from the emitted bundle. Pure JavaScript dependencies of
+ * disk-backed SDKs can also be bundled for other consumers without removing
+ * them from the SDK's installed dependency tree.
  *
  * Entries are matched as prefixes (`id.startsWith(prefix)`), so they also cover
  * a package's platform-specific siblings — `node-gyp-build` covers
@@ -21,9 +22,9 @@
  * Native addons (.node), the JS wrappers that dlopen them by real path, and —
  * critically — the ordinary JS packages those wrappers require. An external
  * package is loaded from the real filesystem, so its own `require` also
- * resolves from the real filesystem; a dependency that was bundled away exists
- * only inside the emitted bundle and is unreachable there. This closure is
- * enforced by a test, not by inspection.
+ * resolves from the real filesystem; its dependencies must remain in that
+ * installed tree even when another consumer also bundles them. This closure
+ * is enforced by a test, not by inspection.
  */
 export const CLI_RUNTIME_EXTERNAL_PREFIXES = [
   // Cursor ships computed Webpack imports and platform helper packages.
@@ -79,7 +80,10 @@ export function isRuntimeExternalCliDependency(id: string): boolean {
  * dependency) stayed external.
  */
 export function isExternalCliDependency(id: string): boolean {
-  return isRuntimeExternalCliDependency(id);
+  // Cursor retains its installed JS dependency closure, but other bundled SDKs
+  // also import packages such as zod (including different major versions).
+  // Inline those imports rather than leaving file-backed ESM imports in a SEA.
+  return CLI_RUNTIME_EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix));
 }
 
 /** True when the CLI bundle should inline `id` rather than leave it external. */

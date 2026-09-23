@@ -43,6 +43,14 @@ describe("shouldBundleCliDependency", () => {
     assert.strictEqual(shouldBundleCliDependency("node:fs"), false);
   });
 
+  it("bundles shared JS dependencies while retaining Cursor's installed closure", () => {
+    for (const id of ["zod", "zod/v3", "zod/v4", "zod/v4-mini", "undici", "@bufbuild/protobuf"]) {
+      assert.strictEqual(shouldBundleCliDependency(id), true, id);
+      assert.strictEqual(isRuntimeExternalCliDependency(id), true, id);
+    }
+    assert.strictEqual(shouldBundleCliDependency("@cursor/sdk"), false);
+  });
+
   it("leaves native addons and their dlopen wrappers external", () => {
     for (const id of [
       "node-pty",
@@ -88,9 +96,8 @@ describe("selectCliRuntimeExternalDependencies", () => {
 });
 
 // An external package is loaded from the real filesystem, so its own `require`
-// also resolves from the real filesystem. If one of its dependencies was
-// bundled away instead of left external, that dependency does not follow the
-// selected root into the sidecar.
+// also resolves from the real filesystem. Its dependencies must remain in the
+// staged runtime closure even when another consumer also bundles their JS.
 //
 // Found the hard way: msgpackr-extract's node-gyp-build-optional-packages
 // required detect-libc, which was bundled. Windows was fine; WSL got
