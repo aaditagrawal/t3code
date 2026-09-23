@@ -4107,10 +4107,7 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
       canRender: (record) => record.kind === "thread",
       render: (record, context) =>
         record.kind === "thread" ? (
-          <ThreadContextChip
-            record={record}
-            copyMarkdown={context.copyMarkdown}
-          />
+          <ThreadContextChip record={record} copyMarkdown={context.copyMarkdown} />
         ) : (
           <UnavailableUserMessageContextChip {...context} />
         ),
