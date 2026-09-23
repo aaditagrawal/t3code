@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import type { RuntimeMode } from "@t3tools/contracts";
+import {
+  ProviderDriverKind,
+  ProviderInstanceId,
+  type ModelSelection,
+  type ServerSettings,
+  type RuntimeMode,
+} from "@t3tools/contracts";
 
 const testState = vi.hoisted(() => {
   let completeProjectFileRead: (value: null) => void = () => undefined;
@@ -7,7 +13,8 @@ const testState = vi.hoisted(() => {
   let targetSettings = {
     defaultThreadEnvMode: "local" as "local" | "worktree",
     newWorktreesStartFromOrigin: false,
-    defaultModelSelection: null,
+    defaultModelSelection: null as ModelSelection | null,
+    providerInstances: {} as ServerSettings["providerInstances"],
     defaultRuntimeMode: "full-access" as RuntimeMode,
   };
   let storedDraft: {
@@ -57,6 +64,7 @@ const testState = vi.hoisted(() => {
         defaultThreadEnvMode: workspaceDefaults.envMode,
         newWorktreesStartFromOrigin: workspaceDefaults.startFromOrigin,
         defaultModelSelection: null,
+        providerInstances: {},
         defaultRuntimeMode: "full-access",
       };
       router.state.location.href = "/";
@@ -96,6 +104,8 @@ vi.mock("@t3tools/client-runtime/environment", () => ({
 vi.mock("@t3tools/contracts", () => ({
   DEFAULT_RUNTIME_MODE: "default",
   DEFAULT_SERVER_SETTINGS: {},
+  ProviderDriverKind: { make: (value: string) => value },
+  ProviderInstanceId: { make: (value: string) => value },
 }));
 vi.mock("@t3tools/shared/projectSettings", () => ({
   // Environment settings pass through; the tests set project fields on the
@@ -212,6 +222,31 @@ describe.each([
         projectRef,
         opened!.draftId,
         expect.objectContaining({ runtimeMode }),
+      );
+    },
+  );
+
+  it.each(["droid", "codex"])(
+    "resolves custom %s instance permissions from its driver",
+    async (driver) => {
+      testState.reset(draft);
+      const instanceId = ProviderInstanceId.make("custom-work");
+      testState.targetSettings.defaultModelSelection = { instanceId, model: "test-model" };
+      testState.targetSettings.defaultRuntimeMode = "medium-access";
+      testState.targetSettings.providerInstances = {
+        [instanceId]: { driver: ProviderDriverKind.make(driver), config: {} },
+      };
+      const projectRef = { environmentId: "environment-ssh", projectId: "project-remote" } as never;
+      const pendingOpen = useNewThreadHandler()(projectRef);
+      testState.completeProjectFileRead(null);
+      const opened = await pendingOpen;
+      expect(testState.draftStore.setLogicalProjectDraftThreadId).toHaveBeenCalledWith(
+        "remote-project",
+        projectRef,
+        opened!.draftId,
+        expect.objectContaining({
+          runtimeMode: driver === "droid" ? "medium-access" : "auto-accept-edits",
+        }),
       );
     },
   );
