@@ -45,7 +45,7 @@ function ProviderCustomColorPanel(props: {
         />
         <Input
           nativeInput
-          size="sm"
+          size="compact"
           value={hexDraft ?? currentColor}
           onChange={(event) => {
             const nextColor = event.currentTarget.value;
@@ -56,7 +56,6 @@ function ProviderCustomColorPanel(props: {
           }}
           onBlur={() => setHexDraft(null)}
           font="mono"
-          className="text-xs"
           aria-label="Custom hex accent color"
           spellCheck={false}
         />
@@ -92,31 +91,28 @@ function ProviderCustomColorPicker(props: {
           </Button>
         }
       />
-      <PopoverPopup
-        side="bottom"
-        align="start"
-        sideOffset={6}
-        className="overflow-hidden rounded-md p-0 [--viewport-inline-padding:0px] [&_[data-slot=popover-viewport]]:p-0"
-      >
+      <PopoverPopup side="bottom" align="start" sideOffset={6} padding="none">
         <ProviderCustomColorPanel
           value={normalized ?? FALLBACK_ACCENT_COLOR}
           onCommit={props.onCommit}
         />
         {normalized ? (
-          <PopoverClose
-            render={
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-8 w-full justify-start rounded-none border-t border-border/60 px-3 text-xs text-muted-foreground [--control-icon-color:currentColor]"
-                onClick={props.onClear}
-              >
-                <XIcon className="size-3.5" aria-hidden />
-                Clear color
-              </Button>
-            }
-          />
+          <div className="border-t border-border/60 p-1">
+            <PopoverClose
+              render={
+                <Button
+                  type="button"
+                  size="compact"
+                  variant="ghost-muted"
+                  className="w-full justify-start"
+                  onClick={props.onClear}
+                >
+                  <XIcon aria-hidden />
+                  Clear color
+                </Button>
+              }
+            />
+          </div>
         ) : null}
       </PopoverPopup>
     </Popover>

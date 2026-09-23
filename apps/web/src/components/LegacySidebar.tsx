@@ -1041,7 +1041,7 @@ const SidebarProjectThreadList = memo(function SidebarProjectThreadList(
   return (
     <SidebarMenuSub
       ref={attachThreadListAutoAnimateRef}
-      className="mx-0.5 my-0 w-full translate-x-0 gap-0.5 overflow-hidden border-l-0 px-1 py-0 sm:mx-1 sm:px-1.5"
+      className="mx-0.5 my-0 w-full translate-x-0 overflow-hidden sm:mx-1"
     >
       {shouldShowThreadPanel && showEmptyThreadState ? (
         <SidebarMenuSubItem className="w-full" data-thread-selection-safe>
@@ -2367,9 +2367,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       <div className="group/project-header relative">
         <SidebarMenuButton
           ref={isManualProjectSorting ? dragHandleProps?.setActivatorNodeRef : undefined}
-          className={`pr-8 group-hover/project-header:bg-sidebar-row-hover group-hover/project-header:text-sidebar-foreground max-sm:pr-14 ${
-            isManualProjectSorting ? "cursor-grab active:cursor-grabbing" : ""
-          }`}
+          className={isManualProjectSorting ? "cursor-grab active:cursor-grabbing" : undefined}
           {...(isManualProjectSorting && dragHandleProps ? dragHandleProps.attributes : {})}
           {...(isManualProjectSorting && dragHandleProps ? dragHandleProps.listeners : {})}
           onPointerDownCapture={handleProjectButtonPointerDownCapture}
@@ -2418,6 +2416,9 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
               </span>
             ) : null}
           </span>
+          {/* Keeps the name clear of the environment badge and new-thread button overlaid on
+              the row's end (two slots on touch, where both stay visible). */}
+          <span aria-hidden className="w-4 shrink-0 max-sm:w-10" />
         </SidebarMenuButton>
         {/* Environment badge – visible by default, crossfades with the
             "new thread" button on hover using the same pointer-events +
@@ -2628,7 +2629,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
 
 const SidebarProjectListRow = memo(function SidebarProjectListRow(props: SidebarProjectItemProps) {
   return (
-    <SidebarMenuItem className="rounded-md">
+    <SidebarMenuItem>
       <SidebarProjectItem {...props} />
     </SidebarMenuItem>
   );
@@ -2742,9 +2743,7 @@ function ProjectSortMenu({
     <Menu>
       <Tooltip>
         <TooltipTrigger
-          render={
-            <MenuTrigger className="inline-flex h-6 min-w-6 cursor-pointer items-center justify-center rounded-md px-[calc(--spacing(1)-1px)] text-icon-muted transition-colors hover:bg-accent hover:text-foreground" />
-          }
+          render={<MenuTrigger render={<Button size="icon-xs" variant="ghost-muted" />} />}
         >
           <ArrowUpDownIcon className="size-3.5" />
         </TooltipTrigger>
@@ -2796,7 +2795,7 @@ function ProjectSortMenu({
           <div className="px-2 py-1">
             <NumberField
               aria-label="Visible thread count"
-              className="w-28 gap-0"
+              className="w-28"
               max={MAX_SIDEBAR_THREAD_PREVIEW_COUNT}
               min={MIN_SIDEBAR_THREAD_PREVIEW_COUNT}
               onValueChange={handleThreadPreviewCountChange}
@@ -2804,14 +2803,13 @@ function ProjectSortMenu({
               step={1}
               value={threadPreviewCount}
             >
-              <NumberFieldGroup className="h-7 rounded-md sm:h-6.5">
+              <NumberFieldGroup>
                 <NumberFieldDecrement
                   aria-label="Decrease visible thread count"
-                  className="px-2 sm:px-2 [&_svg]:size-3.5"
+                  className="[&_svg]:size-3.5"
                 />
                 <NumberFieldInput
                   aria-label="Visible thread count"
-                  className="h-7 w-9 grow-0 px-0 text-xs leading-7 sm:h-6.5 sm:leading-6.5"
                   inputMode="numeric"
                   onKeyDownCapture={(event) => {
                     event.stopPropagation();
@@ -2819,7 +2817,7 @@ function ProjectSortMenu({
                 />
                 <NumberFieldIncrement
                   aria-label="Increase visible thread count"
-                  className="px-2 sm:px-2 [&_svg]:size-3.5"
+                  className="[&_svg]:size-3.5"
                 />
               </NumberFieldGroup>
             </NumberField>
@@ -2978,12 +2976,7 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
           <SidebarMenu>
             <SidebarMenuItem>
               <CommandDialogTrigger
-                render={
-                  <SidebarMenuButton
-                    className="focus-visible:ring-0"
-                    data-testid="command-palette-trigger"
-                  />
-                }
+                render={<SidebarMenuButton data-testid="command-palette-trigger" />}
               >
                 <SearchIcon />
                 <span className="flex-1 truncate">Search</span>

@@ -14,7 +14,6 @@ import {
   formatAttachmentUploadProgress,
   type AttachmentUploadState,
 } from "~/lib/attachmentUploadState";
-import { cn } from "~/lib/utils";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import {
   fileContextReference,
@@ -37,20 +36,14 @@ import {
   createContextPresentationRegistry,
   type ContextPresentationCapability,
 } from "./contextPresentationRegistry";
-import {
-  COMPOSER_INLINE_CHIP_CLASS_NAME,
-  COMPOSER_INLINE_CHIP_ICON_CLASS_NAME,
-  COMPOSER_INLINE_CHIP_LABEL_CLASS_NAME,
-  CONTEXT_INLINE_CHIP_ICON_TONE_CLASS_NAMES,
-  CONTEXT_INLINE_CHIP_TONE_CLASS_NAMES,
-  PULL_REQUEST_INLINE_CHIP_TONE_CLASS_NAMES,
-} from "./composerInlineChip";
+import type { ContextChipKind } from "./ContextChip";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import {
   ContextChipPopover,
   ContextChipShell,
   FileChip,
   ImageChipButton,
+  PULL_REQUEST_CHIP_KINDS,
   PullRequestChip,
   UnresolvedChip,
 } from "./contextChipParts";
@@ -144,30 +137,31 @@ function ContextChip(props: {
   kindLabel: string;
   details: ReactNode;
   detailsMode: ContextPresentationCapability["details"];
-  toneClassName: string;
+  kind: ContextChipKind;
 }) {
-  const content = (
+  if (props.detailsMode === "popover") {
+    return (
+      <ContextChipPopover
+        kind={props.kind}
+        icon={props.icon}
+        label={props.label}
+        accessibleLabel={props.kindLabel + ", " + props.label}
+      >
+        {props.details}
+      </ContextChipPopover>
+    );
+  }
+  return (
     <ContextChipShell
+      kind={props.kind}
       icon={props.icon}
       label={props.label}
-      className={cn(COMPOSER_INLINE_CHIP_CLASS_NAME, props.toneClassName)}
-      labelClassName={COMPOSER_INLINE_CHIP_LABEL_CLASS_NAME}
-      interactive={props.detailsMode === "popover"}
-      aria-hidden={props.detailsMode === "popover" ? true : undefined}
       aria-label={
         props.detailsMode === "tooltip" ? `${props.kindLabel}, ${props.label}` : undefined
       }
       tooltip={props.detailsMode === "tooltip" ? props.details : undefined}
     />
   );
-  if (props.detailsMode === "popover") {
-    return (
-      <ContextChipPopover accessibleLabel={props.kindLabel + ", " + props.label} chip={content}>
-        {props.details}
-      </ContextChipPopover>
-    );
-  }
-  return content;
 }
 
 function uploadStatusSuffix(upload: AttachmentUploadState | undefined): string | null {
@@ -197,8 +191,6 @@ function ImageContextChip(props: {
           <ImageChipButton
             name={props.record.name}
             previewUrl={props.record.previewUrl}
-            className={COMPOSER_INLINE_CHIP_CLASS_NAME}
-            labelClassName={COMPOSER_INLINE_CHIP_LABEL_CLASS_NAME}
             size={formatAttachmentSize(props.record.sizeBytes)}
             suffix={uploadStatusSuffix(props.upload)}
             onClick={() => actions.expandImage(props.record.id)}
@@ -228,8 +220,6 @@ function FileContextChip(props: {
       size={size}
       isVideo={isVideo}
       theme={resolvedTheme}
-      className={COMPOSER_INLINE_CHIP_CLASS_NAME}
-      labelClassName={COMPOSER_INLINE_CHIP_LABEL_CLASS_NAME}
       error={props.upload?.status === "failed"}
       unresolved={needsReattach}
       suffix={suffix}
@@ -249,7 +239,7 @@ function FileContextChip(props: {
   );
 }
 
-function PullRequestContextChip(props: { record: ReviewCommentContext; toneClassName: string }) {
+function PullRequestContextChip(props: { record: ReviewCommentContext; kind: ContextChipKind }) {
   const actions = use(ComposerContextActionsContext);
   const metadata = props.record.pullRequest;
   if (metadata === undefined) return null;
@@ -259,8 +249,7 @@ function PullRequestContextChip(props: { record: ReviewCommentContext; toneClass
       environmentId={actions.environmentId}
       label={reviewCommentContextLabel(props.record)}
       kindLabel={pullRequestContextKindLabel(props.record)}
-      className={cn(COMPOSER_INLINE_CHIP_CLASS_NAME, props.toneClassName)}
-      labelClassName={COMPOSER_INLINE_CHIP_LABEL_CLASS_NAME}
+      kind={props.kind}
       onOpen={actions.openPullRequest}
     />
   );
@@ -330,10 +319,7 @@ function UnresolvedContextChip(props: { label: string }) {
   return (
     <UnresolvedChip
       label={props.label}
-      className={COMPOSER_INLINE_CHIP_CLASS_NAME}
-      labelClassName={COMPOSER_INLINE_CHIP_LABEL_CLASS_NAME}
       tooltip="This context is no longer available. Remove it or attach it again."
-      tooltipClassName="max-w-80 leading-tight"
     />
   );
 }
@@ -395,40 +381,18 @@ const composerContextPresentationRegistry = createContextPresentationRegistry<
           return (
             <PullRequestContextChip
               record={entry.record}
-              toneClassName={PULL_REQUEST_INLINE_CHIP_TONE_CLASS_NAMES[pullRequestState]}
+              kind={PULL_REQUEST_CHIP_KINDS[pullRequestState]}
             />
           );
         }
         return (
           <ContextChip
-            icon={
-              isPullRequest ? (
-                <PullRequestGlyph.pullRequest
-                  className={cn(
-                    COMPOSER_INLINE_CHIP_ICON_CLASS_NAME,
-                    CONTEXT_INLINE_CHIP_ICON_TONE_CLASS_NAMES["pull-request"],
-                    "size-3.5",
-                  )}
-                />
-              ) : (
-                <MessageCircleIcon
-                  className={cn(
-                    COMPOSER_INLINE_CHIP_ICON_CLASS_NAME,
-                    CONTEXT_INLINE_CHIP_ICON_TONE_CLASS_NAMES["review-comment"],
-                    "size-3.5",
-                  )}
-                />
-              )
-            }
+            icon={isPullRequest ? <PullRequestGlyph.pullRequest /> : <MessageCircleIcon />}
             label={reviewCommentContextLabel(entry.record)}
             kindLabel={isPullRequest ? pullRequestContextKindLabel(entry.record) : "Review comment"}
             details={<ComposerReviewCommentDetails comment={entry.record} />}
             detailsMode={definition.capabilities.details}
-            toneClassName={
-              isPullRequest
-                ? PULL_REQUEST_INLINE_CHIP_TONE_CLASS_NAMES[pullRequestState]
-                : CONTEXT_INLINE_CHIP_TONE_CLASS_NAMES["review-comment"]
-            }
+            kind={isPullRequest ? PULL_REQUEST_CHIP_KINDS[pullRequestState] : "review-comment"}
           />
         );
       },
@@ -439,20 +403,12 @@ const composerContextPresentationRegistry = createContextPresentationRegistry<
       render: (entry, context, definition) =>
         entry.kind === "preview-annotation" ? (
           <ContextChip
-            icon={
-              <MousePointerClickIcon
-                className={cn(
-                  COMPOSER_INLINE_CHIP_ICON_CLASS_NAME,
-                  CONTEXT_INLINE_CHIP_ICON_TONE_CLASS_NAMES["preview-annotation"],
-                  "size-3.5",
-                )}
-              />
-            }
+            icon={<MousePointerClickIcon />}
             label={previewAnnotationContextLabel(entry.record)}
             kindLabel="Preview annotation"
             details={<ComposerPreviewAnnotationDetails annotation={entry.record} />}
             detailsMode={definition.capabilities.details}
-            toneClassName={CONTEXT_INLINE_CHIP_TONE_CLASS_NAMES["preview-annotation"]}
+            kind="preview-annotation"
           />
         ) : (
           <UnresolvedContextChip label={context.label} />
@@ -463,11 +419,7 @@ const composerContextPresentationRegistry = createContextPresentationRegistry<
       canRender: (entry) => entry.kind === "thread",
       render: (entry, context) =>
         entry.kind === "thread" ? (
-          <ThreadContextChip
-            record={entry.record}
-            className={COMPOSER_INLINE_CHIP_CLASS_NAME}
-            labelClassName={COMPOSER_INLINE_CHIP_LABEL_CLASS_NAME}
-          />
+          <ThreadContextChip record={entry.record} />
         ) : (
           <UnresolvedContextChip label={context.label} />
         ),
