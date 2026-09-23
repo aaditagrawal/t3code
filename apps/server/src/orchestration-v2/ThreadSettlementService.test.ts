@@ -421,7 +421,7 @@ const makeHarness = Effect.fn("makeThreadSettlementHarness")(function* (options:
   const mergedPullRequests = yield* PubSub.unbounded<PullRequestMergeEvent>();
   const commands = yield* Ref.make<ReadonlyArray<AutoSettleCommand>>([]);
   const branchCalls = yield* Ref.make<
-    ReadonlyArray<{ readonly cwd: string; readonly branch: string }>
+    ReadonlyArray<{ readonly cwd: string; readonly branch: string; readonly refresh?: boolean }>
   >([]);
   const summaryCalls = yield* Ref.make<
     ReadonlyArray<{
@@ -441,10 +441,11 @@ const makeHarness = Effect.fn("makeThreadSettlementHarness")(function* (options:
       return next;
     });
 
-  const branchPullRequest: GitManager["Service"]["branchPullRequest"] = (input) =>
-    Ref.update(branchCalls, (calls) => [...calls, input]).pipe(
-      Effect.andThen(options.branchPullRequest?.(input) ?? Effect.succeed(null)),
-    );
+  const branchPullRequest: GitManager["Service"]["branchPullRequest"] = (input, callOptions) =>
+    Ref.update(branchCalls, (calls) => [
+      ...calls,
+      callOptions?.refresh === true ? { ...input, refresh: true } : input,
+    ]).pipe(Effect.andThen(options.branchPullRequest?.(input) ?? Effect.succeed(null)));
   const pullRequestSummary: PullRequestService["Service"]["summary"] = (input, readOptions) =>
     Effect.gen(function* () {
       yield* Ref.update(summaryCalls, (calls) => [...calls, input]);
@@ -815,6 +816,93 @@ describe("ThreadSettlementServiceV2 worker", () => {
               .toSorted((left, right) => left - right),
             [42, 99, 99],
           );
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
+  it.effect("skips the branch recheck when a terminal link would settle nothing", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const previous = {
+          projectId: PROJECT_ID,
+          repository: "owner/repository",
+          number: 1,
+          url: "https://example.test/owner/repository/pull/1",
+        };
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([
+            makeThread("resumed-manual", {
+              branch: "main",
+              linkedPullRequest: previous,
+              latestUserMessageAt: DateTime.makeUnsafe("2026-08-28T00:00:00.000Z"),
+            }),
+          ]),
+          settings: {
+            ...DEFAULT_SERVER_SETTINGS,
+            sidebarAutoSettleAfterDays: null,
+            sidebarAutoSettleOnMerge: true,
+          },
+          branchPullRequest: () => Effect.succeed(makeBranchPullRequest("open")),
+          pullRequestSummary: (input) =>
+            Effect.succeed({
+              ...makePullRequestSummary({ ...input, state: "merged" }),
+              mergedAt: "2026-08-27T00:00:00.000Z",
+            }),
+        });
+        yield* Effect.gen(function* () {
+          const service = yield* ThreadSettlementService.ThreadSettlementServiceV2;
+          yield* startHarness(service, fixture.activation, fixture.snapshotReads);
+          assert.deepStrictEqual(yield* Ref.get(fixture.commands), []);
+          assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, 1);
+          assert.deepStrictEqual(yield* Ref.get(fixture.branchCalls), []);
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
+  it.effect("refreshes a terminal link when that link would settle the thread", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const previous = {
+          projectId: PROJECT_ID,
+          repository: "owner/repository",
+          number: 1,
+          url: "https://example.test/owner/repository/pull/1",
+        };
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([
+            makeThread("merged-before-activity", {
+              branch: "feature",
+              linkedPullRequest: previous,
+              latestUserMessageAt: DateTime.makeUnsafe("2026-08-20T00:00:00.000Z"),
+            }),
+          ]),
+          settings: {
+            ...DEFAULT_SERVER_SETTINGS,
+            sidebarAutoSettleAfterDays: null,
+            sidebarAutoSettleOnMerge: true,
+          },
+          branchPullRequest: () => Effect.succeed(null),
+          pullRequestSummary: (input) =>
+            Effect.succeed({
+              ...makePullRequestSummary({ ...input, state: "merged" }),
+              mergedAt: NOW,
+            }),
+        });
+        yield* Effect.gen(function* () {
+          const service = yield* ThreadSettlementService.ThreadSettlementServiceV2;
+          yield* startHarness(service, fixture.activation, fixture.snapshotReads);
+          assert.deepStrictEqual(
+            (yield* Ref.get(fixture.commands)).map((command) => command.threadId),
+            [ThreadId.make("merged-before-activity")],
+          );
+          assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, 1);
+          assert.deepStrictEqual(yield* Ref.get(fixture.branchCalls), [
+            { cwd: "/workspace/project", branch: "feature", refresh: true },
+          ]);
         }).pipe(Effect.provide(fixture.layer));
       }),
     ),
