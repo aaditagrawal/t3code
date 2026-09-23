@@ -1,4 +1,4 @@
-import { FORK_SLUG, DESKTOP_APP_ID } from "@t3tools/shared/branding";
+import { CLI_BIN_NAME, DESKTOP_APP_ID, FORK_SLUG } from "@t3tools/shared/branding";
 import {
   HostProcessArchitecture,
   HostProcessExecutablePath,
@@ -460,11 +460,11 @@ export function formatBootServiceProblem(problem: BootServiceProblem): string {
     case "linger-disabled":
       return 'Lingering is disabled. T3 Code will stop when your last login session ends and will not start at boot. Run `sudo loginctl enable-linger "$(id -un)"` on this machine, then retry the service command as your normal user.';
     case "service-disabled":
-      return "The service is not enabled to start automatically. Run `t3 service install` to repair it.";
+      return `The service is not enabled to start automatically. Run \`${CLI_BIN_NAME} service install\` to repair it.`;
     case "service-stopped":
-      return "The service is not running. Check the service log and `systemctl --user status t3code.service`, then run `t3 service install`.";
+      return `The service is not running. Check the service log and \`systemctl --user status ${FORK_SLUG}.service\`, then run \`${CLI_BIN_NAME} service install\`.`;
     case "restart-pending":
-      return "A newer version is installed but the service is still running the previous one. Run `t3 service restart` to switch.";
+      return `A newer version is installed but the service is still running the previous one. Run \`${CLI_BIN_NAME} service restart\` to switch.`;
   }
 }
 

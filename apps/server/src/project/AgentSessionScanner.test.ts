@@ -969,7 +969,7 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
       Effect.gen(function* () {
         const path = yield* Path.Path;
         const fileSystem = yield* FileSystem.FileSystem;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
+        const claudeHomePath = yield* makeClaudeConfigDir("t3code-claude-home-");
         const codexHomePath = yield* makeTempDir("t3code-codex-home-");
         const repo = yield* makeTempDir("t3code-workspace-repo-");
         const worktree = yield* makeTempDir("t3code-workspace-worktree-");

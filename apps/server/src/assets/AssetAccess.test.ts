@@ -871,13 +871,22 @@ describe("AssetAccess", () => {
         const separatorIndex = suffix.indexOf("/");
         expect(
           yield* resolveAsset(suffix.slice(0, separatorIndex), suffix.slice(separatorIndex + 1)),
-        ).toEqual({
-          kind: "file",
-          path: attachmentPath,
-          fileName: "recording.wav",
-          mimeType: disposition === "inline" ? "audio/wav" : "application/octet-stream",
-          ...(disposition === "attachment" ? { download: true } : {}),
-        });
+        ).toEqual(
+          disposition === "inline"
+            ? {
+                kind: "file",
+                path: attachmentPath,
+                fileName: "recording.wav",
+                mimeType: "audio/wav",
+              }
+            : {
+                kind: "file",
+                path: attachmentPath,
+                contentType: "application/octet-stream",
+                downloadName: "recording.wav",
+                download: true,
+              },
+        );
       }
     }).pipe(Effect.provide(testLayer)),
   );

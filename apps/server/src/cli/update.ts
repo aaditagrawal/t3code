@@ -1,4 +1,4 @@
-import { CLI_BIN_NAME } from "@t3tools/shared/branding";
+import { CLI_BIN_NAME, FORK_SLUG } from "@t3tools/shared/branding";
 import {
   HostProcessArchitecture,
   HostProcessEnvironment,
@@ -310,7 +310,7 @@ const belongsToBootService = Effect.fn("cli.update.belongs_to_boot_service")(fun
   const runner = yield* ProcessRunner.ProcessRunner;
   if (platform === "linux") {
     const cgroup = yield* fs.readFileString(`/proc/${pid}/cgroup`).pipe(Effect.option);
-    return Option.isSome(cgroup) && cgroup.value.includes("/t3code.service");
+    return Option.isSome(cgroup) && cgroup.value.includes(`/${FORK_SLUG}.service`);
   }
   if (platform === "darwin") {
     // The service server's parent is the launcher process.

@@ -1,5 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
+import { FORK_SLUG } from "@t3tools/shared/branding";
 import {
   HostProcessExecutablePath,
   HostProcessPlatform,
@@ -584,10 +585,10 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
           (command) => command.startsWith("systemctl ") && !command.includes("show-environment"),
         ),
       ).toEqual([
-        "systemctl --user stop t3code.service",
+        `systemctl --user stop ${FORK_SLUG}.service`,
         "systemctl --user daemon-reload",
-        "systemctl --user enable t3code.service",
-        "systemctl --user restart t3code.service",
+        `systemctl --user enable ${FORK_SLUG}.service`,
+        `systemctl --user restart ${FORK_SLUG}.service`,
       ]);
     }),
   );
@@ -620,9 +621,9 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
           (command) => command.startsWith("systemctl ") && !command.includes("show-environment"),
         ),
       ).toEqual([
-        "systemctl --user stop t3code.service",
+        `systemctl --user stop ${FORK_SLUG}.service`,
         "systemctl --user daemon-reload",
-        "systemctl --user restart t3code.service",
+        `systemctl --user restart ${FORK_SLUG}.service`,
       ]);
     }),
   );
