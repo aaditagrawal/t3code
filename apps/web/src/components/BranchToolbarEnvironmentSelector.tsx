@@ -143,7 +143,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
         {...(displayMode === "toolbar" ? composerFloatingLayerProps : {})}
         {...(displayMode === "panel"
           ? {
-              popupClassName: THREAD_DETAILS_PANEL_ROW_POPUP_CLASS,
+              className: THREAD_DETAILS_PANEL_ROW_POPUP_CLASS,
             }
           : {})}
       >
