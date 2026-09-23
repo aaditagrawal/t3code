@@ -65,7 +65,9 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         path.join(home, LEGACY_HOME_DIR_NAME),
         undefined,
       );
-      yield* Effect.provide(Effect.void, makeSqlitePersistenceLive(legacyPaths.dbPath));
+      // Legacy homes use the V1 filename, independent of the current runtime's V2 path.
+      const legacyDbPath = path.join(legacyPaths.stateDir, "state.sqlite");
+      yield* Effect.provide(Effect.void, makeSqlitePersistenceLive(legacyDbPath));
       const legacyId = "7a15b1c3-6f81-47fa-b3d9-9f43acd7072d";
       yield* fs.writeFileString(legacyPaths.environmentIdPath, `${legacyId}\n`);
       yield* fs.writeFileString(
@@ -113,6 +115,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
       expect(resolved.otlpTracesUrl).toBe("http://localhost:4318/v1/traces");
       expect(yield* fs.readFileString(resolved.environmentIdPath)).toBe(`${legacyId}\n`);
       expect(yield* fs.readFileString(legacyPaths.environmentIdPath)).toBe(`${legacyId}\n`);
+      expect(yield* fs.exists(path.join(resolved.stateDir, "state.sqlite"))).toBe(true);
     }),
   );
 

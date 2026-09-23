@@ -395,7 +395,7 @@ function makeCompletingHandoffAdapter(startCount: Ref.Ref<number>): ProviderAdap
   };
 }
 
-it.live("restarts selection as a new attempt and retries after old-session cleanup", () =>
+it.live("settles a failed selection restart and accepts an explicit follow-up", () =>
   Effect.scoped(
     Effect.gen(function* () {
       const cwd = yield* checkpointWorkspace("selection-restart-lifecycle");
@@ -463,7 +463,37 @@ it.live("restarts selection as a new attempt and retries after old-session clean
         });
         for (let index = 0; index < 1_000; index += 1) {
           const current = yield* orchestrator.getThreadProjection(threadId);
-          if (current.attempts.length === 2 && current.attempts[1]?.status === "completed") {
+          if (current.attempts.length === 2 && current.attempts[1]?.status === "failed") break;
+          yield* Effect.sleep("5 millis");
+        }
+        const failedRestart = yield* orchestrator.getThreadProjection(threadId);
+        assert.deepEqual(
+          failedRestart.attempts.map((attempt) => attempt.status),
+          ["superseded", "failed"],
+        );
+        assert.equal(failedRestart.runs[0]?.status, "failed");
+        assert.isTrue(
+          failedRestart.turnItems.some(
+            (item) => item.type === "error" && item.title === "Provider session failed to open",
+          ),
+        );
+        assert.lengthOf((yield* Ref.get(state)).opened, 2);
+
+        yield* orchestrator.dispatch({
+          type: "message.dispatch",
+          createdBy: "user",
+          creationSource: "web",
+          commandId: CommandId.make("command:selection-restart:follow-up"),
+          threadId,
+          messageId: MessageId.make("message:selection-restart:follow-up"),
+          text: "Try again.",
+          attachments: [],
+          modelSelection: replacementSelection,
+          dispatchMode: { type: "start_immediately" },
+        });
+        for (let index = 0; index < 1_000; index += 1) {
+          const current = yield* orchestrator.getThreadProjection(threadId);
+          if (current.runs.length === 2 && current.runs[1]?.status === "completed") {
             const captured = yield* Ref.get(state);
             return { projection: current, captured };
           }
@@ -471,7 +501,7 @@ it.live("restarts selection as a new attempt and retries after old-session clean
         }
         const current = yield* orchestrator.getThreadProjection(threadId);
         const adapterState = yield* Ref.get(state);
-        yield* Effect.logError("selection restart did not complete", {
+        yield* Effect.logError("selection restart follow-up did not complete", {
           runs: current.runs.map((run) => [run.status, run.activeAttemptId]),
           attempts: current.attempts.map((attempt) => [attempt.id, attempt.status]),
           providerTurns: current.providerTurns.map((turn) => [turn.id, turn.status]),
@@ -481,7 +511,7 @@ it.live("restarts selection as a new attempt and retries after old-session clean
           ]),
           adapterState,
         });
-        return yield* Effect.die("selection restart did not complete");
+        return yield* Effect.die("selection restart follow-up did not complete");
       }).pipe(
         Effect.provide(
           makeOrchestratorV2ReplayLayerWithRegistry(
@@ -492,11 +522,11 @@ it.live("restarts selection as a new attempt and retries after old-session clean
       );
       const { projection, captured } = result;
 
-      assert.lengthOf(projection.runs, 1);
-      assert.lengthOf(projection.attempts, 2);
+      assert.lengthOf(projection.runs, 2);
+      assert.lengthOf(projection.attempts, 3);
       assert.deepEqual(
         projection.attempts.map((attempt) => attempt.status),
-        ["superseded", "completed"],
+        ["superseded", "failed", "completed"],
       );
       assert.deepEqual(
         projection.providerTurns.map((turn) => turn.status),

@@ -220,7 +220,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "environment-identification",
     title: "Sidebar artwork",
     to: "/settings/appearance",
-    searchTerms: ["dev nightly artwork pill label hide none"],
+    searchTerms: ["environment identification dev nightly artwork pill label hide none"],
     // Night sky / sidebar artwork lives in the Interface section after the
     // settings reorg; the parent section is the stable destination.
     targetId: "appearance-interface",

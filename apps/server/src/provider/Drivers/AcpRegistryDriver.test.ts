@@ -1,6 +1,7 @@
 import {
   AcpRegistryOperationError,
   AcpRegistrySettings,
+  type ModelCapabilities,
   ProviderInstanceId,
 } from "@t3tools/contracts";
 import { describe, expect, it } from "@effect/vitest";
@@ -45,6 +46,55 @@ function catalogWithInspection(inspection: AcpRegistryInspection): AcpRegistryCa
 }
 
 describe("acpRegistrySnapshotReadiness", () => {
+  it("preserves structured custom models before and after live discovery", () => {
+    const capabilities: ModelCapabilities = {
+      optionDescriptors: [
+        {
+          id: "effort",
+          label: "Reasoning",
+          type: "select",
+          options: [{ id: "high", label: "High", isDefault: true }],
+        },
+      ],
+    };
+    const namedModel = { slug: "custom-model", name: "Custom model", capabilities };
+    const settings = decodeSettings({
+      agentId: "test-agent",
+      customModels: ["legacy-model", namedModel],
+    });
+    const provider = buildCheckedAcpRegistrySnapshot({
+      ...identity,
+      settings,
+      checkedAt: "2026-09-23T00:00:00.000Z",
+      inspection: {
+        status: "ready",
+        agentId: "test-agent",
+        version: "1.0.0",
+        distribution: "npx",
+      },
+    });
+    const refreshed = applyAcpRegistryLiveConfiguration(
+      provider,
+      {
+        models: [{ id: "discovered-model", name: "Discovered model", description: null }],
+        currentModelId: "discovered-model",
+        configOptions: [],
+      },
+      settings.customModels,
+    );
+
+    for (const snapshot of [provider, refreshed]) {
+      expect(snapshot.models).toContainEqual({ ...namedModel, isCustom: true });
+      expect(snapshot.models.find((model) => model.slug === "legacy-model")).toMatchObject({
+        name: "legacy-model",
+        isCustom: true,
+      });
+    }
+    expect(refreshed.models).toContainEqual(
+      expect.objectContaining({ slug: "discovered-model", isCustom: false, isDefault: true }),
+    );
+  });
+
   it("treats a live empty command advertisement as an authoritative replacement", () => {
     const provider = buildCheckedAcpRegistrySnapshot({
       ...identity,
