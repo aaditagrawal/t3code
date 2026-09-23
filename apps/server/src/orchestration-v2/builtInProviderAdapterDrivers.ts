@@ -15,6 +15,10 @@ import {
 } from "./Adapters/CursorAdapterV2.ts";
 import { GrokAdapterV2Driver, type GrokAdapterV2DriverEnv } from "./Adapters/GrokAdapterV2.ts";
 import {
+  OhMyPiAdapterV2Driver,
+  type OhMyPiAdapterV2DriverEnv,
+} from "./Adapters/OhMyPiAdapterV2.ts";
+import {
   OpenCodeAdapterV2Driver,
   type OpenCodeAdapterV2DriverEnv,
 } from "./Adapters/OpenCodeAdapterV2.ts";
@@ -27,6 +31,7 @@ export type BuiltInProviderAdapterDriversV2Env =
   | CodexAdapterV2DriverEnv
   | CursorAdapterV2DriverEnv
   | GrokAdapterV2DriverEnv
+  | OhMyPiAdapterV2DriverEnv
   | OpenCodeAdapterV2DriverEnv
   | PiAdapterV2DriverEnv;
 
@@ -38,6 +43,7 @@ const BUILT_IN_PROVIDER_ADAPTER_DRIVERS_V2: ReadonlyArray<
   CursorAdapterV2Driver,
   OpenCodeAdapterV2Driver,
   GrokAdapterV2Driver,
+  OhMyPiAdapterV2Driver,
   PiAdapterV2Driver,
   AcpRegistryAdapterV2Driver,
 ];

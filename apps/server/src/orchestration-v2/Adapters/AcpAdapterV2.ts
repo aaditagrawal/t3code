@@ -26,6 +26,7 @@ import {
   type ProviderDriverKind,
   type ProviderRequestKind,
   type ProviderThreadId,
+  type ProviderUsageLimitsUpdate,
   type ProviderUserInputAnswers,
   type RuntimeRequestId,
   type ThreadTokenUsageSnapshot,
@@ -45,6 +46,7 @@ import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
@@ -92,7 +94,15 @@ import {
   resolveEmbeddedTerminalContent,
   type AcpClientTerminals,
 } from "../../provider/acp/AcpClientTerminals.ts";
+import {
+  StandardAcpFormRequest,
+  extractStandardAcpFormQuestions,
+  makeStandardAcpFormAcceptedResponse,
+  makeStandardAcpFormCancelledResponse,
+} from "../../provider/acp/AcpFormElicitation.ts";
+import { standardAcpSessionApprovalKey } from "../../provider/acp/AcpSessionApprovals.ts";
 import { ACP_SESSION_MODE_OPTION_ID } from "../../provider/acp/AcpSessionConfig.ts";
+import { acpUsageUpdateToUsageLimits } from "../../provider/acp/AcpUsageUpdates.ts";
 import * as AcpSessionRuntime from "../../provider/acp/AcpSessionRuntime.ts";
 import {
   t3AcpPromptWithInstructions,
@@ -239,6 +249,23 @@ export interface AcpAdapterV2Flavor {
   }) => Effect.Effect<string | undefined, EffectAcpErrors.AcpError>;
   /** Native session mode to select for a runtime policy (e.g. Antigravity `yolo`). */
   readonly sessionModeForPolicy?: (policy: ProviderAdapterV2RuntimePolicy) => string | undefined;
+  /**
+   * Model-selection option ids this flavor writes itself inside
+   * `applyModelSelection`. The shared configurator skips them so a translated
+   * value (Oh My Pi boolean thinking, reasoning aliases) is not overwritten
+   * by the raw selection.
+   */
+  readonly ownedConfigOptionIds?: ReadonlyArray<string>;
+  /**
+   * Decode form elicitations with the Standard ACP helpers so titled `oneOf`
+   * choices and label-to-const answers survive `elicitation/create`.
+   */
+  readonly standardFormElicitation?: boolean;
+  /**
+   * Remember an accepted-for-session permission by command or tool input and
+   * approve the same operation later in the thread.
+   */
+  readonly rememberSessionApprovals?: boolean;
   /**
    * Permission requests that are really questions (Antigravity `interaction_*`
    * tool calls). Returns the question and a response builder; undefined routes
@@ -452,6 +479,13 @@ export interface AcpAdapterV2Options {
   readonly continuationRequests?: {
     readonly offer: (request: ProviderContinuationRequest) => Effect.Effect<void>;
   };
+  /**
+   * Fold ACP `usage_update` rate-limit windows into the provider snapshot.
+   * Root-session updates only; child sessions stay isolated.
+   */
+  readonly onUsageLimits?: (
+    update: ProviderUsageLimitsUpdate & { readonly checkedAt: string },
+  ) => Effect.Effect<void>;
   readonly testHooks?: {
     readonly afterNativeResponseTransportClosed?: () => Effect.Effect<void>;
     readonly afterHardTeardownTransportDrained?: () => Effect.Effect<void>;
@@ -1484,6 +1518,7 @@ export function makeAcpAdapterV2(options: AcpAdapterV2Options): ProviderAdapterV
         // they are policy-checked against the active turn policy; approvals the
         // user already granted satisfy an "ask" disposition.
         const clientPolicyGrants = makeAcpClientPolicyGrants();
+        const sessionApprovedOperations = new Set<string>();
         let latestRuntimePolicy: ProviderAdapterV2RuntimePolicy = input.runtimePolicy;
         const events = yield* Queue.unbounded<ProviderAdapterV2Event>();
         const activeTurn = yield* Ref.make<ActiveAcpTurn | null>(null);
@@ -3821,6 +3856,11 @@ export function makeAcpAdapterV2(options: AcpAdapterV2Options): ProviderAdapterV
               );
               if (context?.nativeThreadId === notification.sessionId) {
                 context.contextUsage = stateEvent.usage;
+                const limits = acpUsageUpdateToUsageLimits(stateEvent.rawPayload);
+                if (limits !== undefined && options.onUsageLimits !== undefined) {
+                  const checkedAt = DateTime.formatIso(yield* DateTime.now);
+                  yield* options.onUsageLimits({ ...limits, checkedAt });
+                }
               }
             } else {
               const metadata = yield* Ref.modify(nativeMetadataBySessionId, (current) => {
@@ -5319,6 +5359,20 @@ export function makeAcpAdapterV2(options: AcpAdapterV2Options): ProviderAdapterV
                           : ({ outcome: { outcome: "selected", optionId } } as const),
                     };
                   }
+                  if (flavor.rememberSessionApprovals === true) {
+                    const approvalKey = standardAcpSessionApprovalKey(params);
+                    if (approvalKey !== undefined && sessionApprovedOperations.has(approvalKey)) {
+                      const optionId = selectPermissionOptionId(params, "accept");
+                      if (optionId !== undefined) {
+                        return {
+                          _tag: "Immediate" as const,
+                          response: {
+                            outcome: { outcome: "selected", optionId },
+                          } as const,
+                        };
+                      }
+                    }
+                  }
                   return {
                     _tag: "Pending" as const,
                     pending: yield* beginApprovalRequest(
@@ -5385,15 +5439,27 @@ export function makeAcpAdapterV2(options: AcpAdapterV2Options): ProviderAdapterV
                   turnKey: String(context.providerTurnId),
                 });
               }
-              const response = (() => {
-                if (decision === "cancel") {
-                  return { outcome: { outcome: "cancelled" } } as const;
+              const selectedOptionId =
+                decision === "cancel"
+                  ? undefined
+                  : (selectPermissionOptionId(params, decision) ??
+                    (flavor.rememberSessionApprovals === true && decision === "acceptForSession"
+                      ? selectPermissionOptionId(params, "accept")
+                      : undefined));
+              if (
+                flavor.rememberSessionApprovals === true &&
+                decision === "acceptForSession" &&
+                selectedOptionId !== undefined
+              ) {
+                const approvalKey = standardAcpSessionApprovalKey(params);
+                if (approvalKey !== undefined) {
+                  sessionApprovedOperations.add(approvalKey);
                 }
-                const optionId = selectPermissionOptionId(params, decision);
-                return optionId === undefined
+              }
+              const response =
+                selectedOptionId === undefined
                   ? ({ outcome: { outcome: "cancelled" } } as const)
-                  : ({ outcome: { outcome: "selected", optionId } } as const);
-              })();
+                  : ({ outcome: { outcome: "selected", optionId: selectedOptionId } } as const);
               const checked = yield* runRuntimeCallbackAtGeneration(
                 handlerGeneration,
                 Effect.succeed(response),
@@ -5485,6 +5551,51 @@ export function makeAcpAdapterV2(options: AcpAdapterV2Options): ProviderAdapterV
                 );
                 if (Option.isNone(admitted)) return yield* Effect.never;
                 return admitted.value;
+              }
+              if (flavor.standardFormElicitation === true && params.mode === "form") {
+                const decoded = Schema.decodeUnknownOption(StandardAcpFormRequest)(params);
+                if (Option.isNone(decoded)) {
+                  return { action: "decline" } as const;
+                }
+                const formQuestions = extractStandardAcpFormQuestions(decoded.value, params);
+                if (formQuestions.length === 0) {
+                  return { action: "decline" } as const;
+                }
+                const questions = formQuestions.map((question) => ({
+                  id: question.id,
+                  header: question.header,
+                  question: question.question,
+                  options: question.options.map((option) => ({
+                    label: option.label,
+                    description: option.description ?? option.label,
+                    ...(option.value === undefined ? {} : { value: option.value }),
+                  })),
+                  ...(question.multiSelect ? { multiSelect: true as const } : {}),
+                }));
+                const userInput = yield* requestUserInputWithAdmission(
+                  handlerGeneration,
+                  Effect.gen(function* () {
+                    const ordinal = yield* Ref.getAndUpdate(
+                      nextElicitationOrdinal,
+                      (current) => current + 1,
+                    );
+                    const elicitationScopeId =
+                      "sessionId" in params ? params.sessionId : `request:${params.requestId}`;
+                    const nativeRequestId = `${elicitationScopeId}:elicitation:${ordinal}`;
+                    return {
+                      nativeItemId: nativeRequestId,
+                      nativeRequestId,
+                      questions,
+                    };
+                  }),
+                  transportRequestId,
+                );
+                const response =
+                  userInput.answers === null
+                    ? makeStandardAcpFormCancelledResponse()
+                    : makeStandardAcpFormAcceptedResponse(decoded.value, userInput.answers);
+                yield* userInput.acknowledgeNativeResponse;
+                return response;
               }
               if (params.mode !== "form" || !("requestedSchema" in params)) {
                 // Future elicitation modes beyond form and url decline rather
@@ -5908,9 +6019,12 @@ export function makeAcpAdapterV2(options: AcpAdapterV2Options): ProviderAdapterV
           const modeSelection = hasNativeConfigWithSyntheticModeId
             ? undefined
             : optionSelections.find((selection) => selection.id === ACP_SESSION_MODE_OPTION_ID);
-          const configSelections = hasNativeConfigWithSyntheticModeId
-            ? optionSelections
-            : optionSelections.filter((selection) => selection.id !== ACP_SESSION_MODE_OPTION_ID);
+          const ownedConfigOptionIds = new Set(flavor.ownedConfigOptionIds ?? []);
+          const configSelections = (
+            hasNativeConfigWithSyntheticModeId
+              ? optionSelections
+              : optionSelections.filter((selection) => selection.id !== ACP_SESSION_MODE_OPTION_ID)
+          ).filter((selection) => !ownedConfigOptionIds.has(selection.id));
           // Probe-time descriptors are a per-model union, so a stored
           // selection can reference an option the live session does not
           // expose (Kilo advertises per-model "effort" descriptors while its

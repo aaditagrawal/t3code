@@ -3,7 +3,9 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Schema from "effect/Schema";
 
-import { makeOhMyPiAdapter, resolveOhMyPiAuthMethodId } from "../Layers/OhMyPiAdapter.ts";
+import { createOhMyPiAdapterV2 } from "../../orchestration-v2/Adapters/OhMyPiAdapterV2.ts";
+import { ProviderDriverError } from "../Errors.ts";
+import { resolveOhMyPiAuthMethodId } from "../Layers/OhMyPiAdapter.ts";
 import { discoverOhMyPiSkills } from "./OhMyPiSkills.ts";
 import { makeStandardAcpCliDriver, type StandardAcpCliDriverEnv } from "./StandardAcpCliDriver.ts";
 
@@ -29,7 +31,23 @@ export const OhMyPiDriver = makeStandardAcpCliDriver({
   launchArgs: ["acp"],
   settingsSchema: OhMyPiSettings,
   defaultSettings: () => decodeSettings({}),
-  makeAdapter: makeOhMyPiAdapter,
+  createOrchestrationAdapter: (input) =>
+    createOhMyPiAdapterV2({
+      instanceId: input.instanceId,
+      settings: input.config,
+      environment: input.environment,
+      onUsageLimits: input.applyUsageLimits,
+    }).pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProviderDriverError({
+            driver: DRIVER_KIND,
+            instanceId: input.instanceId,
+            detail: "Failed to build Oh My Pi orchestration adapter.",
+            cause,
+          }),
+      ),
+    ),
   makeProbeArgs: makeOhMyPiProbeArgs,
   resolveAuthMethodId: resolveOhMyPiAuthMethodId,
   unauthenticatedWhenNoDiscoveredModels: true,

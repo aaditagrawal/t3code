@@ -1,4 +1,4 @@
-import type { CustomModelSetting } from "@t3tools/contracts";
+import type { CustomModelSetting, ProviderInstanceEnvironment } from "@t3tools/contracts";
 import {
   type ProviderDriverKind,
   type ServerProvider,
@@ -25,6 +25,7 @@ import type { TextGeneration } from "../../textGeneration/TextGeneration.ts";
 type TextGenerationService = TextGeneration["Service"];
 import { ProviderDriverError, type ProviderAdapterError } from "../Errors.ts";
 import type { ProviderAdapterShape } from "../Services/ProviderAdapter.ts";
+import type { ProviderAdapterV2Shape } from "../../orchestration-v2/ProviderAdapter.ts";
 import { makeLegacyAdapterV2 } from "../../orchestration-v2/Adapters/LegacyAdapterV2.ts";
 import { IdAllocatorV2 } from "../../orchestration-v2/IdAllocator.ts";
 import { parseStandardAcpCliArguments } from "../acp/StandardAcpCliSupport.ts";
@@ -44,8 +45,19 @@ import {
 } from "../ProviderDriver.ts";
 import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
 import type { ServerProviderDraft } from "../providerSnapshot.ts";
+import type { ServerProviderShape } from "../Services/ServerProvider.ts";
 
 const SNAPSHOT_REFRESH_INTERVAL = Duration.minutes(5);
+
+export interface StandardAcpCliOrchestrationAdapterInput<Settings extends StandardAcpCliSettings> {
+  readonly instanceId: ProviderInstance["instanceId"];
+  readonly displayName: string | undefined;
+  readonly accentColor: string | undefined;
+  readonly environment: ProviderInstanceEnvironment;
+  readonly enabled: boolean;
+  readonly config: Settings;
+  readonly applyUsageLimits: ServerProviderShape["applyUsageLimits"];
+}
 
 export interface StandardAcpCliSettings {
   readonly enabled: boolean;
@@ -72,12 +84,24 @@ export interface StandardAcpCliDriverConfig<Settings extends StandardAcpCliSetti
   readonly settingsSchema: Schema.Codec<Settings, unknown>;
   readonly defaultSettings: () => Settings;
   readonly launchArgs?: ReadonlyArray<string>;
-  readonly makeAdapter: (
+  readonly makeAdapter?: (
     settings: Settings,
     options: StandardAcpAdapterLiveOptions,
   ) => Effect.Effect<
     ProviderAdapterShape<ProviderAdapterError>,
     never,
+    StandardAcpCliDriverEnv | Scope.Scope
+  >;
+  /**
+   * Native orchestration-v2 adapter. When set, the legacy v1 adapter and
+   * `LegacyAdapterV2` wrapper are not created. Other Standard ACP drivers
+   * keep the legacy wrapper until they grow their own flavor.
+   */
+  readonly createOrchestrationAdapter?: (
+    input: StandardAcpCliOrchestrationAdapterInput<Settings>,
+  ) => Effect.Effect<
+    ProviderAdapterV2Shape,
+    ProviderDriverError,
     StandardAcpCliDriverEnv | Scope.Scope
   >;
   readonly setupHint: string;
@@ -189,12 +213,6 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
             : {}),
         };
 
-        const eventLoggers = yield* ProviderEventLoggers;
-        const adapter = yield* driverConfig.makeAdapter(effectiveConfig, {
-          instanceId,
-          environment: processEnv,
-          ...(eventLoggers.native ? { nativeEventLogger: eventLoggers.native } : {}),
-        });
         const checkProvider = Effect.gen(function* () {
           const prepareArgs = driverConfig.makeProbeArgs?.(providerConfig.args ?? []);
           return yield* checkStandardAcpCliProviderStatus(
@@ -229,22 +247,49 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           ),
         );
 
-        const { cwd } = yield* ServerConfig;
-        const orchestrationAdapter = yield* makeLegacyAdapterV2({
-          instanceId,
-          adapter,
-          cwd,
-          profile: {
-            resume: "acp",
-            nativeHistory: false,
-            reasoning: true,
-            approvals: true,
-            questions: true,
-            planning: true,
-            mcp: true,
-          },
-          onUsageLimits: (update) => snapshot.applyUsageLimits(update),
-        });
+        const orchestrationAdapter =
+          driverConfig.createOrchestrationAdapter !== undefined
+            ? yield* driverConfig.createOrchestrationAdapter({
+                instanceId,
+                displayName,
+                accentColor,
+                environment,
+                enabled,
+                config: effectiveConfig,
+                applyUsageLimits: (update) => snapshot.applyUsageLimits(update),
+              })
+            : yield* Effect.gen(function* () {
+                const makeAdapter = driverConfig.makeAdapter;
+                if (makeAdapter === undefined) {
+                  return yield* new ProviderDriverError({
+                    driver: driverConfig.driverKind,
+                    instanceId,
+                    detail: `${driverConfig.displayName} has no orchestration adapter.`,
+                  });
+                }
+                const eventLoggers = yield* ProviderEventLoggers;
+                const adapter = yield* makeAdapter(effectiveConfig, {
+                  instanceId,
+                  environment: processEnv,
+                  ...(eventLoggers.native ? { nativeEventLogger: eventLoggers.native } : {}),
+                });
+                const { cwd } = yield* ServerConfig;
+                return yield* makeLegacyAdapterV2({
+                  instanceId,
+                  adapter,
+                  cwd,
+                  profile: {
+                    resume: "acp",
+                    nativeHistory: false,
+                    reasoning: true,
+                    approvals: true,
+                    questions: true,
+                    planning: true,
+                    mcp: true,
+                  },
+                  onUsageLimits: (update) => snapshot.applyUsageLimits(update),
+                });
+              });
         return {
           instanceId,
           driverKind: driverConfig.driverKind,
