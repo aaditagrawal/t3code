@@ -37,6 +37,13 @@ const buttonVariants = cva(
           "min-h-8 gap-1.5 px-[calc(--spacing(2.5)-1px)] py-[calc(--spacing(1)-1px)] whitespace-normal sm:min-h-7",
         xl: "h-11 px-[calc(--spacing(4)-1px)] text-lg sm:h-10 sm:text-base [&_svg:not([class*='size-'])]:size-5 sm:[&_svg:not([class*='size-'])]:size-4.5",
         xs: "h-7 gap-1 px-[calc(--spacing(2)-1px)] text-sm sm:h-6 sm:text-xs [&_svg:not([class*='size-'])]:size-4 sm:[&_svg:not([class*='size-'])]:size-3.5",
+        // Grows with its label. The vertical padding subtracts the 1px border so a
+        // single line lands on the same height as the fixed `xs` size.
+        "xs-grow":
+          "h-auto min-h-7 gap-1 px-[calc(--spacing(2)-1px)] py-[calc(--spacing(1)-1px)] whitespace-normal text-sm sm:h-auto sm:min-h-6 sm:text-xs [&_svg:not([class*='size-'])]:size-4 sm:[&_svg:not([class*='size-'])]:size-3.5",
+        // Same growth, at the thread-details row height, and still fully visible while disabled.
+        "panel-grow":
+          "h-auto min-h-9 gap-1 px-[calc(--spacing(2)-1px)] py-[calc(--spacing(1)-1px)] whitespace-normal text-sm disabled:opacity-100 sm:h-auto sm:min-h-9 sm:text-xs [&_svg:not([class*='size-'])]:size-4 sm:[&_svg:not([class*='size-'])]:size-3.5",
       },
       variant: {
         default:
@@ -51,6 +58,12 @@ const buttonVariants = cva(
           "[--control-icon-color:currentColor] border-transparent text-muted-foreground data-pressed:bg-accent [:hover,[data-pressed]]:bg-accent [:hover,[data-pressed]]:text-foreground",
         "ghost-destructive":
           "[--control-icon-color:currentColor] border-transparent text-muted-foreground data-pressed:bg-accent [:hover,[data-pressed]]:bg-accent [:hover,[data-pressed]]:text-destructive",
+        // Quiet resting label that stays a step below full foreground on hover.
+        "ghost-quiet":
+          "[--control-icon-color:currentColor] border-transparent text-muted-foreground/70 data-pressed:bg-accent [:hover,[data-pressed]]:bg-accent [:hover,[data-pressed]]:text-foreground/80",
+        // Always destructive, including while a feature class sets another text color.
+        "ghost-danger":
+          "[--control-icon-color:currentColor] border-transparent text-destructive! data-pressed:bg-accent [:hover,[data-pressed]]:bg-accent [:hover,[data-pressed]]:text-destructive!",
         glass:
           "surface-glass [--control-icon-color:var(--contrast-muted-foreground)] rounded-full border-border/60 text-foreground shadow-sm before:rounded-full [:hover,[data-pressed]]:border-border",
         link: "border-transparent underline-offset-4 [:hover,[data-pressed]]:underline",
@@ -61,6 +74,9 @@ const buttonVariants = cva(
         outline:
           "[--control-icon-color:var(--contrast-muted-foreground)] border-input bg-popover not-dark:bg-clip-padding text-foreground shadow-xs/5 not-disabled:not-active:not-data-pressed:before:shadow-[0_1px_--theme(--color-black/4%)] dark:bg-input/32 dark:not-disabled:before:shadow-[0_-1px_--theme(--color-white/2%)] dark:not-disabled:not-active:not-data-pressed:before:shadow-[0_-1px_--theme(--color-white/6%)] [:disabled,:active,[data-pressed]]:shadow-none [:hover,[data-pressed]]:bg-accent/50 dark:[:hover,[data-pressed]]:bg-input/64",
         overlay: "border-transparent bg-black/70 text-white/65 [:hover,[data-pressed]]:bg-black/90",
+        // Sits on a thumbnail. The fill follows the theme background, not a fixed scrim.
+        scrim:
+          "border-transparent bg-background/80 text-foreground [:hover,[data-pressed]]:bg-background/90",
         secondary:
           "border-transparent bg-secondary text-secondary-foreground [:active,[data-pressed]]:bg-secondary/80 [:hover,[data-pressed]]:bg-secondary/90",
         "warning-outline":

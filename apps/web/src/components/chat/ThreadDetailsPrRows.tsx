@@ -89,13 +89,10 @@ export function ThreadDetailsPrRows({
           ))
         : null}
       <Button
-        variant="ghost"
+        variant="ghost-quiet"
         size="sm"
         onClick={() => setExpanded(!expanded)}
-        className={cn(
-          THREAD_DETAILS_PANEL_ROW_CLASS,
-          "w-full text-muted-foreground/70 hover:text-foreground/80 active:scale-100",
-        )}
+        className={cn(THREAD_DETAILS_PANEL_ROW_CLASS, "w-full active:scale-100")}
       >
         {expanded ? (
           <MinusIcon aria-hidden className="-mx-0.5 size-4 shrink-0" />

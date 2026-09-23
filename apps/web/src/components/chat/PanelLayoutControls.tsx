@@ -106,10 +106,11 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
               collisionAvoidance={{ side: "shift", align: "shift", fallbackAxisSide: "none" }}
               side="bottom"
               sideOffset={0}
-              positionerClassName="w-[min(var(--thread-details-panel-width),var(--anchor-width))] !transition-none"
-              className="w-full !overflow-visible !rounded-none !border-0 !bg-transparent !shadow-none before:hidden! [--viewport-inline-padding:0] [-webkit-backdrop-filter:none]! [backdrop-filter:none]!"
+              positionerClassName="w-[min(var(--thread-details-panel-width),var(--anchor-width))]"
+              className="w-full overflow-visible"
               padding="none"
               overflow="visible"
+              chrome="bare"
             >
               <div className="p-2">{threadPanelPopoverContent}</div>
             </PopoverPopup>

@@ -40,6 +40,7 @@ function PopoverPopup({
   positionerClassName,
   padding = "default",
   overflow = "clip",
+  chrome = "default",
   width = "auto",
   side = "bottom",
   align = "center",
@@ -55,6 +56,8 @@ function PopoverPopup({
   padding?: keyof typeof popoverViewportPaddingClassName;
   /** Visible lets a positioned panel draw outside the popup, such as the thread details popover. */
   overflow?: "clip" | "visible";
+  /** `bare` drops the glass frame so a feature can draw its own panel in the popup's place. */
+  chrome?: "default" | "bare";
   side?: PopoverPrimitive.Positioner.Props["side"];
   align?: PopoverPrimitive.Positioner.Props["align"];
   sideOffset?: PopoverPrimitive.Positioner.Props["sideOffset"];
@@ -77,6 +80,7 @@ function PopoverPopup({
         collisionAvoidance={collisionAvoidance}
         className={cn(
           "z-[130] h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-transform data-instant:transition-none",
+          chrome === "bare" && "transition-none!",
           positionerClassName,
         )}
         data-slot="popover-positioner"
@@ -89,9 +93,12 @@ function PopoverPopup({
             tooltipStyle &&
               "w-fit text-balance rounded-md text-xs shadow-md/5 before:rounded-[calc(var(--radius-md)-1px)]",
             !tooltipStyle &&
+              chrome !== "bare" &&
               "shadow-[0_16px_40px_-18px_rgb(0_0_0/55%)] dark:shadow-[0_18px_44px_-18px_rgb(0_0_0/80%)]",
             width !== "auto" && ["max-w-[calc(100vw-2rem)]", popoverPopupWidthClassName[width]],
             className,
+            chrome === "bare" &&
+              "rounded-none! border-0! bg-transparent! shadow-none! before:hidden! [backdrop-filter:none]! [-webkit-backdrop-filter:none]!",
           )}
           data-slot="popover-popup"
           {...props}

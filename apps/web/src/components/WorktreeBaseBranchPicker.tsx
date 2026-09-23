@@ -1,5 +1,5 @@
 import type { EnvironmentId } from "@t3tools/contracts";
-import { ChevronDownIcon, GitBranchIcon } from "lucide-react";
+import { GitBranchIcon } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 
 import { usePaginatedBranches } from "../state/queries";
@@ -8,8 +8,8 @@ import { vcsEnvironment } from "../state/vcs";
 import { BranchPicker, BranchPickerRefItem } from "./BranchPicker";
 import { resolveBranchTriggerLabel, sanitizeNewRefName } from "./BranchToolbar.logic";
 import { MiddleTruncate } from "./ui/middle-truncate";
-import { Button } from "./ui/button";
 import { ComboboxTrigger } from "./ui/combobox";
+import { SelectButton } from "./ui/select";
 
 /** Select a future worktree's base without changing the project's current checkout. */
 export function WorktreeBaseBranchPicker({
@@ -111,15 +111,11 @@ export function WorktreeBaseBranchPicker({
         ) : null;
       }}
     >
-      <ComboboxTrigger
-        id={id}
-        disabled={disabled || !cwd}
-        render={<Button variant="outline" size="sm" />}
-        className="w-full justify-between font-normal"
-      >
-        <GitBranchIcon className="size-3.5 shrink-0 text-muted-foreground" />
-        <MiddleTruncate value={label} className="flex-1 text-left" />
-        <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      <ComboboxTrigger id={id} disabled={disabled || !cwd} render={<SelectButton size="sm" />}>
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <GitBranchIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          <MiddleTruncate value={label} className="min-w-0 flex-1 text-left" />
+        </span>
       </ComboboxTrigger>
     </BranchPicker>
   );

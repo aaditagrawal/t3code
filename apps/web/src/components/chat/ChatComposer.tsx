@@ -6874,9 +6874,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                           </div>
                         )}
                         <Button
-                          variant="ghost"
+                          variant="scrim"
                           size="icon-xs"
-                          className="absolute right-1 top-1 bg-background/80 hover:bg-background/90"
+                          className="absolute right-1 top-1"
                           onClick={() => onRemoveEditingQueuedAttachment(attachment.id)}
                           aria-label={`Remove ${attachment.name}`}
                         >

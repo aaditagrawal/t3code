@@ -447,10 +447,7 @@ function GitActionProgressButtonContent({
       )}
       role="status"
     >
-      <Spinner
-        aria-hidden="true"
-        className="row-start-1 -mx-0.5 size-4 shrink-0 text-muted-foreground"
-      />
+      <Spinner aria-hidden="true" tone="muted" size="md" className="row-start-1 -mx-0.5 shrink-0" />
       <p className="row-start-1 min-w-0 truncate text-left">{progress.status}</p>
       {!isPanel ? (
         <GitActionElapsedTime
@@ -1805,17 +1802,11 @@ export default function GitActionsControl({
                   : gitActionProgress.status
               }
               className={cn(
-                // Vertical padding subtracts the button's 1px border (same idiom
-                // as the size variants' px) so the h-auto single-line height
-                // lands exactly on the fixed height of the static button.
-                isPanel
-                  ? THREAD_DETAILS_PANEL_SPLIT_PRIMARY_CLASS
-                  : "h-auto min-h-7 max-w-72 py-[calc(--spacing(1)-1px)] sm:h-auto sm:min-h-6",
-                isPanel &&
-                  "h-auto min-h-9 py-[calc(--spacing(1)-1px)] disabled:opacity-100 sm:h-auto sm:min-h-9",
+                isPanel ? THREAD_DETAILS_PANEL_SPLIT_PRIMARY_CLASS : "max-w-72",
+                isPanel && "h-auto min-h-9 sm:h-auto sm:min-h-9",
               )}
               disabled
-              size="xs"
+              size={isPanel ? "panel-grow" : "xs-grow"}
               variant={isPanel ? "ghost" : "outline"}
             >
               <GitActionProgressButtonContent isPanel={isPanel} progress={gitActionProgress} />
@@ -1824,10 +1815,10 @@ export default function GitActionsControl({
             <Button
               className={cn(
                 THREAD_DETAILS_PANEL_SPLIT_PRIMARY_CLASS,
-                "h-auto min-h-9 py-[calc(--spacing(1)-1px)] disabled:opacity-100 sm:h-auto sm:min-h-9",
+                "h-auto min-h-9 sm:h-auto sm:min-h-9",
               )}
               disabled
-              size="xs"
+              size="panel-grow"
               variant="ghost"
             >
               <GitActionSuccessButtonContent success={visibleInlineSuccess} />

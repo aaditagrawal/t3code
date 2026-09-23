@@ -283,8 +283,7 @@ function ProviderEnvironmentFieldRow(props: {
             <Button
               type="button"
               size="icon-sm"
-              variant="ghost-muted"
-              className="hover:text-destructive"
+              variant="ghost-destructive"
               onClick={() => props.onRemove(props.field)}
               aria-label={`Clear ${props.field.label}`}
             >
