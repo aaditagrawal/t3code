@@ -13,16 +13,15 @@ type Loader = {
   layer: (config: RuntimeSqliteLayerConfig) => Layer.Layer<SqlClient.SqlClient, SqlError>;
 };
 
-const defaultSqliteClientLoaders = {
-  bun: () => import("@effect/sql-sqlite-bun/SqliteClient"),
-  node: () => import("@t3tools/shared/nodeSqliteClient"),
-} satisfies Record<string, () => Promise<Loader>>;
-
 export const makeRuntimeSqliteLayer = Effect.fn("makeRuntimeSqliteLayer")(function* (
   config: RuntimeSqliteLayerConfig,
 ) {
-  const runtime = process.versions.bun !== undefined ? "bun" : "node";
-  const loader = defaultSqliteClientLoaders[runtime];
-  const clientModule = yield* Effect.promise<Loader>(loader);
+  // Keep the runtime branch directly around the import so Node-only executable
+  // builds can remove the Bun client before flattening modules into one file.
+  const clientModule = yield* Effect.promise<Loader>(() =>
+    process.versions.bun !== undefined
+      ? import("@effect/sql-sqlite-bun/SqliteClient")
+      : import("@t3tools/shared/nodeSqliteClient"),
+  );
   return clientModule.layer(config);
 }, Layer.unwrap);
