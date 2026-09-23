@@ -10,7 +10,7 @@ import {
 } from "@t3tools/shared/model";
 import * as Effect from "effect/Effect";
 import * as EffectAcpErrors from "effect-acp/errors";
-import type * as EffectAcpSchema from "effect-acp/schema";
+import type * as EffectAcpSchema from "effect-acp/compat";
 
 import {
   collectSessionConfigOptionValues,

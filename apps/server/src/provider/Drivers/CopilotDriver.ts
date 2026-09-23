@@ -30,6 +30,12 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
+import {
+  makeLegacyAdapterV2,
+  LEGACY_ADAPTER_V2_PROFILES,
+} from "../../orchestration-v2/Adapters/LegacyAdapterV2.ts";
+import type { IdAllocatorV2 } from "../../orchestration-v2/IdAllocator.ts";
+
 import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import { ServerConfig } from "../../config.ts";
@@ -62,6 +68,7 @@ const MAINTENANCE_CAPABILITIES = makeManualOnlyProviderMaintenanceCapabilities({
 });
 
 export type CopilotDriverEnv =
+  | IdAllocatorV2
   | BackgroundPolicy.BackgroundPolicy
   | ChildProcessSpawner.ChildProcessSpawner
   | FileSystem.FileSystem
@@ -143,6 +150,14 @@ export const CopilotDriver: ProviderDriver<CopilotSettings, CopilotDriverEnv> = 
         ),
       );
 
+      const orchestrationAdapter = yield* makeLegacyAdapterV2({
+        instanceId,
+        adapter,
+        profile: LEGACY_ADAPTER_V2_PROFILES["copilot"],
+        cwd: (yield* ServerConfig).cwd,
+        onUsageLimits: (update) => snapshot.applyUsageLimits(update),
+      });
+
       return {
         instanceId,
         driverKind: DRIVER_KIND,
@@ -151,7 +166,7 @@ export const CopilotDriver: ProviderDriver<CopilotSettings, CopilotDriverEnv> = 
         accentColor,
         enabled,
         snapshot,
-        adapter,
+        orchestrationAdapter,
         textGeneration,
       } satisfies ProviderInstance;
     }),

@@ -8,11 +8,16 @@
  *
  * @module threadTitleRegeneration
  */
-import type { ThreadTitleRegeneration, ThreadTitleRegenerationFailure } from "@t3tools/contracts";
 
 export interface ThreadTitleRegenerationHolder {
-  readonly titleRegeneration?: ThreadTitleRegeneration | null | undefined;
-  readonly titleRegenerationFailure?: ThreadTitleRegenerationFailure | null | undefined;
+  readonly titleRegeneration?:
+    | { readonly requestId: string; readonly startedAt: string }
+    | null
+    | undefined;
+  readonly titleRegenerationFailure?:
+    | { readonly requestId: string; readonly failedAt: string; readonly error: string }
+    | null
+    | undefined;
 }
 
 /** True while generation is in flight — the only state that shows a spinner. */

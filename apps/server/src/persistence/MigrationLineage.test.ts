@@ -11,7 +11,7 @@ import {
   type KnownMigration,
   type RecordedMigration,
 } from "./MigrationLineage.ts";
-import { migrationManifest } from "./Migrations.ts";
+import { migrationManifest, runMigrations } from "./Migrations.ts";
 
 const known: ReadonlyArray<KnownMigration> = [
   [1, "OrchestrationEvents"],
@@ -138,4 +138,37 @@ describe("assertMigrationLineageCompatible", () => {
       expect(String(result)).toContain("MigrationLineageError");
     }).pipe(Effect.provide(makeRuntimeSqliteLayer({ filename: ":memory:" }))),
   );
+});
+
+describe("fork V2 migration lineage", () => {
+  for (const migrationId of [53, 54]) {
+    it.effect(`refuses foreign V2 migration ${migrationId} without changing stored state`, () =>
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* runMigrations({ toMigrationInclusive: migrationId - 1 });
+        yield* sql`
+          INSERT INTO effect_sql_migrations (migration_id, name)
+          VALUES (${migrationId}, 'OrchestrationV2')
+        `;
+        yield* sql`CREATE TABLE preview_data (message text NOT NULL)`;
+        yield* sql`INSERT INTO preview_data VALUES ('keep this transcript')`;
+        const history = yield* sql`SELECT * FROM effect_sql_migrations ORDER BY migration_id`;
+        const schema = yield* sql`SELECT type, name, sql FROM sqlite_master ORDER BY type, name`;
+
+        const result = yield* Effect.exit(runMigrations());
+
+        expect(result._tag).toBe("Failure");
+        expect(String(result)).toContain("MigrationLineageError");
+        expect(yield* sql`SELECT * FROM effect_sql_migrations ORDER BY migration_id`).toEqual(
+          history,
+        );
+        expect(yield* sql`SELECT type, name, sql FROM sqlite_master ORDER BY type, name`).toEqual(
+          schema,
+        );
+        expect(yield* sql`SELECT * FROM preview_data`).toEqual([
+          { message: "keep this transcript" },
+        ]);
+      }).pipe(Effect.provide(makeRuntimeSqliteLayer({ filename: ":memory:" }))),
+    );
+  }
 });

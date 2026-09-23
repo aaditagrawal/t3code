@@ -39,8 +39,7 @@ import * as SynchronizedRef from "effect/SynchronizedRef";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
 import * as NodeURL from "node:url";
 import * as EffectAcpErrors from "effect-acp/errors";
-import { ElicitationRequest as ElicitationRequestSchema } from "effect-acp/schema";
-import type * as EffectAcpSchema from "effect-acp/schema";
+import type * as EffectAcpSchema from "effect-acp/compat";
 
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { HostProcessEnvironment, HostProcessPlatform } from "@t3tools/shared/hostProcess";
@@ -57,6 +56,7 @@ import {
 } from "../Errors.ts";
 import { mapAcpToAdapterError } from "../acp/AcpAdapterSupport.ts";
 import {
+  StandardAcpFormRequest,
   extractStandardAcpFormQuestions,
   makeStandardAcpFormAcceptedResponse,
   makeStandardAcpFormCancelledResponse,
@@ -71,18 +71,18 @@ import {
   makeAcpRequestResolvedEvent,
   makeAcpToolCallEvent,
 } from "../acp/AcpCoreRuntimeEvents.ts";
-import { parsePermissionRequest, type AcpToolCallState } from "../acp/AcpRuntimeModel.ts";
 import {
-  acpNotificationSessionId,
-  acpUsageUpdateToTokenUsageSnapshot,
-  acpUsageUpdateToUsageLimits,
-} from "../acp/AcpUsageUpdates.ts";
+  parsePermissionRequest,
+  type AcpToolCallState,
+  type AcpPlanUpdate,
+} from "../acp/AcpRuntimeModel.ts";
+import { acpNotificationSessionId, acpUsageUpdateToUsageLimits } from "../acp/AcpUsageUpdates.ts";
 import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging.ts";
 import type { ProviderAdapterShape } from "../Services/ProviderAdapter.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 
 const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
-const decodeElicitationRequest = Schema.decodeUnknownEffect(ElicitationRequestSchema);
+const decodeElicitationRequest = Schema.decodeUnknownEffect(StandardAcpFormRequest);
 
 const STANDARD_ACP_RESUME_VERSION = 1 as const;
 const NANOS_PER_MILLI = 1_000_000n;
@@ -135,7 +135,7 @@ export interface StandardAcpProposedPlanRegistration<Params, Encoded> {
     active: boolean,
     toolCall: {
       readonly title?: string;
-      readonly status?: "pending" | "inProgress" | "completed" | "failed";
+      readonly status?: "pending" | "inProgress" | "completed" | "failed" | "requiresAction";
       readonly data: Record<string, unknown>;
     },
   ) => boolean;
@@ -392,7 +392,7 @@ function completedStopReasonFromPromptResponse(
   return resolveStopReason ? resolveStopReason(response) : response.stopReason;
 }
 
-export function standardAcpPromptSettlementBelongsToContext(input: {
+function standardAcpPromptSettlementBelongsToContext(input: {
   readonly liveAcpSessionId: string;
   readonly expectedAcpSessionId: string;
   readonly liveActiveTurnId: TurnId | undefined;
@@ -821,13 +821,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
       ctx: StandardAcpSessionContext,
       turnId: TurnId | undefined,
       stamp: { readonly eventId: EventId; readonly createdAt: string },
-      payload: {
-        readonly explanation?: string | null;
-        readonly plan: ReadonlyArray<{
-          readonly step: string;
-          readonly status: "pending" | "inProgress" | "completed";
-        }>;
-      },
+      payload: AcpPlanUpdate,
       rawPayload: unknown,
       method: string,
     ) =>
@@ -1070,7 +1064,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
             }
             if (config.formElicitation) {
               const handleFormElicitation = (
-                params: EffectAcpSchema.ElicitationRequest,
+                params: StandardAcpFormRequest,
                 method: "elicitation/create" | "session/elicitation",
                 rawParams: unknown = params,
               ) =>
@@ -1131,7 +1125,19 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                   }),
                 );
               yield* acp.handleElicitation((params) =>
-                handleFormElicitation(params, "session/elicitation"),
+                params.mode === "form"
+                  ? decodeElicitationRequest(params).pipe(
+                      Effect.mapError((cause) =>
+                        EffectAcpErrors.AcpRequestError.invalidExtensionPayload(
+                          "session/elicitation",
+                          cause,
+                        ),
+                      ),
+                      Effect.flatMap((request) =>
+                        handleFormElicitation(request, "session/elicitation", params),
+                      ),
+                    )
+                  : Effect.succeed(makeStandardAcpFormDeclinedResponse()),
               );
               // OhMyPi implements the original unstable ACP spelling and flat
               // response action. Keep both spellings behind the same opt-in.
@@ -1146,7 +1152,6 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                   Effect.flatMap((params) =>
                     handleFormElicitation(params, "elicitation/create", rawParams),
                   ),
-                  Effect.map((response) => response.action),
                 ),
               );
             }
@@ -1404,7 +1409,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                 }
                 const stamp = yield* makeEventStamp();
                 if (event._tag === "UsageUpdated") {
-                  const usage = acpUsageUpdateToTokenUsageSnapshot(event);
+                  const usage = event.usage;
                   if (usage) {
                     yield* offerRuntimeEvent({
                       type: "thread.token-usage.updated",

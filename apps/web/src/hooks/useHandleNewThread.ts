@@ -30,7 +30,7 @@ import {
   selectProjectGroupingSettings,
 } from "../logicalProject";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
-import { readProjects, readThreadShell, useProjects, useThread } from "../state/entities";
+import { readProjects, readThreadShell, useProjects, useThreadShell } from "../state/entities";
 import {
   hasExplicitComposerModelSelection,
   resolveNewDraftStartFromOrigin,
@@ -45,16 +45,17 @@ import { useClientSettings } from "./useSettings";
 function resolveCarriedRuntimeMode(
   raw: RuntimeMode | null,
   destinationInstanceId: string | null | undefined,
+  configuredDriver?: ProviderDriverKind,
 ): RuntimeMode | null {
   if (raw === null) return null;
-  // Built-in instance ids match driver kinds. Custom instances fall through to
-  // base (non-Droid) options so medium-access cannot leak onto other providers.
+  // Custom instance ids are routing keys; their configured driver owns permissions.
   const destinationProvider =
-    destinationInstanceId === "droid"
+    configuredDriver ??
+    (destinationInstanceId === "droid"
       ? ProviderDriverKind.make("droid")
       : destinationInstanceId
         ? ProviderDriverKind.make("codex")
-        : undefined;
+        : undefined);
   if (destinationProvider) {
     return normalizeRuntimeModeForProvider(destinationProvider, raw);
   }
@@ -104,8 +105,8 @@ export function useNewThreadHandler() {
       // up again and finding whichever draft it happens to hold.
     ): Promise<{ draftId: DraftId; threadId: ThreadId } | null> => {
       const projects = readProjects();
-      const targetServerSettings =
-        environmentServerConfigs.get(projectRef.environmentId)?.settings ?? DEFAULT_SERVER_SETTINGS;
+      const targetServerConfig = environmentServerConfigs.get(projectRef.environmentId);
+      const targetServerSettings = targetServerConfig?.settings ?? DEFAULT_SERVER_SETTINGS;
       const {
         getComposerDraft,
         getDraftSessionByLogicalProjectKey,
@@ -162,10 +163,20 @@ export function useNewThreadHandler() {
         project,
       );
       const projectDefaultModelSelection = projectSettings.settings.defaultModelSelection;
+      const destinationInstanceId =
+        projectDefaultModelSelection?.instanceId ?? carryModelSelection?.instanceId;
+      const configuredDriver =
+        destinationInstanceId === undefined
+          ? undefined
+          : (targetServerSettings.providerInstances?.[destinationInstanceId]?.driver ??
+            targetServerConfig?.providers?.find(
+              (provider) => provider.instanceId === destinationInstanceId,
+            )?.driver);
       const defaultRuntimeMode =
         resolveCarriedRuntimeMode(
           projectSettings.settings.defaultRuntimeMode,
-          projectDefaultModelSelection?.instanceId ?? carryModelSelection?.instanceId,
+          destinationInstanceId,
+          configuredDriver,
         ) ?? projectSettings.settings.defaultRuntimeMode;
       const resolveModelSelectionOverride = (destinationDraftId: DraftId) =>
         resolveNewThreadModelSelectionOverride({
@@ -472,7 +483,7 @@ export function useHandleNewThread() {
   });
   const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const routeDraftId = routeTarget?.kind === "draft" ? routeTarget.draftId : null;
-  const activeThread = useThread(routeThreadRef);
+  const activeThread = useThreadShell(routeThreadRef);
   const getDraftThread = useComposerDraftStore((store) => store.getDraftThread);
   const activeDraftThread = useComposerDraftStore(() =>
     routeTarget

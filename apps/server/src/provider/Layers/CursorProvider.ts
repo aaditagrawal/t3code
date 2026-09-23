@@ -1,94 +1,44 @@
+import type { SDKModel, SDKUser } from "@cursor/sdk";
 import type {
   CursorSettings,
-  ServerProvider,
+  ModelCapabilities,
+  ProviderOptionDescriptor,
   ServerProviderAuth,
   ServerProviderModel,
+  ServerProviderState,
 } from "@t3tools/contracts";
-import { causeErrorTag } from "@t3tools/shared/observability";
-import * as Cause from "effect/Cause";
-import * as Data from "effect/Data";
+import { createModelCapabilities } from "@t3tools/shared/model";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
-import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
+import * as Result from "effect/Result";
 
+import { cursorSdkParameterPriority, cursorSdkProviderOptionId } from "../cursorSdkModel.ts";
 import {
+  buildBooleanOptionDescriptor,
+  buildSelectOptionDescriptor,
   buildServerProvider,
-  COMPACT_SLASH_COMMAND,
   providerModelsFromSettings,
   type ServerProviderDraft,
 } from "../providerSnapshot.ts";
-import {
-  enrichProviderSnapshotWithVersionAdvisory,
-  type ProviderMaintenanceCapabilities,
-} from "../providerMaintenance.ts";
-import { toMessage } from "../toMessage.ts";
-import {
-  liveCursorSdkClient,
-  type CursorSdkClient,
-  type CursorSdkUser,
-} from "../cursor/CursorSdkClient.ts";
-import {
-  cursorSdkApiKey,
-  CURSOR_FALLBACK_MODELS,
-  EMPTY_CURSOR_CAPABILITIES,
-  buildCursorDiscoveredModelsFromSdkModels,
-} from "../cursor/CursorSdkMappings.ts";
+import { CursorSdkCatalog } from "./CursorSdkCatalog.ts";
 
 const CURSOR_PRESENTATION = {
   displayName: "Cursor",
-  badgeLabel: "SDK",
+  supportsConversationRollback: false,
   showInteractionModeToggle: true,
 } as const;
+const EMPTY_CAPABILITIES: ModelCapabilities = createModelCapabilities({
+  optionDescriptors: [],
+});
 
-const CURSOR_AUTH_TIMEOUT_MS = 10_000;
-const CURSOR_MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
-
-const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
-
-class CursorSdkProviderProbeError extends Data.TaggedError("CursorSdkProviderProbeError")<{
-  readonly detail: string;
-  readonly cause?: unknown;
-}> {}
-
-function probeErrorDetail(cause: unknown, fallback: string): string {
-  return cause instanceof CursorSdkProviderProbeError ? cause.detail : toMessage(cause, fallback);
-}
-
-function authFromSdkUser(user: CursorSdkUser): ServerProviderAuth {
-  const labelParts = [user.apiKeyName, user.userFirstName, user.userLastName]
-    .map((part) => part?.trim())
-    .filter((part): part is string => Boolean(part));
-  return {
-    status: "authenticated",
-    type: "api_key",
-    ...(labelParts.length > 0 ? { label: labelParts.join(" - ") } : {}),
-    ...(user.userEmail ? { email: user.userEmail } : {}),
-  };
-}
-
-function modelDiscoveryWarning(cause: unknown): string {
-  return `Cursor SDK model discovery failed: ${probeErrorDetail(
-    cause,
-    "Unknown Cursor SDK error.",
-  )}`;
-}
-
-export function getCursorFallbackModels(
-  cursorSettings: Pick<CursorSettings, "customModels">,
-): ReadonlyArray<ServerProviderModel> {
-  return providerModelsFromSettings(
-    CURSOR_FALLBACK_MODELS,
-    cursorSettings.customModels,
-    EMPTY_CURSOR_CAPABILITIES,
-  );
-}
+const CURSOR_SDK_CATALOG_TIMEOUT_MS = 15_000;
 
 export function buildInitialCursorProviderSnapshot(
   cursorSettings: CursorSettings,
 ): Effect.Effect<ServerProviderDraft> {
   return Effect.gen(function* () {
-    const checkedAt = yield* nowIso;
+    const checkedAt = yield* Effect.map(DateTime.now, DateTime.formatIso);
     const models = getCursorFallbackModels(cursorSettings);
 
     if (!cursorSettings.enabled) {
@@ -123,176 +73,278 @@ export function buildInitialCursorProviderSnapshot(
   });
 }
 
+function getCursorFallbackModels(
+  cursorSettings: Pick<CursorSettings, "customModels">,
+): ReadonlyArray<ServerProviderModel> {
+  return providerModelsFromSettings([], cursorSettings.customModels, EMPTY_CAPABILITIES);
+}
+
+function toTitleCaseWords(value: string): string {
+  const parts: Array<string> = [];
+  for (const part of value.split(/[\s_-]+/g)) {
+    if (part.length > 0) {
+      parts.push(part.charAt(0).toUpperCase() + part.slice(1).toLowerCase());
+    }
+  }
+  return parts.join(" ");
+}
+
+function cursorSdkDefaultParameterValue(model: SDKModel, parameterId: string): string | undefined {
+  return model.variants
+    ?.find((variant) => variant.isDefault)
+    ?.params.find((parameter) => parameter.id === parameterId)?.value;
+}
+
+export function buildCursorCapabilitiesFromSdkModel(model: SDKModel): ModelCapabilities {
+  const seen = new Set<string>();
+  const optionDescriptors: Array<ProviderOptionDescriptor> = [];
+  const parameters = (model.parameters ?? [])
+    .map((parameter, index) => ({ parameter, index }))
+    .toSorted(
+      (left, right) =>
+        cursorSdkParameterPriority(left.parameter.id) -
+          cursorSdkParameterPriority(right.parameter.id) || left.index - right.index,
+    );
+  for (const { parameter } of parameters) {
+    const nativeId = parameter.id.trim();
+    const id = cursorSdkProviderOptionId(nativeId);
+    if (!nativeId || !id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+
+    const values = parameter.values.flatMap((entry) => {
+      const value = entry.value.trim();
+      if (!value) {
+        return [];
+      }
+      return [
+        {
+          value,
+          label: entry.displayName?.trim() || value,
+        },
+      ];
+    });
+    if (values.length === 0) {
+      continue;
+    }
+
+    const label = parameter.displayName?.trim() || toTitleCaseWords(id);
+    const defaultValue = cursorSdkDefaultParameterValue(model, nativeId);
+    const normalizedValues = new Set(values.map((entry) => entry.value.toLowerCase()));
+    if (values.length === 2 && normalizedValues.has("true") && normalizedValues.has("false")) {
+      if (defaultValue === "true" || defaultValue === "false") {
+        optionDescriptors.push(
+          buildBooleanOptionDescriptor({
+            id,
+            label,
+            currentValue: defaultValue === "true",
+          }),
+        );
+      } else {
+        optionDescriptors.push(buildBooleanOptionDescriptor({ id, label }));
+      }
+      continue;
+    }
+
+    optionDescriptors.push(
+      buildSelectOptionDescriptor({
+        id,
+        label,
+        options: values.map((entry) => ({
+          ...entry,
+          ...(entry.value === defaultValue ? { isDefault: true } : {}),
+        })),
+      }),
+    );
+  }
+
+  return createModelCapabilities({ optionDescriptors });
+}
+
+export function buildCursorDiscoveredModelsFromSdk(
+  models: ReadonlyArray<SDKModel>,
+): ReadonlyArray<ServerProviderModel> {
+  const seen = new Set<string>();
+  return models.flatMap((model) => {
+    const slug = model.id.trim();
+    const name = model.displayName.trim();
+    if (!slug || !name || seen.has(slug)) {
+      return [];
+    }
+    seen.add(slug);
+    return [
+      {
+        slug,
+        name,
+        isCustom: false,
+        capabilities: buildCursorCapabilitiesFromSdkModel(model),
+      } satisfies ServerProviderModel,
+    ];
+  });
+}
+
+function cursorSdkAuth(user: SDKUser, type: "api-key" | "browser"): ServerProviderAuth {
+  const email = user.userEmail?.trim();
+  const apiKeyName = user.apiKeyName.trim();
+  return {
+    status: "authenticated",
+    type,
+    label:
+      type === "browser"
+        ? "Cursor account"
+        : apiKeyName
+          ? `Cursor API key (${apiKeyName})`
+          : "Cursor API key",
+    ...(email ? { email } : {}),
+  };
+}
+
+interface CursorProviderProbeResult {
+  readonly version: string | null;
+  readonly status: Exclude<ServerProviderState, "disabled">;
+  readonly auth: ServerProviderAuth;
+  readonly message?: string;
+}
+
+function joinProviderMessages(...messages: ReadonlyArray<string | undefined>): string | undefined {
+  const parts: Array<string> = [];
+  for (const message of messages) {
+    const trimmed = message?.trim();
+    if (trimmed) {
+      parts.push(trimmed);
+    }
+  }
+  return parts.length > 0 ? parts.join(" ") : undefined;
+}
+
 export function buildCursorProviderSnapshot(input: {
   readonly checkedAt: string;
   readonly cursorSettings: CursorSettings;
-  readonly installed: boolean;
-  readonly status: "ready" | "warning" | "error";
-  readonly auth: ServerProviderAuth;
-  readonly message?: string;
-  readonly version?: string | null;
+  readonly parsed: CursorProviderProbeResult;
   readonly discoveredModels?: ReadonlyArray<ServerProviderModel>;
+  readonly discoveryWarning?: string;
 }): ServerProviderDraft {
-  const models =
-    input.discoveredModels && input.discoveredModels.length > 0
-      ? input.discoveredModels
-      : getCursorFallbackModels(input.cursorSettings);
-
+  const message = joinProviderMessages(input.parsed.message, input.discoveryWarning);
   return buildServerProvider({
     presentation: CURSOR_PRESENTATION,
     enabled: input.cursorSettings.enabled,
     checkedAt: input.checkedAt,
-    models,
-    slashCommands: [COMPACT_SLASH_COMMAND],
+    models: providerModelsFromSettings(
+      input.discoveredModels ?? [],
+      input.cursorSettings.customModels,
+      EMPTY_CAPABILITIES,
+    ),
     probe: {
-      installed: input.installed,
-      version: input.version ?? null,
-      status: input.status,
-      auth: input.auth,
-      ...(input.message ? { message: input.message } : {}),
+      installed: true,
+      version: input.parsed.version,
+      status:
+        input.discoveryWarning && input.parsed.status === "ready" ? "warning" : input.parsed.status,
+      auth: input.parsed.auth,
+      ...(message ? { message } : {}),
     },
   });
 }
 
 export const checkCursorProviderStatus = Effect.fn("checkCursorProviderStatus")(function* (
   cursorSettings: CursorSettings,
-  environment: NodeJS.ProcessEnv = process.env,
-  sdkClient: CursorSdkClient = liveCursorSdkClient,
-) {
-  const checkedAt = yield* nowIso;
+  environment?: NodeJS.ProcessEnv,
+  authenticationType: "api-key" | "browser" = "api-key",
+): Effect.fn.Return<ServerProviderDraft, never, CursorSdkCatalog> {
+  const checkedAt = DateTime.formatIso(yield* DateTime.now);
+  const fallbackModels = getCursorFallbackModels(cursorSettings);
 
   if (!cursorSettings.enabled) {
-    return buildCursorProviderSnapshot({
+    return buildServerProvider({
+      presentation: CURSOR_PRESENTATION,
+      enabled: false,
       checkedAt,
-      cursorSettings,
-      installed: false,
-      status: "warning",
-      auth: { status: "unknown" },
-      message: "Cursor is disabled in T3 Code settings.",
+      models: fallbackModels,
+      probe: {
+        installed: false,
+        version: null,
+        status: "warning",
+        auth: { status: "unknown" },
+        message: "Cursor is disabled in T3 Code settings.",
+      },
     });
   }
 
-  const apiKey = cursorSdkApiKey(environment);
-  if (!apiKey) {
-    return buildCursorProviderSnapshot({
+  const sdkApiKey = environment?.CURSOR_API_KEY?.trim();
+  if (!sdkApiKey) {
+    return buildServerProvider({
+      presentation: CURSOR_PRESENTATION,
+      enabled: cursorSettings.enabled,
       checkedAt,
-      cursorSettings,
-      installed: true,
-      status: "error",
-      auth: { status: "unauthenticated" },
-      message:
-        "Cursor SDK requires CURSOR_API_KEY in the provider environment or process environment.",
+      models: fallbackModels,
+      probe: {
+        installed: true,
+        version: null,
+        status: "error",
+        auth: { status: "unauthenticated" },
+        message: "Sign in with Cursor or add CURSOR_API_KEY in provider settings.",
+      },
     });
   }
 
-  const userProbe = yield* Effect.tryPromise({
-    try: () => sdkClient.getCurrentUser({ apiKey }),
-    catch: (cause) =>
-      new CursorSdkProviderProbeError({
-        detail: toMessage(cause, "Cursor SDK authentication failed."),
-        cause,
-      }),
-  }).pipe(Effect.timeoutOption(CURSOR_AUTH_TIMEOUT_MS), Effect.exit);
+  const sdkCatalog = yield* CursorSdkCatalog;
+  const catalogResult = yield* sdkCatalog
+    .read(sdkApiKey)
+    .pipe(Effect.timeoutOption(CURSOR_SDK_CATALOG_TIMEOUT_MS), Effect.result);
 
-  if (Exit.isFailure(userProbe)) {
-    const cause = Cause.squash(userProbe.cause);
-    return buildCursorProviderSnapshot({
+  if (Result.isFailure(catalogResult)) {
+    yield* Effect.logWarning("Cursor SDK catalog probe failed", {
+      cause: catalogResult.failure.cause,
+    });
+    const authenticationFailure = catalogResult.failure.authenticationFailure;
+    return buildServerProvider({
+      presentation: CURSOR_PRESENTATION,
+      enabled: cursorSettings.enabled,
       checkedAt,
-      cursorSettings,
-      installed: true,
-      status: "error",
-      auth: { status: "unauthenticated" },
-      message: `Cursor SDK authentication failed: ${probeErrorDetail(
-        cause,
-        "Unknown Cursor SDK error.",
-      )}`,
+      models: fallbackModels,
+      probe: {
+        installed: true,
+        version: null,
+        status: "error",
+        auth: { status: authenticationFailure ? "unauthenticated" : "unknown" },
+        message: authenticationFailure
+          ? authenticationType === "browser"
+            ? "Cursor sign-in expired or was rejected. Sign in again in provider settings."
+            : "Cursor SDK authentication failed. Check CURSOR_API_KEY."
+          : "Cursor SDK catalog request failed. Check server logs for details.",
+      },
     });
   }
 
-  if (Option.isNone(userProbe.value)) {
-    return buildCursorProviderSnapshot({
+  if (Option.isNone(catalogResult.success)) {
+    return buildServerProvider({
+      presentation: CURSOR_PRESENTATION,
+      enabled: cursorSettings.enabled,
       checkedAt,
-      cursorSettings,
-      installed: true,
-      status: "error",
-      auth: { status: "unknown" },
-      message: `Cursor SDK authentication timed out after ${CURSOR_AUTH_TIMEOUT_MS}ms.`,
+      models: fallbackModels,
+      probe: {
+        installed: true,
+        version: null,
+        status: "error",
+        auth: { status: "unknown" },
+        message: `Cursor SDK catalog request timed out after ${CURSOR_SDK_CATALOG_TIMEOUT_MS}ms.`,
+      },
     });
   }
 
-  const auth = authFromSdkUser(userProbe.value.value);
-  let discoveredModels: ReadonlyArray<ServerProviderModel> | undefined;
-  let warning: string | undefined;
-
-  const modelProbe = yield* Effect.tryPromise({
-    try: () => sdkClient.listModels({ apiKey }),
-    catch: (cause) =>
-      new CursorSdkProviderProbeError({
-        detail: toMessage(cause, "Cursor SDK model discovery failed."),
-        cause,
-      }),
-  }).pipe(Effect.timeoutOption(CURSOR_MODEL_DISCOVERY_TIMEOUT_MS), Effect.exit);
-
-  if (Exit.isSuccess(modelProbe) && Option.isSome(modelProbe.value)) {
-    discoveredModels = buildCursorDiscoveredModelsFromSdkModels(
-      modelProbe.value.value,
-      cursorSettings.customModels,
-    );
-    if (discoveredModels.filter((model) => !model.isCustom).length === 0) {
-      warning = "Cursor SDK model discovery returned no built-in models.";
-      discoveredModels = undefined;
-    }
-  } else if (Exit.isSuccess(modelProbe) && Option.isNone(modelProbe.value)) {
-    warning = `Cursor SDK model discovery timed out after ${CURSOR_MODEL_DISCOVERY_TIMEOUT_MS}ms.`;
-  } else if (Exit.isFailure(modelProbe)) {
-    warning = modelDiscoveryWarning(Cause.squash(modelProbe.cause));
-    yield* Effect.logWarning("Cursor SDK model discovery failed", {
-      errorTag: causeErrorTag(modelProbe.cause),
-    });
-  }
-
+  const snapshot = catalogResult.success.value;
+  const discoveredModels = buildCursorDiscoveredModelsFromSdk(snapshot.models);
   return buildCursorProviderSnapshot({
     checkedAt,
     cursorSettings,
-    installed: true,
-    status: warning ? "warning" : "ready",
-    auth,
-    ...(warning ? { message: warning } : { message: "Cursor SDK is ready." }),
-    ...(discoveredModels ? { discoveredModels } : {}),
+    parsed: {
+      version: null,
+      status: "ready",
+      auth: cursorSdkAuth(snapshot.user, authenticationType),
+    },
+    discoveredModels,
+    ...(discoveredModels.length === 0
+      ? { discoveryWarning: "Cursor SDK model discovery returned no built-in models." }
+      : {}),
   });
 });
-
-export function hasUncapturedCursorModels(_snapshot: Pick<ServerProvider, "models">): boolean {
-  return false;
-}
-
-export const enrichCursorSnapshot = (input: {
-  readonly settings: CursorSettings;
-  readonly snapshot: ServerProvider;
-  readonly maintenanceCapabilities?: ProviderMaintenanceCapabilities;
-  readonly enableProviderUpdateChecks?: boolean;
-  readonly publishSnapshot: (snapshot: ServerProvider) => Effect.Effect<void>;
-}) =>
-  Effect.gen(function* () {
-    if (!input.settings.enabled || input.snapshot.auth.status === "unauthenticated") {
-      return;
-    }
-
-    const enriched = yield* enrichProviderSnapshotWithVersionAdvisory(
-      input.snapshot,
-      input.maintenanceCapabilities,
-      {
-        enableProviderUpdateChecks: input.enableProviderUpdateChecks,
-      },
-    ).pipe(
-      Effect.catchCause((cause) =>
-        Effect.logWarning("Cursor version advisory enrichment failed", {
-          errorTag: causeErrorTag(cause),
-        }).pipe(Effect.as(input.snapshot)),
-      ),
-    );
-
-    if (enriched !== input.snapshot) {
-      yield* input.publishSnapshot(enriched);
-    }
-  });

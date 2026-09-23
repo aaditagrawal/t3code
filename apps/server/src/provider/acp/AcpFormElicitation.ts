@@ -5,10 +5,49 @@ import type {
 } from "@t3tools/contracts";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import type * as EffectAcpSchema from "effect-acp/schema";
+import type * as EffectAcpSchema from "effect-acp/compat";
 
-type FormRequest = Extract<EffectAcpSchema.ElicitationRequest, { readonly mode: "form" }>;
-type Property = EffectAcpSchema.ElicitationPropertySchema;
+const OptionalText = Schema.optionalKey(Schema.NullOr(Schema.String));
+const EnumOption = Schema.Struct({
+  const: Schema.String,
+  title: Schema.String,
+  description: OptionalText,
+});
+const PropertyFields = { title: OptionalText, description: OptionalText };
+const PropertySchema = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("string"),
+    ...PropertyFields,
+    enum: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.String))),
+    oneOf: Schema.optionalKey(Schema.NullOr(Schema.Array(EnumOption))),
+  }),
+  Schema.Struct({ type: Schema.Literal("number"), ...PropertyFields }),
+  Schema.Struct({ type: Schema.Literal("integer"), ...PropertyFields }),
+  Schema.Struct({ type: Schema.Literal("boolean"), ...PropertyFields }),
+  Schema.Struct({
+    type: Schema.Literal("array"),
+    ...PropertyFields,
+    items: Schema.Union([
+      Schema.Struct({ type: Schema.Literal("string"), enum: Schema.Array(Schema.String) }),
+      Schema.Struct({ anyOf: Schema.Array(EnumOption) }),
+    ]),
+  }),
+]);
+// Keep provider form fields at this boundary: the upstream ACP schema omits
+// the legacy titled multiselect variant used by Oh My Pi.
+export const StandardAcpFormRequest = Schema.Struct({
+  mode: Schema.Literal("form"),
+  message: Schema.String,
+  requestedSchema: Schema.Struct({
+    type: Schema.Literal("object"),
+    title: OptionalText,
+    properties: Schema.optionalKey(Schema.Record(Schema.String, PropertySchema)),
+  }),
+});
+export type StandardAcpFormRequest = typeof StandardAcpFormRequest.Type;
+type FormRequest = StandardAcpFormRequest;
+type Property = typeof PropertySchema.Type;
+const decodeFormRequest = Schema.decodeUnknownOption(StandardAcpFormRequest);
 
 const LegacyEnumOption = Schema.Struct({
   const: Schema.String,
@@ -102,10 +141,12 @@ function visibleFormProperties(request: FormRequest) {
 }
 
 export function extractStandardAcpFormQuestions(
-  request: EffectAcpSchema.ElicitationRequest,
-  rawRequest: unknown = request,
+  input: unknown,
+  rawRequest: unknown = input,
 ): ReadonlyArray<UserInputQuestion> {
-  if (request.mode !== "form") return [];
+  const decoded = decodeFormRequest(input);
+  if (Option.isNone(decoded)) return [];
+  const request = decoded.value;
   const formTitle = nonEmpty(request.requestedSchema.title);
   const optionDescriptions = optionDescriptionsByQuestion(rawRequest);
   return visibleFormProperties(request).map(([id, property]) => {
@@ -178,7 +219,7 @@ function contentValue(
 export function makeStandardAcpFormAcceptedResponse(
   request: FormRequest,
   answers: ProviderUserInputAnswers,
-): EffectAcpSchema.ElicitationResponse {
+): EffectAcpSchema.CreateElicitationResponse {
   const properties = request.requestedSchema.properties ?? {};
   const content: Record<string, EffectAcpSchema.ElicitationContentValue> = {};
   for (const [id, property] of visibleFormProperties(request)) {
@@ -198,13 +239,13 @@ export function makeStandardAcpFormAcceptedResponse(
     const encoded = contentValue(property, answer);
     if (encoded !== undefined) content[id] = encoded;
   }
-  return { action: { action: "accept", content } };
+  return { action: "accept", content };
 }
 
-export function makeStandardAcpFormCancelledResponse(): EffectAcpSchema.ElicitationResponse {
-  return { action: { action: "cancel" } };
+export function makeStandardAcpFormCancelledResponse(): EffectAcpSchema.CreateElicitationResponse {
+  return { action: "cancel" };
 }
 
-export function makeStandardAcpFormDeclinedResponse(): EffectAcpSchema.ElicitationResponse {
-  return { action: { action: "decline" } };
+export function makeStandardAcpFormDeclinedResponse(): EffectAcpSchema.CreateElicitationResponse {
+  return { action: "decline" };
 }

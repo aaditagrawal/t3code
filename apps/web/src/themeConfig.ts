@@ -1,18 +1,11 @@
 import type { AppSettings } from "./appSettings";
-import { isValidAccentColor, normalizeAccentColor } from "./accentColor";
-
-// ── Default values ──────────────────────────────────────────────────────────
-export const DEFAULT_UI_FONT = "";
-export const DEFAULT_CODE_FONT = "";
-export const DEFAULT_UI_FONT_SIZE = 0; // 0 = use CSS default
-export const DEFAULT_CODE_FONT_SIZE = 0;
-export const DEFAULT_CONTRAST = 0; // 0 = no adjustment
-export const MIN_UI_FONT_SIZE = 10;
-export const MAX_UI_FONT_SIZE = 24;
-export const MIN_CODE_FONT_SIZE = 8;
-export const MAX_CODE_FONT_SIZE = 24;
-export const MIN_CONTRAST = -100;
-export const MAX_CONTRAST = 100;
+import { isValidAccentColor, normalizeAccentColor } from "./accentColor"; // 0 = no adjustment
+const MIN_UI_FONT_SIZE = 10;
+const MAX_UI_FONT_SIZE = 24;
+const MIN_CODE_FONT_SIZE = 8;
+const MAX_CODE_FONT_SIZE = 24;
+const MIN_CONTRAST = -100;
+const MAX_CONTRAST = 100;
 
 // ── Font families ───────────────────────────────────────────────────────────
 const DEFAULT_UI_FONT_STACK =

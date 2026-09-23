@@ -30,11 +30,33 @@ export const RUNTIME_MODE_CHOICES: ReadonlyArray<{
     description: "Supported providers approve routine actions; others still ask.",
   },
   {
+    mode: "medium-access",
+    label: "Medium access",
+    description: "Allow reversible commands, ask before riskier actions.",
+  },
+  {
     mode: "full-access",
     label: "Full access",
     description: "Allow commands and edits without prompts.",
   },
 ];
+
+export function runtimeModeChoicesForSupportedModes(
+  supportedRuntimeModes: ReadonlyArray<RuntimeMode> | undefined,
+) {
+  return supportedRuntimeModes && supportedRuntimeModes.length > 0
+    ? RUNTIME_MODE_CHOICES.filter((choice) => supportedRuntimeModes.includes(choice.mode))
+    : RUNTIME_MODE_CHOICES.filter((choice) => choice.mode !== "medium-access");
+}
+
+export function compatibleRuntimeModeForChoices(
+  runtimeMode: RuntimeMode,
+  choices: ReadonlyArray<{ readonly mode: RuntimeMode }>,
+): RuntimeMode {
+  return choices.some((choice) => choice.mode === runtimeMode)
+    ? runtimeMode
+    : (choices[0]?.mode ?? runtimeMode);
+}
 
 export function selectableChoices(
   descriptor: Extract<ProviderOptionDescriptor, { type: "select" }>,

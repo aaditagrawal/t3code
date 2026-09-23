@@ -246,5 +246,3 @@ export const makePendingGeminiCliProvider = (
     },
   });
 };
-
-export { BUILT_IN_MODELS as GEMINI_BUILT_IN_MODELS, DEFAULT_GEMINI_MODEL_CAPABILITIES };

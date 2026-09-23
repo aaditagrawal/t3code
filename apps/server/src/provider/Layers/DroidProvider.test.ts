@@ -31,6 +31,7 @@ describe("DroidProvider", () => {
     expect(provider.status).toBe("disabled");
     expect(provider.installed).toBe(false);
     expect(provider.message).toBe("Droid is disabled in T3 Code settings.");
+    expect(provider.supportedRuntimeModes).toContain("medium-access");
   });
 
   it("maps Droid SDK built-in and custom models into provider models", () => {

@@ -36,6 +36,7 @@ concurrency:
 
 jobs:
   publish:
+    if: false # The upstream AUR package names are not publish targets for this fork.
     name: Validate and publish
     runs-on: ubuntu-24.04
     timeout-minutes: 30

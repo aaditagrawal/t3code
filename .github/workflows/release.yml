@@ -894,7 +894,7 @@ jobs:
   publish_aur:
     name: Publish AUR package
     needs: [preflight, release]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel != 'preview' }}
+    if: false # These AUR package names belong to upstream, not this fork.
     uses: ./.github/workflows/publish-aur.yml
     with:
       release_tag: ${{ needs.preflight.outputs.tag }}
@@ -904,7 +904,7 @@ jobs:
   deploy_web:
     name: Deploy hosted web app
     needs: [preflight, relay_public_config, release]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel != 'preview' }}
+    if: ${{ github.repository == 'aaditagrawal/t3code' && vars.T3CODE_ENABLE_WEB_DEPLOY == 'true' && !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel != 'preview' }}
     runs-on: ubuntu-24.04 # ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -927,12 +927,24 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          if [[ -z "${VERCEL_TOKEN:-}" || -z "${VERCEL_ORG_ID:-}" || -z "${VERCEL_PROJECT_ID:-}" ]]; then
+          if [[ -z "${VERCEL_TOKEN:-}" || -z "${VERCEL_ORG_ID:-}" || -z "${VERCEL_PROJECT_ID:-}" || -z "${T3CODE_WEB_ROUTER_URL:-}" || -z "${T3CODE_WEB_LATEST_DOMAIN:-}" || -z "${T3CODE_WEB_NIGHTLY_DOMAIN:-}" ]]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "Vercel secrets not configured; skipping hosted web deploy."
-          else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "Fork Vercel credentials and channel domains are required; skipping hosted web deploy."
+            exit 0
           fi
+          for destination in "$T3CODE_WEB_ROUTER_URL" "$T3CODE_WEB_LATEST_DOMAIN" "$T3CODE_WEB_NIGHTLY_DOMAIN"; do
+            domain="${destination#https://}"
+            domain="${domain#http://}"
+            domain="${domain%%/*}"
+            domain="${domain%%:*}"
+            domain="${domain,,}"
+            domain="${domain%.}"
+            if [[ "$domain" == "t3.codes" || "$domain" == *.t3.codes ]]; then
+              echo "Refusing an upstream-owned deployment domain: $domain" >&2
+              exit 1
+            fi
+          done
+          echo "configured=true" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         if: steps.vercel_config.outputs.configured == 'true'
@@ -992,9 +1004,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          router_url="${T3CODE_WEB_ROUTER_URL:-https://app.t3.codes}"
-          latest_domain="${T3CODE_WEB_LATEST_DOMAIN:-latest.app.t3.codes}"
-          nightly_domain="${T3CODE_WEB_NIGHTLY_DOMAIN:-nightly.app.t3.codes}"
+          router_url="$T3CODE_WEB_ROUTER_URL"
+          latest_domain="$T3CODE_WEB_LATEST_DOMAIN"
+          nightly_domain="$T3CODE_WEB_NIGHTLY_DOMAIN"
           router_domain="${router_url#http://}"
           router_domain="${router_domain#https://}"
           router_domain="${router_domain%%/*}"

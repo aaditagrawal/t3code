@@ -18,7 +18,7 @@ import {
   TrimmedNonEmptyString,
   TurnId,
 } from "./baseSchemas.ts";
-import { ProviderApprovalDecision, ProviderUserInputAnswers } from "./orchestration.ts";
+import { ProviderApprovalDecision, ProviderUserInputAnswers } from "./providerPolicy.ts";
 import { ProviderInstanceId } from "./providerInstance.ts";
 import { CanonicalItemType, CanonicalRequestType, UserInputQuestion } from "./providerRuntime.ts";
 

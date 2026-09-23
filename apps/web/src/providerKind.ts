@@ -15,6 +15,8 @@
 
 export const PROVIDER_KINDS = [
   "acp",
+  "acpRegistry",
+  "antigravity",
   "codex",
   "copilot",
   "claudeAgent",

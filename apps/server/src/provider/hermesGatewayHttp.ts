@@ -11,6 +11,7 @@ import {
   MessageId,
   PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
   type ChatAttachment,
+  type OrchestrationV2Command,
   type ThreadId,
   ThreadId as ThreadIdSchema,
 } from "@t3tools/contracts";
@@ -31,15 +32,14 @@ import { createAttachmentId, resolveAttachmentPath } from "../attachmentStore.ts
 import { ServerConfig } from "../config.ts";
 import { getOrCreateAgentProject } from "../orchestration/agentProjects.ts";
 import { getOrCreateHomeThread } from "../orchestration/homeThreads.ts";
-import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine.ts";
-import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery.ts";
+import { ThreadManagementService } from "../orchestration-v2/ThreadManagementService.ts";
 import {
   HermesGatewayBroker,
   type HermesGatewayConnectionRegistration,
 } from "./Services/HermesGatewayBroker.ts";
 import { ProviderAdapterRequestError } from "./Errors.ts";
 
-export const HERMES_GATEWAY_WEBSOCKET_PATH = "/api/hermes-gateway/ws";
+const HERMES_GATEWAY_WEBSOCKET_PATH = "/api/hermes-gateway/ws";
 
 const decodePluginFrame = Schema.decodeUnknownEffect(
   Schema.fromJsonString(HermesGatewayPluginToT3Message),
@@ -103,11 +103,22 @@ const writeMediaAtomically = Effect.fn("writeHermesMediaAtomically")(function* (
  * up a WebSocket route around it.
  */
 export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers")(function* () {
-  const engine = yield* OrchestrationEngineService;
-  const projection = yield* ProjectionSnapshotQuery;
+  const engine = yield* ThreadManagementService;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const serverConfig = yield* ServerConfig;
+
+  const dispatchDelivery = (
+    command: Extract<OrchestrationV2Command, { type: "thread.notification.deliver" }>,
+  ) =>
+    engine.dispatch(command).pipe(
+      Effect.catchTag("OrchestratorCommandIdConflictError", (error) =>
+        // Source-scoped delivery IDs survive a Home re-designation. A lost ack
+        // must replay the durable receipt at its original destination, rather
+        // than append again to the newly selected Home.
+        engine.dispatch({ ...command, threadId: error.receiptThreadId }),
+      ),
+    );
 
   const resolveDeliveryThread = (input: {
     readonly registration: HermesGatewayConnectionRegistration;
@@ -132,18 +143,7 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
         instanceId: input.registration.instanceId,
         title: input.registration.accepted.nickname,
       });
-      const active = yield* projection.getThreadShellById(input.requestedThreadId);
-      const archived =
-        Option.isNone(active) && projection.getThreadArchiveStateById !== undefined
-          ? yield* projection.getThreadArchiveStateById(input.requestedThreadId)
-          : Option.none();
-      const thread = Option.isSome(active)
-        ? active.value
-        : projection.getThreadArchiveStateById !== undefined
-          ? Option.getOrUndefined(archived)
-          : (yield* projection.getArchivedShellSnapshot()).threads.find(
-              (candidate) => candidate.id === input.requestedThreadId,
-            );
+      const thread = yield* engine.getThreadShell(input.requestedThreadId);
       if (thread?.projectId !== project.id) {
         return yield* new ProviderAdapterRequestError({
           provider: "hermes",
@@ -159,7 +159,7 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
               `hermes-handoff-unarchive-${deliveryUuid({
                 instanceId: input.registration.instanceId,
                 threadId: input.requestedThreadId,
-                deliveryId: thread.archivedAt,
+                deliveryId: DateTime.formatIso(thread.archivedAt),
                 purpose: "unarchive",
               })}`,
             ),
@@ -202,7 +202,7 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
         deliveryId: message.deliveryId,
       });
       // Command receipts make this idempotent across retries and restarts.
-      yield* engine.dispatch({
+      yield* dispatchDelivery({
         type: "thread.notification.deliver",
         ...ids,
         threadId: deliveryThreadId,
@@ -289,15 +289,14 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
             kind: message.kind,
           });
         }
-        // Turn-scoped: the named thread must belong to this instance and have
-        // a live ACP session. The companion does not start the turn; it can
-        // only attach media to one ACP already owns.
-        const shell = yield* projection.getThreadShellById(message.threadId);
-        const tracked = Option.isSome(shell)
-          ? shell.value.modelSelection.instanceId === registration.instanceId &&
-            shell.value.session !== null &&
-            shell.value.session.status !== "stopped"
-          : false;
+        // Check ownership before writing bytes. The V2 planner checks the live
+        // native turn under its command lock, after receipt lookup, so a lost
+        // ack can still be recovered after that turn has completed.
+        const shell = yield* engine.getThreadShell(message.threadId);
+        const tracked =
+          shell !== null &&
+          shell.providerInstanceId === registration.instanceId &&
+          shell.modelSelection.instanceId === registration.instanceId;
         if (!tracked) {
           return yield* Effect.fail(
             new ProviderAdapterRequestError({
@@ -388,7 +387,7 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
           yield* Effect.scoped(writeMediaAtomically(attachmentPath, bytes));
         }
 
-        yield* engine.dispatch({
+        yield* dispatchDelivery({
           type: "thread.notification.deliver",
           ...ids,
           threadId,
@@ -471,7 +470,8 @@ export const makeHermesDeliveryHandlers = Effect.fn("makeHermesDeliveryHandlers"
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
         branch: null,
         worktreePath: null,
-        createdAt: DateTime.formatIso(yield* DateTime.now),
+        createdBy: "agent",
+        creationSource: "provider",
       });
       yield* transport.send({
         type: "handoff.created",

@@ -14,8 +14,6 @@ import {
   type ProviderAdapterError,
 } from "../Errors.ts";
 
-// Re-export toMessage so adapters can import everything from one place.
-export { toMessage } from "../toMessage.ts";
 import { toMessage } from "../toMessage.ts";
 
 // ---------------------------------------------------------------------------
@@ -73,7 +71,7 @@ export function toSessionError(
  * Delegates to {@link toSessionError} first; falls back to a generic
  * {@link ProviderAdapterRequestError}.
  */
-export function toRequestError(
+function toRequestError(
   provider: string,
   threadId: string,
   method: string,
@@ -123,27 +121,4 @@ export function makeErrorHelpers(
     toRequestError: (threadId, method, cause) =>
       toRequestError(provider, threadId, method, cause, sessionErrorOptions),
   };
-}
-
-// ---------------------------------------------------------------------------
-// Type-narrowing helpers
-// ---------------------------------------------------------------------------
-
-export function asObject(value: unknown): Record<string, unknown> | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-  return value as Record<string, unknown>;
-}
-
-export function asString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-export function asArray(value: unknown): unknown[] | undefined {
-  return Array.isArray(value) ? value : undefined;
-}
-
-export function asNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

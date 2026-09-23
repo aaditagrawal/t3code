@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vite-plus/test";
-import { EventId, type OrchestrationThreadActivity, TurnId } from "@t3tools/contracts";
+import {
+  EventId,
+  ProviderDriverKind,
+  ProviderInstanceId,
+  type ServerProvider,
+  type OrchestrationThreadActivity,
+  TurnId,
+} from "@t3tools/contracts";
 
 import {
   deriveAccountRateLimits,
+  derivePublishedProviderRateLimits,
   deriveVisibleRateLimitRows,
   formatRateLimitRemainingPercent,
 } from "~/lib/rateLimits";
@@ -344,5 +352,90 @@ describe("RateLimitsPanel helpers", () => {
     ]);
 
     expect(rateLimits).toEqual([]);
+  });
+});
+
+describe("V2 provider snapshot rate limits", () => {
+  function snapshot(usageLimits: ServerProvider["usageLimits"]): ServerProvider {
+    return {
+      instanceId: ProviderInstanceId.make("codex-work"),
+      driver: ProviderDriverKind.make("codex"),
+      enabled: true,
+      installed: true,
+      version: null,
+      status: "ready",
+      auth: { status: "authenticated" },
+      checkedAt: "2099-04-08T18:00:00.000Z",
+      models: [],
+      slashCommands: [],
+      skills: [],
+      ...(usageLimits ? { usageLimits } : {}),
+    };
+  }
+
+  it("renders streamed windows without legacy thread activities and expires them on the clock", () => {
+    const provider = snapshot({
+      checkedAt: "2099-04-08T18:00:00.000Z",
+      windows: [
+        {
+          id: "short",
+          kind: "session",
+          label: "5h",
+          usedPercent: 90,
+          resetsAt: "2099-04-08T20:00:00.000Z",
+          windowDurationMins: 300,
+        },
+        {
+          id: "weekly",
+          kind: "weekly",
+          label: "Weekly",
+          usedPercent: 15,
+          resetsAt: "2099-04-15T00:00:00.000Z",
+          windowDurationMins: 10080,
+        },
+      ],
+    });
+    const beforeReset = derivePublishedProviderRateLimits(
+      [provider],
+      Date.parse("2099-04-08T19:00:00.000Z"),
+    );
+    expect(
+      deriveVisibleRateLimitRows(beforeReset).map((row) => [row.label, row.remainingPercent]),
+    ).toEqual([
+      ["5h", 10],
+      ["Weekly", 85],
+    ]);
+    const afterReset = derivePublishedProviderRateLimits(
+      [provider],
+      Date.parse("2099-04-08T21:00:00.000Z"),
+    );
+    expect(afterReset[0]?.limits?.map((limit) => limit.limitId)).toEqual(["weekly"]);
+  });
+
+  it("keeps last good windows after probe failure but hides unsupported and disabled providers", () => {
+    const provider = snapshot({
+      checkedAt: "2099-04-08T18:00:00.000Z",
+      windows: [
+        { id: "session", kind: "session", label: "5h", usedPercent: 25, windowDurationMins: 300 },
+      ],
+      unavailable: { reason: "probeFailed" },
+    });
+    const now = Date.parse("2099-04-08T19:00:00.000Z");
+    expect(derivePublishedProviderRateLimits([provider], now)).toHaveLength(1);
+    expect(derivePublishedProviderRateLimits([{ ...provider, enabled: false }], now)).toEqual([]);
+    expect(
+      derivePublishedProviderRateLimits(
+        [
+          snapshot({
+            ...provider.usageLimits!,
+            unavailable: { reason: "unsupported" },
+          }),
+        ],
+        now,
+      ),
+    ).toEqual([]);
+    expect(
+      derivePublishedProviderRateLimits([provider], Date.parse("2099-04-09T00:00:00.000Z")),
+    ).toEqual([]);
   });
 });

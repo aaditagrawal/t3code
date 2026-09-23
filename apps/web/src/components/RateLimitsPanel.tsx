@@ -1,27 +1,26 @@
 import { useClock } from "@t3tools/client-runtime/react-clock";
 // FILE: RateLimitsPanel.tsx
 // Purpose: Wraps the shared rate-limit summary UI in a collapsible panel fed by
-// orchestration thread activities.
+// streamed provider snapshots.
 
 import { useMemo, useState } from "react";
-import type { OrchestrationThread } from "@t3tools/contracts";
+import type { ServerProvider } from "@t3tools/contracts";
 import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
-import { deriveAccountRateLimits, deriveRateLimitLearnMoreHref } from "~/lib/rateLimits";
+import { derivePublishedProviderRateLimits, deriveRateLimitLearnMoreHref } from "~/lib/rateLimits";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "./ui/collapsible";
 import { cn } from "~/lib/utils";
 import { RateLimitSummaryList } from "./RateLimitSummaryList";
 
-export default function RateLimitsPanel({
-  threads,
-}: {
-  threads: ReadonlyArray<Pick<OrchestrationThread, "activities">>;
-}) {
+export default function RateLimitsPanel({ provider }: { provider: ServerProvider | null }) {
   const [open, setOpen] = useState(false);
   // Windows expire on wall-clock time, but an idle thread never changes
-  // `threads`. Without a tick the memo would keep serving percentages from an
+  // `provider`. Without a tick the memo would keep serving percentages from an
   // already-reset window until the next activity arrives.
   const now = useClock(60000);
-  const rateLimits = useMemo(() => deriveAccountRateLimits(threads, now), [threads, now]);
+  const rateLimits = useMemo(
+    () => derivePublishedProviderRateLimits(provider ? [provider] : [], now),
+    [provider, now],
+  );
   const learnMoreHref = useMemo(() => deriveRateLimitLearnMoreHref(rateLimits), [rateLimits]);
 
   if (rateLimits.length === 0) return null;
