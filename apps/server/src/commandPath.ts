@@ -132,7 +132,3 @@ export function resolveCommandPath(
 
   return undefined;
 }
-
-export function isCommandAvailable(command: string, options: CommandPathOptions = {}): boolean {
-  return resolveCommandPath(command, options) !== undefined;
-}

@@ -4,6 +4,7 @@ import {
   URL_SCHEME,
   URL_SCHEME_DEV,
 } from "@t3tools/shared/branding";
+import * as NodePath from "@effect/platform-node/NodePath";
 import { assert, describe, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
@@ -57,6 +58,7 @@ const makeDesktopClerkLayer = (isDevelopment = true, events: string[] = []) => {
   return DesktopClerk.layer.pipe(
     Layer.provide(
       Layer.mergeAll(
+        NodePath.layerPosix,
         Layer.succeed(DesktopEnvironment.DesktopEnvironment, environment),
         Layer.succeed(ElectronApp.ElectronApp, electronApp),
         FileSystem.layerNoop({ exists: () => Effect.succeed(false) }),

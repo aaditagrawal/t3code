@@ -1569,7 +1569,7 @@ export function PullRequestDetailPanel({
           />
           <TooltipPopup>Check out this pull request</TooltipPopup>
         </Tooltip>
-        <MenuPopup align="end" side="bottom" className="min-w-72">
+        <MenuPopup align="end" side="bottom">
           <MenuItem onClick={() => startCheckout("worktree")}>
             <GitBranchIcon className="mt-1 size-3.5 shrink-0 self-start" />
             <span className="flex min-w-0 flex-col">
@@ -2000,7 +2000,6 @@ export function PullRequestDetailPanel({
                             aria-label={
                               refreshing ? "Refreshing pull request" : "More pull request actions"
                             }
-                            className="size-6"
                             size="icon-xs"
                             variant="ghost-muted"
                           />
@@ -2021,7 +2020,7 @@ export function PullRequestDetailPanel({
                     {refreshing ? "Refreshing pull request" : "More pull request actions"}
                   </TooltipPopup>
                 </Tooltip>
-                <MenuPopup align="end" side="bottom" className="min-w-72">
+                <MenuPopup align="end" side="bottom">
                   <PullRequestThreadLinks
                     display="menu-item"
                     environmentId={environmentId}

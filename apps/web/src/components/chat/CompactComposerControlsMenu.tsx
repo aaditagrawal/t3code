@@ -10,7 +10,6 @@ import {
   MenuTrigger,
 } from "../ui/menu";
 import { ComposerControl, ComposerControlIcon } from "./ComposerControl";
-import { getRuntimeModeConfig, getRuntimeModeOptions } from "./runtimeModePresentation";
 import { useComposerMenuProps } from "./composerEventScope";
 import { useComposerMenuState } from "./useComposerMenuState";
 
@@ -18,6 +17,10 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
   provider: ProviderDriverKind;
   interactionMode: ProviderInteractionMode;
   runtimeMode: RuntimeMode;
+  runtimeModeOptions: ReadonlyArray<{
+    readonly mode: RuntimeMode;
+    readonly label: string;
+  }>;
   showInteractionModeToggle: boolean;
   traitsMenuContent?: ReactNode;
   size?: "sm" | "xs";
@@ -30,8 +33,6 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
   onToggleInteractionMode: () => void;
   onRuntimeModeChange: (mode: RuntimeMode) => void;
 }) {
-  const runtimeModeConfig = getRuntimeModeConfig(props.provider);
-  const runtimeModeOptions = getRuntimeModeOptions(props.provider);
   const composerFloatingLayerProps = useComposerMenuProps();
   const size = props.size ?? "sm";
   const [open, setOpen] = useComposerMenuState(props.hidden);
@@ -84,9 +85,9 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
             props.onRuntimeModeChange(value as RuntimeMode);
           }}
         >
-          {runtimeModeOptions.map((mode) => (
-            <MenuRadioItem key={mode} value={mode}>
-              {runtimeModeConfig[mode].label}
+          {props.runtimeModeOptions.map((option) => (
+            <MenuRadioItem key={option.mode} value={option.mode}>
+              {option.label}
             </MenuRadioItem>
           ))}
         </MenuRadioGroup>

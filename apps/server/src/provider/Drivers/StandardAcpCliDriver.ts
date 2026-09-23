@@ -15,7 +15,7 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import type * as EffectAcpSchema from "effect-acp/schema";
+import type * as EffectAcpSchema from "effect-acp/compat";
 
 import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
 import { ServerConfig } from "../../config.ts";
@@ -23,7 +23,10 @@ import { ServerSettingsService } from "../../serverSettings.ts";
 import type { TextGeneration } from "../../textGeneration/TextGeneration.ts";
 
 type TextGenerationService = TextGeneration["Service"];
-import { ProviderDriverError } from "../Errors.ts";
+import { ProviderDriverError, type ProviderAdapterError } from "../Errors.ts";
+import type { ProviderAdapterShape } from "../Services/ProviderAdapter.ts";
+import { makeLegacyAdapterV2 } from "../../orchestration-v2/Adapters/LegacyAdapterV2.ts";
+import { IdAllocatorV2 } from "../../orchestration-v2/IdAllocator.ts";
 import { parseStandardAcpCliArguments } from "../acp/StandardAcpCliSupport.ts";
 import type { StandardAcpAdapterLiveOptions } from "../Layers/StandardAcpAdapter.ts";
 import {
@@ -52,6 +55,7 @@ export interface StandardAcpCliSettings {
 }
 
 export type StandardAcpCliDriverEnv =
+  | IdAllocatorV2
   | BackgroundPolicy.BackgroundPolicy
   | ChildProcessSpawner.ChildProcessSpawner
   | Crypto.Crypto
@@ -71,7 +75,11 @@ export interface StandardAcpCliDriverConfig<Settings extends StandardAcpCliSetti
   readonly makeAdapter: (
     settings: Settings,
     options: StandardAcpAdapterLiveOptions,
-  ) => Effect.Effect<ProviderInstance["adapter"], never, StandardAcpCliDriverEnv | Scope.Scope>;
+  ) => Effect.Effect<
+    ProviderAdapterShape<ProviderAdapterError>,
+    never,
+    StandardAcpCliDriverEnv | Scope.Scope
+  >;
   readonly setupHint: string;
   readonly missingCommandMessage: string;
   readonly excludedAuthMethodIds?: ReadonlySet<string>;
@@ -221,6 +229,22 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           ),
         );
 
+        const { cwd } = yield* ServerConfig;
+        const orchestrationAdapter = yield* makeLegacyAdapterV2({
+          instanceId,
+          adapter,
+          cwd,
+          profile: {
+            resume: "acp",
+            nativeHistory: false,
+            reasoning: true,
+            approvals: true,
+            questions: true,
+            planning: true,
+            mcp: true,
+          },
+          onUsageLimits: (update) => snapshot.applyUsageLimits(update),
+        });
         return {
           instanceId,
           driverKind: driverConfig.driverKind,
@@ -229,7 +253,7 @@ export function makeStandardAcpCliDriver<Settings extends StandardAcpCliSettings
           accentColor,
           enabled,
           snapshot,
-          adapter,
+          orchestrationAdapter,
           textGeneration: makeUnsupportedTextGeneration(driverConfig.displayName),
         } satisfies ProviderInstance;
       }),

@@ -14,8 +14,8 @@ import * as Scope from "effect/Scope";
 import * as Electron from "electron";
 
 export const DESKTOP_HOST = "app";
-export const DESKTOP_PRODUCTION_SCHEME = URL_SCHEME;
-export const DESKTOP_DEVELOPMENT_SCHEME = URL_SCHEME_DEV;
+const DESKTOP_PRODUCTION_SCHEME = URL_SCHEME;
+const DESKTOP_DEVELOPMENT_SCHEME = URL_SCHEME_DEV;
 
 export function getDesktopScheme(isDevelopment: boolean): string {
   return isDevelopment ? DESKTOP_DEVELOPMENT_SCHEME : DESKTOP_PRODUCTION_SCHEME;

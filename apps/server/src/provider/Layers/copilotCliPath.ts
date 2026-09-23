@@ -44,9 +44,7 @@ function resolveProcessResourcesPath(): string | undefined {
   return processWithResourcesPath.resourcesPath;
 }
 
-export function normalizeCopilotCliPathOverride(
-  value: string | null | undefined,
-): string | undefined {
+function normalizeCopilotCliPathOverride(value: string | null | undefined): string | undefined {
   if (value == null) return undefined;
 
   const trimmed = value.trim();
@@ -135,7 +133,7 @@ function getCopilotPlatformBinaryName(platform: string): string {
   return platform === "win32" ? "copilot.exe" : "copilot";
 }
 
-export function getBundledCopilotPlatformPackages(
+function getBundledCopilotPlatformPackages(
   // oxlint-disable-next-line t3code/no-global-process-runtime -- Pure resolver keeps platform injectable for tests and non-Effect callers.
   platform: string = process.platform,
   // oxlint-disable-next-line t3code/no-global-process-runtime -- Pure resolver keeps architecture injectable for tests and non-Effect callers.

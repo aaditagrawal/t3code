@@ -21,7 +21,8 @@ import * as Stream from "effect/Stream";
 
 import { KiloServerManager } from "../../kiloServerManager.ts";
 import type { KiloSessionStartInput } from "../../kilo/types.ts";
-import type { OpenCodeAdapterShape } from "../Services/OpenCodeAdapter.ts";
+import type { ProviderAdapterShape } from "../Services/ProviderAdapter.ts";
+import type { ProviderAdapterError } from "../Errors.ts";
 import { ProviderAdapterRequestError, ProviderAdapterValidationError } from "../Errors.ts";
 import { makeErrorHelpers } from "./ProviderAdapterUtils.ts";
 import type { KiloSettings } from "./KiloProvider.ts";
@@ -42,7 +43,7 @@ export interface KiloAdapterOptions {
  * OpenCode adapter shape (Kilo is API-compatible) and is keyed by the
  * `kilo` driver kind.
  */
-export interface KiloAdapterShape extends OpenCodeAdapterShape {}
+export interface KiloAdapterShape extends ProviderAdapterShape<ProviderAdapterError> {}
 
 export const makeKiloAdapter = Effect.fn("makeKiloAdapter")(function* (
   kiloSettings: KiloSettings,

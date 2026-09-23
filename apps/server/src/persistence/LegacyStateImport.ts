@@ -21,11 +21,11 @@ import {
 } from "./MigrationLineage.ts";
 import { migrationManifest } from "./Migrations.ts";
 
-export const STATE_DIR_NAME = "userdata";
+const STATE_DIR_NAME = "userdata";
 
-export const STATE_DB_FILENAME = "state.sqlite";
+const STATE_DB_FILENAME = "state.sqlite";
 
-export const STATE_DB_SIDECAR_SUFFIXES = ["-wal", "-shm"] as const;
+const STATE_DB_SIDECAR_SUFFIXES = ["-wal", "-shm"] as const;
 
 export const FORK_ONLY_MIGRATION_MARKERS: ReadonlyArray<KnownMigration> = [
   [23, "NormalizeLegacyProviderKinds"],
@@ -33,14 +33,9 @@ export const FORK_ONLY_MIGRATION_MARKERS: ReadonlyArray<KnownMigration> = [
   [31, "BackfillForkProviderInstanceIds"],
 ];
 
-export const EXCLUDED_HOME_ENTRIES: ReadonlySet<string> = new Set([
-  "worktrees",
-  "logs",
-  "tools",
-  "dev",
-]);
+const EXCLUDED_HOME_ENTRIES: ReadonlySet<string> = new Set(["worktrees", "logs", "tools", "dev"]);
 
-export const EXCLUDED_STATE_ENTRIES: ReadonlySet<string> = new Set([
+const EXCLUDED_STATE_ENTRIES: ReadonlySet<string> = new Set([
   "server-runtime.json",
   "logs",
   "tools",

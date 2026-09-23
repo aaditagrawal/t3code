@@ -1,7 +1,6 @@
 import { ProviderDriverKind } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { OhMyPiIcon } from "../Icons";
 import { deriveProviderSettingsFields } from "./ProviderSettingsForm";
 import { getDriverOption } from "./providerDriverMeta";
 
@@ -12,7 +11,6 @@ describe("Oh My Pi provider metadata", () => {
     expect(option).toMatchObject({
       value: "ohMyPi",
       label: "Oh My Pi",
-      icon: OhMyPiIcon,
       badgeLabel: "Fork Extension",
     });
 

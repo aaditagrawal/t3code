@@ -34,7 +34,7 @@ const message: ChatMessage = {
   streaming: true,
   createdAt: "2026-09-05T00:00:00.000Z",
   updatedAt: "2026-09-05T00:00:00.000Z",
-  turnId: null,
+  runId: null,
   attachments: [image, file, video],
 };
 

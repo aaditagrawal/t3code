@@ -310,58 +310,6 @@ export const KiroIcon: Icon = (props) => (
   </svg>
 );
 
-// Editor / IDE icons — restored from the fork for the editor-picker UI.
-// Kept as simple `currentColor`-based marks so they can be tinted via CSS.
-export const WindsurfIcon: Icon = (props) => (
-  <svg {...props} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M3 17.5C3 17.5 7.5 13 12 8.5C16.5 4 21 2 21 2C21 2 19.5 7.5 16 12C12.5 16.5 7 21 7 21L3 17.5Z" />
-    <path
-      d="M3 12C3 12 7 8.5 10.5 5.5C14 2.5 18 1 18 1C18 1 16 5 13 8.5C10 12 6 15.5 6 15.5L3 12Z"
-      opacity="0.6"
-    />
-  </svg>
-);
-
-export const PositronIcon: Icon = (props) => (
-  <svg {...props} viewBox="0 0 24 24" fill="none">
-    <rect x="2" y="2" width="20" height="20" rx="3" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M7 7h4v10H7V7Z" fill="currentColor" />
-    <circle cx="15.5" cy="12" r="2.5" fill="currentColor" />
-  </svg>
-);
-
-export const SublimeTextIcon: Icon = (props) => (
-  <svg {...props} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M3.854 7.074l16.292-4.96v5.528L3.854 12.6V7.074ZM3.854 11.901l16.292 4.96v5.528L3.854 17.43v-5.529ZM20.146 6.57L3.854 11.53V5.999l16.292-4.96V6.57Z" />
-  </svg>
-);
-
-export const WebStormIcon: Icon = (props) => (
-  <svg {...props} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M2 2h20v20H2V2Zm1.5 1.5v17h17v-17h-17ZM5 5h2v1H5V5Zm0 13h8v1H5v-1Zm2.2-8.5 1.8 5 1.8-5h1.4l1.8 5 1.8-5H17l-2.7 8h-1.2l-1.9-5.3L9.3 17.5H8.1L5.4 9.5h1.8Z" />
-  </svg>
-);
-
-// Simple fork-style IntelliJ mark — distinct from the multi-color
-// `IntelliJIdeaIcon` defined later in this file.
-export const IntelliJIcon: Icon = (props) => (
-  <svg {...props} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M2 2h20v20H2V2Zm1.5 1.5v17h17v-17h-17ZM5 5h2v1H5V5Zm0 13h8v1H5v-1ZM8 9.5h1.5v8H8v-8Z" />
-  </svg>
-);
-
-export const FleetIcon: Icon = (props) => (
-  <svg {...props} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M13 2L4.5 13h5l-1 9L17 11h-5l1-9Z" />
-  </svg>
-);
-
-export const GhosttyIcon: Icon = (props) => (
-  <svg {...props} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C7.58 2 4 5.58 4 10v8c0 1.1.45 2.1 1.17 2.83L6 22v-2.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5V22h2v-2.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5V22h2v-2.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5V22l.83-.83A3.98 3.98 0 0 0 20 18v-8c0-4.42-3.58-8-8-8Zm-3 10a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z" />
-  </svg>
-);
-
 export const VisualStudioCode: Icon = (props) => {
   const id = useId();
   const maskId = `${id}-vscode-a`;
@@ -790,107 +738,6 @@ export const AntigravityIcon: Icon = (props) => (
   </svg>
 );
 
-export const IntelliJIdeaIcon: Icon = (props) => {
-  const id = useId();
-  const gradientAId = `${id}-idea-a`;
-  const gradientBId = `${id}-idea-b`;
-  const gradientCId = `${id}-idea-c`;
-  const gradientDId = `${id}-idea-d`;
-
-  return (
-    <svg {...props} viewBox="0 0 70 70" fill="none">
-      <defs>
-        <linearGradient
-          id={gradientAId}
-          x1="0.7898"
-          y1="40.0893"
-          x2="33.3172"
-          y2="40.0893"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop offset="0.2581" stopColor="#F97A12" />
-          <stop offset="0.4591" stopColor="#B07B58" />
-          <stop offset="0.7241" stopColor="#577BAE" />
-          <stop offset="0.9105" stopColor="#1E7CE5" />
-          <stop offset="1" stopColor="#087CFA" />
-        </linearGradient>
-        <linearGradient
-          id={gradientBId}
-          x1="25.7674"
-          y1="24.88"
-          x2="79.424"
-          y2="54.57"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor="#F97A12" />
-          <stop offset="0.07179946" stopColor="#CB7A3E" />
-          <stop offset="0.1541" stopColor="#9E7B6A" />
-          <stop offset="0.242" stopColor="#757B91" />
-          <stop offset="0.3344" stopColor="#537BB1" />
-          <stop offset="0.4324" stopColor="#387CCC" />
-          <stop offset="0.5381" stopColor="#237CE0" />
-          <stop offset="0.6552" stopColor="#147CEF" />
-          <stop offset="0.7925" stopColor="#0B7CF7" />
-          <stop offset="1" stopColor="#087CFA" />
-        </linearGradient>
-        <linearGradient
-          id={gradientCId}
-          x1="63.2277"
-          y1="42.9153"
-          x2="48.2903"
-          y2="-1.7191"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor="#FE315D" />
-          <stop offset="0.07840246" stopColor="#CB417E" />
-          <stop offset="0.1601" stopColor="#9E4E9B" />
-          <stop offset="0.2474" stopColor="#755BB4" />
-          <stop offset="0.3392" stopColor="#5365CA" />
-          <stop offset="0.4365" stopColor="#386DDB" />
-          <stop offset="0.5414" stopColor="#2374E9" />
-          <stop offset="0.6576" stopColor="#1478F3" />
-          <stop offset="0.794" stopColor="#0B7BF8" />
-          <stop offset="1" stopColor="#087CFA" />
-        </linearGradient>
-        <linearGradient
-          id={gradientDId}
-          x1="10.7204"
-          y1="16.473"
-          x2="55.5237"
-          y2="90.58"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor="#FE315D" />
-          <stop offset="0.04023279" stopColor="#F63462" />
-          <stop offset="0.1037" stopColor="#DF3A71" />
-          <stop offset="0.1667" stopColor="#C24383" />
-          <stop offset="0.2912" stopColor="#AD4A91" />
-          <stop offset="0.5498" stopColor="#755BB4" />
-          <stop offset="0.9175" stopColor="#1D76ED" />
-          <stop offset="1" stopColor="#087CFA" />
-        </linearGradient>
-      </defs>
-      <polygon points="17.7,54.6 0.8,41.2 9.2,25.6 33.3,35" fill={`url(#${gradientAId})`} />
-      <path
-        d="M70 18.7 68.7 59.2 41.8 70 25.6 59.6 49.3 35 38.9 12.3 48.2 1.1Z"
-        fill={`url(#${gradientBId})`}
-      />
-      <polygon points="70,18.7 48.7,43.9 38.9,12.3 48.2,1.1" fill={`url(#${gradientCId})`} />
-      <path
-        d="M33.7 58.1 5.6 68.3 10.1 52.5 16 33.1 0 27.7 10.1 0 32.1 2.7 53.7 27.4Z"
-        fill={`url(#${gradientDId})`}
-      />
-      <rect x="13.7" y="13.5" width="43.2" height="43.2" fill="#000" />
-      <rect x="17.7" y="48.6" width="16.2" height="2.7" fill="#fff" />
-      <path d="M29.4 22.4v-3.3h-9v3.3h2.6v11.3h-2.6V37h9v-3.3h-2.5V22.4h2.5Z" fill="#fff" />
-      <path
-        d="M38 37.3c-1.4 0-2.6-.3-3.5-.8-.9-.5-1.7-1.2-2.3-1.9l2.5-2.8c.5.6 1 1 1.5 1.3.5.3 1.1.5 1.7.5.7 0 1.3-.2 1.8-.7.4-.5.6-1.2.6-2.3V19.1h4v11.7c0 1.1-.1 2-.4 2.8-.3.8-.7 1.4-1.3 2-.5.5-1.2 1-2 1.2-.8.3-1.6.5-2.6.5Z"
-        fill="#fff"
-      />
-    </svg>
-  );
-};
-
 export const OpenCodeIcon: Icon = ({ monochrome, ...props }) => {
   if (monochrome) {
     return (
@@ -971,14 +818,17 @@ export const ACPRegistryIcon: Icon = ({ className, ...props }) => (
 );
 
 export const PiAgentIcon: Icon = ({ className, ...props }) => (
-  <svg {...props} viewBox="0 0 800 800" className={cn("fill-none", className)}>
-    <rect width="800" height="800" rx="160" fill="#000" />
+  <svg
+    {...props}
+    viewBox="165.29 165.29 469.43 469.43"
+    fill="none"
+    className={cn("fill-[#0F0F0F] dark:fill-[#F5F5F5]", className)}
+  >
     <path
-      fill="#fff"
       fillRule="evenodd"
       d="M165.29 165.29H517.36V400H400V517.36H282.65V634.72H165.29ZM282.65 282.65V400H400V282.65Z"
     />
-    <path fill="#fff" d="M517.36 400H634.72V634.72H517.36Z" />
+    <path d="M517.36 400H634.72V634.72H517.36Z" />
   </svg>
 );
 
@@ -1058,15 +908,6 @@ export const KiloIcon: Icon = ({ className, ...props }) => (
     <path d="M8 6.5h2.2v4.4l3.6-4.4h2.7l-3.9 4.6 4.1 6.4h-2.7l-3.1-5-.7.8v4.2H8V6.5Z" fill="#fff" />
   </svg>
 );
-
-// Re-export the existing Google Gemini mark under the GeminiCli driver
-// alias so providerDriverMeta can import a name that matches the driver
-// kind. The underlying SVG is the same multicolor crystal mark.
-export const GeminiCliIcon: Icon = Gemini;
-
-// Re-export GithubCopilotIcon under the shorter "CopilotIcon" alias used
-// by providerDriverMeta to keep the meta entries terse.
-export const CopilotIcon: Icon = GithubCopilotIcon;
 
 // Prime Intellect `prime-agent` — dark rounded square with a stylized "P".
 export const PrimeAgentIcon: Icon = ({ className, ...props }) => (

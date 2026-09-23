@@ -17,7 +17,7 @@ import { buildAuthHeader, parseServerUrl } from "./utils.ts";
 /**
  * Probes the Kilo server health endpoint to check if it's running.
  */
-export async function probeServer(baseUrl: string, authHeader?: string): Promise<boolean> {
+async function probeServer(baseUrl: string, authHeader?: string): Promise<boolean> {
   const response = await fetch(`${baseUrl}/global/health`, {
     method: "GET",
     ...(authHeader ? { headers: { Authorization: authHeader } } : {}),

@@ -45,14 +45,11 @@ import {
 } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
-import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
 
 import { ServerSettingsService } from "../serverSettings.ts";
 import { getOrCreateAgentProject } from "./agentProjects.ts";
-import { OrchestrationEngineService } from "./Services/OrchestrationEngine.ts";
-import { ProjectionSnapshotQuery } from "./Services/ProjectionSnapshotQuery.ts";
+import { ThreadManagementService } from "../orchestration-v2/ThreadManagementService.ts";
 
 /**
  * Title of the home thread. Plain, no emoji: it sits in the same list as the
@@ -94,24 +91,18 @@ export const getDesignatedHomeThreadId = Effect.fn("getDesignatedHomeThreadId")(
  * deleted — and thereby keeps this module from minting a second one. A
  * soft-deleted row still counts as gone.
  */
-const readHomeThreadRow = Effect.fn("readHomeThreadRow")(function* (threadId: ThreadId) {
-  const query = yield* ProjectionSnapshotQuery;
-  if (query.getThreadArchiveStateById !== undefined) {
-    const row = yield* query.getThreadArchiveStateById(threadId);
-    return Option.getOrUndefined(row);
-  }
-
-  // Compatibility for embedders and test layers implementing the older
-  // query shape: active and archived snapshots together distinguish a parked
-  // thread from one that was actually deleted. Production uses the indexed
-  // query above, so this O(n) fallback is not on the gateway hot path.
-  const active = yield* query.getThreadShellById(threadId);
-  if (Option.isSome(active)) {
-    return { projectId: active.value.projectId, archivedAt: active.value.archivedAt };
-  }
-  const archived = yield* query.getArchivedShellSnapshot();
-  const row = archived.threads.find((thread) => thread.id === threadId);
-  return row === undefined ? undefined : { projectId: row.projectId, archivedAt: row.archivedAt };
+const readHomeThreadRow = Effect.fn("readHomeThreadRow")(function* (
+  threadId: ThreadId,
+  instanceId: ProviderInstanceId,
+) {
+  const threads = yield* ThreadManagementService;
+  // V2's indexed shell read includes archived rows and excludes deleted rows.
+  const row = yield* threads.getThreadShell(threadId);
+  return row === null ||
+    row.providerInstanceId !== instanceId ||
+    row.modelSelection.instanceId !== instanceId
+    ? undefined
+    : { projectId: row.projectId, archivedAt: row.archivedAt };
 });
 
 /**
@@ -175,7 +166,7 @@ export const getOrCreateHomeThread = Effect.fn("getOrCreateHomeThread")(function
   /** Instance nickname, used as the agent project's title on first creation. */
   readonly title: string;
 }) {
-  const engine = yield* OrchestrationEngineService;
+  const engine = yield* ThreadManagementService;
   const crypto = yield* Crypto.Crypto;
 
   const designated = yield* getDesignatedHomeThreadId(input.instanceId);
@@ -186,7 +177,7 @@ export const getOrCreateHomeThread = Effect.fn("getOrCreateHomeThread")(function
     // history in the archived one and silently re-pointing the designation.
     // Archiving is a user parking a thread, not destroying it; only a row
     // that is really gone justifies a replacement.
-    const existing = yield* readHomeThreadRow(designated);
+    const existing = yield* readHomeThreadRow(designated, input.instanceId);
     if (existing !== undefined) {
       // Un-archive rather than deliver into a hidden thread. A delivery is
       // the agent raising its hand, and the same rule the decider applies to
@@ -219,7 +210,6 @@ export const getOrCreateHomeThread = Effect.fn("getOrCreateHomeThread")(function
   });
 
   const threadId = ThreadId.make(yield* crypto.randomUUIDv4);
-  const createdAt = DateTime.formatIso(yield* DateTime.now);
 
   const dispatched = yield* Effect.result(
     engine.dispatch({
@@ -236,7 +226,8 @@ export const getOrCreateHomeThread = Effect.fn("getOrCreateHomeThread")(function
       interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
       branch: null,
       worktreePath: null,
-      createdAt,
+      createdBy: "agent",
+      creationSource: "server",
     }),
   );
 

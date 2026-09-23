@@ -450,7 +450,7 @@ export function canRetainCachedPlatformRegistrationAfterRefreshFailure(
   );
 }
 
-export function desktopSecondaryBootstrapSignature(bootstrap: DesktopEnvironmentBootstrap): string {
+function desktopSecondaryBootstrapSignature(bootstrap: DesktopEnvironmentBootstrap): string {
   return [
     bootstrap.id,
     bootstrap.runningDistro ?? "",

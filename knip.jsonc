@@ -22,22 +22,22 @@
         "src/bin.ts!",
         "src/claude-history-worker.ts!",
         "scripts/cli.ts",
-        "scripts/evaluate-thread-titles.ts",
         "scripts/measure-pr-preview.ts",
+        "scripts/probe-claude-fork-local-rollback-replay.ts",
+        "scripts/verify-background-live.ts",
+        "scripts/evaluate-thread-titles.ts",
         "src/provider/testFixtures/*.mjs",
         "src/provider/acp/testFixtures/*.ts",
         // Retain historical migration sources even when superseded in the registry.
         "src/persistence/Migrations/*.ts",
       ],
-      // Runtime native addons, injected SDKs, the web build prerequisite, and
-      // platform peers loaded through RuntimeSqliteLayer's bun/node split.
+      // Runtime native addons, injected SDKs, and the web build prerequisite.
       "ignoreDependencies": [
         "msgpackr-extract",
         "@t3tools/web",
         "@cursor/sdk",
         "@github/copilot",
         "@effect/platform-node-shared",
-        "@effect/platform-bun",
       ],
     },
     "apps/desktop": {

@@ -13,7 +13,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(root) {
 }
 
 html[data-mobile-composer-route-transition="true"]::view-transition-group(t3-mobile-composer) {
-  animation-duration: 180ms;
+  animation-duration: var(--mobile-composer-transition-duration);
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -22,12 +22,12 @@ html[data-mobile-composer-route-transition="true"]::view-transition-image-pair(t
 }
 
 html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobile-composer) {
-  animation: t3-mobile-composer-old 180ms linear both;
+  animation: t3-mobile-composer-old var(--mobile-composer-transition-duration) linear both;
   mix-blend-mode: normal;
 }
 
 html[data-mobile-composer-route-transition="true"]::view-transition-new(t3-mobile-composer) {
-  animation: t3-mobile-composer-new 180ms linear both;
+  animation: t3-mobile-composer-new var(--mobile-composer-transition-duration) linear both;
   mix-blend-mode: normal;
 }
 
@@ -57,11 +57,12 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(t3-mobil
 }
 
 html[data-mobile-composer-route-transition="true"]::view-transition-group(t3-mobile-draft-headline) {
-  animation-duration: 130ms;
+  animation-duration: var(--mobile-composer-transition-duration);
 }
 
 html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobile-draft-headline) {
-  animation: t3-mobile-draft-headline-exit 130ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: t3-mobile-draft-headline-exit var(--mobile-composer-transition-duration)
+    cubic-bezier(0.4, 0, 1, 1) both;
   mix-blend-mode: normal;
 }
 
@@ -112,6 +113,9 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --workspace-titlebar-control-size: 1.75rem;
   --workspace-titlebar-control-gap: 0.75rem;
   --workspace-titlebar-scroll-fade-height: 1.5rem;
+  --chat-content-max-width: 46rem;
+  --thread-details-panel-width: 19.5rem;
+  --thread-details-panel-inset: 0px;
 
   @variant dark {
     --appearance-contrast-target: white;
@@ -817,6 +821,38 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     outline: none;
   }
 
+  .surface-subheader {
+    @apply flex h-10 min-h-10 shrink-0 items-center border-b border-border/60 bg-background;
+  }
+
+  [data-preview-panel-mode="inline"] [data-right-panel-surface-content] [data-surface-subheader] {
+    height: calc(var(--spacing) * 7);
+    min-height: calc(var(--spacing) * 7);
+    margin-bottom: calc(var(--spacing) * 3);
+    border-bottom-color: transparent;
+  }
+
+  .chat-content-lane {
+    margin-inline: auto;
+    width: 100%;
+    min-width: 0;
+    max-width: var(--chat-content-max-width);
+  }
+
+  [data-thread-details-inline-reserved="true"] {
+    --thread-details-panel-inset: var(--thread-details-panel-width);
+  }
+
+  .messages-timeline-row-frame {
+    padding-inline-start: 0.75rem;
+    padding-inline-end: calc(0.75rem + var(--thread-details-panel-inset));
+  }
+
+  .chat-scroll-to-bottom {
+    inset-inline-start: 0;
+    inset-inline-end: var(--thread-details-panel-inset);
+  }
+
   .settings-slider {
     --settings-slider-progress: 0%;
     --settings-slider-fill-offset: 0.5rem;
@@ -929,6 +965,13 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     .settings-slider::-moz-range-progress,
     .settings-slider::-moz-range-thumb {
       all: revert;
+    }
+  }
+
+  @media (min-width: 40rem) {
+    .messages-timeline-row-frame {
+      padding-inline-start: 1.25rem;
+      padding-inline-end: calc(1.25rem + var(--thread-details-panel-inset));
     }
   }
 }
@@ -1130,7 +1173,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
    compatibility overrides so both navigation implementations receive the
    same palette. Success, info, provider, and channel identity colors remain
    independent; error, warning, and update roles are themeable below. */
-
 /* The non-empty marker adds enough specificity to outrank the generated root
    dark variant without reintroducing raw `.dark` selectors. */
 html[data-theme-id]:not([data-theme-id=""]) {

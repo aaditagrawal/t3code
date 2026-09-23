@@ -22,6 +22,7 @@
  */
 import { AcpDriver, type AcpDriverEnv } from "./Drivers/AcpDriver.ts";
 import { AmpDriver, type AmpDriverEnv } from "./Drivers/AmpDriver.ts";
+import { AcpRegistryDriver, type AcpRegistryDriverEnv } from "./Drivers/AcpRegistryDriver.ts";
 import { AntigravityDriver, type AntigravityDriverEnv } from "./Drivers/AntigravityDriver.ts";
 import { ClaudeDriver, type ClaudeDriverEnv } from "./Drivers/ClaudeDriver.ts";
 import { CodexDriver, type CodexDriverEnv } from "./Drivers/CodexDriver.ts";
@@ -47,6 +48,7 @@ import type { AnyProviderDriver } from "./ProviderDriver.ts";
 export type BuiltInDriversEnv =
   | PrimeAgentDriverEnv
   | AcpDriverEnv
+  | AcpRegistryDriverEnv
   | ClaudeDriverEnv
   | CodexDriverEnv
   | CursorDriverEnv
@@ -89,4 +91,5 @@ export const BUILT_IN_DRIVERS: ReadonlyArray<AnyProviderDriver<BuiltInDriversEnv
   OhMyPiDriver,
   PiDriver,
   PrimeAgentDriver,
+  AcpRegistryDriver,
 ];

@@ -5,22 +5,21 @@ import {
   ProjectId,
   ProviderInstanceId,
   ThreadId,
-  type OrchestrationCommand,
-  type OrchestrationEvent,
-  type OrchestrationProject,
-  type OrchestrationThreadShell,
+  type OrchestrationV2Command as OrchestrationCommand,
+  type OrchestrationV2ThreadShell as OrchestrationThreadShell,
 } from "@t3tools/contracts";
+import type { OrchestrationProject } from "@t3tools/contracts/legacy-orchestration";
+import * as DateTime from "effect/DateTime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
-import * as Stream from "effect/Stream";
 
 import { ServerConfig } from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
-import { OrchestrationCommandInvariantError } from "./Errors.ts";
+import { OrchestratorDispatchError } from "../orchestration-v2/Orchestrator.ts";
+import { ThreadManagementService } from "../orchestration-v2/ThreadManagementService.ts";
 import {
   HOME_THREAD_TITLE,
   getDesignatedHomeThreadId,
@@ -46,28 +45,37 @@ const agentProject: OrchestrationProject = {
   deletedAt: null,
 };
 
-const threadShell = (id: ThreadId): OrchestrationThreadShell =>
-  ({
-    id,
-    projectId: agentProject.id,
-    title: HOME_THREAD_TITLE,
-    modelSelection: { instanceId: INSTANCE_ID, model: DEFAULT_HERMES_MODEL },
-    runtimeMode: "full-access",
-    interactionMode: "default",
-    branch: null,
-    worktreePath: null,
-    latestTurn: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-    archivedAt: null,
-    settledOverride: null,
-    settledAt: null,
-    session: null,
-    latestUserMessageAt: null,
-    hasPendingApprovals: false,
-    hasPendingUserInput: false,
-    hasActionableProposedPlan: false,
-  }) as OrchestrationThreadShell;
+const threadShell = (id: ThreadId): OrchestrationThreadShell => ({
+  id,
+  projectId: agentProject.id,
+  title: HOME_THREAD_TITLE,
+  providerInstanceId: INSTANCE_ID,
+  modelSelection: { instanceId: INSTANCE_ID, model: DEFAULT_HERMES_MODEL },
+  runtimeMode: "full-access",
+  interactionMode: "default",
+  branch: null,
+  worktreePath: null,
+  lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: id },
+  forkedFrom: null,
+  activeProviderThreadId: null,
+  latestRunId: null,
+  activeRunId: null,
+  status: "idle",
+  pendingRuntimeRequest: null,
+  latestVisibleMessage: null,
+  latestUserMessageAt: null,
+  hasActionableProposedPlan: false,
+  itemCount: 0,
+  visibleItemCount: 0,
+  createdAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
+  updatedAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
+  archivedAt: null,
+  settledOverride: null,
+  settledAt: null,
+  deletedAt: null,
+  createdBy: "agent",
+  creationSource: "server",
+});
 
 const hermesInstance = (config: Record<string, unknown>) => ({
   driver: HERMES_DRIVER_KIND,
@@ -80,83 +88,62 @@ const hermesInstance = (config: Record<string, unknown>) => ({
  * Query stub answering thread reads from a mutable queue, so a test can model
  * "designated but deleted" — the self-healing path this module exists for.
  */
-const makeQueryLayer = (
-  threads: Ref.Ref<ReadonlyArray<Option.Option<OrchestrationThreadShell>>>,
-  archiveStates?: ReadonlyArray<
-    Option.Option<{ readonly projectId: ProjectId; readonly archivedAt: string | null }>
-  >,
-) =>
-  Layer.succeed(ProjectionSnapshotQuery, {
-    getCommandReadModel: () => Effect.die("unused"),
-    getSnapshot: () => Effect.die("unused"),
-    getShellSnapshot: () => Effect.die("unused"),
-    getArchivedShellSnapshot: () => Effect.die("unused"),
-    getSnapshotSequence: () => Effect.die("unused"),
-    getCounts: () => Effect.die("unused"),
-    getActiveProjectByWorkspaceRoot: () => Effect.succeed(Option.some(agentProject)),
-    getProjectShellById: () => Effect.die("unused"),
-    getFirstActiveThreadIdByProjectId: () => Effect.die("unused"),
-    getThreadCheckpointContext: () => Effect.die("unused"),
-    getFullThreadDiffContext: () => Effect.die("unused"),
-    getThreadArchiveStateById: () =>
-      Effect.gen(function* () {
-        if (archiveStates?.[0] !== undefined) return archiveStates[0];
-        // Default: mirror the shell queue, since a thread visible to the shell
-        // query is also present. Tests about archiving pass this explicitly.
-        const queue = yield* Ref.get(threads);
-        return Option.map(queue[0] ?? Option.none(), (thread) => ({
-          projectId: thread.projectId,
-          archivedAt: null,
-        }));
-      }),
-    getThreadShellById: () =>
-      Effect.gen(function* () {
-        const queue = yield* Ref.get(threads);
-        const [head, ...rest] = queue;
-        if (head === undefined) return Option.none<OrchestrationThreadShell>();
-        yield* Ref.set(threads, rest.length > 0 ? rest : [head]);
-        return head;
-      }),
-    getThreadDetailById: () => Effect.die("unused"),
-    getThreadDetailSnapshot: () => Effect.die("unused"),
-  } as unknown as ProjectionSnapshotQuery["Service"]);
+const makeQueryLayer = () =>
+  Layer.mergeAll(
+    Layer.mock(ProjectionSnapshotQuery)({
+      getActiveProjectByWorkspaceRoot: () => Effect.succeed(Option.some(agentProject)),
+    }),
+    Layer.mock(OrchestrationEngine.OrchestrationEngineService)({
+      dispatch: () => Effect.die("unexpected project creation"),
+    }),
+  );
 
 const makeEngineLayer = (
   dispatched: Ref.Ref<ReadonlyArray<OrchestrationCommand>>,
+  threads: Ref.Ref<ReadonlyArray<Option.Option<OrchestrationThreadShell>>>,
+  archiveStates:
+    | ReadonlyArray<
+        Option.Option<{ readonly projectId: ProjectId; readonly archivedAt: string | null }>
+      >
+    | undefined,
   options: {
     readonly fail?: boolean;
-    /**
-     * Runs after each command is recorded. The only hook that fires *inside*
-     * `getOrCreateHomeThread`, which is what lets a test land a competing
-     * settings write between this caller's read and its persist.
-     */
-    readonly onDispatch?: (command: OrchestrationCommand) => Effect.Effect<void, never, never>;
+    readonly onDispatch?: (command: OrchestrationCommand) => Effect.Effect<void>;
   } = {},
 ) =>
-  Layer.succeed(OrchestrationEngine.OrchestrationEngineService, {
-    readEvents: () => Stream.empty,
-    readThreadEvents: () => Stream.die("unused thread replay"),
-    getThreadReplayStats: () => Effect.die("unused thread replay stats"),
-    dispatch: (command: OrchestrationCommand) =>
+  Layer.mock(ThreadManagementService)({
+    getThreadShell: (threadId) =>
+      Effect.gen(function* () {
+        const archive = archiveStates?.[0];
+        if (archive !== undefined)
+          return Option.isNone(archive)
+            ? null
+            : {
+                ...threadShell(threadId),
+                projectId: archive.value.projectId,
+                archivedAt:
+                  archive.value.archivedAt === null
+                    ? null
+                    : DateTime.makeUnsafe(archive.value.archivedAt),
+              };
+        const queue = yield* Ref.get(threads);
+        return Option.getOrNull(queue[0] ?? Option.none());
+      }),
+    dispatch: (command) =>
       Ref.update(dispatched, (calls) => [...calls, command]).pipe(
         Effect.andThen(options.onDispatch ? options.onDispatch(command) : Effect.void),
         Effect.andThen(
           options.fail
             ? Effect.fail(
-                new OrchestrationCommandInvariantError({
-                  commandType: "thread.create",
-                  detail: "Simulated dispatch failure.",
+                new OrchestratorDispatchError({
+                  commandId: command.commandId,
+                  commandType: command.type,
+                  cause: "Simulated dispatch failure.",
                 }),
               )
-            : Effect.succeed({ sequence: 1 }),
+            : Effect.succeed({ sequence: 1, storedEvents: [] }),
         ),
       ),
-    streamDomainEvents: Stream.empty,
-    subscribeDomainEvents: PubSub.unbounded<OrchestrationEvent>().pipe(
-      Effect.flatMap(PubSub.subscribe),
-      Effect.map(Stream.fromSubscription),
-    ),
-    latestSequence: Effect.succeed(0),
   });
 
 const configLayer = Layer.succeed(ServerConfig, {
@@ -186,8 +173,8 @@ const testLayer = (input: {
   >;
 }) =>
   Layer.mergeAll(
-    makeQueryLayer(input.threads, input.archiveStates),
-    makeEngineLayer(input.dispatched, {
+    makeQueryLayer(),
+    makeEngineLayer(input.dispatched, input.threads, input.archiveStates, {
       ...(input.failDispatch ? { fail: true } : {}),
       ...(input.onDispatch ? { onDispatch: input.onDispatch } : {}),
     }),
@@ -309,6 +296,37 @@ it.effect("self-heals a designation whose thread no longer exists", () =>
     assert.notEqual(resolved, "thread-deleted-long-ago");
     const commands = yield* Ref.get(dispatched);
     assert.isDefined(commands.find((command) => command.type === "thread.create"));
+  }),
+);
+
+it.effect("replaces a Home whose provider selection has changed", () =>
+  Effect.gen(function* () {
+    const foreignInstance = ProviderInstanceId.make("codex-other");
+    const threads = yield* Ref.make<ReadonlyArray<Option.Option<OrchestrationThreadShell>>>([
+      Option.some({
+        ...threadShell(HOME_THREAD_ID),
+        providerInstanceId: foreignInstance,
+        modelSelection: { instanceId: foreignInstance, model: "other-model" },
+      }),
+    ]);
+    const dispatched = yield* Ref.make<ReadonlyArray<OrchestrationCommand>>([]);
+    const resolved = yield* getOrCreateHomeThread({
+      instanceId: INSTANCE_ID,
+      title: "Hermes Workstation",
+    }).pipe(
+      Effect.provide(
+        testLayer({
+          threads,
+          dispatched,
+          providerInstances: { [INSTANCE_ID]: hermesInstance({ homeThreadId: HOME_THREAD_ID }) },
+        }),
+      ),
+    );
+    assert.notEqual(resolved, HOME_THREAD_ID);
+    const commands = yield* Ref.get(dispatched);
+    const created = commands.find((command) => command.type === "thread.create");
+    assert.equal(created?.modelSelection.instanceId, INSTANCE_ID);
+    assert.equal(created?.threadId, resolved);
   }),
 );
 

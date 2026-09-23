@@ -31,6 +31,13 @@ const DROID_PRESENTATION = {
   displayName: "Droid",
   badgeLabel: "WIP",
   showInteractionModeToggle: true,
+  supportedRuntimeModes: [
+    "approval-required",
+    "auto-accept-edits",
+    "medium-access",
+    "auto",
+    "full-access",
+  ],
 } as const;
 const DROID_CLI_TIMEOUT_MS = 10_000;
 const DROID_MODEL_DISCOVERY_TIMEOUT_MS = 20_000;

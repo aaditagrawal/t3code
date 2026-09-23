@@ -20,6 +20,8 @@ import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
 import { ServerConfig } from "../../config.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import { makePrimeAgentTextGeneration } from "../../textGeneration/PrimeAgentTextGeneration.ts";
+import { IdAllocatorV2 } from "../../orchestration-v2/IdAllocator.ts";
+import { makeLegacyAdapterV2 } from "../../orchestration-v2/Adapters/LegacyAdapterV2.ts";
 import { ProviderDriverError } from "../Errors.ts";
 import { makePrimeAgentAdapter } from "../Layers/PrimeAgentAdapter.ts";
 import {
@@ -52,6 +54,7 @@ const MAINTENANCE_CAPABILITIES = makeManualOnlyProviderMaintenanceCapabilities({
 });
 
 export type PrimeAgentDriverEnv =
+  | IdAllocatorV2
   | BackgroundPolicy.BackgroundPolicy
   | ChildProcessSpawner.ChildProcessSpawner
   | Crypto.Crypto
@@ -149,6 +152,22 @@ export const PrimeAgentDriver: ProviderDriver<PrimeAgentSettings, PrimeAgentDriv
         ),
       );
 
+      const { cwd } = yield* ServerConfig;
+      const orchestrationAdapter = yield* makeLegacyAdapterV2({
+        instanceId,
+        adapter,
+        cwd,
+        profile: {
+          resume: "none",
+          nativeHistory: false,
+          reasoning: true,
+          approvals: true,
+          questions: true,
+          mcp: true,
+          planning: true,
+        },
+        onUsageLimits: (update) => snapshot.applyUsageLimits(update),
+      });
       return {
         instanceId,
         driverKind: DRIVER_KIND,
@@ -157,7 +176,7 @@ export const PrimeAgentDriver: ProviderDriver<PrimeAgentSettings, PrimeAgentDriv
         accentColor,
         enabled,
         snapshot,
-        adapter,
+        orchestrationAdapter,
         textGeneration,
       } satisfies ProviderInstance;
     }),

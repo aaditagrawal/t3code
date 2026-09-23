@@ -102,6 +102,7 @@ export const makePrimeAgentAcpRuntime = (
           input.model,
         ),
         authMethodId: PRIME_AGENT_AUTH_METHOD_ID,
+        authenticateEagerly: true,
       }).pipe(
         Layer.provide(
           Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, input.childProcessSpawner),

@@ -1,13 +1,6 @@
-import { readCustomModelSlugs } from "@t3tools/shared/model";
-import { useCallback, useMemo } from "react";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { DEFAULT_SERVER_SETTINGS } from "@t3tools/contracts";
-import { DEFAULT_CLIENT_SETTINGS, type UnifiedSettings } from "@t3tools/contracts/settings";
-import type { ProviderKind } from "./providerKind";
 import { DEFAULT_ACCENT_COLOR, isValidAccentColor, normalizeAccentColor } from "./accentColor";
-import { useLocalStorage } from "./hooks/useLocalStorage";
-import { useSettings, useUpdateSettings } from "./hooks/useSettings";
 
 // Domain modules
 import {
@@ -21,30 +14,17 @@ import {
 
 // Re-export everything from domain modules for backwards compatibility
 export {
-  APP_PROVIDER_LOGO_APPEARANCE_OPTIONS,
   type AppProviderLogoAppearance,
   AppProviderLogoAppearanceSchema,
-  TIMESTAMP_FORMAT_OPTIONS,
   type TimestampFormat,
-  DEFAULT_TIMESTAMP_FORMAT,
   SidebarProjectSortOrder,
-  DEFAULT_SIDEBAR_PROJECT_SORT_ORDER,
   SidebarThreadSortOrder,
-  DEFAULT_SIDEBAR_THREAD_SORT_ORDER,
 } from "./appearance";
 
 const MAX_CUSTOM_MODEL_COUNT = 32;
 const MAX_CUSTOM_MODEL_LENGTH_VALUE = 256;
-export const MAX_CUSTOM_MODEL_LENGTH = MAX_CUSTOM_MODEL_LENGTH_VALUE;
 
-/**
- * Lightweight, fork-local custom-model normalizer used while the legacy
- * AppSettings shape is still alive in the web client. The new instance-keyed
- * pipeline lives in `modelSelection.ts`; this helper just trims, dedupes and
- * caps the legacy per-driver string arrays so we can keep round-tripping them
- * through `withUnifiedCompatSettings` / `toUnifiedPatch` without touching the
- * removed contracts surface.
- */
+/** Preserve custom model settings while importing the legacy local-storage snapshot. */
 function normalizeCustomModelSlugsLocal(
   models: Iterable<string | null | undefined>,
 ): ReadonlyArray<string> {
@@ -76,43 +56,6 @@ function normalizeGitTextGenerationModelByProviderLocal(
 }
 
 const APP_SETTINGS_STORAGE_KEY = "t3code:app-settings:v1";
-const APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS = {
-  codex: "customCodexModels",
-  copilot: "customCopilotModels",
-  claudeAgent: "customClaudeModels",
-  cursor: "customCursorModels",
-  opencode: "customOpencodeModels",
-  geminiCli: "customGeminiCliModels",
-  amp: "customAmpModels",
-  kilo: "customKiloModels",
-  primeAgent: "customPrimeAgentModels",
-} as const satisfies Partial<Record<ProviderKind, keyof AppSettings>>;
-const MIRRORED_CLIENT_KEYS = new Set<keyof AppSettings>([
-  "confirmThreadDelete",
-  "diffWordWrap",
-  "diffIgnoreWhitespace",
-  "sidebarProjectSortOrder",
-  "sidebarThreadSortOrder",
-  "timestampFormat",
-]);
-const MIRRORED_SERVER_KEYS = new Set<keyof AppSettings>([
-  "claudeBinaryPath",
-  "codexBinaryPath",
-  "codexHomePath",
-  "copilotCliPath",
-  "copilotConfigDir",
-  "defaultThreadEnvMode",
-  "enableAssistantStreaming",
-  "customCodexModels",
-  "customCopilotModels",
-  "customClaudeModels",
-  "customCursorModels",
-  "customOpencodeModels",
-  "customGeminiCliModels",
-  "customAmpModels",
-  "customKiloModels",
-  "customPrimeAgentModels",
-]);
 
 const withDefaults =
   <
@@ -259,128 +202,6 @@ function parsePersistedSettings(value: string | null): AppSettings {
   }
 }
 
-function withUnifiedCompatSettings(
-  localSettings: AppSettings,
-  unifiedSettings: Pick<
-    UnifiedSettings,
-    | "confirmThreadDelete"
-    | "defaultThreadEnvMode"
-    | "diffIgnoreWhitespace"
-    | "responseStreamingMode"
-    | "providers"
-    | "sidebarProjectSortOrder"
-    | "sidebarThreadSortOrder"
-    | "timestampFormat"
-    | "wordWrap"
-  >,
-): AppSettings {
-  return normalizeAppSettings({
-    ...localSettings,
-    claudeBinaryPath: unifiedSettings.providers.claudeAgent.binaryPath,
-    codexBinaryPath: unifiedSettings.providers.codex.binaryPath,
-    codexHomePath: unifiedSettings.providers.codex.homePath,
-    copilotCliPath: unifiedSettings.providers.copilot.binaryPath,
-    copilotConfigDir: unifiedSettings.providers.copilot.configDir,
-    defaultThreadEnvMode: unifiedSettings.defaultThreadEnvMode ?? "local",
-    confirmThreadDelete: unifiedSettings.confirmThreadDelete,
-    diffWordWrap: unifiedSettings.wordWrap,
-    diffIgnoreWhitespace: unifiedSettings.diffIgnoreWhitespace,
-    enableAssistantStreaming: unifiedSettings.responseStreamingMode === "token",
-    sidebarProjectSortOrder: unifiedSettings.sidebarProjectSortOrder,
-    sidebarThreadSortOrder: unifiedSettings.sidebarThreadSortOrder,
-    timestampFormat: unifiedSettings.timestampFormat,
-    customCodexModels: readCustomModelSlugs(unifiedSettings.providers.codex.customModels),
-    customCopilotModels: readCustomModelSlugs(unifiedSettings.providers.copilot.customModels),
-    customClaudeModels: readCustomModelSlugs(unifiedSettings.providers.claudeAgent.customModels),
-    customCursorModels: readCustomModelSlugs(unifiedSettings.providers.cursor.customModels),
-    customOpencodeModels: readCustomModelSlugs(unifiedSettings.providers.opencode.customModels),
-    customGeminiCliModels: readCustomModelSlugs(unifiedSettings.providers.geminiCli.customModels),
-    customAmpModels: readCustomModelSlugs(unifiedSettings.providers.amp.customModels),
-    customKiloModels: readCustomModelSlugs(unifiedSettings.providers.kilo.customModels),
-    customPrimeAgentModels: readCustomModelSlugs(unifiedSettings.providers.primeAgent.customModels),
-  });
-}
-
-function toUnifiedPatch(patch: Partial<AppSettings>): Partial<UnifiedSettings> {
-  const providersPatch: Partial<
-    Record<
-      ProviderKind,
-      {
-        binaryPath?: string;
-        homePath?: string;
-        configDir?: string;
-        customModels?: ReadonlyArray<string>;
-      }
-    >
-  > = {};
-  if (patch.codexBinaryPath !== undefined || patch.codexHomePath !== undefined) {
-    providersPatch.codex = {
-      ...(patch.codexBinaryPath !== undefined ? { binaryPath: patch.codexBinaryPath } : {}),
-      ...(patch.codexHomePath !== undefined ? { homePath: patch.codexHomePath } : {}),
-    };
-  }
-  if (patch.claudeBinaryPath !== undefined) {
-    providersPatch.claudeAgent = {
-      binaryPath: patch.claudeBinaryPath,
-    };
-  }
-  if (patch.copilotCliPath !== undefined || patch.copilotConfigDir !== undefined) {
-    providersPatch.copilot = {
-      ...(patch.copilotCliPath !== undefined ? { binaryPath: patch.copilotCliPath } : {}),
-      ...(patch.copilotConfigDir !== undefined ? { configDir: patch.copilotConfigDir } : {}),
-    };
-  }
-  const providerModelEntries = Object.entries(APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS) as Array<
-    [
-      keyof typeof APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS,
-      (typeof APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS)[keyof typeof APP_SETTINGS_PROVIDER_CUSTOM_MODEL_KEYS],
-    ]
-  >;
-  for (const [provider, settingsKey] of providerModelEntries) {
-    const models = patch[settingsKey];
-    if (!Array.isArray(models)) {
-      continue;
-    }
-    providersPatch[provider] = {
-      ...providersPatch[provider],
-      customModels: normalizeCustomModelSlugsLocal(models),
-    };
-  }
-  return {
-    ...(patch.confirmThreadDelete !== undefined
-      ? { confirmThreadDelete: patch.confirmThreadDelete }
-      : {}),
-    ...(patch.diffWordWrap !== undefined ? { wordWrap: patch.diffWordWrap } : {}),
-    ...(patch.diffIgnoreWhitespace !== undefined
-      ? { diffIgnoreWhitespace: patch.diffIgnoreWhitespace }
-      : {}),
-    ...(patch.sidebarProjectSortOrder !== undefined
-      ? { sidebarProjectSortOrder: patch.sidebarProjectSortOrder }
-      : {}),
-    ...(patch.sidebarThreadSortOrder !== undefined
-      ? { sidebarThreadSortOrder: patch.sidebarThreadSortOrder }
-      : {}),
-    ...(patch.timestampFormat !== undefined ? { timestampFormat: patch.timestampFormat } : {}),
-    ...(patch.defaultThreadEnvMode !== undefined
-      ? { defaultThreadEnvMode: patch.defaultThreadEnvMode }
-      : {}),
-    ...(patch.enableAssistantStreaming !== undefined
-      ? { responseStreamingMode: patch.enableAssistantStreaming ? "token" : "turn" }
-      : {}),
-    ...(Object.keys(providersPatch).length > 0
-      ? { providers: providersPatch as Partial<UnifiedSettings["providers"]> }
-      : {}),
-  } as Partial<UnifiedSettings>;
-}
-
-function stripMirroredKeys(patch: Partial<AppSettings>): Partial<AppSettings> {
-  const nextPatch = { ...patch };
-  for (const key of [...MIRRORED_CLIENT_KEYS, ...MIRRORED_SERVER_KEYS]) {
-    delete nextPatch[key];
-  }
-  return nextPatch;
-}
-
 export function getAppSettingsSnapshot(): AppSettings {
   if (typeof window === "undefined") {
     return DEFAULT_APP_SETTINGS;
@@ -394,93 +215,4 @@ export function getAppSettingsSnapshot(): AppSettings {
   cachedRawSettings = raw;
   cachedSnapshot = parsePersistedSettings(raw);
   return cachedSnapshot;
-}
-
-export function useAppSettings() {
-  const [localSettings, setLocalSettings] = useLocalStorage(
-    APP_SETTINGS_STORAGE_KEY,
-    DEFAULT_APP_SETTINGS,
-    AppSettingsSchema,
-  );
-  const unifiedSettings = useSettings();
-  const compatUnifiedSettings = useMemo(
-    () => ({
-      confirmThreadDelete: unifiedSettings.confirmThreadDelete,
-      defaultThreadEnvMode: unifiedSettings.defaultThreadEnvMode ?? "local",
-      wordWrap: unifiedSettings.wordWrap,
-      diffIgnoreWhitespace: unifiedSettings.diffIgnoreWhitespace,
-      responseStreamingMode: unifiedSettings.responseStreamingMode,
-      providers: unifiedSettings.providers,
-      sidebarProjectSortOrder: unifiedSettings.sidebarProjectSortOrder,
-      sidebarThreadSortOrder: unifiedSettings.sidebarThreadSortOrder,
-      timestampFormat: unifiedSettings.timestampFormat,
-    }),
-    [unifiedSettings],
-  );
-  const updateUnifiedSettings = useUpdateSettings();
-  const settings = useMemo(
-    () => withUnifiedCompatSettings(localSettings, compatUnifiedSettings),
-    [compatUnifiedSettings, localSettings],
-  );
-  const defaults = useMemo(
-    () =>
-      withUnifiedCompatSettings(DEFAULT_APP_SETTINGS, {
-        ...DEFAULT_SERVER_SETTINGS,
-        ...DEFAULT_CLIENT_SETTINGS,
-      }),
-    [],
-  );
-
-  // Apply legacy key migration that the schema decode path doesn't handle
-  // Migrate legacy "claudeCode" keys to "claudeAgent" in record-typed settings
-  // (e.g. gitTextGenerationModelByProvider.claudeCode, providerAccentColors.claudeCode).
-  const migratedSettings = useMemo(() => {
-    const patched = { ...settings };
-    for (const key of ["gitTextGenerationModelByProvider", "providerAccentColors"] as const) {
-      const val = patched[key];
-      if (val && typeof val === "object" && "claudeCode" in val) {
-        const record = { ...val } as Record<string, string>;
-        if (typeof record.claudeAgent !== "string" && typeof record.claudeCode === "string") {
-          record.claudeAgent = record.claudeCode;
-        }
-        delete record.claudeCode;
-        Object.assign(patched, { [key]: record });
-      }
-    }
-    return patched;
-  }, [settings]);
-
-  const updateSettings = useCallback(
-    (patch: Partial<AppSettings>) => {
-      const unifiedPatch = toUnifiedPatch(patch);
-      if (Object.keys(unifiedPatch).length > 0) {
-        updateUnifiedSettings(unifiedPatch);
-      }
-
-      const localPatch = stripMirroredKeys(patch);
-      if (Object.keys(localPatch).length === 0) {
-        return;
-      }
-
-      setLocalSettings((prev: AppSettings) =>
-        normalizeAppSettings(AppSettingsSchema.make(stripMirroredKeys({ ...prev, ...localPatch }))),
-      );
-    },
-    [setLocalSettings, updateUnifiedSettings],
-  );
-
-  const resetSettings = useCallback(() => {
-    updateUnifiedSettings({
-      ...DEFAULT_SERVER_SETTINGS,
-      ...DEFAULT_CLIENT_SETTINGS,
-    });
-    setLocalSettings(AppSettingsSchema.make(stripMirroredKeys(DEFAULT_APP_SETTINGS)));
-  }, [setLocalSettings, updateUnifiedSettings]);
-
-  return {
-    settings: migratedSettings,
-    updateSettings,
-    resetSettings,
-    defaults,
-  } as const;
 }
