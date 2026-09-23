@@ -5,6 +5,7 @@ import {
   resolveOfficialAcpRegistryIconUrl,
   TextGenerationError,
   type AcpRegistryOperationError,
+  type CustomModelSetting,
   type ServerProvider,
   type ServerProviderModel,
 } from "@t3tools/contracts";
@@ -93,7 +94,7 @@ function modelsFromDiscovery(
   discovery:
     | Pick<AcpRegistryLiveConfiguration, "models" | "currentModelId" | "configOptions">
     | undefined,
-  customModels: ReadonlyArray<string>,
+  customModels: ReadonlyArray<CustomModelSetting>,
 ): ReadonlyArray<ServerProviderModel> {
   const discovered = discovery?.models ?? [];
   // Discovered session config options and modes ride on every model so the
@@ -244,7 +245,7 @@ export function applyAcpRegistryAvailableCommands(
 export function applyAcpRegistryLiveConfiguration(
   provider: ServerProvider,
   configuration: AcpRegistryLiveConfiguration,
-  customModels: ReadonlyArray<string>,
+  customModels: ReadonlyArray<CustomModelSetting>,
 ): ServerProvider {
   const { message: _staleProbeMessage, ...snapshot } = provider;
   return {

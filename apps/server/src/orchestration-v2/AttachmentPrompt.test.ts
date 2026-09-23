@@ -34,7 +34,7 @@ describe("provider attachment prompts", () => {
         attachments: [document, image],
         attachmentsDir: "/attachments",
       }),
-      'Review these.\n\n[Attached file "spec.pdf" is saved at: /attachments/file-document.pdf]\n' +
+      'Review these.\n\n[Attached file "spec.pdf" is saved at: /attachments/file-document.bin]\n' +
         '\n[Attached image "diagram.png" is saved at: /attachments/file-image.png]',
     );
   });

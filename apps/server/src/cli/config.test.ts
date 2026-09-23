@@ -65,7 +65,10 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         path.join(home, LEGACY_HOME_DIR_NAME),
         undefined,
       );
-      yield* Effect.provide(Effect.void, makeSqlitePersistenceLive(legacyPaths.dbPath));
+      // Importer still looks for the pre-v2 `state.sqlite` filename, not
+      // `statev2.sqlite` from current deriveServerPaths.
+      const legacyV1DbPath = path.join(legacyPaths.stateDir, "state.sqlite");
+      yield* Effect.provide(Effect.void, makeSqlitePersistenceLive(legacyV1DbPath));
       const legacyId = "7a15b1c3-6f81-47fa-b3d9-9f43acd7072d";
       yield* fs.writeFileString(legacyPaths.environmentIdPath, `${legacyId}\n`);
       yield* fs.writeFileString(
