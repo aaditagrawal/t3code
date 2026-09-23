@@ -1,5 +1,4 @@
 import {
-  defaultInstanceIdForDriver,
   OhMyPiSettings,
   ProviderDriverKind,
   type ProviderInstanceEnvironment,
@@ -48,7 +47,6 @@ import {
 
 export const OH_MY_PI_PROVIDER = ProviderDriverKind.make("ohMyPi");
 const OH_MY_PI_DRIVER_KIND = OH_MY_PI_PROVIDER;
-export const OH_MY_PI_DEFAULT_INSTANCE_ID = defaultInstanceIdForDriver(OH_MY_PI_DRIVER_KIND);
 const DEFAULT_OH_MY_PI_SETTINGS = Schema.decodeSync(OhMyPiSettings)({});
 
 /**
@@ -56,7 +54,7 @@ const DEFAULT_OH_MY_PI_SETTINGS = Schema.decodeSync(OhMyPiSettings)({});
  * from the session's model config option; thinking and plan mode are applied
  * by this flavor rather than as extra capability flags.
  */
-export const OhMyPiProviderCapabilitiesV2 = AcpProviderCapabilitiesV2;
+const OhMyPiProviderCapabilitiesV2 = AcpProviderCapabilitiesV2;
 
 const OH_MY_PI_OWNED_CONFIG_OPTION_IDS = ["thinking", "reasoning", "reasoningEffort"] as const;
 
