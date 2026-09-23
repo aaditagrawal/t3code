@@ -97,20 +97,22 @@ function ProviderCustomColorPicker(props: {
           onCommit={props.onCommit}
         />
         {normalized ? (
-          <PopoverClose
-            render={
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-8 w-full justify-start rounded-none border-t border-border/60 px-3 text-xs text-muted-foreground [--control-icon-color:currentColor]"
-                onClick={props.onClear}
-              >
-                <XIcon className="size-3.5" aria-hidden />
-                Clear color
-              </Button>
-            }
-          />
+          <div className="border-t border-border/60 p-1">
+            <PopoverClose
+              render={
+                <Button
+                  type="button"
+                  size="compact"
+                  variant="ghost-muted"
+                  className="w-full justify-start"
+                  onClick={props.onClear}
+                >
+                  <XIcon aria-hidden />
+                  Clear color
+                </Button>
+              }
+            />
+          </div>
         ) : null}
       </PopoverPopup>
     </Popover>

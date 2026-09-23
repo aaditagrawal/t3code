@@ -761,9 +761,8 @@ function PublishRepositoryDialog(props: PublishRepositoryDialogProps) {
                         <TooltipTrigger
                           render={
                             <Button
-                              variant="outline"
-                              size="xs"
-                              className="h-5 rounded-[.25rem] px-1.5 text-[10px] text-warning-foreground"
+                              variant="warning-outline"
+                              size="micro"
                               onClick={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
@@ -1840,10 +1839,7 @@ export default function GitActionsControl({
                 render={
                   <Button
                     aria-disabled="true"
-                    className={cn(
-                      "cursor-not-allowed rounded-e-none border-e-0 opacity-64 before:rounded-e-none",
-                      isPanel && THREAD_DETAILS_PANEL_SPLIT_PRIMARY_CLASS,
-                    )}
+                    className={isPanel ? THREAD_DETAILS_PANEL_SPLIT_PRIMARY_CLASS : undefined}
                     size="xs"
                     variant={isPanel ? "ghost" : "outline"}
                   />
@@ -2167,16 +2163,16 @@ export default function GitActionsControl({
               Abort
             </Button>
             <Button
-              className="min-h-8 w-full max-w-full whitespace-normal py-1.5 leading-snug sm:min-h-7 sm:w-auto"
+              className="w-full max-w-full sm:w-auto"
               variant="outline"
-              size="sm"
+              size="sm-multiline"
               onClick={continuePendingDefaultBranchAction}
             >
               {pendingDefaultBranchActionCopy?.continueLabel ?? "Continue"}
             </Button>
             <Button
-              className="min-h-8 w-full max-w-full whitespace-normal py-1.5 leading-snug sm:min-h-7 sm:w-auto"
-              size="sm"
+              className="w-full max-w-full sm:w-auto"
+              size="sm-multiline"
               onClick={checkoutFeatureBranchAndContinuePendingAction}
             >
               Check out feature branch & continue
