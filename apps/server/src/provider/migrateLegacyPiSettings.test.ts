@@ -88,6 +88,17 @@ describe("Pi runtime settings migration", () => {
     ])
       expect(migrateLegacyPiSettings(input)).toBe(input);
   });
+  it("keeps sparse native instances after the one-time migration", () => {
+    const input = {
+      piNativeSettingsMigrated: true,
+      providerInstances: {
+        pi: { driver: "pi", enabled: true },
+        custom: { driver: "pi", config: {} },
+        path: { driver: "pi", config: { binaryPath: "/custom/pi" } },
+      },
+    };
+    expect(migrateLegacyPiSettings(input)).toBe(input);
+  });
   it("does not overwrite an existing native instance or occupied instance id", () => {
     const input = {
       providers: { pi: { enabled: true } },

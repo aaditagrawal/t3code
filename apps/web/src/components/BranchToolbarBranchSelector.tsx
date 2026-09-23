@@ -62,6 +62,7 @@ import {
 } from "./ThreadStatusIndicators";
 import { Button } from "./ui/button";
 import { ComboboxItem, ComboboxTrigger } from "./ui/combobox";
+import { ComposerControl } from "./chat/ComposerControl";
 import { MiddleTruncate } from "./ui/middle-truncate";
 import { BranchPicker, BranchPickerRefItem } from "./BranchPicker";
 import { stackedThreadToast, toastManager } from "./ui/toast";
@@ -701,7 +702,7 @@ export function BranchToolbarBranchSelector({
       >
         {displayMode !== "panel" ? (
           <ThreadPullRequestBadgeControl
-            variant="ghost"
+            render={<ComposerControl size="xs" />}
             badge={prBadge}
             pullRequests={serverThread?.pullRequests ?? []}
             number={prNumber}

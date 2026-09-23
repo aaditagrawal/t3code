@@ -3,7 +3,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /** Keep ACP instance identities stable when native Pi becomes the built-in driver. */
 export function migrateLegacyPiSettings(value: unknown): unknown {
-  if (!isRecord(value)) return value;
+  if (!isRecord(value) || value.piNativeSettingsMigrated === true) return value;
   const providers = isRecord(value.providers) ? value.providers : {};
   const instances = isRecord(value.providerInstances) ? { ...value.providerInstances } : {};
   const nativeConfig = (config: Record<string, unknown>) =>
@@ -51,6 +51,7 @@ export function migrateLegacyPiSettings(value: unknown): unknown {
   }
   return {
     ...value,
+    piNativeSettingsMigrated: true,
     providers: legacyDefault
       ? { ...providers, pi: { enabled: false, binaryPath: "pi", launchArgs: "" } }
       : providers,

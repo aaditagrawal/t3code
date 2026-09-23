@@ -696,7 +696,10 @@ export function EnvironmentProviderSettings({
   }, [environmentId, refreshServerProviders]);
 
   const runProviderUpdate = useCallback(
-    async (candidate: ProviderSettingsUpdateCandidate) => {
+    async (
+      candidate: Pick<ProviderSettingsUpdateCandidate, "driver" | "instanceId">,
+      targetVersion?: string,
+    ) => {
       // Ref-based re-entry guard, mirroring refreshProviders: a state updater
       // may run after this function returns, so it cannot gate the dispatch.
       if (updatingInstanceIdsRef.current.has(candidate.instanceId)) {
@@ -710,6 +713,7 @@ export function EnvironmentProviderSettings({
         input: {
           provider: candidate.driver,
           instanceId: candidate.instanceId,
+          ...(targetVersion ? { targetVersion } : {}),
         },
       });
       if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
@@ -757,12 +761,6 @@ export function EnvironmentProviderSettings({
     instancesByDriver.set(driver, list);
   }
 
-  const defaultSlotIdsBySource = new Set<string>(
-    visibleProviderSettings.map((providerSettings) =>
-      String(defaultInstanceIdForDriver(providerSettings.provider)),
-    ),
-  );
-
   const rows: InstanceRow[] = [];
   const visibleDriverKinds = new Set<ProviderDriverKind>(
     visibleProviderSettings.map((providerSettings) => providerSettings.provider),
@@ -798,8 +796,14 @@ export function EnvironmentProviderSettings({
         config: legacyConfigRest,
       } satisfies ProviderInstanceConfig;
     };
+    // An explicit instance owns its id even after a driver migration. Render it
+    // under that driver rather than duplicating it in this legacy default slot.
     const effectiveInstance: ProviderInstanceConfig | undefined =
-      explicitInstance ?? synthesizedInstance();
+      explicitInstance === undefined
+        ? synthesizedInstance()
+        : explicitInstance.driver === driver
+          ? explicitInstance
+          : undefined;
     // Only the default slot depends on the legacy blob; custom instances for
     // the driver must still render even when the slot has nothing to show.
     if (effectiveInstance !== undefined) {
@@ -833,7 +837,7 @@ export function EnvironmentProviderSettings({
         instanceId: id,
         instance,
         driver: instance.driver,
-        isDefault: defaultSlotIdsBySource.has(String(id)),
+        isDefault: id === defaultInstanceIdForDriver(driver),
       });
     }
   }
@@ -992,9 +996,8 @@ export function EnvironmentProviderSettings({
     );
     const updateCandidate = providerUpdateCandidateByInstanceId.get(row.instanceId);
     const isInstanceUpdateRunning =
-      updateCandidate !== undefined &&
-      (updatingProviderInstanceIds.has(updateCandidate.instanceId) ||
-        isProviderUpdateActive(updateCandidate));
+      updatingProviderInstanceIds.has(row.instanceId) ||
+      (liveProvider !== undefined && isProviderUpdateActive(liveProvider));
     const showInlineUpdateButton = updateCandidate !== undefined;
     const canRunInlineUpdate = updateCandidate !== undefined && !isInstanceUpdateRunning;
     const modelPreferences = settings.providerModelPreferences?.[row.instanceId] ?? {
@@ -1100,6 +1103,19 @@ export function EnvironmentProviderSettings({
             modelOrder,
           })
         }
+        onInstallRecommended={
+          mode === "editor" &&
+          liveProvider?.compatibilityAdvisory?.message &&
+          liveProvider.compatibilityAdvisory.recommendedVersion &&
+          liveProvider.versionAdvisory?.canInstallVersion
+            ? () => {
+                void runProviderUpdate(
+                  liveProvider,
+                  liveProvider.compatibilityAdvisory?.recommendedVersion ?? undefined,
+                );
+              }
+            : undefined
+        }
         onRunUpdate={
           mode === "editor" && showInlineUpdateButton && updateCandidate
             ? () => {
@@ -1107,9 +1123,7 @@ export function EnvironmentProviderSettings({
               }
             : undefined
         }
-        isUpdating={
-          mode === "editor" && showInlineUpdateButton ? isInstanceUpdateRunning : undefined
-        }
+        isUpdating={mode === "editor" ? isInstanceUpdateRunning : undefined}
       />
     );
   };

@@ -89,13 +89,16 @@ describe("AddProviderInstanceDialog environment routing", () => {
     settingsHooks.useMutation.mockReset().mockReturnValue(settingsHooks.mutate);
   });
 
-  it("creates a provider with its default identity without typing", async () => {
+  it.each([
+    ["grok", "Grok"],
+    ["pi", "Pi"],
+  ])("creates %s with its native default identity without typing", async (driver, label) => {
     let tree = render();
     const group = visitElements(
       tree,
       (element) => element.props["aria-labelledby"] === "add-instance-driver-label",
     );
-    (group!.props.onValueChange as (value: string) => void)("grok");
+    (group!.props.onValueChange as (value: string) => void)(driver);
     tree = render();
     (findByChildren(tree, "Next").props.onClick as () => void)();
     tree = render();
@@ -105,8 +108,8 @@ describe("AddProviderInstanceDialog environment routing", () => {
     await Promise.resolve();
     expect(settingsHooks.mutate).toHaveBeenCalledWith({
       operation: "create",
-      instanceId: "grok",
-      instance: { driver: "grok", enabled: true, displayName: "Grok" },
+      instanceId: driver,
+      instance: { driver, enabled: true, displayName: label },
     });
   });
 

@@ -2,7 +2,33 @@ import { ThreadId, type ThreadPullRequestLink } from "@t3tools/contracts";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vite-plus/test";
 
-import { ThreadWorktreeIndicator, linkedPullRequestSnapshotStatus } from "./ThreadStatusIndicators";
+import {
+  ThreadPullRequestBadgeControl,
+  ThreadWorktreeIndicator,
+  linkedPullRequestSnapshotStatus,
+} from "./ThreadStatusIndicators";
+import { InlineButton } from "./ui/button";
+
+describe("ThreadPullRequestBadgeControl", () => {
+  it("renders the caller's link control with the PR number and tooltip data", () => {
+    const markup = renderToStaticMarkup(
+      <ThreadPullRequestBadgeControl
+        render={<InlineButton />}
+        badge={null}
+        pullRequests={[]}
+        number={42}
+        url="https://github.com/acme/web/pull/42"
+        status={null}
+        onOpenStack={() => {}}
+        onOpenPullRequest={() => {}}
+      />,
+    );
+
+    expect(markup).toContain('href="https://github.com/acme/web/pull/42"');
+    expect(markup).toContain('aria-label="PR #42, status pending"');
+    expect(markup).toContain("42</span>");
+  });
+});
 
 describe("ThreadWorktreeIndicator", () => {
   it("renders the worktree folder and branch in an accessible label", () => {

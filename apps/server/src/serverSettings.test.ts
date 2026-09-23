@@ -324,6 +324,83 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     }).pipe(Effect.provide(makeServerSettingsLayer())),
   );
 
+  for (const existingFile of [false, true]) {
+    it.effect(
+      `keeps newly created sparse Pi instances native after reload (existing file: ${existingFile})`,
+      () =>
+        Effect.gen(function* () {
+          const service = yield* ServerSettingsModule.ServerSettingsService;
+          const config = yield* ServerConfig.ServerConfig;
+          const fs = yield* FileSystem.FileSystem;
+          if (existingFile) yield* fs.writeFileString(config.settingsPath, "{}");
+          const instanceId = ProviderInstanceId.make("pi");
+          yield* service.updateProviderInstance({
+            operation: "create",
+            instanceId,
+            instance: { driver: ProviderDriverKind.make("pi"), enabled: true, displayName: "Pi" },
+          });
+          const saved = yield* decodeServerSettingsJson(
+            yield* fs.readFileString(config.settingsPath),
+          );
+          assert.isTrue(saved.piNativeSettingsMigrated);
+
+          for (const instanceConfig of [undefined, {}, { binaryPath: "pi", launchArgs: "" }]) {
+            yield* service.updateProviderInstance({
+              operation: "upsert",
+              instanceId,
+              instance: {
+                driver: ProviderDriverKind.make("pi"),
+                enabled: true,
+                ...(instanceConfig === undefined ? {} : { config: instanceConfig }),
+              },
+            });
+            const reloaded = yield* Effect.gen(function* () {
+              const fresh = yield* ServerSettingsModule.ServerSettingsService;
+              return yield* fresh.getSettings;
+            }).pipe(
+              Effect.provide(
+                Layer.fresh(ServerSettingsModule.layer).pipe(
+                  Layer.provide(ServerSecretStore.layer),
+                ),
+              ),
+            );
+            assert.equal(reloaded.providerInstances[instanceId]?.driver, "pi");
+            assert.deepEqual(Object.keys(reloaded.providerInstances), [instanceId]);
+          }
+        }).pipe(Effect.provide(makeServerSettingsLayer())),
+    );
+  }
+
+  it.effect("migrates sparse legacy Pi once and preserves newly added native instances", () =>
+    Effect.gen(function* () {
+      const service = yield* ServerSettingsModule.ServerSettingsService;
+      const config = yield* ServerConfig.ServerConfig;
+      const fs = yield* FileSystem.FileSystem;
+      yield* fs.writeFileString(config.settingsPath, '{"providers":{"pi":{}}}');
+      const migrated = yield* service.getSettings;
+      const legacyId = ProviderInstanceId.make("pi");
+      assert.equal(migrated.providerInstances[legacyId]?.driver, "acp");
+      assert.isTrue(migrated.providerInstances[legacyId]?.enabled);
+      const nativeId = ProviderInstanceId.make("pi-work");
+      yield* service.updateProviderInstance({
+        operation: "create",
+        instanceId: nativeId,
+        instance: { driver: ProviderDriverKind.make("pi"), enabled: true },
+      });
+      const reloaded = yield* Effect.gen(function* () {
+        const fresh = yield* ServerSettingsModule.ServerSettingsService;
+        return yield* fresh.getSettings;
+      }).pipe(
+        Effect.provide(
+          Layer.fresh(ServerSettingsModule.layer).pipe(Layer.provide(ServerSecretStore.layer)),
+        ),
+      );
+      assert.equal(reloaded.providerInstances[legacyId]?.driver, "acp");
+      assert.equal(reloaded.providerInstances[nativeId]?.driver, "pi");
+      assert.lengthOf(Object.keys(reloaded.providerInstances), 3);
+    }).pipe(Effect.provide(makeServerSettingsLayer())),
+  );
+
   it.effect("pauses provider-instance mutations while a settings snapshot is in use", () =>
     Effect.gen(function* () {
       const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
@@ -1144,6 +1221,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
       // @effect-diagnostics-next-line preferSchemaOverJson:off
       assert.deepEqual(JSON.parse(raw), {
+        piNativeSettingsMigrated: true,
         addProjectBaseDirectory: "~/Development",
         observability: {
           otlpTracesUrl: "http://localhost:4318/v1/traces",

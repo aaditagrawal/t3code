@@ -458,7 +458,7 @@ export function BranchPickerScreen(props: {
   const branchContent =
     props.branches.length === 0 ? (
       <ScrollView
-        className={Platform.OS === "android" ? "flex-1 bg-sheet-solid" : "flex-1 bg-sheet"}
+        className="flex-1 bg-sheet android:bg-sheet-solid"
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: 16 }}
         scrollEnabled={false}
@@ -500,7 +500,7 @@ export function BranchPickerScreen(props: {
         alwaysBounceVertical={false}
         automaticallyAdjustsScrollIndicatorInsets
         automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
-        className={Platform.OS === "android" ? "flex-1 bg-sheet-solid" : "flex-1 bg-sheet"}
+        className="flex-1 bg-sheet android:bg-sheet-solid"
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={branchListContentStyle}
         data={props.branches}

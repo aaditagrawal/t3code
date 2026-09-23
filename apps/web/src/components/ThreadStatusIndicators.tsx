@@ -15,7 +15,7 @@ import {
 } from "@t3tools/contracts";
 import { Atom } from "effect/unstable/reactivity";
 import { FolderGit2Icon, TerminalIcon } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, type MouseEvent, type ReactElement, type ReactNode } from "react";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { useEnvironment, usePrimaryEnvironmentId } from "../state/environments";
 import { EnvironmentMachineIcon } from "./EnvironmentMachineIcon";
@@ -26,8 +26,7 @@ import {
   visibleThreadPullRequests,
   type ThreadPullRequestBadge,
 } from "@t3tools/shared/threadPullRequests";
-import { type ReactNode, type MouseEvent } from "react";
-import { Button, InlineButton } from "./ui/button";
+import { useRender } from "@base-ui/react/use-render";
 import { cn } from "../lib/utils";
 
 import { parseChangeRequestUrl } from "../lib/openPullRequestLink";
@@ -209,9 +208,14 @@ export function resolveThreadPullRequestBadgePresentation({
   };
 }
 
-/** The complete linked-PR control shared by the sidebar and composer footer. */
+/**
+ * The linked-PR badge shared by the sidebar and composer footer. The badge owns what it shows:
+ * the state glyph and number at the meta size, in the state's color. The caller owns the control
+ * it sits in through `render` (an inline link in a sidebar row, a toolbar control in the
+ * composer), and the badge fills in the link or stack button behavior.
+ */
 export function ThreadPullRequestBadgeControl({
-  variant,
+  render,
   badge,
   pullRequests,
   number,
@@ -220,7 +224,7 @@ export function ThreadPullRequestBadgeControl({
   onOpenStack,
   onOpenPullRequest,
 }: {
-  variant: "underline" | "ghost";
+  render: ReactElement<{ render?: useRender.RenderProp }>;
   badge: ThreadPullRequestBadge | null;
   pullRequests: ReadonlyArray<ThreadPullRequestLink>;
   number?: number | undefined;
@@ -231,53 +235,74 @@ export function ThreadPullRequestBadgeControl({
 }) {
   const presentation = resolveThreadPullRequestBadgePresentation({ badge, number, url, status });
   if (presentation === null) return null;
-  const isStack = badge?.kind === "stack";
-  const content = (
-    <>
-      <presentation.Icon aria-hidden className="size-3 shrink-0" />
-      {presentation.text}
-    </>
+  return (
+    <PullRequestBadge
+      render={render}
+      presentation={presentation}
+      pullRequests={pullRequests}
+      number={number}
+      status={status}
+      isStack={badge?.kind === "stack"}
+      url={url}
+      onOpenStack={onOpenStack}
+      onOpenPullRequest={onOpenPullRequest}
+    />
   );
-  const linkProps = isStack
-    ? {
-        onClick: (event: MouseEvent<HTMLElement>) => {
-          event.preventDefault();
-          event.stopPropagation();
-          onOpenStack();
-        },
+}
+
+function PullRequestBadge({
+  render,
+  presentation,
+  pullRequests,
+  number,
+  status,
+  isStack,
+  url,
+  onOpenStack,
+  onOpenPullRequest,
+}: {
+  render: ReactElement<{ render?: useRender.RenderProp }>;
+  presentation: NonNullable<ReturnType<typeof resolveThreadPullRequestBadgePresentation>>;
+  pullRequests: ReadonlyArray<ThreadPullRequestLink>;
+  number: number | undefined;
+  status: PrStatusIndicator | null;
+  isStack: boolean;
+  url: string | undefined;
+  onOpenStack: () => void;
+  onOpenPullRequest: (event: MouseEvent<HTMLElement>, url?: string) => void;
+}) {
+  const onClick = isStack
+    ? (event: MouseEvent<HTMLElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onOpenStack();
       }
-    : { onClick: onOpenPullRequest };
+    : onOpenPullRequest;
   const element = isStack ? (
     <button type="button" />
   ) : (
     <a href={url} target="_blank" rel="noopener noreferrer" />
   );
+  // The caller's control (InlineButton, ComposerControl) renders as the link or stack button
+  // through its own render prop; useRender merges the badge's behavior into it.
+  const control = useRender({
+    render,
+    props: {
+      render: element,
+      "aria-label": presentation.label,
+      onPointerDown: (event: MouseEvent<HTMLElement>) => event.stopPropagation(),
+      onClick,
+    },
+  });
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={
-          variant === "ghost" ? (
-            <Button
-              render={element}
-              variant="ghost"
-              size="xs"
-              className={presentation.toneClassName}
-              aria-label={presentation.label}
-              onPointerDown={(event) => event.stopPropagation()}
-              {...linkProps}
-            />
-          ) : (
-            <InlineButton
-              render={element}
-              className={presentation.toneClassName}
-              aria-label={presentation.label}
-              onPointerDown={(event) => event.stopPropagation()}
-              {...linkProps}
-            />
-          )
-        }
-      >
-        {content}
+      <TooltipTrigger render={control}>
+        <span
+          className={cn("contents font-normal text-xs tabular-nums", presentation.toneClassName)}
+        >
+          <presentation.Icon aria-hidden className="size-3 shrink-0" />
+          {presentation.text}
+        </span>
       </TooltipTrigger>
       <TooltipPopup
         side="top"

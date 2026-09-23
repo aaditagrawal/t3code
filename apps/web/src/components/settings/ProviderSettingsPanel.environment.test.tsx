@@ -254,6 +254,50 @@ describe("EnvironmentProviderSettings routing", () => {
     ).not.toBeNull();
   });
 
+  it.each(["acp", "privatePi"])(
+    "renders an instance named pi once under its actual %s driver",
+    (driver) => {
+      const instanceId = ProviderInstanceId.make("pi");
+      settingsState.value = {
+        ...DEFAULT_UNIFIED_SETTINGS,
+        providers: {
+          ...DEFAULT_UNIFIED_SETTINGS.providers,
+          pi: { ...DEFAULT_UNIFIED_SETTINGS.providers.pi, enabled: true },
+        },
+        providerInstances: {
+          [instanceId]: {
+            driver: ProviderDriverKind.make(driver),
+            enabled: true,
+            displayName: "Legacy Pi",
+            config: { binaryPath: "pi-acp" },
+          },
+        },
+      };
+
+      const matchingRows: Array<ReactElement<Record<string, unknown>>> = [];
+      const panel = renderPanel({ targetInstanceId: instanceId });
+      visitElements(panel, (element) => {
+        if (element.props.instanceId === instanceId && element.props.mode === "list") {
+          matchingRows.push(element);
+        }
+        return false;
+      });
+
+      expect(matchingRows).toHaveLength(1);
+      expect(matchingRows[0]?.props.instance).toEqual(
+        settingsState.value.providerInstances[instanceId],
+      );
+      expect(matchingRows[0]?.props.driverOption).toEqual(
+        driver === "acp" ? expect.objectContaining({ value: "acp" }) : undefined,
+      );
+      const editor = visitElements(
+        panel,
+        (element) => element.props.instanceId === instanceId && element.props.mode === "editor",
+      );
+      expect(editor?.props.onDelete).toBeTypeOf("function");
+    },
+  );
+
   it("keeps legacy provider configuration visible when disabled", () => {
     settingsState.value = {
       ...DEFAULT_UNIFIED_SETTINGS,

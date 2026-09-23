@@ -3,6 +3,7 @@
 import { Spinner } from "~/components/ui/spinner";
 
 import {
+  AlertTriangleIcon,
   ArrowUpCircleIcon,
   CopyIcon,
   DownloadIcon,
@@ -15,7 +16,7 @@ import {
 } from "lucide-react";
 import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import {
   HERMES_DRIVER_KIND,
   isProviderDriverKind,
@@ -64,6 +65,22 @@ import {
 } from "./providerStatus";
 
 const ENVIRONMENT_VARIABLE_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+function ProviderStatusDiagnostic({
+  detail,
+  children,
+}: {
+  detail: string | null;
+  children: ReactElement;
+}) {
+  if (!detail) return children;
+  return (
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipPopup side="top">{detail}</TooltipPopup>
+    </Tooltip>
+  );
+}
 
 let environmentVariableDraftId = 0;
 const nextEnvironmentVariableDraftId = () => `provider-env-${environmentVariableDraftId++}`;
@@ -487,6 +504,7 @@ interface ProviderInstanceCardProps {
   readonly onFavoriteModelsChange: (next: ReadonlyArray<string>) => void;
   readonly onModelOrderChange: (next: ReadonlyArray<string>) => void;
   readonly onRunUpdate?: (() => void) | undefined;
+  readonly onInstallRecommended?: (() => void) | undefined;
   readonly isUpdating?: boolean | undefined;
   readonly onAcceptUrlAuth?: ((action: AcpRegistryUrlAuthAction) => void) | undefined;
   readonly environmentId?: EnvironmentId | undefined;
@@ -540,12 +558,14 @@ export function ProviderInstanceCard({
   onFavoriteModelsChange,
   onModelOrderChange,
   onRunUpdate,
+  onInstallRecommended,
   isUpdating = false,
   onAcceptUrlAuth,
   environmentId,
   acpProjects = EMPTY_ACP_PROJECTS,
 }: ProviderInstanceCardProps) {
   const enabled = resolveProviderInstanceEnabled(instance);
+  const compatibility = enabled ? liveProvider?.compatibilityAdvisory : undefined;
   // A locally disabled provider reads "Disabled" with a muted dot even if its
   // last server status is stale. Enabled providers use the server status.
   const statusKey: ProviderStatusKey = enabled
@@ -562,9 +582,19 @@ export function ProviderInstanceCard({
       ? (liveProvider.auth.label ?? liveProvider.auth.type ?? null)
       : null;
   const versionLabel = getProviderVersionLabel(liveProvider?.version);
-  const versionAdvisory = getProviderVersionAdvisoryPresentation(liveProvider?.versionAdvisory);
-  const urlAuthAction = liveProvider?.auth.action;
+  const versionAdvisory = getProviderVersionAdvisoryPresentation(
+    liveProvider?.versionAdvisory,
+    liveProvider?.compatibilityAdvisory,
+    enabled,
+  );
   const updateCommand = versionAdvisory?.updateCommand ?? null;
+  const hasCompatibilityWarning =
+    compatibility !== undefined &&
+    compatibility.status !== "supported" &&
+    compatibility.status !== "unknown";
+  const VersionAdvisoryIcon = hasCompatibilityWarning ? AlertTriangleIcon : ArrowUpCircleIcon;
+  const onRunVersionAction = versionAdvisory?.targetVersion ? onInstallRecommended : onRunUpdate;
+  const urlAuthAction = liveProvider?.auth.action;
   const displayName =
     instance.displayName?.trim() || driverOption?.label || String(instance.driver);
   const accentColor = normalizeProviderAccentColor(instance.accentColor);
@@ -705,10 +735,16 @@ export function ProviderInstanceCard({
     statusKey === "warning" || statusKey === "error" ? (
       <span className={cn("size-1.5 shrink-0 rounded-full", statusStyle.dot)} aria-hidden />
     ) : null;
-  // Trouble states carry the server's explanation (a failed probe, a shadow
-  // home entry that is not a symlink, a missing binary). Show it wherever the
-  // headline shows so the user can act without opening the editor.
   const needsAttention = statusKey === "warning" || statusKey === "error";
+  const statusDiagnostic = hasCompatibilityWarning && needsAttention ? summary.detail : null;
+  // Keep compatibility copy compact; the version popover carries the explanation.
+  const inlineStatusDetail = hasCompatibilityWarning
+    ? compatibility?.status === "broken"
+      ? "Incompatible"
+      : compatibility?.status === "unsupported"
+        ? "Unsupported"
+        : "Limited support"
+    : summary.detail;
   const editorStatusNode =
     isAuthenticated && authEmail ? (
       <>
@@ -716,16 +752,16 @@ export function ProviderInstanceCard({
         <span>Authenticated as</span>
         <ProviderAuthEmail email={authEmail} />
         {authLabel ? <span>· {authLabel}</span> : null}
-        {summary.detail ? (
-          <span className="min-w-0 [overflow-wrap:anywhere]">· {summary.detail}</span>
+        {inlineStatusDetail ? (
+          <span className="min-w-0 [overflow-wrap:anywhere]">· {inlineStatusDetail}</span>
         ) : null}
       </>
     ) : (
       <>
         {statusDotNode}
         <span>{summary.headline}</span>
-        {summary.detail ? (
-          <span className="min-w-0 [overflow-wrap:anywhere]">· {summary.detail}</span>
+        {inlineStatusDetail ? (
+          <span className="min-w-0 [overflow-wrap:anywhere]">· {inlineStatusDetail}</span>
         ) : null}
       </>
     );
@@ -761,7 +797,23 @@ export function ProviderInstanceCard({
                 </code>
               ) : null}
               {versionAdvisory ? (
-                updateCommand ? (
+                hasCompatibilityWarning ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <span
+                          tabIndex={0}
+                          role="img"
+                          aria-label={versionAdvisory.title}
+                          className="pointer-events-auto relative inline-flex shrink-0 text-warning"
+                        >
+                          <VersionAdvisoryIcon className="size-3.5" />
+                        </span>
+                      }
+                    />
+                    <TooltipPopup side="top">{versionAdvisory.detail}</TooltipPopup>
+                  </Tooltip>
+                ) : updateCommand ? (
                   <Tooltip>
                     <TooltipTrigger
                       render={
@@ -792,10 +844,15 @@ export function ProviderInstanceCard({
               {statusDotNode ? (
                 <span className="flex h-[1.45em] shrink-0 items-center">{statusDotNode}</span>
               ) : null}
-              <span className="line-clamp-2 [overflow-wrap:anywhere]">
-                {summary.headline}
-                {needsAttention && summary.detail ? ` · ${summary.detail}` : null}
-              </span>
+              <ProviderStatusDiagnostic detail={statusDiagnostic}>
+                <span
+                  tabIndex={statusDiagnostic ? 0 : undefined}
+                  className="pointer-events-auto line-clamp-2 [overflow-wrap:anywhere]"
+                >
+                  {summary.headline}
+                  {needsAttention && inlineStatusDetail ? ` · ${inlineStatusDetail}` : null}
+                </span>
+              </ProviderStatusDiagnostic>
             </span>
           </span>
         </div>
@@ -826,25 +883,32 @@ export function ProviderInstanceCard({
       >
         {versionAdvisory ? (
           <Popover>
-            <PopoverTrigger
-              render={
-                <Button
-                  type="button"
-                  size="icon-xs"
-                  variant="ghost-muted"
-                  aria-label="Update available — view details"
-                >
-                  <ArrowUpCircleIcon
-                    className={cn(versionAdvisory.emphasis === "strong" && "text-warning")}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <PopoverTrigger
+                    render={
+                      <Button
+                        type="button"
+                        size="icon-xs"
+                        variant="ghost-muted"
+                        aria-label={`${versionAdvisory.title} — view details`}
+                      >
+                        <VersionAdvisoryIcon
+                          className={cn(hasCompatibilityWarning && "text-warning")}
+                        />
+                      </Button>
+                    }
                   />
-                </Button>
-              }
-            />
+                }
+              />
+              <TooltipPopup side="top">{versionAdvisory.title}</TooltipPopup>
+            </Tooltip>
             <PopoverPopup side="bottom" align="end" width="md">
               <div className="grid min-w-0 gap-3">
                 <div className="grid gap-0.5">
                   <p className="text-[13px] font-semibold leading-tight text-foreground">
-                    Update available
+                    {versionAdvisory.title}
                   </p>
                   <p
                     className={cn(
@@ -857,20 +921,24 @@ export function ProviderInstanceCard({
                     {versionAdvisory.detail}
                   </p>
                 </div>
-                {onRunUpdate ? (
+                {onRunVersionAction ? (
                   <Button
                     type="button"
                     size="xs"
                     variant="outline"
                     className="w-full"
                     disabled={isUpdating}
-                    onClick={onRunUpdate}
+                    onClick={onRunVersionAction}
                   >
                     {isUpdating ? <Spinner /> : <DownloadIcon />}
-                    {isUpdating ? "Updating" : "Update now"}
+                    {isUpdating
+                      ? "Updating"
+                      : versionAdvisory.targetVersion
+                        ? `Install ${getProviderVersionLabel(versionAdvisory.targetVersion)}`
+                        : "Update now"}
                   </Button>
                 ) : null}
-                {onRunUpdate && updateCommand ? (
+                {onRunVersionAction && updateCommand ? (
                   <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                     <span aria-hidden className="h-px flex-1 bg-border" />
                     or, update manually using
@@ -931,9 +999,14 @@ export function ProviderInstanceCard({
           title="Display name"
           status={
             <>
-              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5">
-                {editorStatusNode}
-              </div>
+              <ProviderStatusDiagnostic detail={statusDiagnostic}>
+                <div
+                  tabIndex={statusDiagnostic ? 0 : undefined}
+                  className="flex min-w-0 flex-wrap items-center gap-x-1.5"
+                >
+                  {editorStatusNode}
+                </div>
+              </ProviderStatusDiagnostic>
               {urlAuthAction && onAcceptUrlAuth ? (
                 <div className="grid max-w-xl gap-1.5 pt-1 text-xs">
                   <p>{urlAuthAction.message}</p>

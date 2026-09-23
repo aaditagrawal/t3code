@@ -683,7 +683,7 @@ const make = Effect.gen(function* () {
   );
 
   const loadSettingsFromDisk = Effect.gen(function* () {
-    let settings = DEFAULT_SERVER_SETTINGS;
+    let settings = { ...DEFAULT_SERVER_SETTINGS, piNativeSettingsMigrated: true };
     let piSettingsMigrated = false;
     let persisted: typeof PersistedOptionalProviderSettings.Type = {};
     // A file that failed to decode must stay on disk for the user to repair;
@@ -774,7 +774,11 @@ const make = Effect.gen(function* () {
           );
 
     const loaded = foldProviderInstanceEnabledFlags(
-      restoreUsedProviders(settings, persisted, providerHistory),
+      restoreUsedProviders(
+        { ...settings, piNativeSettingsMigrated: true },
+        persisted,
+        providerHistory,
+      ),
     );
     const folded = settingsFileTrusted
       ? foldLegacyProjectSettings(loaded, legacyProjectRows)
