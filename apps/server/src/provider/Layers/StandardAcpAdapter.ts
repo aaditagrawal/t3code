@@ -43,7 +43,7 @@ import type * as EffectAcpSchema from "effect-acp/compat";
 
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { HostProcessEnvironment, HostProcessPlatform } from "@t3tools/shared/hostProcess";
-import { stableStringify } from "@t3tools/shared/relaySigning";
+import { standardAcpSessionApprovalKey } from "../acp/AcpSessionApprovals.ts";
 import { ServerConfig } from "../../config.ts";
 import { buildRuntimeInstructions } from "../RuntimeInstructions.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
@@ -364,22 +364,6 @@ function selectAutoApprovedPermissionOption(
     selectPermissionOptionId(request, "acceptForSession") ??
     selectPermissionOptionId(request, "accept")
   );
-}
-
-function permissionApprovalKey(
-  request: EffectAcpSchema.RequestPermissionRequest,
-): string | undefined {
-  const parsed = parsePermissionRequest(request);
-  const command = parsed.toolCall?.command;
-  const { kind, title, rawInput, locations } = request.toolCall;
-  let operationInput = rawInput;
-  if (isRecord(rawInput) && rawInput.variant === "Bash") {
-    const { description: _description, ...shellInput } = rawInput;
-    operationInput = shellInput;
-  }
-  return command || (isRecord(rawInput) && Object.keys(rawInput).length > 0)
-    ? stableStringify({ kind, title, command, input: operationInput, locations })
-    : undefined;
 }
 
 function completedStopReasonFromPromptResponse(
@@ -1211,7 +1195,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                   }
                   const permissionRequest = parsePermissionRequest(params);
                   const approvalKey = config.rememberSessionApprovals
-                    ? permissionApprovalKey(params)
+                    ? standardAcpSessionApprovalKey(params)
                     : undefined;
                   if (approvalKey && sessionApprovedOperations.has(approvalKey)) {
                     const approvedOptionId = selectPermissionOptionId(params, "accept");
