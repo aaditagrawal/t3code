@@ -23,7 +23,7 @@ type ConfirmationCopy = {
   readonly description: string | null;
 };
 
-export function resolveConfirmDialogCopy(message: string): ConfirmationCopy {
+function resolveConfirmDialogCopy(message: string): ConfirmationCopy {
   const normalizedMessage = message.trim();
   const lines = normalizedMessage.split("\n");
   const questionLineIndex = lines.findIndex((line) => line.trim().endsWith("?"));
@@ -75,9 +75,9 @@ export function ConfirmDialogHost() {
         if (!open) completeConfirmDialogClose();
       }}
     >
-      <AlertDialogPopup className="max-w-lg">
+      <AlertDialogPopup>
         <AlertDialogHeader>
-          <AlertDialogTitle>{copy.title}</AlertDialogTitle>
+          <AlertDialogTitle className="wrap-anywhere">{copy.title}</AlertDialogTitle>
           {copy.description ? (
             <AlertDialogDescription className="whitespace-pre-line">
               {copy.description}

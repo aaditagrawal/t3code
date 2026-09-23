@@ -1,4 +1,5 @@
-import { ExternalLinkIcon, GitPullRequestIcon, RefreshCwIcon } from "lucide-react";
+import { RefreshIcon } from "~/components/ui/refresh-icon";
+import { ExternalLinkIcon } from "lucide-react";
 
 import { Button } from "../ui/button";
 import {
@@ -9,22 +10,25 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "../ui/empty";
+import { PullRequestGlyph } from "./pullRequestIcons";
 
 export function PullRequestsUnavailableState({
   title = "Could not load pull requests",
   error,
   onRetry,
+  refreshing = false,
   gitHubUrl,
 }: {
   title?: string;
   error: string;
   onRetry?: () => void;
+  refreshing?: boolean;
   gitHubUrl?: string;
 }) {
   return (
-    <Empty className="px-4 py-16 md:px-4">
+    <Empty className="min-h-0 justify-center-safe overflow-y-auto px-4 py-16 md:px-4 [&>*]:shrink-0">
       <EmptyMedia variant="icon">
-        <GitPullRequestIcon />
+        <PullRequestGlyph.pullRequest />
       </EmptyMedia>
       <EmptyHeader>
         <EmptyTitle>{title}</EmptyTitle>
@@ -35,8 +39,14 @@ export function PullRequestsUnavailableState({
       {onRetry || gitHubUrl ? (
         <EmptyContent className="flex-row flex-wrap justify-center gap-2">
           {onRetry ? (
-            <Button size="sm" variant="outline" onClick={onRetry}>
-              <RefreshCwIcon className="size-3.5" />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onRetry}
+              disabled={refreshing}
+              aria-busy={refreshing}
+            >
+              <RefreshIcon size="sm" refreshing={refreshing} />
               Retry
             </Button>
           ) : null}

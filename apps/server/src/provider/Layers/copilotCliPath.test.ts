@@ -7,6 +7,31 @@ import {
 } from "./copilotCliPath.ts";
 
 describe("resolveBundledCopilotCliPathFrom", () => {
+  it("resolves the staged Copilot binary beside a standalone executable", () => {
+    const binary = "/runtime/versions/1.0.0/node_modules/@github/copilot-linux-x64/copilot";
+    expect(
+      resolveBundledCopilotCliPathFrom({
+        currentDir: "/unrelated/build",
+        executablePath: "/runtime/versions/1.0.0/t3",
+        platform: "linux",
+        arch: "x64",
+        exists: (candidate) => candidate === binary,
+      }),
+    ).toBe(binary);
+  });
+
+  it("resolves native packages beside a flat bundled module", () => {
+    const binary = "/runtime/node_modules/@github/copilot-darwin-arm64/copilot";
+    expect(
+      resolveBundledCopilotCliPathFrom({
+        currentDir: "/runtime",
+        platform: "darwin",
+        arch: "arm64",
+        exists: (candidate) => candidate === binary,
+      }),
+    ).toBe(binary);
+  });
+
   it("prefers the unpacked desktop resources path when available", () => {
     const existingPaths = new Set([
       "/Applications/T3 Code.app/Contents/Resources/app.asar.unpacked/node_modules/@github/copilot-darwin-arm64/copilot",

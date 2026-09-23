@@ -5,6 +5,9 @@ import {
   type ModelSelection,
   type ProviderApprovalDecision,
   type ProviderRuntimeEvent,
+  type ProviderRuntimeTaskStartedEvent,
+  type ProviderRuntimeTaskProgressEvent,
+  type ProviderRuntimeTaskCompletedEvent,
   type ProviderSession,
   type ProviderUserInputAnswers,
   ProviderDriverKind,
@@ -68,7 +71,7 @@ import {
   makeAcpRequestResolvedEvent,
   makeAcpToolCallEvent,
 } from "../acp/AcpCoreRuntimeEvents.ts";
-import { parsePermissionRequest } from "../acp/AcpRuntimeModel.ts";
+import { parsePermissionRequest, type AcpToolCallState } from "../acp/AcpRuntimeModel.ts";
 import {
   acpNotificationSessionId,
   acpUsageUpdateToTokenUsageSnapshot,
@@ -143,6 +146,16 @@ export interface StandardAcpProposedPlanRegistration<Params, Encoded> {
   readonly source: `acp.${string}.extension`;
 }
 
+type StandardAcpTaskEvent =
+  | Pick<ProviderRuntimeTaskStartedEvent, "type" | "payload" | "turnId">
+  | Pick<ProviderRuntimeTaskProgressEvent, "type" | "payload" | "turnId">
+  | Pick<ProviderRuntimeTaskCompletedEvent, "type" | "payload" | "turnId">;
+
+type StandardAcpTaskEventMapper = (input: {
+  readonly toolCall: AcpToolCallState;
+  readonly turnId: TurnId | undefined;
+}) => ReadonlyArray<StandardAcpTaskEvent>;
+
 export interface StandardAcpAdapterConfig<UserInputParams = never, UserInputEncoded = never> {
   readonly provider: ProviderDriverKind;
   readonly defaultInstanceId: ProviderInstanceId;
@@ -191,6 +204,8 @@ export interface StandardAcpAdapterConfig<UserInputParams = never, UserInputEnco
     readonly mapError: (cause: EffectAcpErrors.AcpError) => E;
   }) => Effect.Effect<string | undefined, E>;
   readonly modelSelectionMethod?: string;
+  readonly validatePrompt?: (text: string | undefined) => string | undefined;
+  readonly makeTaskEventMapper?: () => StandardAcpTaskEventMapper;
   readonly promptStopReason?: (
     response: EffectAcpSchema.PromptResponse,
   ) => EffectAcpSchema.StopReason | null;
@@ -221,6 +236,7 @@ interface StandardAcpSessionContext {
   readonly scope: Scope.Closeable;
   readonly acp: AcpSessionRuntime.AcpSessionRuntime["Service"];
   notificationFiber: Fiber.Fiber<void, never> | undefined;
+  readonly mapTaskEvents: StandardAcpTaskEventMapper | undefined;
   readonly pendingApprovals: Map<ApprovalRequestId, PendingApproval>;
   readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
   turns: Array<{ id: TurnId; items: Array<unknown> }>;
@@ -272,9 +288,11 @@ function settlePendingUserInputsAsCancelled(
 
 function promptWithRuntimeInstructions(
   promptParts: ReadonlyArray<EffectAcpSchema.ContentBlock>,
-  runtimeInstructions: string,
+  runtimeInstructions: string | undefined,
 ): Array<EffectAcpSchema.ContentBlock> {
-  return [...promptParts, { type: "text", text: runtimeInstructions }];
+  return runtimeInstructions === undefined
+    ? [...promptParts]
+    : [...promptParts, { type: "text", text: runtimeInstructions }];
 }
 
 function appendPromptResultToTurn(
@@ -1312,6 +1330,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
             scope: sessionScope,
             acp,
             notificationFiber: undefined,
+            mapTaskEvents: config.makeTaskEventMapper?.(),
             pendingApprovals,
             pendingUserInputs,
             turns: [],
@@ -1370,6 +1389,19 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                 }
 
                 const notificationTurnId = resolveNotificationTurnId(ctx);
+                if (event._tag === "ToolCallUpdated" && !ctx.stopped && ctx.mapTaskEvents) {
+                  for (const taskEvent of ctx.mapTaskEvents({
+                    toolCall: event.toolCall,
+                    turnId: notificationTurnId,
+                  })) {
+                    yield* offerRuntimeEvent({
+                      ...taskEvent,
+                      ...(yield* makeEventStamp()),
+                      provider: PROVIDER,
+                      threadId: ctx.threadId,
+                    });
+                  }
+                }
                 const stamp = yield* makeEventStamp();
                 if (event._tag === "UsageUpdated") {
                   const usage = acpUsageUpdateToTokenUsageSnapshot(event);
@@ -1557,6 +1589,14 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
 
     const sendTurn: StandardAcpAdapterShape["sendTurn"] = (input) =>
       Effect.gen(function* () {
+        const invalidPrompt = config.validatePrompt?.(input.input);
+        if (invalidPrompt !== undefined) {
+          return yield* new ProviderAdapterRequestError({
+            provider: PROVIDER,
+            method: "session/prompt",
+            detail: invalidPrompt,
+          });
+        }
         const prepared = yield* withThreadLock(
           input.threadId,
           Effect.gen(function* () {
@@ -1664,11 +1704,14 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
               const displayModel = currentModelId
                 ? config.normalizeModel(currentModelId)
                 : undefined;
-              const runtimeInstructions = buildRuntimeInstructions({
-                harness: config.label,
-                model: displayModel,
-                reasoningEffort: ctx.currentModelOptions.reasoningEffort,
-              });
+              const runtimeInstructions =
+                text && /^\/[^\s/]+(?:\s|$)/.test(text)
+                  ? undefined
+                  : buildRuntimeInstructions({
+                      harness: config.label,
+                      model: displayModel,
+                      reasoningEffort: ctx.currentModelOptions.reasoningEffort,
+                    });
               for (
                 let yieldAttempt = 0;
                 yieldAttempt < SETTLEMENT_YIELD_ATTEMPTS;

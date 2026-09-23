@@ -1,4 +1,4 @@
-import { LINUX_WM_CLASS } from "@t3tools/shared/branding";
+import { LINUX_DESKTOP_ENTRY_NAME, LINUX_WM_CLASS } from "@t3tools/shared/branding";
 import { fromLenientJson } from "@t3tools/shared/schemaJson";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -26,9 +26,14 @@ interface EarlyDesktopSettingsInput {
 type EarlyLinuxElectronOptionsInput = EarlyDesktopSettingsInput;
 
 export interface EarlyLinuxElectronOptions {
+  readonly isDevelopment: boolean;
   readonly linuxWmClass: string;
+  readonly linuxDesktopEntryName: string;
   readonly passwordStore: LinuxPasswordStoreSwitch | null;
 }
+
+export const resolveLinuxDesktopEntryName = (isDevelopment: boolean): string =>
+  isDevelopment ? `${LINUX_DESKTOP_ENTRY_NAME}-dev.desktop` : `${LINUX_DESKTOP_ENTRY_NAME}.desktop`;
 
 const trimNonEmpty = (value: string | undefined): string | null => {
   const trimmed = value?.trim();
@@ -81,8 +86,11 @@ export function resolveEarlyLinuxElectronOptions(
   input: EarlyLinuxElectronOptionsInput,
 ): EarlyLinuxElectronOptions {
   const preference = resolveEarlyLinuxPasswordStorePreference(input);
+  const isDevelopment = isDevelopmentEnvironment(input.env);
   return {
-    linuxWmClass: isDevelopmentEnvironment(input.env) ? `${LINUX_WM_CLASS}-dev` : LINUX_WM_CLASS,
+    isDevelopment,
+    linuxWmClass: isDevelopment ? `${LINUX_WM_CLASS}-dev` : LINUX_WM_CLASS,
+    linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
     passwordStore: resolveLinuxPasswordStoreSwitch({
       preference,
       env: input.env,

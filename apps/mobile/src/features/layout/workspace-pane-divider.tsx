@@ -1,7 +1,6 @@
-import { useRef } from "react";
 import { useCommitRef } from "@t3tools/client-runtime/react";
-import { useCallback, useMemo, useState } from "react";
-import { Pressable, StyleSheet, View, type AccessibilityActionEvent } from "react-native";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Platform, Pressable, StyleSheet, View, type AccessibilityActionEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { cn } from "../../lib/cn";
@@ -24,7 +23,6 @@ interface WorkspacePaneDividerProps {
 export function WorkspacePaneDivider(props: WorkspacePaneDividerProps) {
   const latestProps = useRef(props);
   useCommitRef(latestProps, props);
-  const [hovered, setHovered] = useState(false);
   const [dragging, setDragging] = useState(false);
   const handleResizeStart = useCallback(() => {
     setDragging(true);
@@ -67,7 +65,7 @@ export function WorkspacePaneDivider(props: WorkspacePaneDividerProps) {
   return (
     <GestureDetector gesture={resizeGesture}>
       <Pressable
-        className="relative z-[100] -mx-[22px] w-11 self-stretch cursor-pointer justify-center"
+        className="relative z-[100] -mx-[22px] w-11 self-stretch justify-center"
         accessibilityActions={[
           { name: "increment", label: "Make pane wider" },
           { name: "decrement", label: "Make pane narrower" },
@@ -79,15 +77,14 @@ export function WorkspacePaneDivider(props: WorkspacePaneDividerProps) {
           text: `${Math.round(props.currentWidth)} points wide`,
         }}
         onAccessibilityAction={handleAccessibilityAction}
-        onHoverIn={() => setHovered(true)}
-        onHoverOut={() => setHovered(false)}
       >
         <View
           className={cn(
             "h-full self-center bg-border opacity-70",
-            hovered || dragging ? "w-0.5 bg-primary opacity-100" : "w-px",
+            dragging ? "w-0.5 bg-primary opacity-100" : "w-px",
+            Platform.OS === "android" && !dragging && "opacity-0",
           )}
-          style={[styles.line, (hovered || dragging) && styles.activeLine]}
+          style={[styles.line, dragging && styles.activeLine]}
         />
       </Pressable>
     </GestureDetector>

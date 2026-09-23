@@ -197,7 +197,7 @@ export const LegacyImportMarkerJson = fromJsonStringPretty(LegacyImportMarker);
 
 const encodeMarker = Schema.encodeEffect(LegacyImportMarkerJson);
 
-export class LegacyStateImportError extends Schema.TaggedErrorClass<LegacyStateImportError>()(
+export class LegacyStateImportError extends Schema.TaggedError<LegacyStateImportError>()(
   "LegacyStateImportError",
   {
     legacyBaseDir: Schema.String,

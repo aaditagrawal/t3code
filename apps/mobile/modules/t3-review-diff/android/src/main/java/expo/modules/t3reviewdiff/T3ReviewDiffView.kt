@@ -144,10 +144,13 @@ class T3ReviewDiffView(context: Context, appContext: AppContext) : ExpoView(cont
   fun setRowsJson(value: String) {
     rowsDecodeGeneration += 1
     val generation = rowsDecodeGeneration
+    val prepareLayout = canvasView.prepareRows()
     payloadDecodeExecutor.execute {
       val decodedRows = parseRows(value)
+      val codeLayouts = prepareLayout(decodedRows)
       post {
         if (generation != rowsDecodeGeneration) return@post
+        canvasView.useCodeLayouts(codeLayouts)
         rows = decodedRows
         lastVisibleFileId = null
         rebuildVisibleRows()
@@ -461,7 +464,7 @@ internal data class DiffWordDiffRange(
   val end: Int
 )
 
-private data class DiffToken(
+internal data class DiffToken(
   val content: String,
   val color: Int?,
   val fontStyle: Int
@@ -544,6 +547,7 @@ internal data class DiffTheme(
 }
 
 internal data class DiffStyle(
+  val wordWrap: Boolean,
   val rowHeightPx: Float,
   val gutterWidthPx: Float,
   val codePaddingPx: Float,
@@ -565,6 +569,7 @@ internal data class DiffStyle(
 ) {
   companion object {
     fun defaults(density: Float): DiffStyle = DiffStyle(
+      wordWrap = false,
       rowHeightPx = 20f * density,
       gutterWidthPx = 72f * density,
       codePaddingPx = 10f * density,
@@ -588,6 +593,7 @@ internal data class DiffStyle(
     fun fromJson(value: String, fallback: DiffStyle, density: Float): DiffStyle = try {
       val json = JSONObject(value)
       DiffStyle(
+        wordWrap = json.optBoolean("wordWrap", fallback.wordWrap),
         rowHeightPx = json.floatDp("rowHeight", fallback.rowHeightPx, density),
         gutterWidthPx = json.floatDp("gutterWidth", fallback.gutterWidthPx, density),
         codePaddingPx = json.floatDp("codePadding", fallback.codePaddingPx, density),
@@ -686,6 +692,8 @@ private class DiffCanvasView(context: Context) : View(context) {
     },
   )
   private var rowOffsets = intArrayOf(0)
+
+  private var codeWrap = CodeWrapLayout.NONE
   private var verticalOffset = 0
   private var horizontalOffset = 0
   private val headerPathOffsetsByFileId = mutableMapOf<String, Int>()
@@ -702,6 +710,7 @@ private class DiffCanvasView(context: Context) : View(context) {
   var tokensByRowId: Map<String, List<DiffToken>> = emptyMap()
     set(value) {
       field = value
+      if (style.wordWrap) rebuildOffsets()
       invalidate()
     }
   var viewedFileIds: Set<String> = emptySet()
@@ -730,6 +739,7 @@ private class DiffCanvasView(context: Context) : View(context) {
       field = value
       drawing.theme = value
       commentDrawing.clearCache()
+      if (style.wordWrap) rebuildOffsets()
       invalidate()
     }
   var style: DiffStyle = DiffStyle.defaults(density)
@@ -748,6 +758,11 @@ private class DiffCanvasView(context: Context) : View(context) {
   var onRowTap: ((DiffRow, String, RowTapTarget) -> Unit)? = null
   var onVisibleRowsChanged: ((Int, Int) -> Unit)? = null
 
+  fun prepareRows() = drawing.prepareRows(tokensByRowId, style, width)
+  fun useCodeLayouts(layouts: CodeLayoutCache) {
+    drawing.codeLayouts = layouts
+  }
+
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
     setMeasuredDimension(
       MeasureSpec.getSize(widthMeasureSpec),
@@ -759,7 +774,7 @@ private class DiffCanvasView(context: Context) : View(context) {
     super.onSizeChanged(width, height, oldWidth, oldHeight)
     if (width != oldWidth) {
       commentDrawing.clearCache()
-      rebuildOffsets()
+      if (style.wordWrap) layoutRows() else rebuildOffsets()
     }
     setVerticalOffset(verticalOffset)
     setHorizontalOffset(horizontalOffset)
@@ -828,7 +843,8 @@ private class DiffCanvasView(context: Context) : View(context) {
 
   fun horizontalOffset(): Int = horizontalOffset
 
-  fun maxHorizontalOffset(): Int = max(0, contentWidthPx - width)
+  fun maxHorizontalOffset(): Int =
+    if (codeWrap.enabled) 0 else max(0, contentWidthPx - width)
 
   fun maxHorizontalOffset(target: HorizontalPanTarget): Int =
     if (target.kind == HorizontalPanKind.FILE_HEADER_PATH) {
@@ -854,14 +870,20 @@ private class DiffCanvasView(context: Context) : View(context) {
   }
 
   private fun rebuildOffsets() {
+    layoutRows()
+    requestLayout()
+    invalidate()
+  }
+
+  private fun layoutRows() {
+    codeWrap = drawing.codeWrapLayout(rows, tokensByRowId, style, width)
     rowOffsets = IntArray(rows.size + 1)
     rows.forEachIndexed { index, row ->
       rowOffsets[index + 1] = rowOffsets[index] + rowHeight(row)
     }
     setVerticalOffset(verticalOffset)
+    setHorizontalOffset(horizontalOffset)
     clampHeaderPathOffsets()
-    requestLayout()
-    invalidate()
   }
 
   private fun rowHeight(row: DiffRow): Int = when (row.kind) {
@@ -875,6 +897,7 @@ private class DiffCanvasView(context: Context) : View(context) {
       style = style,
       titlePaint = textPaint,
     ).height
+    "line" -> codeWrap.rowHeight(row.id, style.rowHeightPx.toInt())
     else -> style.rowHeightPx.toInt()
   }.coerceAtLeast(1)
 
@@ -1166,23 +1189,17 @@ private class DiffCanvasView(context: Context) : View(context) {
       )
     }
 
-    val tokens = tokensByRowId[row.id]
+    // Wrapped rows keep the line number and first code line in the first row-height band.
+    val lines = codeWrap.lines(row.id)
+    val firstLineBottom = top + lines.firstHeight(style.rowHeightPx.toInt())
     drawScrollableCode(canvas, top, bottom) { codeX ->
       drawing.configureCodePaint(theme.text, 0, style)
-      drawing.drawWordDiffRanges(canvas, row, codeX, top, bottom)
-      if (tokens.isNullOrEmpty()) {
-        canvas.drawText(row.content, codeX, centeredBaseline(top, bottom, textPaint), textPaint)
-      } else {
-        var x = codeX
-        tokens.forEach { token ->
-          drawing.configureCodePaint(token.color ?: theme.text, token.fontStyle, style)
-          canvas.drawText(token.content, x, centeredBaseline(top, bottom, textPaint), textPaint)
-          x += textPaint.measureText(token.content)
-        }
-      }
+      drawing.drawWordDiffRanges(canvas, row, codeX, top, firstLineBottom, lines)
+      val baseline = lines.baseline(top, firstLineBottom, textPaint)
+      drawing.drawCode(canvas, row.content, tokensByRowId[row.id], codeX, baseline, style, lines)
     }
 
-    drawLineNumber(canvas, row, top, bottom)
+    drawLineNumber(canvas, row, top, firstLineBottom)
   }
 
   private fun drawLineNumber(canvas: Canvas, row: DiffRow, top: Int, bottom: Int) {

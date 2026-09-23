@@ -12,6 +12,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as TestClock from "effect/testing/TestClock";
 
 import {
   ApprovalRequestId,
@@ -562,7 +563,7 @@ function waitForFileContent(filePath: string, attempts = 40): Effect.Effect<stri
       if (raw.trim().length > 0) {
         return raw;
       }
-      yield* Effect.promise(() => new Promise<void>((resolve) => setTimeout(resolve, 25)));
+      yield* TestClock.withLive(Effect.sleep("25 millis"));
       return yield* readAttempt(remainingAttempts - 1);
     });
   return readAttempt(attempts);

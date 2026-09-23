@@ -241,7 +241,7 @@ export const HermesGatewayManagementErrorCode = Schema.Literals([
 ]);
 export type HermesGatewayManagementErrorCode = typeof HermesGatewayManagementErrorCode.Type;
 
-export class HermesGatewayManagementError extends Schema.TaggedErrorClass<HermesGatewayManagementError>()(
+export class HermesGatewayManagementError extends Schema.TaggedError<HermesGatewayManagementError>()(
   "HermesGatewayManagementError",
   {
     operation: HermesGatewayManagementOperation,

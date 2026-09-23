@@ -93,6 +93,12 @@ import Migration0051 from "./Migrations/051_RepairAutomaticSettlementTimestamps.
 // Upstream ProjectionProjectIcon was runtime ID 47. Append it after the fork's
 // already-deployed settlement-repair migration.
 import Migration0052 from "./Migrations/052_ProjectionProjectIcon.ts";
+import Migration0053 from "./Migrations/048_ProjectionThreadBranchPullRequest.ts";
+import Migration0054 from "./Migrations/049_ProjectionThreadsActiveOrderKey.ts";
+import Migration0055 from "./Migrations/050_ProjectionThreadPullRequests.ts";
+import Migration0056 from "./Migrations/051_ProjectionThreadMessageContext.ts";
+import Migration0057 from "./Migrations/052_ProjectionThreadTitleState.ts";
+import Migration0058 from "./Migrations/053_PullRequestFilesViewed.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -104,7 +110,7 @@ import Migration0052 from "./Migrations/052_ProjectionProjectIcon.ts";
  * Uses Migrator.fromRecord which parses the key format and
  * returns migrations sorted by ID.
  */
-export const migrationEntries = [
+const migrationEntries = [
   [1, "OrchestrationEvents", Migration0001],
   [2, "OrchestrationCommandReceipts", Migration0002],
   [3, "CheckpointDiffBlobs", Migration0003],
@@ -157,11 +163,17 @@ export const migrationEntries = [
   [50, "ProjectionProjectsAutoPull", Migration0050],
   [51, "RepairAutomaticSettlementTimestamps", Migration0051],
   [52, "ProjectionProjectIcon", Migration0052],
+  [53, "ProjectionThreadBranchPullRequest", Migration0053],
+  [54, "ProjectionThreadsActiveOrderKey", Migration0054],
+  [55, "ProjectionThreadPullRequests", Migration0055],
+  [56, "ProjectionThreadMessageContext", Migration0056],
+  [57, "ProjectionThreadTitleState", Migration0057],
+  [58, "PullRequestFilesViewed", Migration0058],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
 
-export const makeMigrationLoader = (throughId?: number) =>
+const makeMigrationLoader = (throughId?: number) =>
   Migrator.fromRecord(
     Object.fromEntries(
       migrationEntries

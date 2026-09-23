@@ -1,10 +1,5 @@
-import {
-  ExternalLinkIcon,
-  PackagePlusIcon,
-  PaletteIcon,
-  RefreshCwIcon,
-  SearchIcon,
-} from "lucide-react";
+import { RefreshIcon } from "~/components/ui/refresh-icon";
+import { ExternalLinkIcon, PackagePlusIcon, PaletteIcon, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   importOpenVsxThemeExtension,
@@ -418,7 +413,7 @@ export function ThemeSearchSection({
                       {isInstalling ? (
                         <Spinner />
                       ) : isInstalled ? (
-                        <RefreshCwIcon />
+                        <RefreshIcon />
                       ) : (
                         <PackagePlusIcon />
                       )}

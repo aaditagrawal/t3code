@@ -44,7 +44,8 @@ function detectCliRunner(entryPath: string): CliRunner | null {
  * anything else suggests the bare package.
  */
 function suggestedPackageSpec(version: string): string {
-  return version.includes("-nightly.") ? `${NPM_PACKAGE_NAME}@nightly` : NPM_PACKAGE_NAME;
+  const channel = /^[^-+]+-(nightly|preview)\./.exec(version)?.[1];
+  return channel === undefined ? NPM_PACKAGE_NAME : `${NPM_PACKAGE_NAME}@${channel}`;
 }
 
 /**

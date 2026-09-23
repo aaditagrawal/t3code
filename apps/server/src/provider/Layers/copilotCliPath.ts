@@ -3,6 +3,7 @@ import * as NodeFS from "node:fs";
 import * as NodeURL from "node:url";
 import * as NodePath from "node:path";
 import * as NodeModule from "node:module";
+import * as NodeSea from "node:sea";
 
 const require = NodeModule.createRequire(import.meta.url);
 const CURRENT_DIR = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
@@ -108,6 +109,7 @@ function resolveGithubScopeDirFromSdkEntrypoint(
 
 function resolveNodeModulesRoots(input: {
   currentDir: string;
+  executablePath?: string;
   resourcesPath?: string;
   sdkEntrypoint?: string;
 }): string[] {
@@ -119,6 +121,10 @@ function resolveNodeModulesRoots(input: {
     input.resourcesPath ? NodePath.join(input.resourcesPath, "node_modules") : undefined,
     NodePath.join(input.currentDir, "../../../../../app.asar.unpacked/node_modules"),
     NodePath.join(input.currentDir, "../../../../../../app.asar.unpacked/node_modules"),
+    input.executablePath
+      ? NodePath.join(NodePath.dirname(input.executablePath), "node_modules")
+      : undefined,
+    NodePath.join(input.currentDir, "node_modules"),
     NodePath.join(input.currentDir, "../../../node_modules"),
     NodePath.join(input.currentDir, "../../../../../node_modules"),
     githubScopeDir ? NodePath.join(githubScopeDir, "..") : undefined,
@@ -159,6 +165,7 @@ export function getBundledCopilotPlatformPackages(
 
 export function resolveBundledCopilotCliPathFrom(input: {
   currentDir: string;
+  executablePath?: string;
   resourcesPath?: string;
   sdkEntrypoint?: string;
   platform?: string;
@@ -173,6 +180,7 @@ export function resolveBundledCopilotCliPathFrom(input: {
   const sdkEntrypoint = input.sdkEntrypoint;
   const nodeModulesRoots = resolveNodeModulesRoots({
     currentDir: input.currentDir,
+    ...(input.executablePath ? { executablePath: input.executablePath } : {}),
     ...(input.resourcesPath ? { resourcesPath: input.resourcesPath } : {}),
     ...(sdkEntrypoint ? { sdkEntrypoint } : {}),
   });
@@ -212,6 +220,7 @@ export function resolveBundledCopilotCliPath(): string | undefined {
   const resourcesPath = resolveProcessResourcesPath();
   return resolveBundledCopilotCliPathFrom({
     currentDir: CURRENT_DIR,
+    ...(NodeSea.isSea() ? { executablePath: process.execPath } : {}),
     ...(resourcesPath ? { resourcesPath } : {}),
     ...(sdkEntrypoint ? { sdkEntrypoint } : {}),
   });
