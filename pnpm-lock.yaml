@@ -103,6 +103,7 @@ patchedDependencies:
   '@react-native-ai/apple@0.12.0': 2d09870c2848d185cb05b53ed823a46e12dba519324d8dd8e584e28731990f9d
   '@react-native-menu/menu@2.0.0': a229d9974fc0a153eb7fae34599cc51171f2ab9a2bb79dc62f540db1ef592398
   '@react-navigation/native-stack@7.17.6': e667c3cef8c78bb9ff4882ee5bd23a432247b843060a9499eb5f07e9e2295552
+  app-builder-lib@26.15.6: f7f59c2440ca1530cbcc056cad28738c7d85383265fcc2f332d318b7313d218b
   dbus-next@0.10.2: cfff57561b0ee59b5addb3b2e6c6f20906e967507a530ab67e8db8108e520ba4
   effect@4.0.0-rc.115: 0dfc4bb8ebd80fb3e06b91ef61346f5259517ab0f2437644fe95ae531084b1f5
   expo-audio@57.0.4: fa9a3e0442ed395d4071bb406e08c3a471c9a84700bdfa0b9ad7ff144c96041a
@@ -16514,7 +16515,7 @@ snapshots:
 
   anynum@1.0.1: {}
 
-  app-builder-lib@26.15.6(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6):
+  app-builder-lib@26.15.6(patch_hash=f7f59c2440ca1530cbcc056cad28738c7d85383265fcc2f332d318b7313d218b)(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6):
     dependencies:
       '@electron/asar': 3.4.1
       '@electron/fuses': 1.8.0
@@ -17378,7 +17379,7 @@ snapshots:
 
   dmg-builder@26.15.6(electron-builder-squirrel-windows@26.15.6):
     dependencies:
-      app-builder-lib: 26.15.6(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6)
+      app-builder-lib: 26.15.6(patch_hash=f7f59c2440ca1530cbcc056cad28738c7d85383265fcc2f332d318b7313d218b)(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6)
       builder-util: 26.15.3
       fs-extra: 10.1.0
       js-yaml: 4.3.2
@@ -17466,7 +17467,7 @@ snapshots:
 
   electron-builder-squirrel-windows@26.15.6(dmg-builder@26.15.6):
     dependencies:
-      app-builder-lib: 26.15.6(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6)
+      app-builder-lib: 26.15.6(patch_hash=f7f59c2440ca1530cbcc056cad28738c7d85383265fcc2f332d318b7313d218b)(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6)
       builder-util: 26.15.3
       electron-winstaller: 5.4.0
     transitivePeerDependencies:
@@ -17475,7 +17476,7 @@ snapshots:
 
   electron-builder@26.15.6(electron-builder-squirrel-windows@26.15.6):
     dependencies:
-      app-builder-lib: 26.15.6(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6)
+      app-builder-lib: 26.15.6(patch_hash=f7f59c2440ca1530cbcc056cad28738c7d85383265fcc2f332d318b7313d218b)(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6)
       builder-util: 26.15.3
       builder-util-runtime: 9.7.0
       chalk: 4.1.2
