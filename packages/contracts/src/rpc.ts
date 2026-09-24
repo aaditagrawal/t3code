@@ -1,3 +1,10 @@
+import {
+  ExistingThreadListInput,
+  ExistingThreadListResult,
+  ExistingThreadImportInput,
+  ExistingThreadImportResult,
+  ExistingThreadError,
+} from "./existingThreads.ts";
 import { OrchestrationDispatchCommandError } from "./orchestration.ts";
 import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
@@ -362,6 +369,8 @@ export const WS_METHODS = {
   attachmentsDelete: "attachments.delete",
 
   // Provider methods
+  existingThreadsList: "existingThreads.list",
+  existingThreadsImport: "existingThreads.import",
   providerUploadFeedback: "provider.uploadFeedback",
   providerAuthStart: "provider.auth.start",
   providerConsumeResetCredit: "provider.consumeResetCredit",
@@ -1204,6 +1213,17 @@ const WsAssetsCreateUrlRpc = Rpc.make(WS_METHODS.assetsCreateUrl, {
   error: Schema.Union([AssetAccessError, EnvironmentAuthorizationError]),
 });
 
+const WsExistingThreadsListRpc = Rpc.make(WS_METHODS.existingThreadsList, {
+  payload: ExistingThreadListInput,
+  success: ExistingThreadListResult,
+  error: Schema.Union([ExistingThreadError, EnvironmentAuthorizationError]),
+});
+const WsExistingThreadsImportRpc = Rpc.make(WS_METHODS.existingThreadsImport, {
+  payload: ExistingThreadImportInput,
+  success: ExistingThreadImportResult,
+  error: Schema.Union([ExistingThreadError, EnvironmentAuthorizationError]),
+});
+
 const WsAssetsPersistChatAttachmentsRpc = Rpc.make(WS_METHODS.assetsPersistChatAttachments, {
   payload: PersistChatAttachmentsInput,
   success: PersistChatAttachmentsResult,
@@ -1789,9 +1809,12 @@ export const WsRpcGroup = RpcGroup.make(
   WsAgentSessionsScanRpc,
   WsAgentSessionsImportRpc,
   WsAssetsCreateUrlRpc,
+  WsExistingThreadsListRpc,
+  WsExistingThreadsImportRpc,
   WsAssetsPersistChatAttachmentsRpc,
   WsAttachmentsCreateUploadUrlRpc,
   WsAttachmentsDeleteRpc,
+
   WsProviderUploadFeedbackRpc,
   WsSubscribeVcsStatusRpc,
   WsSubscribeWorktreeSetupRpc,

@@ -139,7 +139,7 @@ it.effect("imports messages once and preserves the provider native resume bindin
       expect.objectContaining({
         threadId,
         providerInstanceId,
-        resumeCursor: { threadId: providerSessionId },
+        resumeCursor: { threadId: providerSessionId, requireExisting: true },
       }),
     ]);
     expect(recorded).toHaveLength(2);

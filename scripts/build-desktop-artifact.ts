@@ -1543,6 +1543,9 @@ export function createStageWorkspaceConfig(input: {
       ? { patchedDependencies }
       : {}),
     ...(overrides && Object.keys(overrides).length > 0 ? { overrides } : {}),
+    // electron-builder must include the complete production dependency tree.
+    // Isolated pnpm links can leave transitive imports outside the packaged ASAR.
+    nodeLinker: "hoisted",
   };
 }
 

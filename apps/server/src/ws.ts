@@ -1,4 +1,5 @@
 import { OrchestrationDispatchCommandError } from "@t3tools/contracts";
+import { ExistingThreads, layer as existingThreadsLayer } from "./existingThreads/service.ts";
 import * as Crypto from "effect/Crypto";
 import { OrchestratorV2 } from "./orchestration-v2/Orchestrator.ts";
 import * as NodeCrypto from "node:crypto";
@@ -1147,6 +1148,7 @@ const makeWsRpcLayer = (
       const portDiscovery = yield* PortScanner.PortDiscovery;
       const providerRegistry = yield* ProviderRegistry.ProviderRegistry;
       const hermesGatewayBroker = yield* HermesGatewayBroker;
+      const existingThreads = yield* ExistingThreads;
       const modelManifest = yield* ModelManifest.ModelManifest;
       const providerVersionCache = yield* ProviderMaintenance.ProviderVersionCache;
       const providerInstances = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
@@ -2242,6 +2244,8 @@ const makeWsRpcLayer = (
             }),
             { "rpc.aggregate": "server" },
           ),
+        [WS_METHODS.existingThreadsList]: (input) => existingThreads.list(input),
+        [WS_METHODS.existingThreadsImport]: (input) => existingThreads.importThread(input),
         [WS_METHODS.providerUploadFeedback]: (input) =>
           observeRpcEffect(
             WS_METHODS.providerUploadFeedback,

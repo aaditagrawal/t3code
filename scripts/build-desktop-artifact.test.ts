@@ -461,12 +461,14 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   it("installs optional native dependencies for the target desktop architecture", () => {
     assert.deepStrictEqual(STAGE_INSTALL_ARGS, ["install", "--prod"]);
     assert.deepStrictEqual(createStageWorkspaceConfig({ platform: "mac", arch: "x64" }), {
+      nodeLinker: "hoisted",
       supportedArchitectures: {
         os: ["darwin"],
         cpu: ["x64"],
       },
     });
     assert.deepStrictEqual(createStageWorkspaceConfig({ platform: "linux", arch: "x64" }), {
+      nodeLinker: "hoisted",
       supportedArchitectures: {
         os: ["linux"],
         cpu: ["x64"],
@@ -476,18 +478,21 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     // Windows stages only win32 natives; WSL runs the separately built Linux
     // CLI archive rather than anything installed here.
     assert.deepStrictEqual(createStageWorkspaceConfig({ platform: "win", arch: "x64" }), {
+      nodeLinker: "hoisted",
       supportedArchitectures: {
         os: ["win32"],
         cpu: ["x64"],
       },
     });
     assert.deepStrictEqual(createStageWorkspaceConfig({ platform: "win", arch: "arm64" }), {
+      nodeLinker: "hoisted",
       supportedArchitectures: {
         os: ["win32"],
         cpu: ["arm64"],
       },
     });
     assert.deepStrictEqual(createStageWorkspaceConfig({ platform: "mac", arch: "universal" }), {
+      nodeLinker: "hoisted",
       supportedArchitectures: {
         os: ["darwin"],
         cpu: ["arm64", "x64"],
@@ -513,6 +518,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         },
       }),
       {
+        nodeLinker: "hoisted",
         supportedArchitectures: {
           os: ["linux"],
           cpu: ["x64"],
@@ -544,6 +550,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         overrides: {},
       }),
       {
+        nodeLinker: "hoisted",
         supportedArchitectures: {
           os: ["darwin"],
           cpu: ["arm64"],

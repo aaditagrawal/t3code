@@ -59,4 +59,5 @@ export * from "./resourceTelemetry.ts";
 export * from "./rpc.ts";
 
 export * from "./hermesGateway.ts";
+export * from "./existingThreads.ts";
 export * from "./worktreeSetup.ts";

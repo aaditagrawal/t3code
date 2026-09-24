@@ -88,6 +88,7 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/source-control": GitBranchIcon,
   "/settings/storage": HardDriveIcon,
   "/settings/connections": Link2Icon,
+  "/settings/existing-threads": ArchiveIcon,
   "/settings/archived": ArchiveIcon,
 };
 

@@ -1,4 +1,3 @@
-import { DEFAULT_SERVER_PORT } from "@t3tools/shared/branding";
 /**
  * ServerConfig - Runtime configuration services.
  *
@@ -17,6 +16,7 @@ import * as Path from "effect/Path";
 import type * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 
+import { DEFAULT_SERVER_PORT } from "@t3tools/shared/branding";
 import { sweepStalePendingAttachments } from "./attachmentStore.ts";
 import { DEFAULT_SIGNAL_EXPORT, type SignalExport } from "@t3tools/shared/observability";
 

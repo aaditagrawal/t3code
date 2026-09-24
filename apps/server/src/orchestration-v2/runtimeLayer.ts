@@ -9,6 +9,7 @@ import { ProjectionProjectRepositoryLive } from "../persistence/Layers/Projectio
 import { layer as providerSessionRuntimeLayer } from "../persistence/ProviderSessionRuntime.ts";
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import { ProviderAuthServiceLive } from "../provider/Layers/ProviderAuthService.ts";
+import { layer as existingThreadsLayer } from "../existingThreads/service.ts";
 import { layer as agentSessionImporterLayer } from "../project/AgentSessionImporter.ts";
 import * as AgentSessionScanner from "../project/AgentSessionScanner.ts";
 import { layer as projectServiceLayer } from "../project/ProjectService.ts";
@@ -221,6 +222,17 @@ const agentSessionImporterProvided = agentSessionImporterLayer.pipe(
 const threadManagementProvided = threadManagementServiceLayer.pipe(
   Layer.provide(Layer.merge(orchestratorProvided, legacyV1ThreadImporterProvided)),
 );
+
+const existingThreadsProvided = existingThreadsLayer.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      agentSessionImporterProvided,
+      ProjectServiceLayerLive,
+      threadManagementProvided,
+      providerSessionRuntimeLayer,
+    ),
+  ),
+);
 export const ProjectSetupScriptRunnerLayerLive = projectSetupScriptRunnerLayer.pipe(
   Layer.provide(ProjectServiceLayerLive),
 );
@@ -302,4 +314,5 @@ export const OrchestrationV2ProductionLayerLive = Layer.mergeAll(
   ),
   providerContinuationWorkerProvided,
   agentSessionImporterProvided,
+  existingThreadsProvided,
 ).pipe(Layer.provide(Scheduler.layer), Layer.provideMerge(OrchestrationLayerLive));

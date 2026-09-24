@@ -23,6 +23,7 @@ export type SettingsPath =
   | "/settings/source-control"
   | "/settings/storage"
   | "/settings/connections"
+  | "/settings/existing-threads"
   | "/settings/archived";
 
 /**
@@ -93,6 +94,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/source-control": "Source Control",
   "/settings/storage": "Storage",
   "/settings/connections": "Connections",
+  "/settings/existing-threads": "Existing conversations",
   "/settings/archived": "Archive",
 };
 
@@ -574,6 +576,11 @@ export const SETTINGS_SEARCH_ITEMS = [
     providerSettingsOnly: true,
   },
   {
+    id: "existing-conversations",
+    title: "Import existing conversations from official T3 and provider CLIs",
+    to: "/settings/existing-threads",
+  },
+  {
     id: "agent-browser-access",
     title: "Agent browser access",
     to: "/settings/integrations",
@@ -848,6 +855,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/source-control": "environment-defaults",
   "/settings/storage": "project-defaults",
   "/settings/connections": "connections",
+  "/settings/existing-threads": null,
   "/settings/scheduled-tasks": null,
   "/settings/archived": "project-defaults",
 };
