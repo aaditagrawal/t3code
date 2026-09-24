@@ -30,6 +30,7 @@ export function SettingsSwitchRow(
         </Pressable>
       ) : (
         <ThemedSwitch
+          style={{ alignSelf: "center" }}
           accessibilityLabel={props.label}
           disabled={props.disabled}
           onValueChange={props.onValueChange}
