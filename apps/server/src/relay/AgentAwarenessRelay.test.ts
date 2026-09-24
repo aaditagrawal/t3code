@@ -32,6 +32,7 @@ import { ProjectService } from "../project/ProjectService.ts";
 import {
   make,
   makeAgentAwarenessPublishWorker,
+  resolveAgentAwarenessRelayActiveThreadIds,
   shouldPublishAgentAwarenessEvent,
 } from "./AgentAwarenessRelay.ts";
 
@@ -242,6 +243,53 @@ describe("AgentAwarenessRelay", () => {
     assert.isTrue(shouldPublishAgentAwarenessEvent({ type: "thread.created", payload: {} }));
   });
 
+  it("selects only active shell snapshot threads for startup catch-up", () => {
+    const startedAt = DateTime.toEpochMillis(DateTime.makeUnsafe(NOW));
+    const environmentId = EnvironmentId.make("env-1");
+    const project = { id: PROJECT_ID, title: "T3 Code" };
+    const activeThreadId = ThreadId.make("thread-active");
+    const idleThreadId = ThreadId.make("thread-idle");
+    const oldCompletedId = ThreadId.make("thread-old-completed");
+    const newCompletedId = ThreadId.make("thread-new-completed");
+    const freshMessageId = ThreadId.make("thread-fresh-message");
+    const missingProjectId = ThreadId.make("thread-missing-project");
+    const before = DateTime.makeUnsafe("2026-09-04T11:59:00.000Z");
+    const after = DateTime.makeUnsafe("2026-09-04T12:00:01.000Z");
+
+    assert.deepStrictEqual(
+      resolveAgentAwarenessRelayActiveThreadIds({
+        environmentId,
+        startedAt,
+        projects: [project],
+        threads: [
+          shell({ id: activeThreadId, status: "running" }),
+          shell({ id: idleThreadId, status: "idle" }),
+          shell({
+            id: oldCompletedId,
+            status: "completed",
+            latestRunCompletedAt: before,
+          }),
+          shell({
+            id: newCompletedId,
+            status: "completed",
+            latestRunCompletedAt: after,
+          }),
+          shell({
+            id: freshMessageId,
+            status: "idle",
+            latestUserMessageAt: after,
+          }),
+          shell({
+            id: missingProjectId,
+            projectId: ProjectId.make("missing-project"),
+            status: "running",
+          }),
+        ],
+      }),
+      [activeThreadId, newCompletedId],
+    );
+  });
+
   it.effect("coalesces queued updates and reruns a thread dirtied during publishing", () =>
     Effect.gen(function* () {
       const started = yield* Deferred.make<void>();
@@ -375,7 +423,14 @@ describe("AgentAwarenessRelay", () => {
             : Response.json({ ok: true, deliveries: [] }),
       });
       yield* relay.publishThread(THREAD_ID);
-      yield* Ref.set(currentShell, shell({ status: "completed", title: "Final title" }));
+      yield* Ref.set(
+        currentShell,
+        shell({
+          status: "completed",
+          title: "Final title",
+          latestRunCompletedAt: DateTime.add(yield* DateTime.now, { milliseconds: 1 }),
+        }),
+      );
       yield* secrets.set(
         RELAY_ENVIRONMENT_CREDENTIAL_SECRET,
         new TextEncoder().encode("credential-2"),
@@ -487,7 +542,13 @@ describe("AgentAwarenessRelay", () => {
             ? new Response("relay unavailable", { status: 503 })
             : Response.json({ ok: true, deliveries: [] }),
       });
-      yield* Ref.set(currentShell, shell({ status: "completed" }));
+      yield* Ref.set(
+        currentShell,
+        shell({
+          status: "completed",
+          latestRunCompletedAt: DateTime.add(yield* DateTime.now, { milliseconds: 1 }),
+        }),
+      );
       yield* relay.publishThread(THREAD_ID);
       yield* TestClock.adjust("5 seconds");
       yield* relay.drain;
@@ -570,7 +631,13 @@ describe("AgentAwarenessRelay", () => {
   it.effect("confirms a first completed state and respects disabling during confirmation", () =>
     Effect.gen(function* () {
       const { relay, secrets, currentShell, publications } = yield* makeTestRelay();
-      yield* Ref.set(currentShell, shell({ status: "completed" }));
+      yield* Ref.set(
+        currentShell,
+        shell({
+          status: "completed",
+          latestRunCompletedAt: DateTime.add(yield* DateTime.now, { milliseconds: 1 }),
+        }),
+      );
       yield* relay.publishThread(THREAD_ID);
       assert.equal(publications.length, 0);
       yield* TestClock.adjust("5 seconds");

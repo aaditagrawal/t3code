@@ -26,7 +26,14 @@ export function showcaseTerminalHistoryFilename(
   return `terminal_${safeThreadId}_${safeTerminalId}.log`;
 }
 
-export const SHOWCASE_SCENES = ["threads", "thread", "terminal", "review", "environments"] as const;
+export const SHOWCASE_SCENES = [
+  "threads",
+  "thread",
+  "terminal",
+  "review",
+  "environments",
+  "agent-activity",
+] as const;
 export type ShowcaseScene = (typeof SHOWCASE_SCENES)[number];
 
 const PROJECTOR_NAMES = [

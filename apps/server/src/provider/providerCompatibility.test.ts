@@ -15,6 +15,7 @@ import { ProviderRegistry } from "./Services/ProviderRegistry.ts";
 import { ProviderInstanceRegistry } from "./Services/ProviderInstanceRegistry.ts";
 import type { ProviderInstance } from "./ProviderDriver.ts";
 import { makeManualOnlyProviderMaintenanceCapabilities } from "./providerMaintenance.ts";
+import { BUILT_IN_DRIVERS } from "./builtInDrivers.ts";
 import * as Schema from "effect/Schema";
 import {
   applyProviderCompatibility,
@@ -62,6 +63,84 @@ describe("provider compatibility", () => {
       )?.status,
       "broken",
     );
+  });
+
+  it("bundles a compatibility policy for every built-in harness", () => {
+    // Fork-only drivers do not have upstream version ranges yet.
+    const forkOnlyDrivers = new Set([
+      "acp",
+      "acpRegistry",
+      "amp",
+      "copilot",
+      "droid",
+      "fx",
+      "geminiCli",
+      "hermes",
+      "kilo",
+      "ohMyPi",
+      "pi",
+      "primeAgent",
+    ]);
+    for (const builtIn of BUILT_IN_DRIVERS) {
+      if (forkOnlyDrivers.has(builtIn.driverKind)) continue;
+      assert.isDefined(
+        resolveProviderCompatibility(
+          ModelManifest.BUNDLED_MODEL_MANIFEST.compatibility,
+          builtIn.driverKind,
+          null,
+        ),
+        `Missing bundled compatibility policy for ${builtIn.driverKind}`,
+      );
+    }
+  });
+
+  it("compares Cursor build dates without treating semver prereleases as stable", () => {
+    const cursor = ProviderDriverKind.make("cursor");
+    const cursorPolicy: ProviderCompatibilityPolicy = {
+      driver: cursor,
+      t3CodeRange: policy.t3CodeRange,
+      ranges: [
+        { range: "<2026.05.09", status: "unsupported" },
+        { range: ">=2026.05.09", status: "supported" },
+      ],
+    };
+    for (const [version, expected] of [
+      ["2026.05.08-a1b2c3d", "unsupported"],
+      ["2026.05.09-a1b2c3d", "supported"],
+      ["2026.09.22-f2b0fcd", "supported"],
+      ["2026.05.09", "supported"],
+      ["2026.05.09-beta.1", "unknown"],
+    ] as const) {
+      assert.strictEqual(
+        resolveProviderCompatibility([cursorPolicy], cursor, version)?.status,
+        expected,
+      );
+    }
+    assert.strictEqual(
+      resolveProviderCompatibility([policy], driver, "2.0.0-a1b2c3d")?.status,
+      "unknown",
+    );
+  });
+
+  it("recognizes Antigravity semver release tags while keeping dated candidates unknown", () => {
+    const antigravity = ProviderDriverKind.make("antigravity");
+    const taggedPolicy = {
+      ...policy,
+      driver: antigravity,
+      ranges: [{ range: "=2.0.0", status: "supported" as const }],
+    };
+    for (const [version, expected] of [
+      ["agy_acp_server_2.0.0", "supported"],
+      ["2.0.0", "supported"],
+      ["agy_acp_server_2.0.1", "unknown"],
+      ["agy_acp_server_2.0.0-beta.1", "unknown"],
+      ["agy_acp_server_20260818_01_RC01", "unknown"],
+    ] as const) {
+      assert.strictEqual(
+        resolveProviderCompatibility([taggedPolicy], antigravity, version)?.status,
+        expected,
+      );
+    }
   });
 
   it("classifies boundaries and treats unlisted versions and release tags as unknown", () => {
