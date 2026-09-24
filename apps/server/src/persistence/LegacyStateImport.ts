@@ -20,12 +20,14 @@ import {
   type RecordedMigration,
 } from "./MigrationLineage.ts";
 import { migrationManifest } from "./Migrations.ts";
+import { LIVE_STATE_DATABASE_FILENAME, stateDatabaseCandidates } from "./stateDatabaseLineage.ts";
 
 const STATE_DIR_NAME = "userdata";
 
-const STATE_DB_FILENAME = "state.sqlite";
-
 const STATE_DB_SIDECAR_SUFFIXES = ["-wal", "-shm"] as const;
+
+const databaseSidecarNames = (filename: string) =>
+  STATE_DB_SIDECAR_SUFFIXES.map((suffix) => `${filename}${suffix}`);
 
 export const FORK_ONLY_MIGRATION_MARKERS: ReadonlyArray<KnownMigration> = [
   [23, "NormalizeLegacyProviderKinds"],
@@ -39,7 +41,7 @@ const EXCLUDED_STATE_ENTRIES: ReadonlySet<string> = new Set([
   "server-runtime.json",
   "logs",
   "tools",
-  ...STATE_DB_SIDECAR_SUFFIXES.map((suffix) => `${STATE_DB_FILENAME}${suffix}`),
+  ...stateDatabaseCandidates().flatMap((filename) => [filename, ...databaseSidecarNames(filename)]),
 ]);
 
 const STAGING_DIR_SUFFIX = ".legacy-import-staging";
@@ -51,6 +53,7 @@ export interface LegacyImportProbe {
 
   readonly stateDirIsDefault: boolean;
 
+  /** True when the live database already contains projects or threads. */
   readonly newHomeHasDatabase: boolean;
 
   readonly newHomeHasImportMarker: boolean;
@@ -170,6 +173,9 @@ export interface LegacyStateImportOptions {
 
   readonly legacyBaseDir: string;
 
+  /** Newest previous home first. Defaults to `legacyBaseDir` alone. */
+  readonly legacyBaseDirs?: ReadonlyArray<string>;
+
   readonly stateDir: string;
 }
 
@@ -182,6 +188,7 @@ export const LegacyImportMarker = Schema.Struct({
   source: Schema.String,
   destination: Schema.String,
   forkMarkerMigration: Schema.String,
+  sourceDatabase: Schema.optional(Schema.String),
   entries: Schema.Array(Schema.String),
   excludedEntries: Schema.Array(Schema.String),
   worktrees: LegacyWorktreesDisposition,
@@ -248,6 +255,52 @@ const inspectStagedDatabase = Effect.fn("LegacyStateImport.inspectStagedDatabase
 
   return yield* Effect.provide(program, makeRuntimeSqliteLayer({ filename: stagedDbPath }));
 });
+
+const HISTORY_TABLES = [
+  "orchestration_v2_projection_threads",
+  "projection_threads",
+  "projection_projects",
+] as const;
+
+/** Unreadable databases count as in use so an update does not replace them. */
+const databaseHasHistory = Effect.fn("LegacyStateImport.databaseHasHistory")(function* (
+  dbPath: string,
+) {
+  const program = Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    for (const table of HISTORY_TABLES) {
+      const present = yield* sql<{
+        readonly name: string;
+      }>`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${table}`;
+      if (present.length === 0) continue;
+      const rows =
+        table === "orchestration_v2_projection_threads"
+          ? yield* sql<{
+              readonly count: number;
+            }>`SELECT COUNT(*) AS count FROM orchestration_v2_projection_threads`
+          : table === "projection_threads"
+            ? yield* sql<{
+                readonly count: number;
+              }>`SELECT COUNT(*) AS count FROM projection_threads`
+            : yield* sql<{
+                readonly count: number;
+              }>`SELECT COUNT(*) AS count FROM projection_projects`;
+      if (Number(rows[0]?.count ?? 0) > 0) return true;
+    }
+    return false;
+  });
+
+  return yield* Effect.provide(
+    program,
+    makeRuntimeSqliteLayer({ filename: dbPath, readonly: true }),
+  ).pipe(Effect.orElseSucceed(() => true));
+});
+
+interface LegacyDatabaseCandidate {
+  readonly legacyBaseDir: string;
+  readonly filename: string;
+  readonly dbPath: string;
+}
 
 const moveIfAbsent = Effect.fn("LegacyStateImport.moveIfAbsent")(function* (
   stagedPath: string,
@@ -363,31 +416,53 @@ const runImport = Effect.fn("LegacyStateImport.run")(function* (options: LegacyS
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
 
-  const { baseDir, defaultBaseDir, legacyBaseDir, stateDir } = options;
+  const { baseDir, defaultBaseDir, stateDir } = options;
+  const legacyBaseDirs =
+    options.legacyBaseDirs && options.legacyBaseDirs.length > 0
+      ? options.legacyBaseDirs
+      : [options.legacyBaseDir];
   const newStateDir = path.join(baseDir, STATE_DIR_NAME);
-  const newDbPath = path.join(newStateDir, STATE_DB_FILENAME);
+  const liveDbPath = path.join(newStateDir, LIVE_STATE_DATABASE_FILENAME);
   const markerPath = path.join(baseDir, LEGACY_IMPORT_MARKER_FILENAME);
-  const legacyStateDir = path.join(legacyBaseDir, STATE_DIR_NAME);
-  const legacyDbPath = path.join(legacyStateDir, STATE_DB_FILENAME);
 
   const canonicalBase = yield* fs
     .realPath(baseDir)
     .pipe(Effect.orElseSucceed(() => path.resolve(baseDir)));
-  const canonicalLegacy = yield* fs
-    .realPath(legacyBaseDir)
-    .pipe(Effect.orElseSucceed(() => path.resolve(legacyBaseDir)));
+  const candidates: Array<LegacyDatabaseCandidate> = [];
+  let legacyAliasesCurrentHome = false;
+  for (const legacyBaseDir of legacyBaseDirs) {
+    const canonicalLegacy = yield* fs
+      .realPath(legacyBaseDir)
+      .pipe(Effect.orElseSucceed(() => path.resolve(legacyBaseDir)));
+    if (canonicalBase === canonicalLegacy) {
+      legacyAliasesCurrentHome = true;
+      continue;
+    }
+    const legacyStateDir = path.join(legacyBaseDir, STATE_DIR_NAME);
+    for (const filename of stateDatabaseCandidates()) {
+      const dbPath = path.join(legacyStateDir, filename);
+      if (yield* exists(dbPath)) {
+        candidates.push({ legacyBaseDir, filename, dbPath });
+      }
+    }
+  }
+  const liveExists = yield* exists(liveDbPath);
   const decision = decideLegacyImport({
     baseDirIsDefaultHome: path.resolve(baseDir) === path.resolve(defaultBaseDir),
     stateDirIsDefault: path.resolve(stateDir) === path.resolve(newStateDir),
-    legacyIsSameAsNew: canonicalBase === canonicalLegacy,
-    newHomeHasDatabase: yield* exists(newDbPath),
+    legacyIsSameAsNew: candidates.length === 0 && legacyAliasesCurrentHome,
+    newHomeHasDatabase: liveExists && (yield* databaseHasHistory(liveDbPath)),
     newHomeHasImportMarker: yield* exists(markerPath),
-    legacyHasDatabase: yield* exists(legacyDbPath),
+    legacyHasDatabase: candidates.length > 0,
   });
 
   if (decision._tag === "Skip") {
     yield* Effect.logDebug("Legacy state import not applicable").pipe(
-      Effect.annotateLogs({ reason: decision.reason, legacyBaseDir, baseDir }),
+      Effect.annotateLogs({
+        reason: decision.reason,
+        legacyBaseDir: options.legacyBaseDir,
+        baseDir,
+      }),
     );
     return { _tag: "Skipped", reason: decision.reason } satisfies LegacyImportOutcome;
   }
@@ -397,54 +472,68 @@ const runImport = Effect.fn("LegacyStateImport.run")(function* (options: LegacyS
     prefix: ".t3code-fork.legacy-import-staging-",
   });
   const stagedStateDir = path.join(stagingDir, STATE_DIR_NAME);
-  const stagedDbPath = path.join(stagedStateDir, STATE_DB_FILENAME);
   yield* fs.makeDirectory(stagedStateDir, { recursive: true });
 
-  // SQLite takes a consistent read snapshot, including committed WAL frames.
-  // Copying the three files independently can silently lose transactions when
-  // a checkpoint or WAL reset occurs between copies, even if quick_check passes.
-  yield* Effect.provide(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      yield* sql`PRAGMA busy_timeout = 5000`;
-      yield* sql`VACUUM INTO ${stagedDbPath}`;
-    }),
-    makeRuntimeSqliteLayer({ filename: legacyDbPath, readonly: true }),
-  );
-
-  const inspection = yield* inspectStagedDatabase(stagedDbPath);
-
-  if (!inspection.healthy) {
-    const detail = describeLegacyImportRefusal(
-      legacyBaseDir,
-      "corrupt-database",
-      inspection.integrity,
+  let selected:
+    | {
+        readonly candidate: LegacyDatabaseCandidate;
+        readonly stagedDbPath: string;
+        readonly marker: KnownMigration;
+      }
+    | undefined;
+  for (const candidate of candidates) {
+    const stagedDbPath = path.join(stagedStateDir, candidate.filename);
+    // SQLite takes a consistent read snapshot, including committed WAL frames.
+    yield* Effect.provide(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        yield* sql`PRAGMA busy_timeout = 5000`;
+        yield* sql`VACUUM INTO ${stagedDbPath}`;
+      }),
+      makeRuntimeSqliteLayer({ filename: candidate.dbPath, readonly: true }),
     );
-    yield* Effect.logError(detail);
-    return { _tag: "Refused", reason: "corrupt-database", detail } satisfies LegacyImportOutcome;
+
+    const inspection = yield* inspectStagedDatabase(stagedDbPath);
+    if (!inspection.healthy) {
+      const detail = describeLegacyImportRefusal(
+        candidate.legacyBaseDir,
+        "corrupt-database",
+        inspection.integrity,
+      );
+      yield* Effect.logError(detail);
+      return { _tag: "Refused", reason: "corrupt-database", detail } satisfies LegacyImportOutcome;
+    }
+
+    const verdict = classifyLegacyDatabase(inspection.recorded);
+    if (verdict._tag === "NotFork") continue;
+    if (verdict._tag === "IncompatibleLineage") {
+      const detail = describeLegacyImportRefusal(
+        candidate.legacyBaseDir,
+        "incompatible-lineage",
+        verdict.detail,
+      );
+      yield* Effect.logError(detail);
+      return {
+        _tag: "Refused",
+        reason: "incompatible-lineage",
+        detail,
+      } satisfies LegacyImportOutcome;
+    }
+    selected = { candidate, stagedDbPath, marker: verdict.marker };
+    break;
   }
 
-  const verdict = classifyLegacyDatabase(inspection.recorded);
-
-  if (verdict._tag === "NotFork") {
+  if (selected === undefined) {
+    const legacyBaseDir = candidates[0]?.legacyBaseDir ?? options.legacyBaseDir;
     const detail = `Found a legacy state directory at ${legacyBaseDir}, but its database was not written by this build. Leaving it untouched.`;
     yield* Effect.log(detail);
     return { _tag: "Refused", reason: "not-fork", detail } satisfies LegacyImportOutcome;
   }
 
-  if (verdict._tag === "IncompatibleLineage") {
-    const detail = describeLegacyImportRefusal(
-      legacyBaseDir,
-      "incompatible-lineage",
-      verdict.detail,
-    );
-    yield* Effect.logError(detail);
-    return {
-      _tag: "Refused",
-      reason: "incompatible-lineage",
-      detail,
-    } satisfies LegacyImportOutcome;
-  }
+  const { candidate, stagedDbPath } = selected;
+  const legacyBaseDir = candidate.legacyBaseDir;
+  const legacyStateDir = path.join(legacyBaseDir, STATE_DIR_NAME);
+  const publishedDbPath = path.join(newStateDir, candidate.filename);
 
   // Stage everything else.
   const homeSelection = selectImportableEntries(
@@ -458,16 +547,23 @@ const runImport = Effect.fn("LegacyStateImport.run")(function* (options: LegacyS
 
   const stateSelection = selectImportableEntries(
     yield* readDirectory(legacyStateDir),
-    new Set([...EXCLUDED_STATE_ENTRIES, STATE_DB_FILENAME]),
+    EXCLUDED_STATE_ENTRIES,
   );
   for (const entry of stateSelection.copy) {
     yield* assertNoSymlinks(path.join(legacyStateDir, entry));
     yield* fs.copy(path.join(legacyStateDir, entry), path.join(stagedStateDir, entry));
   }
 
-  // Publish. `state.sqlite` moves last so the detection predicate only flips
-  // once the rest of the state is already in place.
+  // Publish the database last so a crash cannot leave a live file without the
+  // settings that belong with it. An empty live database is not history.
   yield* fs.makeDirectory(newStateDir, { recursive: true });
+  if (liveExists) {
+    yield* fs.remove(liveDbPath);
+    for (const sidecar of databaseSidecarNames(LIVE_STATE_DATABASE_FILENAME)) {
+      const sidecarPath = path.join(newStateDir, sidecar);
+      if (yield* exists(sidecarPath)) yield* fs.remove(sidecarPath);
+    }
+  }
 
   const moved: Array<string> = [];
   for (const entry of homeSelection.copy) {
@@ -483,16 +579,16 @@ const runImport = Effect.fn("LegacyStateImport.run")(function* (options: LegacyS
 
   const worktrees = yield* linkWorktrees(legacyBaseDir, baseDir);
 
-  // Hard-link publication fails if another startup already created the database.
-  yield* fs.link(stagedDbPath, newDbPath);
-  moved.push(`${STATE_DIR_NAME}/${STATE_DB_FILENAME}`);
+  yield* fs.link(stagedDbPath, publishedDbPath);
+  moved.push(`${STATE_DIR_NAME}/${candidate.filename}`);
 
   const marker: LegacyImportMarker = {
     version: MARKER_VERSION,
     importedAt: DateTime.formatIso(yield* DateTime.now),
     source: legacyBaseDir,
     destination: baseDir,
-    forkMarkerMigration: `${verdict.marker[0]}_${verdict.marker[1]}`,
+    forkMarkerMigration: `${selected.marker[0]}_${selected.marker[1]}`,
+    sourceDatabase: candidate.filename,
     entries: moved,
     excludedEntries: [
       ...homeSelection.excluded,
@@ -506,6 +602,7 @@ const runImport = Effect.fn("LegacyStateImport.run")(function* (options: LegacyS
     Effect.annotateLogs({
       source: legacyBaseDir,
       destination: baseDir,
+      sourceDatabase: candidate.filename,
       entries: moved,
       excluded: marker.excludedEntries,
       worktrees,

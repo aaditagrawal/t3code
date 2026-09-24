@@ -157,6 +157,40 @@ it.effect("includes committed WAL data and does not publish a failed snapshot", 
   );
 });
 
+it.effect("adopts the newest previous database when the live filename changes", () => {
+  const directory = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-next-database-"));
+  const previous = NodePath.join(directory, "statev2.sqlite");
+  const older = NodePath.join(directory, "state.sqlite");
+  const destination = NodePath.join(directory, "statev3.sqlite");
+  return Effect.gen(function* () {
+    for (const [filename, value] of [
+      [older, "older"],
+      [previous, "current"],
+    ] as const) {
+      const database = new NodeSqlite.DatabaseSync(filename);
+      database.exec("CREATE TABLE legacy_probe (value TEXT)");
+      database.prepare("INSERT INTO legacy_probe VALUES (?)").run(value);
+      database.close();
+    }
+    yield* initializeV2Database(destination);
+    const copy = new NodeSqlite.DatabaseSync(destination, { readOnly: true });
+    try {
+      assert.equal(copy.prepare("SELECT value FROM legacy_probe").get()?.value, "current");
+    } finally {
+      copy.close();
+    }
+    const untouched = new NodeSqlite.DatabaseSync(previous, { readOnly: true });
+    try {
+      assert.equal(untouched.prepare("SELECT value FROM legacy_probe").get()?.value, "current");
+    } finally {
+      untouched.close();
+    }
+  }).pipe(
+    Effect.provide(NodeServices.layer),
+    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(directory, { recursive: true, force: true }))),
+  );
+});
+
 it.effect("uses statev2.sqlite for default and explicit development paths", () =>
   Effect.gen(function* () {
     for (const devUrl of [undefined, new URL("http://localhost:5173")]) {

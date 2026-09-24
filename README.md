@@ -26,7 +26,7 @@ This fork uses separate application identifiers and state so both builds can run
 | Linux service             | `t3code-fork.service`             | `t3code.service`             |
 | macOS service             | `com.t3tools.t3code.fork.service` | `com.t3tools.t3code.service` |
 
-Existing fork data is imported once when the old database has a recognized, compatible fork migration history. Upstream-only or incompatible databases are left in place. The import copies state and retains a symlink to existing worktrees. **Keep `~/.t3` after upgrading** so those worktrees remain accessible. See [upgrading the fork](docs/user/fork-upgrade.md) for details.
+Existing fork data is imported when a previous home has a recognized, compatible fork database. The import prefers `statev2.sqlite` and otherwise uses `state.sqlite`. Upstream-only or incompatible databases are left in place. The import copies state and retains a symlink to existing worktrees. **Keep the previous home after upgrading** so those worktrees remain accessible. See [upgrading the fork](docs/user/fork-upgrade.md) for details.
 
 ## Why this fork?
 
