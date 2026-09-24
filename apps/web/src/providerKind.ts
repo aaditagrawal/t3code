@@ -15,6 +15,8 @@
 
 export const PROVIDER_KINDS = [
   "acp",
+  "acpRegistry",
+  "antigravity",
   "codex",
   "copilot",
   "claudeAgent",
@@ -26,6 +28,7 @@ export const PROVIDER_KINDS = [
   "geminiCli",
   "amp",
   "kilo",
+  "primeAgent",
   "hermes",
   "pi",
   "ohMyPi",

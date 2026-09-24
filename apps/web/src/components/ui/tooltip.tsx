@@ -2,8 +2,6 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import { cn } from "~/lib/utils";
 
-const TooltipCreateHandle = TooltipPrimitive.createHandle;
-
 const TooltipProvider = TooltipPrimitive.Provider;
 
 const Tooltip = TooltipPrimitive.Root;
@@ -18,6 +16,7 @@ function TooltipPopup({
   sideOffset = 4,
   side = "top",
   variant = "default",
+  padding = "default",
   anchor,
   children,
   ...props
@@ -25,7 +24,10 @@ function TooltipPopup({
   align?: TooltipPrimitive.Positioner.Props["align"];
   side?: TooltipPrimitive.Positioner.Props["side"];
   sideOffset?: TooltipPrimitive.Positioner.Props["sideOffset"];
-  variant?: "default" | "glass";
+  /** `code` renders monospace content that breaks anywhere, for paths and commands. */
+  variant?: "default" | "glass" | "code";
+  /** `none` when the content draws its own inset, such as a hover card. */
+  padding?: "default" | "none";
   anchor?: TooltipPrimitive.Positioner.Props["anchor"];
 }) {
   return (
@@ -44,13 +46,22 @@ function TooltipPopup({
             variant === "glass"
               ? "dropdown-glass shadow-xl shadow-black/25 before:hidden"
               : "border bg-popover not-dark:bg-clip-padding shadow-md/5",
+            // One wrap width for prose; code dumps get more room and break anywhere.
+            variant === "code"
+              ? "max-w-120 wrap-anywhere text-left font-mono text-[11px] leading-relaxed"
+              : "max-w-80 wrap-anywhere whitespace-normal leading-snug",
             className,
           )}
           data-slot="tooltip-popup"
           {...props}
         >
           <TooltipPrimitive.Viewport
-            className="relative size-full overflow-clip px-(--viewport-inline-padding) py-1 [--viewport-inline-padding:--spacing(2)] data-instant:transition-none **:data-current:data-ending-style:opacity-0 **:data-current:data-starting-style:opacity-0 **:data-previous:data-ending-style:opacity-0 **:data-previous:data-starting-style:opacity-0 **:data-current:w-[calc(var(--popup-width)-2*var(--viewport-inline-padding)-2px)] **:data-previous:w-[calc(var(--popup-width)-2*var(--viewport-inline-padding)-2px)] **:data-previous:truncate **:data-current:opacity-100 **:data-previous:opacity-100 **:data-current:transition-opacity **:data-previous:transition-opacity"
+            className={cn(
+              "relative size-full overflow-clip px-(--viewport-inline-padding) data-instant:transition-none **:data-current:data-ending-style:opacity-0 **:data-current:data-starting-style:opacity-0 **:data-previous:data-ending-style:opacity-0 **:data-previous:data-starting-style:opacity-0 **:data-current:w-[calc(var(--popup-width)-2*var(--viewport-inline-padding)-2px)] **:data-previous:w-[calc(var(--popup-width)-2*var(--viewport-inline-padding)-2px)] **:data-previous:truncate **:data-current:opacity-100 **:data-previous:opacity-100 **:data-current:transition-opacity **:data-previous:transition-opacity",
+              padding === "none"
+                ? "py-0 [--viewport-inline-padding:0px]"
+                : "py-1 [--viewport-inline-padding:--spacing(2)]",
+            )}
             data-slot="tooltip-viewport"
           >
             {children}
@@ -61,4 +72,4 @@ function TooltipPopup({
   );
 }
 
-export { TooltipCreateHandle, TooltipProvider, Tooltip, TooltipTrigger, TooltipPopup };
+export { TooltipProvider, Tooltip, TooltipTrigger, TooltipPopup };

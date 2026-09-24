@@ -3,6 +3,7 @@ import * as NodeFS from "node:fs";
 import * as NodeURL from "node:url";
 import * as NodePath from "node:path";
 import * as NodeModule from "node:module";
+import * as NodeSea from "node:sea";
 
 const require = NodeModule.createRequire(import.meta.url);
 const CURRENT_DIR = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
@@ -43,9 +44,7 @@ function resolveProcessResourcesPath(): string | undefined {
   return processWithResourcesPath.resourcesPath;
 }
 
-export function normalizeCopilotCliPathOverride(
-  value: string | null | undefined,
-): string | undefined {
+function normalizeCopilotCliPathOverride(value: string | null | undefined): string | undefined {
   if (value == null) return undefined;
 
   const trimmed = value.trim();
@@ -108,6 +107,7 @@ function resolveGithubScopeDirFromSdkEntrypoint(
 
 function resolveNodeModulesRoots(input: {
   currentDir: string;
+  executablePath?: string;
   resourcesPath?: string;
   sdkEntrypoint?: string;
 }): string[] {
@@ -119,6 +119,10 @@ function resolveNodeModulesRoots(input: {
     input.resourcesPath ? NodePath.join(input.resourcesPath, "node_modules") : undefined,
     NodePath.join(input.currentDir, "../../../../../app.asar.unpacked/node_modules"),
     NodePath.join(input.currentDir, "../../../../../../app.asar.unpacked/node_modules"),
+    input.executablePath
+      ? NodePath.join(NodePath.dirname(input.executablePath), "node_modules")
+      : undefined,
+    NodePath.join(input.currentDir, "node_modules"),
     NodePath.join(input.currentDir, "../../../node_modules"),
     NodePath.join(input.currentDir, "../../../../../node_modules"),
     githubScopeDir ? NodePath.join(githubScopeDir, "..") : undefined,
@@ -129,7 +133,7 @@ function getCopilotPlatformBinaryName(platform: string): string {
   return platform === "win32" ? "copilot.exe" : "copilot";
 }
 
-export function getBundledCopilotPlatformPackages(
+function getBundledCopilotPlatformPackages(
   // oxlint-disable-next-line t3code/no-global-process-runtime -- Pure resolver keeps platform injectable for tests and non-Effect callers.
   platform: string = process.platform,
   // oxlint-disable-next-line t3code/no-global-process-runtime -- Pure resolver keeps architecture injectable for tests and non-Effect callers.
@@ -159,6 +163,7 @@ export function getBundledCopilotPlatformPackages(
 
 export function resolveBundledCopilotCliPathFrom(input: {
   currentDir: string;
+  executablePath?: string;
   resourcesPath?: string;
   sdkEntrypoint?: string;
   platform?: string;
@@ -173,6 +178,7 @@ export function resolveBundledCopilotCliPathFrom(input: {
   const sdkEntrypoint = input.sdkEntrypoint;
   const nodeModulesRoots = resolveNodeModulesRoots({
     currentDir: input.currentDir,
+    ...(input.executablePath ? { executablePath: input.executablePath } : {}),
     ...(input.resourcesPath ? { resourcesPath: input.resourcesPath } : {}),
     ...(sdkEntrypoint ? { sdkEntrypoint } : {}),
   });
@@ -212,6 +218,7 @@ export function resolveBundledCopilotCliPath(): string | undefined {
   const resourcesPath = resolveProcessResourcesPath();
   return resolveBundledCopilotCliPathFrom({
     currentDir: CURRENT_DIR,
+    ...(NodeSea.isSea() ? { executablePath: process.execPath } : {}),
     ...(resourcesPath ? { resourcesPath } : {}),
     ...(sdkEntrypoint ? { sdkEntrypoint } : {}),
   });

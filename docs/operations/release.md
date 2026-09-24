@@ -2,50 +2,81 @@
 
 > For maintainers. Using T3 Code? See [docs/user](../user/).
 
-This document covers the unified release workflow for stable and nightly desktop and Android releases.
+This document covers the unified release workflow for stable and nightly desktop and CLI releases.
 
 ## What the workflow does
 
 - Workflow: `.github/workflows/release.yml`
 - Triggers:
-  - push tag matching `v*.*.*` for stable releases
-  - scheduled nightly check every three hours
-  - manual `workflow_dispatch` for either channel
+  - manual `workflow_dispatch` with `channel=stable`, the normal way to ship stable. Stable
+    and nightly dispatches must select `main`; preview may select any branch. The channel defaults
+    to preview so an omitted selection cannot publish a stable release.
+  - push tag matching `v*.*.*` for a stable release of an explicit commit
+  - scheduled nightly check every 30 minutes
+  - manual `workflow_dispatch` with `channel=nightly`
+  - manual `workflow_dispatch` with `channel=preview` to test an unreleased branch. It publishes a GitHub prerelease without update manifests. Install it explicitly with `T3CODE_CHANNEL=preview`; normal stable and nightly updates never select it. Hosted deployments, AUR publication, and Discord announcements are skipped.
+- A manual stable release builds the commit of the latest published nightly, not `main` HEAD.
+  Nightly is the release candidate: verify the nightly, then promote it. Merges to `main` keep
+  landing while you verify and never leak into the stable build.
+  - The version defaults to the one the nightly previewed (`0.0.39-nightly.*` ships as `0.0.39`).
+    Pass the `version` input to override it, for example for a minor bump.
+  - The stable tag is created on the nightly's commit when the GitHub Release is published.
+  - Pushing a `vX.Y.Z` tag by hand still works and builds exactly the tagged commit. Use it when
+    the commit to ship is not the latest nightly, such as a cherry-picked fix on a release branch.
 - Runs lint, typecheck, and tests alongside artifact builds. Publishing waits for every check.
-- Reads the shared production T3 Connect relay URL and Clerk client configuration before packaging clients.
-- Builds five artifacts in parallel for both channels:
+- Reads the shared production T3 Connect relay URL and Clerk client configuration when those optional fork credentials are configured.
+- Builds the platform-independent JS (server bundle, web client, Electron main) once in the `build_bundle` job and hands it to every platform job as the `js-bundle` artifact; the platform jobs only package it, so no runner rebuilds it.
+- Builds six desktop artifacts in parallel for both channels, each as its own job (`desktop_<platform>_<arch>`, one call of `release-desktop.yml`) on hardware of its own architecture, gated only on the bundle (the Windows jobs also wait for the same-arch Linux job, whose CLI archive they embed as the WSL runtime):
   - macOS `arm64` DMG
   - macOS `x64` DMG
-  - Linux `x64` AppImage
-  - Windows `x64` NSIS installer
-  - Android APK
+  - Linux `x64` and `arm64` AppImage
+  - Windows `x64` and `arm64` NSIS installer
 - Publishes one GitHub Release with all produced files.
   - Stable tags with a suffix after `X.Y.Z` (for example `1.2.3-alpha.1`) are published as GitHub prereleases.
   - Only plain stable `X.Y.Z` releases are marked as the repository's latest release.
   - Nightly runs are always GitHub prereleases and never marked latest.
   - Automatically generated release notes are pinned to the previous tag in the same channel, so stable compares to the previous stable tag and nightly compares to the previous nightly tag.
 - Includes Electron auto-update metadata (for example `latest*.yml`, `nightly*.yml`, and `*.blockmap`) in release assets.
+- Builds a self-contained CLI archive per platform (`t3-<version>-<platform>-<arch>.tar.gz`, `.zip` on Windows) in the same job as that target's desktop artifact and attaches them to the GitHub Release with a `SHA256SUMS` file, on every channel, for five targets: macOS arm64, Linux x64 and arm64, Windows x64 and arm64. Every archive is built, signed, and smoke-tested on hardware of its own architecture. There is no macOS x64 archive: Node single-executables are unsupported on x64 macOS (the SEA docs list macOS as arm64 only) and the binary segfaults on start; the x64 desktop app is Electron and unaffected.
+  - The archive holds the server as a Node single-executable (`scripts/build-cli-archive.ts`), so unpacking it needs neither Node, npm, nor a compiler. It is the only form in which T3 Code manages a runtime: the desktop's SSH environments, the boot service, `t3f update`, and the install scripts all download and verify this archive against `SHA256SUMS`. The fork does not publish npm packages; managed runtimes download from `aaditagrawal/t3code`. The `curl | sh` installers are `scripts/install.sh` and `scripts/install.ps1`; the marketing site copies them into its `public/` at build time (`apps/marketing/scripts/stage-install-scripts.mjs`) and serves them as `/install.sh` and `/install.ps1` on a configured fork marketing deployment.
+  - The executable is built with a Node that supports `--build-sea` (`VP_NODE_VERSION=26.8.2`, kept in step with `SEA_NODE_VERSION` in `apps/server/vite.config.ts`), while the repo stays on `engines.node`.
+  - macOS archives are signed with the Developer ID certificate and notarized when the Apple secrets are present (ad hoc otherwise, which still runs from `curl`/`tar` installs). Windows executables use the same Azure Trusted Signing setup as the installer. Every native addon in the macOS archive is signed too, since the hardened runtime refuses unsigned libraries.
+  - Each archive is extracted and executed on its build runner (`scripts/smoke-cli-archive.ts`) before it is uploaded.
 - Does not publish the upstream-owned `t3` npm package. The `publish_cli` job is intentionally
   disabled in this fork; enable it only after adopting a fork-scoped package name and update path.
 - Deploys the hosted web app to Vercel only after a release is published:
   - stable releases are aliased to the `latest` hosted app channel
   - nightly releases are aliased to the `nightly` hosted app channel
-- Signing is auto-detected per platform from secrets. Android always produces a signed, installable APK; without a configured release keystore it uses a one-run key and warns that the artifact cannot update another release in place.
+- Signing is auto-detected per platform from secrets. Without signing credentials, artifacts are unsigned.
 
-## Android APK release signing
+## Pull request macOS previews
 
-The Android job runs Expo prebuild and Gradle on GitHub-hosted Ubuntu, verifies the APK signature and package/version metadata, and publishes `T3-Code-<version>-android.apk` with the desktop assets. It does not require `EXPO_TOKEN` or EAS.
+Labeling a PR `preview:mac` publishes a signed, notarized Apple Silicon DMG with T3 Connect enabled
+to the rolling `desktop-preview` prerelease, and works for fork PRs. The label is a one-shot request
+for the commit it is applied to: the trusted workflow removes it once the build is in hand, and later
+pushes do not build until a maintainer applies it again. Every signed preview is therefore a
+per-commit maintainer decision, which matters because the result carries the Developer ID signature.
+Vouching a contributor lets their labeled commits be signed; it is not a standing grant. The build is
+split so the Developer ID certificate never shares a job with PR code:
 
-Configure all four secrets in the `production` GitHub environment to keep the signing identity stable across releases:
+- `.github/workflows/desktop-macos-preview.yml` runs on `pull_request` with no secrets and builds
+  only the JS bundle from the PR (the same `js-bundle` artifact `release.yml` produces).
+- `.github/workflows/desktop-macos-preview-publish.yml` runs on `workflow_run` from `main`. It
+  refuses unless the PR is open, still labeled, its head is the built commit, and the author is a
+  bot, a collaborator, or listed in `.github/VOUCHED.td` (read from the default branch, so a PR cannot vouch
+  for itself). It then packages and signs the bundle through `release-desktop.yml` checked out at
+  `main`, so packaging, native helpers, and the Electron/desktop dependencies come from `main`, not
+  the PR. Only the version and the public T3 Connect identifiers in `.env.example` are read from the
+  PR commit, as data, so the signed app's passkey entitlement matches the bundle. A PR that changes
+  packaging must use the `channel=preview` release train above instead.
 
-- `ANDROID_RELEASE_KEYSTORE_BASE64`: base64-encoded JKS or PKCS12 keystore.
-- `ANDROID_RELEASE_KEYSTORE_PASSWORD`: keystore password.
-- `ANDROID_RELEASE_KEY_ALIAS`: release key alias.
-- `ANDROID_RELEASE_KEY_PASSWORD`: release key password.
-
-The job fails on a partially configured secret set. When all four are absent, it creates an ephemeral signing key so CI can still publish an installable artifact. Ephemeral-key APKs are suitable for fresh installs and pipeline testing only; Android requires users to uninstall a build signed by a different key before installing it.
-
-The production job also reads `CLERK_PUBLISHABLE_KEY`, `CLERK_JWT_TEMPLATE`, `RELAY_DOMAIN` (or `RELAY_API_ZONE_NAME`), and optional Clerk Google client IDs from GitHub environment variables and compiles them into the mobile app.
+Before handing the bundle to the signing runner, the trusted workflow validates its ZIP entries
+and accepts only regular files under `server/dist` and `desktop/dist-electron`, plus the directory
+entries that lead to those roots. The artifact cannot
+overwrite packaging code or installed dependencies. The bundle is copied into the app, never executed,
+on the signing runner. The
+`pull_request_target` cleanup job in the publish workflow removes the download when the PR closes, or
+when the label is removed by hand before a build consumed it, and never checks out PR code.
 
 ## Required release credentials
 
@@ -116,6 +147,17 @@ Developers deploy personal stages locally rather than through pull-request autom
 vp run --filter t3code-relay deploy -- --stage "$USER" --env-file .env.local
 ```
 
+## Marketing site deployment
+
+After a nightly release is published, the release workflow deploys the same commit
+to the marketing site's Vercel production project. Stable releases do not deploy
+the marketing site because they can promote an older nightly commit.
+
+The job looks up the `t3code-marketing` project using the existing `VERCEL_TOKEN`
+and `VERCEL_ORG_ID` secrets. It also respects the optional `VERCEL_TEAM_SLUG`
+variable. The Vercel project's root directory must be `apps/marketing`.
+Git deployments remain disabled in `apps/marketing/vercel.ts`.
+
 ## Hosted web app release deployment
 
 The hosted app is intentionally not deployed by Vercel's Git integration. The
@@ -172,8 +214,10 @@ One-time Vercel dashboard setup:
 
 - Workflow: `.github/workflows/release.yml`
 - Triggers:
-  - scheduled check every three hours
+  - scheduled check every 30 minutes
   - manual `workflow_dispatch` with `channel=nightly`
+- Automatic nightlies require new commits and at least six hours since the last nightly was published, including manual nightlies.
+- Manual nightlies bypass the time and change checks. Nightly runs remain serialized. Scheduled runs wait for an active nightly to finish, then check the publication gap before building.
 - Runs the same desktop quality gates and artifact matrix as the tagged release flow.
 - Publishes a GitHub prerelease only:
   - current tag format: `vX.Y.Z-nightly.YYYYMMDD.<run_number>`
@@ -193,12 +237,13 @@ package. GitHub Releases still wait for the `quality` and `build` jobs, while `p
 skipped placeholder. Do not describe remote automatic server updates as release-supported until the
 fork has a separately named package and the client update command targets it.
 
-Before enabling a future fork-owned package, validate exact-version publishing and update a server
-from the previous version. When a release adds database migrations, snapshot the database first,
-verify that the remote update applies the migrations and reconnects, and restore the snapshot plus
-the previous server after a failed trial. If the installed launcher does not support the target
-protocol, verify that the update stops before restart and document the one-time fork-scoped CLI
-update command. Also test the manual and desktop-managed guidance when those environments are
+The workflow publishes verified CLI archives and desktop artifacts together in the fork GitHub release.
+Hosted clients advance only after that release succeeds. npm publication remains disabled.
+
+For a release smoke test, connect the new client to a server on the previous version and verify
+that updating downloads the matching fork archive and reconnects. Snapshot the database before
+testing releases that add migrations. Restore the snapshot and previous server after a failed trial.
+Also test the manual and desktop-managed guidance when those environments are
 available.
 
 ## Desktop auto-update notes
@@ -228,12 +273,19 @@ Windows packages the bundled server and only its runtime-external/native
 dependency closure in `resources/server.asar`. Native modules and helper
 executables declared as unpacked by that archive must be present at the matching
 paths below `resources/server.asar.unpacked`. The Windows-native backend reads
-the archive in place through Electron. Packaged Windows builds also ship a
-Linux-only `resources/wsl-runtime.tar.gz` plus its SHA-256 sidecar. WSL verifies
-and extracts that archive into `~/.t3/wsl-runtime/sha256-<archive-digest>` inside
-the selected distro, then reuses it for later launches of the same update. The
-Windows-side `wsl-server-tree/<version>` extraction remains a fallback and is
-removed after the distro-local runtime passes preflight.
+the archive in place through Electron. Packaged Windows builds also ship
+`resources/wsl-runtime.tar.gz` plus its SHA-256 sidecar: the Linux CLI archive
+(`t3-<version>-linux-<arch>.tar.gz`, the same arch as the Windows host) built
+by the Linux desktop job and handed to the Windows desktop build as
+`--wsl-runtime`, copied in verbatim so WSL runs the exact bytes a Linux user
+downloads. WSL verifies and extracts that archive
+into `~/.t3/wsl-runtime/sha256-<archive-digest>` inside the selected distro,
+then reuses it for later launches of the same update.
+
+Windows keeps JavaScript and package metadata inside `app.asar` and unpacks only
+native libraries and helper executables. Avoid enabling whole-package smart
+unpacking: each loose file adds work to NSIS installation and counts against
+the payload limit.
 
 The artifact builder rejects a Windows package when any of these invariants
 break:
@@ -244,11 +296,12 @@ break:
 - On same-architecture Windows builds, the packaged primary cannot load the fff
   native library from inside `server.asar` through its `.unpacked` sibling.
 - The isolated, extracted sidecar cannot load the server entry with plain Node.
-- A Windows build with a WSL node-pty prebuild omits the WSL archive or SHA-256
-  sidecar, the sidecar digest does not match the emitted archive, or required
-  Linux runtime members are absent.
-- The emitted WSL archive contains Windows/Darwin node-pty payloads, ConPTY,
-  pnpm install metadata, or Windows-only FFF, ffi-rs, or msgpackr bindings.
+- A Windows build given `--wsl-runtime` omits the WSL archive or SHA-256
+  sidecar, or the sidecar digest does not match the emitted archive.
+- The emitted WSL archive is not a Linux CLI release archive: it must unpack to
+  a single `t3-<version>-linux-<arch>` directory holding `t3`, `client/`, and
+  `node_modules/` with the Linux node-pty binary, and must not carry a loose
+  server bundle (`bin.mjs`).
 - The external Windows resource monitor is absent.
 - The unpacked Windows application contains more than 80 files.
 
@@ -281,8 +334,8 @@ risk, manually dispatch `channel=nightly`; this still publishes a real GitHub pr
 updater release, and hosted nightly alias, but it does not update stable aliases or commit a version
 bump to `main`. Only run it when a real nightly release is acceptable.
 
-Manual `channel=stable` with a version input is also a real stable-channel release. Omitting signing
-secrets only makes platform artifacts unsigned; it does not prevent publication.
+Manual `channel=stable` is also a real stable-channel release. Omitting signing secrets only makes
+platform artifacts unsigned; it does not prevent publication.
 
 ## 2) Apple signing + notarization setup (macOS)
 
@@ -360,17 +413,19 @@ Checklist:
 
 ## 4) Ongoing release checklist
 
-1. Ensure `main` is green in CI.
-2. Bump app version as needed.
-3. Create release tag: `vX.Y.Z`.
-4. Push tag.
-5. Verify workflow steps:
+1. Pick the latest nightly and verify it: run the smoke test above against its artifacts and
+   check the nightly channel for regressions.
+2. Dispatch the Release workflow with `channel=stable`. Leave `version` empty unless the version
+   should differ from the one the nightly previewed.
+3. Confirm the `Resolve release commit` notice names the nightly tag and commit you verified. If a
+   newer nightly published in between, the run builds that one instead.
+4. Verify workflow steps:
    - preflight passes
    - release quality checks pass
-   - all matrix builds pass
-   - `publish_cli` remains skipped for the upstream-owned package
+   - `build_bundle` and all platform builds pass
+   - `publish_cli` remains skipped for the upstream-owned packages
    - release job uploads expected files
-6. Smoke test downloaded artifacts.
+5. Smoke test downloaded artifacts.
 
 ## 5) Troubleshooting
 

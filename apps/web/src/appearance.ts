@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema";
 
-export const APP_PROVIDER_LOGO_APPEARANCE_OPTIONS = [
+const APP_PROVIDER_LOGO_APPEARANCE_OPTIONS = [
   {
     value: "original",
     label: "Default color",
@@ -23,7 +23,7 @@ export type AppProviderLogoAppearance =
 
 export const AppProviderLogoAppearanceSchema = Schema.Literals(["original", "grayscale", "accent"]);
 
-export const TIMESTAMP_FORMAT_OPTIONS = ["locale", "12-hour", "24-hour"] as const;
+const TIMESTAMP_FORMAT_OPTIONS = ["locale", "12-hour", "24-hour"] as const;
 export type TimestampFormat = (typeof TIMESTAMP_FORMAT_OPTIONS)[number];
 export const DEFAULT_TIMESTAMP_FORMAT: TimestampFormat = "locale";
 

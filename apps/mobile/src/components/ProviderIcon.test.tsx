@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
+vi.mock("react-native", () => ({ View: "View" }));
+
 vi.mock("react-native-svg", () => ({
   Circle: "Circle",
   Path: "Path",
@@ -35,5 +37,17 @@ describe("ProviderIcon", () => {
         }),
       ]),
     );
+  });
+
+  it.each([
+    ["amp", "0 0 24 24"],
+    ["copilot", "0 0 256 208"],
+    ["droid", "0 0 508 508"],
+    ["geminiCli", "0 0 296 298"],
+    ["kilo", "0 0 24 24"],
+  ] as const)("renders the %s mark instead of the Codex fallback", (provider, viewBox) => {
+    const icon = ProviderIcon({ provider, size: 16 });
+
+    expect(icon.props).toMatchObject({ viewBox });
   });
 });

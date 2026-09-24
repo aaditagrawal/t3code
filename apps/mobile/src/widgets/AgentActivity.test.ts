@@ -1,3 +1,4 @@
+import { URL_SCHEME } from "@t3tools/shared/branding";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@expo/ui/swift-ui", () => ({
@@ -10,6 +11,7 @@ vi.mock("@expo/ui/swift-ui", () => ({
 }));
 
 vi.mock("@expo/ui/swift-ui/modifiers", () => ({
+  activityBackgroundTint: (value: unknown) => value,
   font: (value: unknown) => value,
   foregroundStyle: (value: unknown) => value,
   frame: (value: unknown) => value,
@@ -176,14 +178,14 @@ describe("AgentActivity widget layout", () => {
       environment as never,
     );
     expect(JSON.stringify(layout.banner)).toContain(
-      '"widgetURL":"t3code://threads/env-1/thread-2"',
+      `"widgetURL":"${URL_SCHEME}://threads/env-1/thread-2"`,
     );
   });
 
   it("deep links the banner to the first row when nothing needs attention", () => {
     const layout = AgentActivity({ ...props, activities: [makeRow({})] }, environment as never);
     expect(JSON.stringify(layout.banner)).toContain(
-      '"widgetURL":"t3code://threads/env-1/thread-1"',
+      `"widgetURL":"${URL_SCHEME}://threads/env-1/thread-1"`,
     );
   });
 

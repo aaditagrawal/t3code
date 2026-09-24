@@ -1,7 +1,10 @@
 import { Button } from "../ui/button";
 import { type ContextWindowSnapshot, formatContextWindowTokens } from "~/lib/contextWindow";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
-import { formatContextWindowCompactionMessage } from "./ContextWindowMeter.logic";
+import {
+  formatContextWindowCompactionMessage,
+  formatContextWindowCost,
+} from "./ContextWindowMeter.logic";
 import { Minimize2Icon } from "lucide-react";
 import { composerFloatingLayerProps } from "./composerEventScope";
 
@@ -45,7 +48,7 @@ export function ContextWindowMeter(props: {
           <Button
             size="icon-sm"
             variant="ghost-muted"
-            className="size-7 rounded-full hover:text-muted-foreground data-pressed:text-muted-foreground"
+            className="size-7"
             aria-label={
               usage.maxTokens !== null && usedPercentage
                 ? `Context window ${usedPercentage} used`
@@ -88,8 +91,9 @@ export function ContextWindowMeter(props: {
         tooltipStyle
         side="top"
         align="end"
-        viewportClassName="p-0"
-        className="w-64 max-w-none text-left whitespace-normal"
+        padding="none"
+        width="sm"
+        className="text-left whitespace-normal"
       >
         <div className="flex flex-col gap-2 p-[var(--floating-content-inset)]">
           <div className="flex items-center justify-between gap-3">
@@ -132,6 +136,14 @@ export function ContextWindowMeter(props: {
               </span>
             </div>
           ) : null}
+          {usage.cost != null ? (
+            <div className="flex items-center justify-between gap-3 text-[11px] leading-4">
+              <span className="text-secondary-label">Cost</span>
+              <span className="font-medium tabular-nums text-secondary-label">
+                {formatContextWindowCost(usage.cost)}
+              </span>
+            </div>
+          ) : null}
           {usage.compactsAutomatically ? (
             <div className="mt-1 text-pretty text-secondary-label text-[11px] font-medium">
               {formatContextWindowCompactionMessage(modelDisplayName, usage.autoCompactThreshold)}
@@ -160,4 +172,9 @@ export function ContextWindowMeter(props: {
       </PopoverPopup>
     </Popover>
   );
+}
+
+/** Holds the meter's footprint while a thread's activities are still loading. */
+export function ContextWindowMeterPlaceholder() {
+  return <span aria-hidden="true" className="size-7 shrink-0" />;
 }

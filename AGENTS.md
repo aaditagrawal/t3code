@@ -1,6 +1,6 @@
 # AGENTS.md
 
-T3 Code is a multi-provider GUI for coding agents. A Node WebSocket server wraps provider CLIs and agents (ACP Agent, Codex, Claude Code, Cursor, Droid, Fx, Grok, OpenCode, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, Pi, and Antigravity) and serves web, desktop, and mobile clients.
+T3 Code is a multi-provider GUI for coding agents. A Node WebSocket server wraps provider CLIs and agents (ACP Agent, Codex, Claude Code, Cursor, Droid, Fx, Grok, OpenCode, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, Pi, Prime Agent, and Antigravity) and serves web, desktop, and mobile clients.
 
 ## Git & GitHub Policy (CRITICAL — DO NOT VIOLATE)
 
@@ -21,7 +21,7 @@ T3 Code is a multi-provider GUI for coding agents. A Node WebSocket server wraps
 
 When syncing upstream, preserve these fork features unless the user explicitly asks to remove them:
 
-1. Multi-provider runtime support for the built-in drivers: configurable ACP, Codex CLI, Claude Code, Cursor, Droid, Fx, Grok Build, OpenCode, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, Pi, and Antigravity.
+1. Multi-provider runtime support for the built-in drivers: configurable ACP, Codex CLI, Claude Code, Cursor, Droid, Fx, Grok Build, OpenCode, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, Pi, Prime Agent, and Antigravity.
 2. Usage and limit monitoring, including token/context usage snapshots, provider usage events, Codex account rate-limit streams, and the web rate-limit banner/panel UX.
 3. Provider management UX, including custom provider instances, per-instance environment/config/model state, custom model slugs, and provider-scoped traits such as reasoning, context window, fast mode, and agent selection.
 4. Provider-neutral orchestration reliability, including SQLite event persistence, command receipts, replay/live stream ordering, session restart/reconnect behavior, and projection consistency.
@@ -41,7 +41,7 @@ When syncing upstream, preserve these fork features unless the user explicitly a
 
 ## Project Snapshot
 
-T3 Code is a multi-provider web GUI for coding agents. This fork supports 16 built-in provider drivers. `BUILT_IN_DRIVERS` in `apps/server/src/provider/builtInDrivers.ts` is the source of truth:
+T3 Code is a multi-provider web GUI for coding agents. This fork supports 17 built-in provider drivers. `BUILT_IN_DRIVERS` in `apps/server/src/provider/builtInDrivers.ts` is the source of truth:
 
 - **ACP Agent** — configurable executable and arguments for any stdio ACP implementation
 - **Codex CLI** (v0.37.0+) — JSON-RPC over stdio
@@ -59,6 +59,7 @@ T3 Code is a multi-provider web GUI for coding agents. This fork supports 16 bui
 - **Kilo** — HTTP SSE transport
 - **Oh My Pi** — `omp acp` over stdio
 - **Pi** — `pi-acp` over stdio
+- **Prime Agent** — Prime Intellect `prime-agent --mode acp` over stdio
 
 This repository is a VERY EARLY WIP. Proposing sweeping changes that improve long-term maintainability is encouraged.
 
@@ -109,7 +110,7 @@ The most common defect in this repo is a change that works on the path you teste
 
 - **Entry points.** A behavior reachable from the chat view is usually also reachable from Settings, the command palette, and a keybinding. Fixing one is not fixing the feature.
 - **Clients.** Web, desktop (wraps web, adds Electron shell/IPC), and mobile (React Native, separate navigation). Shared logic lives in `packages/client-runtime`.
-- **Providers.** ACP Agent, Codex, Claude, Cursor, Droid, Fx, Grok, OpenCode, Antigravity, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, and Pi each have an adapter. Provider-shaped features need a decision per adapter, even if the decision is "not supported here".
+- **Providers.** ACP Agent, Codex, Claude, Cursor, Droid, Fx, Grok, OpenCode, Antigravity, Amp, Copilot, Gemini CLI, Hermes Agent, Kilo, Oh My Pi, Pi, and Prime Agent each have an adapter. Provider-shaped features need a decision per adapter, even if the decision is "not supported here".
 - **Contracts.** Anything crossing the wire is typed in `packages/contracts`. Change the schema and the server, web, mobile, and desktop all follow.
 - **Reverse states.** If you added a way in, add the way out and the way to see it. Snooze needs unsnooze. Close needs reopen. A one-way door is a bug.
 - **Connection modes.** Local, remote/relay, and tunnel behave differently. Multi-device and multi-environment cases are real.
@@ -172,3 +173,38 @@ Most code changes do not need an internal documentation change. Agents can read 
 - `docs/user/` helps users accomplish tasks. Give each major feature a concise section explaining what it does, how to start, and anything unintuitive. A settings path is useful; descriptions of visible buttons, icons, layouts, animations, or every UI state are not. Before adding text, ask what task or decision it helps the user with.
 - Keep user docs in the shipped product's voice, without implementation details or contributor tooling. Update the relevant feature section when how to use it changes. A UI tweak does not need a documentation entry, and a new control does not need its own page.
 - `docs/operations/` holds maintainer setup, release, and debugging procedures. Keep instructions for operating an installed T3 Code server in the user guides.
+
+## Plans and work artifacts
+
+- Do not commit implementation plans, research notes, or agent scratch files. Keep temporary working material outside the worktree. `.plans/` is gitignored only as a safety net for legacy tooling.
+- Track active maintainer work in the GitHub issue or project item that owns it. External proposals follow `CONTRIBUTING.md` and belong in Ideas discussions.
+- A merged PR is the implementation record. Close or update its tracking item when the work lands; do not preserve a second checklist in the repository.
+
+## How it works
+
+Clients send typed WebSocket requests. The server turns them into _commands_, a pure _decider_ turns commands into persisted _events_, and a _projector_ derives the read model the UI renders. Provider CLIs run as subprocesses; per-provider _adapters_ translate their native protocols into orchestration events. Side effects run in queue-backed _reactors_ that emit _receipts_ when milestones land. Each turn ends with a _checkpoint_, a hidden git ref, so the app can diff and restore.
+
+Full glossary with file links: `docs/internals/glossary.md`
+
+## Where code lives
+
+- `apps/server` - WebSocket, orchestration, providers, checkpointing. Effect-heavy: read `.repos/effect-smol/LLMS.md` before writing Effect code.
+- `apps/web` - React/Vite UI. `apps/desktop` wraps it, `apps/mobile` is React Native, `apps/marketing` is the site.
+- `packages/contracts` - Effect/Schema contracts plus small derived helpers. No heavy runtime logic.
+- `packages/shared` - shared runtime utils, subpath exports, no barrel.
+- `packages/client-runtime` - client code shared by web and mobile.
+- `.repos/` - vendored read-only references. Prefer their patterns over invented ones. Never edit or import from them. Sync with `vpr sync:repos` when bumping the matching dependency.
+
+## Taste
+
+- Complexity belongs at the adapter boundary. Orchestration stays pure, UI stays dumb.
+- `apps/web/src/components/ui` exports own their look. Pick a `variant` or `size`; do not restyle one with `className`. If none fits and the look is a generic concept, add a variant to the component; a look that belongs to one feature stays in that feature's own component, not in `components/ui`. Layout classes (width, flex, margin, position) belong on the parent. `shadcn/no-restyle` fails lint on violations.
+- Inferred types over annotations. `any` is the enemy.
+- Comments describe how a thing is used, and move when the code moves. To be used mostly to describe functions, not to annotate every line of behavior.
+- Our users drive agents all day and notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations; they peg the GPU on high-refresh displays.
+- If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.
+
+## Additional tips
+
+- Don't verify with browsers or computer use unless the user explicitly agrees or requests it.
+- Security is important, but should not be over-indexed on, especially for dev mode/maintainer-only features.

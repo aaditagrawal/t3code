@@ -18,7 +18,7 @@ import {
   TrimmedNonEmptyString,
   TurnId,
 } from "./baseSchemas.ts";
-import { ProviderApprovalDecision, ProviderUserInputAnswers } from "./orchestration.ts";
+import { ProviderApprovalDecision, ProviderUserInputAnswers } from "./providerPolicy.ts";
 import { ProviderInstanceId } from "./providerInstance.ts";
 import { CanonicalItemType, CanonicalRequestType, UserInputQuestion } from "./providerRuntime.ts";
 
@@ -241,7 +241,7 @@ export const HermesGatewayManagementErrorCode = Schema.Literals([
 ]);
 export type HermesGatewayManagementErrorCode = typeof HermesGatewayManagementErrorCode.Type;
 
-export class HermesGatewayManagementError extends Schema.TaggedErrorClass<HermesGatewayManagementError>()(
+export class HermesGatewayManagementError extends Schema.TaggedError<HermesGatewayManagementError>()(
   "HermesGatewayManagementError",
   {
     operation: HermesGatewayManagementOperation,

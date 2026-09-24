@@ -1,6 +1,21 @@
 import type { ExpoConfig } from "expo/config";
 
 import { BRAND_ASSET_PATHS } from "../../scripts/lib/brand-assets.ts";
+// Imported by repo-relative path, not by the `@t3tools/shared/branding`
+// package specifier: Expo reads this config through a CommonJS loader, and
+// `@t3tools/shared`'s export map declares only `types`/`import` conditions, so
+// a subpath import fails there with ERR_PACKAGE_PATH_NOT_EXPORTED. (Metro
+// resolves the package specifier fine, which is why app code under `src/` uses
+// it.) The sibling imports above establish repo-relative `.ts` as the working
+// pattern here; this is still the same single source of truth.
+import {
+  APP_BASE_NAME,
+  DESKTOP_APP_ID,
+  DESKTOP_APP_ID_DEV,
+  URL_SCHEME,
+  URL_SCHEME_DEV,
+} from "../../packages/shared/src/branding.ts";
+import { PREVIEW_URL_SCHEME } from "./src/lib/appUrlSchemes.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
 
 type AppVariant = "development" | "preview" | "production";
@@ -9,7 +24,7 @@ const repoEnv = loadRepoEnv();
 Object.assign(process.env, repoEnv);
 
 const APP_VARIANT = resolveAppVariant(repoEnv.APP_VARIANT);
-const APP_VERSION = process.env.MOBILE_APP_VERSION?.trim() || "1.0.4";
+const APP_VERSION = process.env.MOBILE_APP_VERSION?.trim() || "1.3.1";
 const ANDROID_VERSION_CODE = resolveAndroidVersionCode(process.env.MOBILE_ANDROID_VERSION_CODE);
 const isIosPersonalTeamBuild = repoEnv.T3CODE_IOS_PERSONAL_TEAM === "1";
 const runtimeVersionPolicy =
@@ -20,8 +35,8 @@ const personalTeamBundleIdentifier = repoEnv.T3CODE_IOS_PERSONAL_TEAM_BUNDLE_ID?
 const IOS_BUNDLE_IDENTIFIER_PATTERN = /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 
 const fromRepoRoot = (relativePath: string) => `../../${relativePath}`;
-// Universal exports already contain their own rounded-square silhouette. Using one as an adaptive
-// foreground makes Android draw an icon shape inside the launcher's mask.
+// Android layers are rendered by scripts/export-android-icons.ts from the Icon Composer sources.
+// The wordmark sits inside the adaptive safe zone; the variant artwork is a full-bleed background.
 const androidAdaptiveForeground = "./assets/android-icon-foreground.png";
 
 if (
@@ -39,7 +54,9 @@ const DEVELOPMENT_ASSETS = {
   iosIcon: fromRepoRoot(BRAND_ASSET_PATHS.developmentIconComposerProject),
   splashIcon: fromRepoRoot(BRAND_ASSET_PATHS.developmentIosIconPng),
   androidAdaptiveForeground,
-  androidAdaptiveBackgroundColor: "#00639B",
+  androidAdaptiveBackgroundColor: "#347FF8",
+  androidAdaptiveBackgroundImage: "./assets/android-icon-background-dev.png",
+  androidSplashIcon: "./assets/android-splash-icon-dev.png",
   androidMonochromeIcon: "./assets/android-icon-mark.png",
   androidNotificationIcon: "./assets/android-notification-icon.png",
   androidNotificationColor: "#00639B",
@@ -51,6 +68,8 @@ const PREVIEW_ASSETS = {
   splashIcon: fromRepoRoot(BRAND_ASSET_PATHS.nightlyIosIconPng),
   androidAdaptiveForeground,
   androidAdaptiveBackgroundColor: "#111533",
+  androidAdaptiveBackgroundImage: "./assets/android-icon-background-nightly.png",
+  androidSplashIcon: "./assets/android-splash-icon-nightly.png",
   androidMonochromeIcon: "./assets/android-icon-mark.png",
   androidNotificationIcon: "./assets/android-notification-icon.png",
   androidNotificationColor: "#7565C7",
@@ -62,33 +81,46 @@ const RELEASE_ASSETS = {
   splashIcon: fromRepoRoot(BRAND_ASSET_PATHS.productionIosIconPng),
   androidAdaptiveForeground,
   androidAdaptiveBackgroundColor: "#000000",
+  androidAdaptiveBackgroundImage: undefined,
+  androidSplashIcon: "./assets/android-splash-icon-prod.png",
   androidMonochromeIcon: "./assets/android-icon-mark.png",
   androidNotificationIcon: "./assets/android-notification-icon.png",
   androidNotificationColor: "#FFFFFF",
 } as const;
 
+// Every installable identity below must differ from upstream's so this fork and
+// an upstream build can coexist on one device: iOS refuses to install two apps
+// sharing a bundle identifier, Android replaces the app with the matching
+// package name, and a duplicate URL scheme is resolved non-deterministically by
+// whichever app registered it last.
+//
+// `DESKTOP_APP_ID*` is reused as the reverse-DNS root: it is the fork's app
+// identity, and platforms namespace their own ids, so a desktop build and a
+// mobile build sharing the string cannot collide with each other.
+const PREVIEW_APP_ID = `${DESKTOP_APP_ID}.preview`;
+
 const VARIANT_CONFIG = {
   development: {
-    appName: "T3 Code Dev",
-    scheme: "t3code-dev",
-    iosBundleIdentifier: "com.t3tools.t3code.dev",
-    androidPackage: "com.t3tools.t3code.dev",
+    appName: `${APP_BASE_NAME} Dev`,
+    scheme: URL_SCHEME_DEV,
+    iosBundleIdentifier: DESKTOP_APP_ID_DEV,
+    androidPackage: DESKTOP_APP_ID_DEV,
     relyingParty: "clerk.t3.codes",
     assets: DEVELOPMENT_ASSETS,
   },
   preview: {
-    appName: "T3 Code Preview",
-    scheme: "t3code-preview",
-    iosBundleIdentifier: "com.t3tools.t3code.preview",
-    androidPackage: "com.t3tools.t3code.preview",
+    appName: `${APP_BASE_NAME} Preview`,
+    scheme: PREVIEW_URL_SCHEME,
+    iosBundleIdentifier: PREVIEW_APP_ID,
+    androidPackage: PREVIEW_APP_ID,
     relyingParty: "clerk.t3.codes",
     assets: PREVIEW_ASSETS,
   },
   production: {
-    appName: "T3 Code",
-    scheme: "t3code",
-    iosBundleIdentifier: "com.t3tools.t3code",
-    androidPackage: "com.t3tools.t3code",
+    appName: APP_BASE_NAME,
+    scheme: URL_SCHEME,
+    iosBundleIdentifier: DESKTOP_APP_ID,
+    androidPackage: DESKTOP_APP_ID,
     relyingParty: "clerk.t3.codes",
     assets: RELEASE_ASSETS,
   },
@@ -144,9 +176,48 @@ const widgetsPlugin: NonNullable<ExpoConfig["plugins"]>[number] = [
     frequentUpdates: true,
     widgets: [
       {
+        name: "SubscriptionUsage",
+        displayName: "Subscription usage",
+        description: "Subscription quotas from your connected T3 Code environments.",
+        configuration: {
+          title: "Subscription usage",
+          description:
+            "Both shows Session and Weekly when available. The Lock Screen shows the tightest selected limit.",
+          parameters: {
+            codexPeriod: {
+              title: "Codex limits",
+              type: "enum",
+              default: "auto",
+              values: [
+                { name: "Both", value: "auto" },
+                { name: "Session", value: "session" },
+                { name: "Weekly", value: "weekly" },
+              ],
+            },
+            claudePeriod: {
+              title: "Claude limits",
+              type: "enum",
+              default: "auto",
+              values: [
+                { name: "Both", value: "auto" },
+                { name: "Session", value: "session" },
+                { name: "Weekly", value: "weekly" },
+              ],
+            },
+          },
+        },
+        supportedFamilies: [
+          "systemSmall",
+          "systemMedium",
+          "systemLarge",
+          "systemExtraLarge",
+          "accessoryRectangular",
+        ],
+      },
+      {
         name: "AgentActivity",
         displayName: "Agent Activity",
-        description: "Shows the current state of active T3 Code agents.",
+        description: `Shows the current state of active ${APP_BASE_NAME} agents.`,
         supportedFamilies: ["systemSmall", "systemMedium", "accessoryRectangular"],
       },
     ],
@@ -199,7 +270,7 @@ const config: ExpoConfig = {
   icon: variant.assets.appIcon,
   userInterfaceStyle: "automatic",
   updates: {
-    enabled: true,
+    enabled: repoEnv.T3CODE_MOBILE_UPDATES_ENABLED !== "0",
     url: "https://u.expo.dev/d763fcb8-d37c-41ea-a773-b54a0ab4a454",
     checkAutomatically: "ON_LOAD",
     fallbackToCacheTimeout: 0,
@@ -218,13 +289,15 @@ const config: ExpoConfig = {
       `applinks:${variant.relyingParty}`,
       `webcredentials:${variant.relyingParty}`,
     ],
+    entitlements: {
+      "keychain-access-groups": [`$(AppIdentifierPrefix)${variant.iosBundleIdentifier}`],
+    },
     infoPlist: {
       NSAppTransportSecurity: {
         NSAllowsArbitraryLoads: true,
       },
-      NSLocalNetworkUsageDescription:
-        "Allow T3 Code to connect to T3 Code servers on your local network or tailnet.",
-      NSPhotoLibraryAddUsageDescription: "Allow T3 Code to save images to your photo library.",
+      NSLocalNetworkUsageDescription: `Allow ${APP_BASE_NAME} to connect to servers on your local network or tailnet.`,
+      NSPhotoLibraryAddUsageDescription: `Allow ${APP_BASE_NAME} to save images to your photo library.`,
       ITSAppUsesNonExemptEncryption: false,
       // The App Store screenshot harness rotates the iPad interface from
       // inside the app (CI denies osascript the Accessibility access that
@@ -247,8 +320,14 @@ const config: ExpoConfig = {
     icon: variant.assets.appIcon,
     package: variant.androidPackage,
     ...(ANDROID_VERSION_CODE == null ? {} : { versionCode: ANDROID_VERSION_CODE }),
+    ...(repoEnv.T3CODE_ANDROID_GOOGLE_SERVICES_FILE
+      ? { googleServicesFile: repoEnv.T3CODE_ANDROID_GOOGLE_SERVICES_FILE }
+      : {}),
     adaptiveIcon: {
       backgroundColor: variant.assets.androidAdaptiveBackgroundColor,
+      ...(variant.assets.androidAdaptiveBackgroundImage
+        ? { backgroundImage: variant.assets.androidAdaptiveBackgroundImage }
+        : {}),
       foregroundImage: variant.assets.androidAdaptiveForeground,
       monochromeImage: variant.assets.androidMonochromeIcon,
     },
@@ -312,6 +391,9 @@ const config: ExpoConfig = {
           shortcut_icon: {
             foregroundImage: variant.assets.androidAdaptiveForeground,
             backgroundColor: variant.assets.androidAdaptiveBackgroundColor,
+            ...(variant.assets.androidAdaptiveBackgroundImage
+              ? { backgroundImage: variant.assets.androidAdaptiveBackgroundImage }
+              : {}),
           },
         },
       },
@@ -319,7 +401,7 @@ const config: ExpoConfig = {
     [
       "expo-audio",
       {
-        microphonePermission: "Allow T3 Code to use your microphone for voice input.",
+        microphonePermission: `Allow ${APP_BASE_NAME} to use your microphone for voice input.`,
         recordAudioAndroid: false,
         enableBackgroundPlayback: false,
         enableBackgroundRecording: false,
@@ -328,7 +410,7 @@ const config: ExpoConfig = {
     [
       "expo-camera",
       {
-        cameraPermission: "Allow T3 Code to access your camera so you can scan pairing QR codes.",
+        cameraPermission: `Allow ${APP_BASE_NAME} to access your camera so you can scan pairing QR codes.`,
         microphonePermission: false,
         barcodeScannerEnabled: true,
         recordAudioAndroid: false,
@@ -346,11 +428,24 @@ const config: ExpoConfig = {
           image: variant.assets.splashIcon,
           backgroundColor: "#0a0a0a",
         },
+        android: {
+          // Android 12+ masks the splash icon to a circle over the central two thirds of
+          // its 288dp canvas, so the iOS export's corners get cut. A full-canvas image of
+          // the composed adaptive layers puts the wordmark in the same frame the launcher
+          // icon uses.
+          image: variant.assets.androidSplashIcon,
+          imageWidth: 288,
+          dark: { image: variant.assets.androidSplashIcon },
+        },
       },
     ],
     [
       "expo-build-properties",
       {
+        android: {
+          // Keep the supported floor explicit and covered by native notification tests.
+          minSdkVersion: 24,
+        },
         ios: {
           deploymentTarget: "18.0",
           // AppCheckCore 11.3+ includes Swift and needs module maps for these Objective-C dependencies.
@@ -371,6 +466,7 @@ const config: ExpoConfig = {
     "./plugins/withIosSceneLifecycle.cjs",
     "./plugins/withAndroidCleartextTraffic.cjs",
     "./plugins/withAndroidGradleHeap.cjs",
+    "./plugins/withAndroidInputBackground.cjs",
     "./plugins/withAndroidModernPopupMenu.cjs",
     "./plugins/withAndroidModernAlertDialog.cjs",
     "./plugins/withAndroidPredictiveBackCompat.cjs",

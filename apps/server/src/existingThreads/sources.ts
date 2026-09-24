@@ -88,18 +88,25 @@ async function officialThreads(
   const database = NodePath.join(home, "userdata", "state.sqlite");
   if (!(await exists(database))) return result;
   let serverAlive = false;
-  try {
-    const runtime = record(
-      JSON.parse(
-        await NodeFSP.readFile(NodePath.join(home, "userdata", "server-runtime.json"), "utf8"),
-      ),
-    );
-    if (typeof runtime.pid === "number" && runtime.pid > 0) {
-      process.kill(runtime.pid, 0);
+  const runtimePath = NodePath.join(home, "userdata", "server-runtime.json");
+  if (await exists(runtimePath)) {
+    try {
+      const runtime = record(JSON.parse(await NodeFSP.readFile(runtimePath, "utf8")));
+      if (typeof runtime.pid === "number" && runtime.pid > 0) {
+        try {
+          process.kill(runtime.pid, 0);
+          serverAlive = true;
+        } catch (error) {
+          const code =
+            error && typeof error === "object" && "code" in error ? error.code : undefined;
+          // EPERM means the process exists but this user cannot signal it.
+          if (code === "EPERM") serverAlive = true;
+        }
+      }
+    } catch {
+      // An unreadable runtime file is not proof that official T3 is stopped.
       serverAlive = true;
     }
-  } catch {
-    /* A stopped server leaves historical session status behind. */
   }
   const { DatabaseSync } = await import("node:sqlite");
   const db = new DatabaseSync(database, { readOnly: true });
@@ -140,12 +147,21 @@ export async function discoverThreads(
 ): Promise<{ threads: DiscoveredThread[]; notices: string[] }> {
   const notices: string[] = [];
   let official = new Map<string, OfficialThread>();
+  let officialReadFailed = false;
+  const officialDatabase = NodePath.join(input.officialHome, "userdata", "state.sqlite");
   try {
     official = await officialThreads(input.officialHome, input.provider);
   } catch {
-    notices.push(
-      "Official T3 history could not be read. Provider CLI sessions are still available.",
-    );
+    if (await exists(officialDatabase)) {
+      officialReadFailed = true;
+      notices.push(
+        "Official T3 history could not be read, so import is blocked until that check succeeds.",
+      );
+    } else {
+      notices.push(
+        "Official T3 history could not be read. Provider CLI sessions are still available.",
+      );
+    }
   }
   const home = await NodeFSP.realpath(input.providerHome).catch(() => input.providerHome);
   const candidateRoot = NodePath.join(home, input.provider === "codex" ? "sessions" : "projects");
@@ -164,8 +180,9 @@ export async function discoverThreads(
       if (!SESSION_ID.test(transcript.sessionId) || seen.has(transcript.sessionId)) continue;
       seen.add(transcript.sessionId);
       const t3 = official.get(transcript.sessionId);
-      const reason =
-        !transcript.cwd || !NodePath.isAbsolute(transcript.cwd)
+      const reason = officialReadFailed
+        ? "Official T3 history could not be read, so this session cannot be imported yet."
+        : !transcript.cwd || !NodePath.isAbsolute(transcript.cwd)
           ? "The original project folder is not recorded."
           : t3?.busy
             ? "Stop this session in official T3 before continuing here."

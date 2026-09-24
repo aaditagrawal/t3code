@@ -294,7 +294,11 @@ it.layer(testLayer)("standard ACP provider adapters", (it) => {
           assert.equal(assistant, "hello from mock");
           assert.equal(usage?.type, "thread.token-usage.updated");
           if (usage?.type === "thread.token-usage.updated") {
-            assert.deepStrictEqual(usage.payload.usage, { usedTokens: 1_200, maxTokens: 128_000 });
+            assert.deepStrictEqual(usage.payload.usage, {
+              usedTokens: 1_200,
+              maxTokens: 128_000,
+              cost: { amount: 0.42, currency: "USD" },
+            });
             assert.equal(usage.providerInstanceId, "ohMyPi");
           }
           assert.equal(limits?.type, "account.rate-limits.updated");

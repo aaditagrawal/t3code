@@ -11,7 +11,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as EffectAcpErrors from "effect-acp/errors";
-import type * as EffectAcpSchema from "effect-acp/schema";
+import type * as EffectAcpSchema from "effect-acp/compat";
 
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import {
@@ -143,7 +143,7 @@ describe("applyAntigravityAcpModelSelection", () => {
       const { runtime, selections } = makeModelRuntime([
         {
           ...modelConfig,
-          options: [{ group: "gemini", name: "Gemini", options: modelConfig.options }],
+          options: [{ groupId: "gemini", name: "Gemini", options: modelConfig.options }],
         },
       ]);
       const model = yield* applyAntigravityAcpModelSelection({
@@ -277,6 +277,51 @@ it.layer(NodeServices.layer)("buildAntigravityPrompt", (it) => {
       expect(
         yield* selectedEnvironment.fs.readDirectory(selectedEnvironment.attachmentsDir),
       ).toHaveLength(1);
+    }),
+  );
+
+  it.effect("keeps folded clipboard text out of native context", () =>
+    Effect.gen(function* () {
+      const fixture = yield* makeAttachmentFixture();
+      const pastedText = {
+        ...textAttachment,
+        name: "pasted-text.txt",
+        mimeType: "text/plain",
+        source: { _tag: "pasted-text" as const },
+      } satisfies ChatAttachment;
+      yield* fixture.write(pastedText, "A very large crash report");
+
+      const prompt = yield* buildAntigravityPrompt({
+        input: "Inspect the pasted text only as needed.",
+        attachments: [pastedText],
+        attachmentsDir: fixture.attachmentsDir,
+      });
+
+      expect(prompt).toEqual([{ type: "text", text: "Inspect the pasted text only as needed." }]);
+    }),
+  );
+
+  it.effect("rejects missing folded clipboard text", () =>
+    Effect.gen(function* () {
+      const fixture = yield* makeAttachmentFixture();
+      const pastedText = {
+        ...textAttachment,
+        name: "pasted-text.txt",
+        mimeType: "text/plain",
+        source: { _tag: "pasted-text" as const },
+      } satisfies ChatAttachment;
+
+      const error = yield* buildAntigravityPrompt({
+        input: "Inspect the pasted text only as needed.",
+        attachments: [pastedText],
+        attachmentsDir: fixture.attachmentsDir,
+      }).pipe(Effect.flip);
+
+      expect(error).toMatchObject({
+        _tag: "AcpRequestError",
+        code: -32602,
+        errorMessage: "Could not read attachment 'pasted-text.txt'.",
+      });
     }),
   );
 

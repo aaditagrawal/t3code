@@ -1,6 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off - tests use POSIX path joining to match the Linux startup boundary.
 import * as NodePath from "node:path";
-import { HOME_DIR_NAME, LINUX_WM_CLASS } from "@t3tools/shared/branding";
+import { HOME_DIR_NAME, LINUX_DESKTOP_ENTRY_NAME, LINUX_WM_CLASS } from "@t3tools/shared/branding";
 import { assert, describe, it } from "@effect/vitest";
 
 import {
@@ -82,7 +82,9 @@ describe("DesktopEarlyElectronStartup", () => {
     });
 
     assert.deepEqual(options, {
+      isDevelopment: true,
       linuxWmClass: `${LINUX_WM_CLASS}-dev`,
+      linuxDesktopEntryName: `${LINUX_DESKTOP_ENTRY_NAME}-dev.desktop`,
       passwordStore: "gnome-libsecret",
     });
   });

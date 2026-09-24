@@ -2,12 +2,8 @@
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeFS from "node:fs";
 
-import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
-import * as NodeServices from "@effect/platform-node/NodeServices";
-import * as Effect from "effect/Effect";
-import * as EffectAcpAgent from "effect-acp/agent";
-import * as AcpError from "effect-acp/errors";
-import type * as AcpSchema from "effect-acp/schema";
+import type * as AcpSchema from "effect-acp/compat";
+import { makeV1FixtureAgent } from "./v1FixtureAgent.ts";
 
 const sessionId = "oh-my-pi-config-session";
 const requestLogPath = process.env.T3_ACP_REQUEST_LOG_PATH;
@@ -83,77 +79,47 @@ function modeState(): AcpSchema.SessionModeState {
   };
 }
 
-const program = Effect.gen(function* () {
-  const agent = yield* EffectAcpAgent.AcpAgent;
-  yield* agent.handleInitialize(() =>
-    Effect.sync(() => ({
-      protocolVersion: 1 as const,
-      agentCapabilities: { loadSession: true },
-      agentInfo: { name: "oh-my-pi", title: "Oh My Pi", version: "18.0.5" },
-      authMethods: [
-        {
-          id: "agent",
-          name: "Use existing local credentials",
-          description: "Authenticate via credentials already configured under ~/.omp.",
-        },
-        {
-          id: "terminal",
-          name: "Set up Oh My Pi in terminal",
-          description: "Launch the omp TUI to add provider keys.",
-        },
-      ],
-    })),
-  );
-  yield* agent.handleAuthenticate((request) =>
-    Effect.sync(() => {
-      appendRequestLog({ method: "authenticate", methodId: request.methodId });
-      return {};
-    }),
-  );
-  yield* agent.handleCreateSession(() =>
-    Effect.succeed({
-      sessionId,
-      configOptions: configOptions(),
-      modes: modeState(),
-    }),
-  );
-  yield* agent.handleLoadSession(() =>
-    Effect.succeed({
-      configOptions: configOptions(),
-      modes: modeState(),
-    }),
-  );
-  yield* agent.handleSetSessionConfigOption((request) =>
-    Effect.gen(function* () {
-      appendRequestLog({
-        method: "session/set_config_option",
-        configId: request.configId,
-        value: request.value,
-      });
-      if (typeof request.value === "boolean") {
-        return yield* AcpError.AcpRequestError.invalidParams(
-          `Unsupported boolean ACP config option: ${request.configId}`,
-        );
-      }
-      if (request.configId === "model") {
-        currentModelId = request.value;
-      }
-      if (request.configId === "thinking") {
-        currentThinking = request.value;
-      }
-      if (request.configId === "mode") {
-        currentModeId = request.value;
-      }
-      return { configOptions: configOptions() };
-    }),
-  );
-  yield* agent.handleCancel(() => Effect.void);
-  yield* agent.handlePrompt(() => Effect.succeed({ stopReason: "end_turn" as const }));
-  return yield* Effect.never;
-}).pipe(
-  Effect.provide(EffectAcpAgent.layerStdio()),
-  Effect.scoped,
-  Effect.provide(NodeServices.layer),
-);
-
-NodeRuntime.runMain(program);
+const agent = makeV1FixtureAgent();
+agent.handle("initialize", () => ({
+  protocolVersion: 1,
+  agentCapabilities: { loadSession: true },
+  agentInfo: { name: "oh-my-pi", title: "Oh My Pi", version: "18.0.5" },
+  authMethods: [
+    {
+      id: "agent",
+      name: "Use existing local credentials",
+      description: "Authenticate via credentials already configured under ~/.omp.",
+    },
+    {
+      id: "terminal",
+      name: "Set up Oh My Pi in terminal",
+      description: "Launch the omp TUI to add provider keys.",
+    },
+  ],
+}));
+agent.handle("authenticate", (request) => {
+  appendRequestLog({ method: "authenticate", methodId: request.methodId });
+  return {};
+});
+agent.handle("session/new", () => ({
+  sessionId,
+  configOptions: configOptions(),
+  modes: modeState(),
+}));
+agent.handle("session/load", () => ({ configOptions: configOptions(), modes: modeState() }));
+agent.handle("session/set_config_option", (request) => {
+  appendRequestLog({
+    method: "session/set_config_option",
+    configId: request.configId,
+    value: request.value,
+  });
+  if (typeof request.value !== "string")
+    throw new Error(`Unsupported ACP config option: ${request.configId}`);
+  if (request.configId === "model") currentModelId = request.value;
+  if (request.configId === "thinking") currentThinking = request.value;
+  if (request.configId === "mode") currentModeId = request.value;
+  return { configOptions: configOptions() };
+});
+agent.handle("session/cancel", () => ({}));
+agent.handle("session/prompt", () => ({ stopReason: "end_turn" }));
+agent.start();

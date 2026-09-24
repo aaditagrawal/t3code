@@ -78,25 +78,32 @@ EOF
   ln -s t3code "$pkgdir/usr/bin/t3-code-desktop"
 
   # Icon lookup only sees sizes registered in hicolor's index.theme (max 512x512).
-  local icon size_dir
-  for icon in "$srcdir"/squashfs-root/usr/share/icons/hicolor/*/apps/t3code.png; do
-    size_dir="${icon%/apps/t3code.png}"
+  # electron-builder names Linux icons after LINUX_DESKTOP_ENTRY_NAME (t3code-fork).
+  local icon size_dir found=0
+  for icon in "$srcdir"/squashfs-root/usr/share/icons/hicolor/*/apps/t3code-fork.png; do
+    [[ -f "$icon" ]] || continue
+    found=1
+    size_dir="${icon%/apps/t3code-fork.png}"
     install -Dm644 "$icon" \
       "$pkgdir/usr/share/icons/hicolor/${size_dir##*/}/apps/t3code.png"
   done
+  if (( found == 0 )); then
+    echo 'The AppImage payload is missing t3code-fork hicolor icons.' >&2
+    return 1
+  fi
 
   install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/t3code.desktop" <<'EOF'
 [Desktop Entry]
-Name=T3 Code
+Name=T3 Code Fork
 Comment=Desktop control surface for local coding agents
 Exec=t3code %U
 TryExec=t3code
 Terminal=false
 Type=Application
 Icon=t3code
-StartupWMClass=t3code
+StartupWMClass=t3code-fork
 Categories=Development;
-MimeType=x-scheme-handler/t3code;
+MimeType=x-scheme-handler/t3code-fork;x-scheme-handler/t3code-fork-dev;
 EOF
 
   install -Dm644 "$srcdir/${pkgname}-${pkgver}-LICENSE" \

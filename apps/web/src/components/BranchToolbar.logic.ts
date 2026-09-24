@@ -1,4 +1,10 @@
-import type { EnvironmentId, EnvironmentMachineKind, VcsRef, ProjectId } from "@t3tools/contracts";
+import type {
+  EnvironmentId,
+  EnvironmentMachineKind,
+  VcsRef,
+  ProjectId,
+  WorktreeSubmodules,
+} from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import { toSortableTimestamp } from "../lib/threadSort";
 export {
@@ -56,6 +62,8 @@ export function shouldShowEnvironmentIndicator(input: {
 }
 
 export function shouldShowComposerContextStrip(input: {
+  isDraftHeroState: boolean;
+  persistInActiveThreads: boolean;
   hasActiveProject: boolean;
   isGitRepo: boolean;
   showEnvironmentIndicator: boolean;
@@ -64,6 +72,7 @@ export function shouldShowComposerContextStrip(input: {
 }): boolean {
   return (
     input.hasActiveProject &&
+    (input.isDraftHeroState || input.persistInActiveThreads) &&
     (input.isGitRepo || input.showEnvironmentIndicator || input.hostsRestingComposerControls)
   );
 }
@@ -86,12 +95,25 @@ export function resolveEnvModeLabel(mode: EnvMode): string {
   return mode === "worktree" ? "New worktree" : "Current checkout";
 }
 
+export const WORKTREE_SUBMODULES_LABELS: Record<WorktreeSubmodules, string> = {
+  recursive: "Recursive",
+  "top-level": "Top level only",
+  none: "Skip",
+};
+
 export function resolveCurrentWorkspaceLabel(activeWorktreePath: string | null): string {
   return activeWorktreePath ? "Current worktree" : resolveEnvModeLabel("local");
 }
 
 export function resolveLockedWorkspaceLabel(activeWorktreePath: string | null): string {
   return activeWorktreePath ? "Worktree" : "Local checkout";
+}
+
+export function resolveWorkspaceDisplayName(path: string | null): string | null {
+  if (!path) return null;
+  const normalizedPath = path.replace(/[\\/]+$/, "");
+  if (normalizedPath.length === 0) return path;
+  return normalizedPath.split(/[\\/]/).at(-1) ?? normalizedPath;
 }
 
 export interface PreviousWorktreeSeed {

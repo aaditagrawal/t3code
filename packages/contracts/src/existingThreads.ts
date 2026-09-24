@@ -26,11 +26,11 @@ export const ExistingThreadImportInput = Schema.Struct({
   sessionReleased: Schema.Literal(true),
 });
 export const ExistingThreadImportResult = Schema.Struct({ threadId: ThreadId });
-export class ExistingThreadError extends Schema.TaggedErrorClass<ExistingThreadError>()(
+export class ExistingThreadError extends Schema.TaggedError<ExistingThreadError>()(
   "ExistingThreadError",
   { detail: Schema.String },
 ) {
-  override get message() {
+  override get message(): string {
     return this.detail;
   }
 }

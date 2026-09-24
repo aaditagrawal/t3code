@@ -144,6 +144,54 @@ describe("existing session discovery", () => {
     expect(result.threads[0]!.summary.unavailableReason).toContain("Stop this session");
     expect(await NodeFSP.readFile(filename)).toEqual(before);
   });
+  it("treats an unreadable official database as a reason to block import", async () => {
+    const { input } = await fixture();
+    const dir = NodePath.join(input.officialHome, "userdata");
+    await NodeFSP.mkdir(NodePath.join(dir, "state.sqlite"), { recursive: true });
+    const result = await discoverThreads(input);
+    expect(result.threads[0]!.summary.unavailableReason).toContain("could not be read");
+  });
+  it("keeps a live official session blocked when its process cannot be signaled", async () => {
+    const { input } = await fixture();
+    const dir = NodePath.join(input.officialHome, "userdata");
+    await NodeFSP.mkdir(dir, { recursive: true });
+    const filename = NodePath.join(dir, "state.sqlite");
+    const db = new NodeSqlite.DatabaseSync(filename);
+    db.exec(
+      "CREATE TABLE projection_threads(thread_id TEXT, title TEXT, deleted_at TEXT, updated_at TEXT); CREATE TABLE provider_session_runtime(thread_id TEXT, provider_name TEXT, resume_cursor_json TEXT, status TEXT);",
+    );
+    db.prepare("INSERT INTO projection_threads VALUES (?, ?, NULL, ?)").run(
+      "t3-id",
+      "Official title",
+      stamp,
+    );
+    db.prepare("INSERT INTO provider_session_runtime VALUES (?, ?, ?, ?)").run(
+      "t3-id",
+      "codex",
+      JSON.stringify({ threadId: sessionId }),
+      "ready",
+    );
+    db.close();
+    await NodeFSP.writeFile(
+      NodePath.join(dir, "server-runtime.json"),
+      JSON.stringify({ pid: process.pid }),
+    );
+    const originalKill = process.kill;
+    process.kill = ((pid: number, signal?: NodeJS.Signals | number) => {
+      if (signal === 0) {
+        const error = new Error("operation not permitted") as NodeJS.ErrnoException;
+        error.code = "EPERM";
+        throw error;
+      }
+      return originalKill.call(process, pid, signal);
+    }) as typeof process.kill;
+    try {
+      const result = await discoverThreads(input);
+      expect(result.threads[0]!.summary.unavailableReason).toContain("Stop this session");
+    } finally {
+      process.kill = originalKill;
+    }
+  });
   it("refuses a transcript swapped to an external symlink after discovery", async () => {
     const { root, input, file } = await fixture();
     const found = (await discoverThreads(input)).threads[0]!;

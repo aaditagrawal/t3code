@@ -4,16 +4,25 @@ import * as NodeURL from "node:url";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
-import { ProviderDriverKind } from "@t3tools/contracts";
+import { ProviderDriverKind, ProviderInstanceId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 
+import * as Layer from "effect/Layer";
+
+import { ServerConfig } from "../../config.ts";
+import { layer as idAllocatorLayer } from "../../orchestration-v2/IdAllocator.ts";
+import { AcpProviderCapabilitiesV2 } from "../../orchestration-v2/Adapters/AcpAdapterV2.ts";
+import { legacyAdapterV2Capabilities } from "../../orchestration-v2/Adapters/LegacyAdapterV2.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
+import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
+import { NoOpProviderEventLoggers, ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
 import { resolveOhMyPiAuthMethodId } from "../Layers/OhMyPiAdapter.ts";
 import {
   checkStandardAcpCliProviderStatus,
   type StandardAcpCliProviderConfig,
 } from "../Layers/StandardAcpCliProvider.ts";
-import { makeOhMyPiProbeArgs } from "./OhMyPiDriver.ts";
+import { makeOhMyPiProbeArgs, OhMyPiDriver } from "./OhMyPiDriver.ts";
 
 const __dirname = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
 const ohMyPiConfigAgentPath = NodePath.join(
@@ -120,3 +129,51 @@ it.live("stays ready when session setup advertises models", () =>
     );
   }).pipe(Effect.provide(NodeServices.layer)),
 );
+
+const driverLayer = ServerConfig.layerTest(process.cwd(), {
+  prefix: "t3-oh-my-pi-driver-v2-",
+}).pipe(
+  Layer.provideMerge(NodeServices.layer),
+  Layer.provideMerge(idAllocatorLayer),
+  Layer.provideMerge(ServerSettingsService.layerTest()),
+  Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
+  Layer.provideMerge(
+    Layer.mock(BackgroundPolicy.BackgroundPolicy)({
+      shouldRunScopeWork: () => Effect.succeed(false),
+    }),
+  ),
+);
+
+it.layer(driverLayer)("OhMyPiDriver orchestration adapter", (it) => {
+  it.effect("uses the native Oh My Pi v2 adapter instead of LegacyAdapterV2", () =>
+    Effect.gen(function* () {
+      const instance = yield* OhMyPiDriver.create({
+        instanceId: ProviderInstanceId.make("ohMyPi-v2"),
+        displayName: "Oh My Pi",
+        enabled: false,
+        environment: [],
+        config: OhMyPiDriver.defaultConfig(),
+      });
+      const capabilities = yield* instance.orchestrationAdapter.getCapabilities();
+      const legacy = legacyAdapterV2Capabilities(
+        {
+          resume: "acp",
+          nativeHistory: false,
+          reasoning: true,
+          approvals: true,
+          questions: true,
+          planning: true,
+          mcp: true,
+        },
+        true,
+      );
+      assert.equal(instance.orchestrationAdapter.driver, "ohMyPi");
+      assert.deepEqual(capabilities, AcpProviderCapabilitiesV2);
+      assert.notDeepEqual(capabilities, legacy);
+      assert.isTrue(capabilities.threads.canRollbackThread);
+      assert.isFalse(legacy.threads.canRollbackThread);
+      assert.isTrue(capabilities.turns.supportsSteeringByInterruptRestart);
+      assert.isFalse(legacy.turns.supportsSteeringByInterruptRestart);
+    }).pipe(Effect.scoped),
+  );
+});

@@ -1,4 +1,6 @@
 import { useCommitRef } from "@t3tools/client-runtime/react";
+import { ProcessSignalActions } from "./ProcessSignalActions";
+import { RefreshIcon } from "~/components/ui/refresh-icon";
 import {
   AlertTriangleIcon,
   ChevronDownIcon,
@@ -6,14 +8,12 @@ import {
   CopyIcon,
   FolderOpenIcon,
   InfoIcon,
-  RefreshCwIcon,
 } from "lucide-react";
-import { useAtomValue } from "@effect/atom-react";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
   ServerProcessDiagnosticsEntry,
   ServerProcessResourceHistorySummary,
@@ -27,13 +27,8 @@ import { ensureLocalApi } from "../../localApi";
 import { resolveAndPersistPreferredEditor } from "../../editorPreferences";
 import { formatRelativeTimeLabel, getRelativeTimeState } from "../../timestampFormat";
 import { useEnvironmentQuery } from "../../state/query";
-import {
-  primaryServerAvailableEditorsAtom,
-  primaryServerObservabilityAtom,
-  serverEnvironment,
-} from "../../state/server";
+import { serverEnvironment } from "../../state/server";
 import { shellEnvironment } from "../../state/shell";
-import { usePrimaryEnvironment } from "../../state/environments";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
@@ -44,6 +39,7 @@ import { ExpandableText } from "./ExpandableText";
 import { ResourceTelemetryDiagnostics } from "./ResourceTelemetryDiagnostics";
 import { SettingsPageContainer, SettingsSection, useRelativeTimeTick } from "./settingsLayout";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { useSettingsScope } from "./SettingsScopeContext";
 
 const NUMBER_FORMAT = new Intl.NumberFormat();
 
@@ -114,12 +110,7 @@ function StatBlock({
                 </button>
               }
             />
-            <TooltipPopup
-              side="top"
-              className="max-w-[min(300px,calc(100vw-2rem))] whitespace-normal text-left text-[11px] leading-relaxed text-wrap"
-            >
-              {tooltip}
-            </TooltipPopup>
+            <TooltipPopup side="top">{tooltip}</TooltipPopup>
           </Tooltip>
         ) : null}
       </div>
@@ -177,10 +168,11 @@ function DiagnosticsTable({
 }) {
   return (
     <ScrollArea
+      radius="none"
       chainVerticalScroll
       scrollFade
       hideScrollbars
-      className="w-full max-w-full rounded-none"
+      className="w-full max-w-full"
     >
       <table
         className={cn("w-full text-left text-xs", minTableWidth, columnWidths && "table-fixed")}
@@ -229,10 +221,7 @@ function TraceIdCell({ traceId }: { traceId: string }) {
             </span>
           }
         />
-        <TooltipPopup
-          side="top"
-          className="max-w-[min(520px,calc(100vw-2rem))] break-all font-mono text-[11px]"
-        >
+        <TooltipPopup side="top" variant="code">
           {traceId}
         </TooltipPopup>
       </Tooltip>
@@ -304,57 +293,9 @@ function ProcessNameCell({
         <TooltipTrigger
           render={<span className="min-w-0 truncate font-medium text-foreground">{name}</span>}
         />
-        <TooltipPopup
-          side="top"
-          className="max-w-[min(440px,calc(100vw-2rem))] whitespace-normal break-words text-left font-mono text-[11px] leading-relaxed text-wrap"
-        >
+        <TooltipPopup side="top" variant="code">
           {process.command}
         </TooltipPopup>
-      </Tooltip>
-    </div>
-  );
-}
-
-function ProcessSignalActions({
-  process,
-  isSignaling,
-  onSignal,
-}: {
-  process: ServerProcessDiagnosticsEntry;
-  isSignaling: boolean;
-  onSignal: (pid: number, signal: ServerProcessSignal) => void;
-}) {
-  return (
-    <div className="flex items-center justify-end gap-1.5">
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type="button"
-              disabled={isSignaling}
-              className="cursor-pointer text-[11px] font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50"
-              onClick={() => onSignal(process.pid, "SIGINT")}
-            >
-              INT
-            </button>
-          }
-        />
-        <TooltipPopup side="top">Send SIGINT</TooltipPopup>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type="button"
-              disabled={isSignaling}
-              className="cursor-pointer text-[11px] font-medium text-destructive underline-offset-2 hover:underline disabled:pointer-events-none disabled:opacity-50"
-              onClick={() => onSignal(process.pid, "SIGKILL")}
-            >
-              KILL
-            </button>
-          }
-        />
-        <TooltipPopup side="top">Send SIGKILL</TooltipPopup>
       </Tooltip>
     </div>
   );
@@ -404,87 +345,86 @@ function ProcessDiagnosticsTable({
   }, []);
 
   return (
-    <ScrollArea
-      chainVerticalScroll
-      scrollFade
-      hideScrollbars
-      className="max-h-[min(64vh,44rem)] w-full max-w-full rounded-none border-t border-border/60"
-    >
-      <table className="w-full min-w-[1040px] table-fixed text-left text-xs">
-        <colgroup>
-          <col className="w-[24%]" />
-          <col className="w-[8%]" />
-          <col className="w-[10%]" />
-          <col className="w-[33%]" />
-          <col className="w-[8%]" />
-          <col className="w-[11%]" />
-          <col className="w-[6%]" />
-        </colgroup>
-        <thead className="sticky top-0 z-10 border-b border-border/60 bg-card text-[11px] uppercase tracking-[0.08em] text-muted-foreground/70">
-          <tr>
-            <th className="px-4 py-2 font-semibold sm:pl-5">Name</th>
-            <th className="px-3 py-2 text-right font-semibold">CPU</th>
-            <th className="px-3 py-2 text-right font-semibold">Memory</th>
-            <th className="px-3 py-2 font-semibold">Command</th>
-            <th className="px-3 py-2 text-right font-semibold">PID</th>
-            <th className="px-3 py-2 font-semibold">Type</th>
-            <th className="p-2 text-right font-semibold sm:pr-4">Kill</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/50">
-          {visibleProcesses.length === 0 ? (
+    <div className="border-t border-border/60">
+      <ScrollArea
+        radius="none"
+        chainVerticalScroll
+        scrollFade
+        hideScrollbars
+        className="max-h-[min(64vh,44rem)] w-full max-w-full"
+      >
+        <table className="w-full min-w-[1040px] table-fixed text-left text-xs">
+          <colgroup>
+            <col className="w-[24%]" />
+            <col className="w-[8%]" />
+            <col className="w-[10%]" />
+            <col className="w-[33%]" />
+            <col className="w-[8%]" />
+            <col className="w-[11%]" />
+            <col className="w-[6%]" />
+          </colgroup>
+          <thead className="sticky top-0 z-10 border-b border-border/60 bg-card text-[11px] uppercase tracking-[0.08em] text-muted-foreground/70">
             <tr>
-              <td colSpan={7} className="px-4 py-4 text-xs text-muted-foreground sm:px-5">
-                {emptyLabel ?? "No live descendant processes found."}
-              </td>
+              <th className="px-4 py-2 font-semibold sm:pl-5">Name</th>
+              <th className="px-3 py-2 text-right font-semibold">CPU</th>
+              <th className="px-3 py-2 text-right font-semibold">Memory</th>
+              <th className="px-3 py-2 font-semibold">Command</th>
+              <th className="px-3 py-2 text-right font-semibold">PID</th>
+              <th className="px-3 py-2 font-semibold">Type</th>
+              <th className="p-2 text-right font-semibold sm:pr-4">Kill</th>
             </tr>
-          ) : null}
-          {visibleProcesses.map((process) => (
-            <tr key={process.pid} className="hover:bg-muted/20">
-              <td className="px-4 py-2 align-middle sm:pl-5">
-                <ProcessNameCell
-                  process={process}
-                  isExpanded={!collapsedPids.has(process.pid)}
-                  onToggle={toggleProcess}
-                />
-              </td>
-              <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
-                {process.cpuPercent.toFixed(1)}%
-              </td>
-              <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
-                {formatBytes(process.rssBytes)}
-              </td>
-              <td className="px-3 py-2 align-middle text-muted-foreground">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={<span className="block truncate">{process.command}</span>}
+          </thead>
+          <tbody className="divide-y divide-border/50">
+            {visibleProcesses.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-4 text-xs text-muted-foreground sm:px-5">
+                  {emptyLabel ?? "No live descendant processes found."}
+                </td>
+              </tr>
+            ) : null}
+            {visibleProcesses.map((process) => (
+              <tr key={process.pid} className="hover:bg-muted/20">
+                <td className="px-4 py-2 align-middle sm:pl-5">
+                  <ProcessNameCell
+                    process={process}
+                    isExpanded={!collapsedPids.has(process.pid)}
+                    onToggle={toggleProcess}
                   />
-                  <TooltipPopup
-                    side="top"
-                    className="max-w-[min(440px,calc(100vw-2rem))] whitespace-normal break-words text-left font-mono text-[11px] leading-relaxed text-wrap"
-                  >
-                    {process.command}
-                  </TooltipPopup>
-                </Tooltip>
-              </td>
-              <td className="px-3 py-2 text-right align-middle font-mono tabular-nums text-muted-foreground">
-                {process.pid}
-              </td>
-              <td className="truncate px-3 py-2 align-middle text-muted-foreground">
-                {formatProcessType(process)}
-              </td>
-              <td className="p-2 align-middle sm:pr-4">
-                <ProcessSignalActions
-                  process={process}
-                  isSignaling={signalingPid === process.pid}
-                  onSignal={onSignal}
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </ScrollArea>
+                </td>
+                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                  {process.cpuPercent.toFixed(1)}%
+                </td>
+                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                  {formatBytes(process.rssBytes)}
+                </td>
+                <td className="px-3 py-2 align-middle text-muted-foreground">
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={<span className="block truncate">{process.command}</span>}
+                    />
+                    <TooltipPopup side="top" variant="code">
+                      {process.command}
+                    </TooltipPopup>
+                  </Tooltip>
+                </td>
+                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums text-muted-foreground">
+                  {process.pid}
+                </td>
+                <td className="truncate px-3 py-2 align-middle text-muted-foreground">
+                  {formatProcessType(process)}
+                </td>
+                <td className="p-2 align-middle sm:pr-4">
+                  <ProcessSignalActions
+                    disabled={signalingPid === process.pid}
+                    onSignal={(signal) => onSignal(process.pid, signal)}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScrollArea>
+    </div>
   );
 }
 
@@ -533,10 +473,7 @@ function ResourceHistoryProcessNameCell({
         <TooltipTrigger
           render={<span className="min-w-0 truncate font-medium text-foreground">{name}</span>}
         />
-        <TooltipPopup
-          side="top"
-          className="max-w-[min(440px,calc(100vw-2rem))] whitespace-normal break-words text-left font-mono text-[11px] leading-relaxed text-wrap"
-        >
+        <TooltipPopup side="top" variant="code">
           {process.command}
         </TooltipPopup>
       </Tooltip>
@@ -634,91 +571,90 @@ function ProcessResourceHistoryTable({
   }, null);
 
   return (
-    <ScrollArea
-      chainVerticalScroll
-      scrollFade
-      hideScrollbars
-      className="max-h-[min(64vh,44rem)] w-full max-w-full border-t border-border/60"
-    >
-      <table className="w-full min-w-[980px] table-fixed text-left text-xs">
-        <colgroup>
-          <col className="w-[24%]" />
-          <col className="w-[10%]" />
-          <col className="w-[10%]" />
-          <col className="w-[10%]" />
-          <col className="w-[10%]" />
-          <col className="w-[10%]" />
-          <col className="w-[16%]" />
-          <col className="w-[10%]" />
-        </colgroup>
-        <thead className="sticky top-0 z-10 border-b border-border/60 bg-card text-[11px] uppercase tracking-[0.08em] text-muted-foreground/70">
-          <tr>
-            <th className="px-4 py-2 font-semibold sm:pl-5">Process</th>
-            <th className="px-3 py-2 text-right font-semibold">CPU Time</th>
-            <th className="px-3 py-2 text-right font-semibold">Current</th>
-            <th className="px-3 py-2 text-right font-semibold">Average</th>
-            <th className="px-3 py-2 text-right font-semibold">Peak</th>
-            <th className="px-3 py-2 text-right font-semibold">Max Mem</th>
-            <th className="px-3 py-2 font-semibold">Command</th>
-            <th className="px-3 py-2 text-right font-semibold sm:pr-5">PID</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/50">
-          {processes.length === 0 ? (
+    <div className="border-t border-border/60">
+      <ScrollArea
+        chainVerticalScroll
+        scrollFade
+        hideScrollbars
+        className="max-h-[min(64vh,44rem)] w-full max-w-full"
+      >
+        <table className="w-full min-w-[980px] table-fixed text-left text-xs">
+          <colgroup>
+            <col className="w-[24%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+            <col className="w-[16%]" />
+            <col className="w-[10%]" />
+          </colgroup>
+          <thead className="sticky top-0 z-10 border-b border-border/60 bg-card text-[11px] uppercase tracking-[0.08em] text-muted-foreground/70">
             <tr>
-              <td colSpan={8} className="px-4 py-4 text-xs text-muted-foreground sm:px-5">
-                {emptyLabel}
-              </td>
+              <th className="px-4 py-2 font-semibold sm:pl-5">Process</th>
+              <th className="px-3 py-2 text-right font-semibold">CPU Time</th>
+              <th className="px-3 py-2 text-right font-semibold">Current</th>
+              <th className="px-3 py-2 text-right font-semibold">Average</th>
+              <th className="px-3 py-2 text-right font-semibold">Peak</th>
+              <th className="px-3 py-2 text-right font-semibold">Max Mem</th>
+              <th className="px-3 py-2 font-semibold">Command</th>
+              <th className="px-3 py-2 text-right font-semibold sm:pr-5">PID</th>
             </tr>
-          ) : null}
-          {processes.map((process) => (
-            <tr key={process.processKey} className="hover:bg-muted/20">
-              <td className="px-4 py-2 align-middle sm:pl-5">
-                <ResourceHistoryProcessNameCell
-                  process={process}
-                  visualDepth={
-                    process.isServerRoot || shallowestChildDepth === null
-                      ? 0
-                      : Math.max(1, process.depth - shallowestChildDepth + 1)
-                  }
-                />
-              </td>
-              <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
-                {formatCpuTime(process.cpuSecondsApprox)}
-              </td>
-              <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
-                {process.currentCpuPercent.toFixed(1)}%
-              </td>
-              <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
-                {process.avgCpuPercent.toFixed(1)}%
-              </td>
-              <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
-                {process.maxCpuPercent.toFixed(1)}%
-              </td>
-              <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
-                {formatBytes(process.maxRssBytes)}
-              </td>
-              <td className="px-3 py-2 align-middle text-muted-foreground">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={<span className="block truncate">{process.command}</span>}
+          </thead>
+          <tbody className="divide-y divide-border/50">
+            {processes.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-4 py-4 text-xs text-muted-foreground sm:px-5">
+                  {emptyLabel}
+                </td>
+              </tr>
+            ) : null}
+            {processes.map((process) => (
+              <tr key={process.processKey} className="hover:bg-muted/20">
+                <td className="px-4 py-2 align-middle sm:pl-5">
+                  <ResourceHistoryProcessNameCell
+                    process={process}
+                    visualDepth={
+                      process.isServerRoot || shallowestChildDepth === null
+                        ? 0
+                        : Math.max(1, process.depth - shallowestChildDepth + 1)
+                    }
                   />
-                  <TooltipPopup
-                    side="top"
-                    className="max-w-[min(440px,calc(100vw-2rem))] whitespace-normal break-words text-left font-mono text-[11px] leading-relaxed text-wrap"
-                  >
-                    {process.command}
-                  </TooltipPopup>
-                </Tooltip>
-              </td>
-              <td className="px-3 py-2 text-right align-middle font-mono tabular-nums text-muted-foreground sm:pr-5">
-                {process.pid}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </ScrollArea>
+                </td>
+                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                  {formatCpuTime(process.cpuSecondsApprox)}
+                </td>
+                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                  {process.currentCpuPercent.toFixed(1)}%
+                </td>
+                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                  {process.avgCpuPercent.toFixed(1)}%
+                </td>
+                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                  {process.maxCpuPercent.toFixed(1)}%
+                </td>
+                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                  {formatBytes(process.maxRssBytes)}
+                </td>
+                <td className="px-3 py-2 align-middle text-muted-foreground">
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={<span className="block truncate">{process.command}</span>}
+                    />
+                    <TooltipPopup side="top" variant="code">
+                      {process.command}
+                    </TooltipPopup>
+                  </Tooltip>
+                </td>
+                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums text-muted-foreground sm:pr-5">
+                  {process.pid}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScrollArea>
+    </div>
   );
 }
 
@@ -767,7 +703,7 @@ function DiagnosticsRefreshButton({
             onClick={onClick}
             aria-label={label}
           >
-            <RefreshCwIcon className={cn(isPending && "animate-spin")} />
+            <RefreshIcon refreshing={isPending} />
           </Button>
         }
       />
@@ -777,10 +713,12 @@ function DiagnosticsRefreshButton({
 }
 
 export function DiagnosticsSettingsPanel() {
-  const observability = useAtomValue(primaryServerObservabilityAtom);
-  const availableEditors = useAtomValue(primaryServerAvailableEditorsAtom);
-  const primaryEnvironment = usePrimaryEnvironment();
-  const environmentId = primaryEnvironment?.environmentId ?? null;
+  const { environment } = useSettingsScope();
+  // The boundary only mounts this page when the selection resolves to one
+  // connected environment, so the representative is the one to inspect.
+  const environmentId = environment?.environmentId ?? null;
+  const observability = environment?.serverConfig?.observability;
+  const availableEditors = environment?.serverConfig?.availableEditors;
   const signalServerProcess = useAtomCommand(serverEnvironment.signalProcess, {
     reportFailure: false,
   });
@@ -830,6 +768,12 @@ export function DiagnosticsSettingsPanel() {
   useCommitRef(environmentIdRef, environmentId);
   const processDataRef = useRef(processData);
   useCommitRef(processDataRef, processData);
+  useEffect(() => {
+    environmentIdRef.current = environmentId;
+    return () => {
+      environmentIdRef.current = null;
+    };
+  }, [environmentId]);
 
   const openLogsDirectory = useCallback(() => {
     const logsDirectoryPath = observability?.logsDirectoryPath ?? null;
@@ -867,87 +811,94 @@ export function DiagnosticsSettingsPanel() {
 
   const isInitialLoading = isPending && data === null;
   const isProcessInitialLoading = isProcessPending && processData === null;
-  const signalProcess = useCallback(async (pid: number, signal: ServerProcessSignal) => {
-    if (signalingPidRef.current !== null) return;
-    signalingPidRef.current = pid;
-    setSignalingPid(pid);
-    const clearSignaling = () => {
-      signalingPidRef.current = null;
-      setSignalingPid(null);
-    };
-    if (signal === "SIGKILL") {
-      let confirmed = false;
-      try {
-        confirmed = await ensureLocalApi().dialogs.confirm(
-          `Send SIGKILL to process ${pid}? This cannot be handled by the process.`,
-          { variant: "destructive" },
-        );
-      } catch (error) {
-        clearSignaling();
-        toastManager.add({
-          type: "error",
-          title: "Could not confirm signal",
-          description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
-        });
-        return;
-      }
-      if (!confirmed) {
-        clearSignaling();
-        return;
-      }
-    }
-    const currentEnvironmentId = environmentIdRef.current;
-    if (currentEnvironmentId === null) {
-      clearSignaling();
-      return;
-    }
-    const process = processDataRef.current?.processes.find((entry) => entry.pid === pid);
-    if (process === undefined) {
-      clearSignaling();
-      return;
-    }
-
-    try {
-      const result = await signalServerProcess({
-        environmentId: currentEnvironmentId,
-        input: { pid, startTimeMs: process.startTimeMs, signal },
-      });
-      if (result._tag === "Failure") {
-        if (!isAtomCommandInterrupted(result)) {
-          const error = squashAtomCommandFailure(result);
+  const signalProcess = useCallback(
+    async (pid: number, signal: ServerProcessSignal) => {
+      const targetEnvironmentId = environmentIdRef.current;
+      const process = processDataRef.current?.processes.find((entry) => entry.pid === pid);
+      if (targetEnvironmentId === null || process === undefined) return;
+      if (signalingPidRef.current !== null) return;
+      signalingPidRef.current = pid;
+      setSignalingPid(pid);
+      const clearSignaling = () => {
+        signalingPidRef.current = null;
+        setSignalingPid(null);
+      };
+      if (signal === "SIGKILL") {
+        let confirmed = false;
+        try {
+          confirmed = await ensureLocalApi().dialogs.confirm(
+            `Send SIGKILL to process ${pid}? This cannot be handled by the process.`,
+            { variant: "destructive" },
+          );
+        } catch (error) {
+          clearSignaling();
           toastManager.add({
             type: "error",
-            title: `Could not send ${signal}`,
+            title: "Could not confirm signal",
             description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
-          });
-        }
-        return;
-      }
-      if (!result.value.signaled) {
-        const message = Option.getOrUndefined(result.value.message);
-        refreshProcesses();
-        if (isStaleProcessSignalMessage(message)) {
-          toastManager.add({
-            type: "info",
-            title: "Process already exited",
-            description:
-              "The process is not a child of the T3 Server. It might already have exited.",
           });
           return;
         }
-
-        toastManager.add({
-          type: "error",
-          title: `Could not send ${signal}`,
-          description: message ?? `Failed to send ${signal}.`,
-        });
+        if (!confirmed) {
+          clearSignaling();
+          return;
+        }
+      }
+      if (environmentIdRef.current !== targetEnvironmentId) {
+        clearSignaling();
         return;
       }
-      refreshProcesses();
-    } finally {
-      clearSignaling();
-    }
-  }, []);
+      if (
+        processDataRef.current?.processes.find((entry) => entry.pid === pid)?.startTimeMs !==
+        process.startTimeMs
+      ) {
+        clearSignaling();
+        return;
+      }
+
+      try {
+        const result = await signalServerProcess({
+          environmentId: targetEnvironmentId,
+          input: { pid, startTimeMs: process.startTimeMs, signal },
+        });
+        if (result._tag === "Failure") {
+          if (!isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add({
+              type: "error",
+              title: `Could not send ${signal}`,
+              description: error instanceof Error ? error.message : `Failed to send ${signal}.`,
+            });
+          }
+          return;
+        }
+        if (!result.value.signaled) {
+          const message = Option.getOrUndefined(result.value.message);
+          refreshProcesses();
+          if (isStaleProcessSignalMessage(message)) {
+            toastManager.add({
+              type: "info",
+              title: "Process already exited",
+              description:
+                "The process is not a child of the T3 Server. It might already have exited.",
+            });
+            return;
+          }
+
+          toastManager.add({
+            type: "error",
+            title: `Could not send ${signal}`,
+            description: message ?? `Failed to send ${signal}.`,
+          });
+          return;
+        }
+        refreshProcesses();
+      } finally {
+        clearSignaling();
+      }
+    },
+    [refreshProcesses, signalServerProcess],
+  );
 
   const processDiagnosticsError = processData ? Option.getOrNull(processData.error) : null;
   const processResourceError = resourceData ? Option.getOrNull(resourceData.error) : null;
@@ -958,7 +909,7 @@ export function DiagnosticsSettingsPanel() {
 
   return (
     <SettingsPageContainer width="expanded" className="gap-10">
-      <ResourceTelemetryDiagnostics />
+      <ResourceTelemetryDiagnostics environmentId={environmentId} />
 
       <SettingsSection
         title="Live Processes"
@@ -1259,10 +1210,11 @@ export function DiagnosticsSettingsPanel() {
       <SettingsSection title="Span Logs">
         {data && data.latestWarningAndErrorLogs.length > 0 ? (
           <ScrollArea
+            radius="none"
             chainVerticalScroll
             scrollFade
             hideScrollbars
-            className="w-full max-w-full rounded-none"
+            className="w-full max-w-full"
           >
             <table className="w-full min-w-[920px] table-fixed text-left text-xs">
               <colgroup>

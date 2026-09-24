@@ -1,11 +1,13 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
+import * as Scope from "effect/Scope";
 import { createModelSelection } from "@t3tools/shared/model";
 import { expect } from "vite-plus/test";
 
@@ -134,6 +136,7 @@ function withFakeCodexEnv<A, E, R>(
   input: FakeCodexInput & {
     launchArgs?: string;
     environment?: NodeJS.ProcessEnv;
+    models?: ReadonlyArray<string>;
   },
   effectFn: (textGeneration: TextGeneration.TextGeneration["Service"]) => Effect.Effect<A, E, R>,
 ) {
@@ -144,13 +147,42 @@ function withFakeCodexEnv<A, E, R>(
     const config = decodeCodexSettings({ binaryPath: codexPath, launchArgs: input.launchArgs });
     const textGeneration = yield* makeCodexTextGeneration(
       config,
-      input.environment ? { ...process.env, ...input.environment } : undefined,
+      input.environment === undefined ? undefined : { ...process.env, ...input.environment },
+      Effect.succeed(
+        (input.models ?? []).map((slug) => ({
+          slug,
+          name: slug,
+          isCustom: false,
+          capabilities: null,
+        })),
+      ),
     );
     return yield* effectFn(textGeneration);
   }).pipe(Effect.scoped);
 }
 
 it.layer(CodexTextGenerationTestLayer)("CodexTextGeneration", (it) => {
+  for (const selectedModel of ["gpt-5.6-luna", "openai.gpt-5.6-luna"]) {
+    it.effect(`dispatches the qualified live model for ${selectedModel}`, () =>
+      withFakeCodexEnv(
+        {
+          output: JSON.stringify({ title: "Bedrock title" }),
+          models: ["openai.gpt-5.6-luna"],
+          requireArg: "--model openai.gpt-5.6-luna",
+          forbidArg: "--model gpt-5.6-luna",
+        },
+        (textGeneration) =>
+          Effect.gen(function* () {
+            const result = yield* textGeneration.generateThreadTitle({
+              cwd: process.cwd(),
+              message: "Describe this change",
+              modelSelection: createModelSelection(ProviderInstanceId.make("codex"), selectedModel),
+            });
+            expect(result.title).toBe("Bedrock title");
+          }),
+      ),
+    );
+  }
   it.effect("generates and sanitizes commit messages without branch by default", () =>
     withFakeCodexEnv(
       {
@@ -236,7 +268,7 @@ it.layer(CodexTextGenerationTestLayer)("CodexTextGeneration", (it) => {
           body: "",
         }),
         launchArgs: "--enable settings-feature",
-        environment: { T3CODE_CODEX_LAUNCH_ARGS: " --strict-config --listen off " },
+        environment: { ...process.env, T3CODE_CODEX_LAUNCH_ARGS: " --strict-config --listen off " },
         requireArg: "--strict-config",
         forbidArg: "settings-feature",
       },
@@ -346,6 +378,34 @@ it.layer(CodexTextGenerationTestLayer)("CodexTextGeneration", (it) => {
     ),
   );
 
+  it.effect("generates branch names even when the ambient scope is already closed", () =>
+    withFakeCodexEnv(
+      {
+        output: JSON.stringify({
+          branch: "feat/background-generation",
+        }),
+      },
+      (textGeneration) =>
+        Effect.gen(function* () {
+          // Background fibers (e.g. the worktree branch rename fork) can run
+          // after their launching request's scope has closed; temp files must
+          // not be tied to that ambient scope or they are reaped on creation.
+          const closedScope = yield* Scope.make();
+          yield* Scope.close(closedScope, Exit.void);
+
+          const generated = yield* textGeneration
+            .generateBranchName({
+              cwd: process.cwd(),
+              message: "Please update session handling.",
+              modelSelection: DEFAULT_TEST_MODEL_SELECTION,
+            })
+            .pipe(Effect.provideService(Scope.Scope, closedScope));
+
+          expect(generated.branch).toBe("feat/background-generation");
+        }),
+    ),
+  );
+
   it.effect("generates thread titles and trims them for sidebar use", () =>
     withFakeCodexEnv(
       {
@@ -362,7 +422,25 @@ it.layer(CodexTextGenerationTestLayer)("CodexTextGeneration", (it) => {
             modelSelection: DEFAULT_TEST_MODEL_SELECTION,
           });
 
-          expect(generated.title).toBe("Investigate websocket reconnect regressions aft...");
+          expect(generated.title).toBe(
+            "Investigate websocket reconnect regressions after worktree restore",
+          );
+        }),
+    ),
+  );
+
+  it.effect("returns the refinement signal for an unresolved subject", () =>
+    withFakeCodexEnv(
+      { output: JSON.stringify({ title: "Investigate issue", needsRefinement: true }) },
+      (textGeneration) =>
+        Effect.gen(function* () {
+          expect(
+            yield* textGeneration.generateThreadTitle({
+              cwd: process.cwd(),
+              message: "Fix this",
+              modelSelection: DEFAULT_TEST_MODEL_SELECTION,
+            }),
+          ).toEqual({ title: "Investigate issue", needsRefinement: true });
         }),
     ),
   );

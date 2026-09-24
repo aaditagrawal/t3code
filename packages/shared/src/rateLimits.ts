@@ -302,7 +302,7 @@ export function normalizeProviderRateLimitPayload(
       // from the top level or it would not survive the round trip.
       const status = claude?.status ?? (typeof root.status === "string" ? root.status : undefined);
       return {
-        limits: limits.toSorted((a, b) => compareWindowLabels(a.window, b.window)),
+        limits: [...limits].sort((a, b) => compareWindowLabels(a.window, b.window)),
         ...(status ? { status } : {}),
       };
     }

@@ -5,9 +5,11 @@ import * as NodePath from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
   DEFAULT_SERVER_SETTINGS,
+  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
-  type OrchestrationCommand,
+  ThreadId,
+  type OrchestrationV2DomainEvent,
   type ServerProvider,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
@@ -16,14 +18,16 @@ import * as Option from "effect/Option";
 import { expect, it } from "@effect/vitest";
 import { ServerSettingsService } from "../serverSettings.ts";
 import { ProviderRegistry } from "../provider/Services/ProviderRegistry.ts";
-import {
-  ProviderSessionDirectory,
-  type ProviderRuntimeBindingWithMetadata,
-} from "../provider/Services/ProviderSessionDirectory.ts";
-import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine.ts";
-import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery.ts";
-import { decideOrchestrationCommand } from "../orchestration/decider.ts";
-import { createEmptyReadModel, projectEvent } from "../orchestration/projector.ts";
+import { ThreadManagementService } from "../orchestration-v2/ThreadManagementService.ts";
+import { OrchestratorProjectionError, OrchestratorV2 } from "../orchestration-v2/Orchestrator.ts";
+import { EventSinkV2 } from "../orchestration-v2/EventSink.ts";
+import { layer as idAllocatorLayer } from "../orchestration-v2/IdAllocator.ts";
+import { ProviderSessionRuntimeRepository } from "../persistence/ProviderSessionRuntime.ts";
+import { AgentSessionImporter } from "../project/AgentSessionImporter.ts";
+import { layer as agentSessionImporterLayer } from "../project/AgentSessionImporter.ts";
+import * as AgentSessionScanner from "../project/AgentSessionScanner.ts";
+import { ProjectService } from "../project/ProjectService.ts";
+import * as Stream from "effect/Stream";
 import { discoverThreads } from "./sources.ts";
 import { makeExistingThreads } from "./service.ts";
 
@@ -72,6 +76,7 @@ for (const provider of ["codex", "claudeAgent"] as const) {
             .join("\n") + "\n";
         yield* Effect.promise(() => NodeFSP.writeFile(file, text));
         const instanceId = ProviderInstanceId.make(provider);
+        const projectId = ProjectId.make(`imported-project-${root}`);
         const info: ServerProvider = {
           instanceId,
           driver: ProviderDriverKind.make(provider),
@@ -92,40 +97,73 @@ for (const provider of ["codex", "claudeAgent"] as const) {
             [provider]: { ...DEFAULT_SERVER_SETTINGS.providers[provider], homePath: home },
           },
         };
-        let model = createEmptyReadModel(stamp);
-        let sequence = 0;
-        const commands: OrchestrationCommand[] = [];
-        const bindings: ProviderRuntimeBindingWithMetadata[] = [];
+        const shells: Array<{ id: ThreadId; deletedAt: null }> = [];
+        const upserts: Array<{ resumeCursor?: unknown; threadId?: ThreadId }> = [];
+        const writes: OrchestrationV2DomainEvent[] = [];
+        let imported = false;
+        const threadId = ThreadId.make(`import:${instanceId}:${sessionId}`);
+        const runtimeLayer = Layer.mock(ProviderSessionRuntimeRepository)({
+          list: () => Effect.succeed(upserts as never),
+          upsert: (input: { resumeCursor?: unknown; threadId?: ThreadId }) =>
+            Effect.sync(() => void upserts.push(input)),
+          recordImportedTranscript: () => Effect.void,
+        });
+        const importerLayer = agentSessionImporterLayer.pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              Layer.succeed(
+                AgentSessionScanner.AgentSessionScanner,
+                AgentSessionScanner.AgentSessionScanner.of({
+                  scan: Effect.die("unused"),
+                  recentThreads: () => Stream.empty,
+                }),
+              ),
+              Layer.mock(ProjectService)({
+                getById: () => Effect.die("importAgentThread does not read projects by id"),
+              }),
+              Layer.mock(OrchestratorV2)({
+                getThreadRecords: () =>
+                  imported
+                    ? Effect.succeed({
+                        thread: { id: threadId, projectId, historyOrigin: "v1_import" },
+                      } as never)
+                    : Effect.fail(new OrchestratorProjectionError({ threadId })),
+              }),
+              Layer.mock(EventSinkV2)({
+                write: (input) =>
+                  Effect.sync(() => {
+                    writes.push(...input.events);
+                    imported = true;
+                    const created = input.events.find((event) => event.type === "thread.created");
+                    if (created) shells.push({ id: created.threadId, deletedAt: null });
+                    return [];
+                  }),
+              }),
+              runtimeLayer,
+              idAllocatorLayer,
+            ),
+          ),
+        );
         const layer = Layer.mergeAll(
           NodeServices.layer,
           Layer.mock(ServerSettingsService)({ getSettings: Effect.succeed(settings) }),
           Layer.mock(ProviderRegistry)({ getProviders: Effect.succeed([info]) }),
-          Layer.mock(ProjectionSnapshotQuery)({
-            getCommandReadModel: () => Effect.succeed(model),
-            getThreadDetailById: (id) =>
-              Effect.succeed(Option.fromNullishOr(model.threads.find((t) => t.id === id))),
+          Layer.mock(ThreadManagementService)({
+            getShellSnapshot: () => Effect.succeed({ threads: shells } as never),
           }),
-          Layer.mock(ProviderSessionDirectory)({
-            listBindings: () => Effect.succeed(bindings),
-            getBinding: (id) =>
-              Effect.succeed(Option.fromNullishOr(bindings.find((b) => b.threadId === id))),
-            recordImportedTranscript: () => Effect.void,
-            upsert: (binding) =>
-              Effect.sync(() => {
-                bindings.push({ ...binding, lastSeenAt: stamp });
-              }),
+          Layer.mock(ProjectService)({
+            getByWorkspaceRoot: () =>
+              Effect.succeed(
+                Option.some({
+                  id: projectId,
+                  workspaceRoot: root,
+                  deletedAt: null,
+                } as never),
+              ),
+            create: () => Effect.die("fixture project already exists"),
           }),
-          Layer.mock(OrchestrationEngineService)({
-            dispatch: (command) =>
-              Effect.gen(function* () {
-                commands.push(command);
-                const planned = yield* decideOrchestrationCommand({ readModel: model, command });
-                for (const event of Array.isArray(planned) ? planned : [planned]) {
-                  model = yield* projectEvent(model, { ...event, sequence: ++sequence });
-                }
-                return { sequence };
-              }).pipe(Effect.provide(NodeServices.layer), Effect.orDie),
-          }),
+          runtimeLayer,
+          importerLayer,
         );
         const found = (yield* Effect.promise(() =>
           discoverThreads({
@@ -136,30 +174,31 @@ for (const provider of ["codex", "claudeAgent"] as const) {
           }),
         )).threads[0]!;
         yield* Effect.gen(function* () {
-          const importer = yield* makeExistingThreads;
+          const existing = yield* makeExistingThreads;
           const input = { instanceId, id: found.summary.id, sessionReleased: true as const };
           const [first, second] = yield* Effect.all(
-            [importer.importThread(input), importer.importThread(input)],
+            [existing.importThread(input), existing.importThread(input)],
             { concurrency: "unbounded" },
           );
           expect(second).toEqual(first);
-          // A fresh service must deduplicate using persisted state, too.
+          expect(first.threadId).toBe(threadId);
           const restarted = yield* makeExistingThreads;
           expect(yield* restarted.importThread(input)).toEqual(first);
         }).pipe(Effect.provide(layer));
-        expect(commands.map((c) => c.type)).toEqual([
-          "project.create",
-          "thread.create",
-          "thread.history.import",
-        ]);
-        expect(bindings).toHaveLength(1);
-        expect(bindings[0]?.resumeCursor).toEqual(
+        expect(upserts).toHaveLength(1);
+        expect(upserts[0]?.resumeCursor).toEqual(
           provider === "codex"
             ? { threadId: sessionId, requireExisting: true }
-            : { threadId: model.threads[0]?.id, resume: sessionId },
+            : { threadId, resume: sessionId },
         );
-        expect(model.threads).toHaveLength(1);
-        expect(model.threads[0]?.messages.map((m) => m.text)).toEqual(["user", "assistant"]);
+        expect(writes.map((event) => event.type)).toEqual([
+          "thread.created",
+          "message.updated",
+          "turn-item.updated",
+          "message.updated",
+          "turn-item.updated",
+          "provider-thread.updated",
+        ]);
         expect(yield* Effect.promise(() => NodeFSP.readFile(file, "utf8"))).toBe(text);
       }).pipe(Effect.scoped),
   );

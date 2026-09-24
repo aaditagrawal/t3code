@@ -71,20 +71,6 @@ function toProviderDriverKind(providerId: string | undefined): ProviderDriverKin
   return null;
 }
 
-export function openUsageProviderIdForProvider(
-  provider: ProviderDriverKind | null | undefined,
-): string | null {
-  if (provider === "codex") return "codex";
-  if (provider === "claudeAgent") return "claude";
-  if (provider === "copilot") return "copilot";
-  if (provider === "cursor") return "cursor";
-  if (provider === "opencode") return "opencode";
-  if (provider === "geminiCli") return "gemini";
-  if (provider === "amp") return "amp";
-  if (provider === "kilo") return "kilo";
-  return null;
-}
-
 function normalizeProgressLine(line: OpenUsageProgressLine): RateLimitWindow | null {
   if (line.type !== "progress") return null;
 

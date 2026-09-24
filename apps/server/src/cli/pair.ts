@@ -1,5 +1,5 @@
 /**
- * `t3 pair` - mint a pairing token for an already-running server and print it
+ * `<cli> pair` - mint a pairing token for an already-running server and print it
  * as a QR code, without restarting anything.
  *
  * Discovery reads the `server-runtime.json` a live server persists next to its
@@ -14,7 +14,9 @@ import {
   ExecutionEnvironmentDescriptor,
   PortSchema,
 } from "@t3tools/contracts";
+import { NPM_PACKAGE_NAME } from "@t3tools/shared/branding";
 import { resolveWorktreeT3Home } from "@t3tools/shared/devHome";
+import { DEFAULT_SIGNAL_EXPORT } from "@t3tools/shared/observability";
 import {
   buildTailscaleHttpsBaseUrl,
   DEFAULT_TAILSCALE_SERVE_PORT,
@@ -69,7 +71,7 @@ export type PairStateVariant = "userdata" | "dev";
 // dev-vs-userdata state directory; the value itself is not used.
 const DEV_VARIANT_PLACEHOLDER_URL = new URL("http://localhost");
 
-export class NoRunningServerError extends Schema.TaggedErrorClass<NoRunningServerError>()(
+export class NoRunningServerError extends Schema.TaggedError<NoRunningServerError>()(
   "NoRunningServerError",
   {
     checkedStatePaths: Schema.Array(Schema.String),
@@ -79,14 +81,14 @@ export class NoRunningServerError extends Schema.TaggedErrorClass<NoRunningServe
     return [
       "No running T3 Code server found.",
       ...this.checkedStatePaths.map((statePath) => `  checked ${statePath}`),
-      "Start one with `npx t3 serve`, or connect this machine with T3 Connect: `npx t3 connect`.",
+      `Start one with \`npx ${NPM_PACKAGE_NAME} serve\`, or connect this machine with T3 Connect: \`npx ${NPM_PACKAGE_NAME} connect\`.`,
     ].join("\n");
   }
 }
 
 // Each tailscale failure gets its own class (same reasoning as
 // scripts/lib/dev-share.ts): distinct caller-visible message, distinct remedy.
-export class TailscaleUnavailableError extends Schema.TaggedErrorClass<TailscaleUnavailableError>()(
+export class TailscaleUnavailableError extends Schema.TaggedError<TailscaleUnavailableError>()(
   "TailscaleUnavailableError",
   { cause: Schema.Defect() },
 ) {
@@ -95,7 +97,7 @@ export class TailscaleUnavailableError extends Schema.TaggedErrorClass<Tailscale
   }
 }
 
-export class MagicDnsNameMissingError extends Schema.TaggedErrorClass<MagicDnsNameMissingError>()(
+export class MagicDnsNameMissingError extends Schema.TaggedError<MagicDnsNameMissingError>()(
   "MagicDnsNameMissingError",
   {},
 ) {
@@ -104,7 +106,7 @@ export class MagicDnsNameMissingError extends Schema.TaggedErrorClass<MagicDnsNa
   }
 }
 
-export class ServesOtherEnvironmentError extends Schema.TaggedErrorClass<ServesOtherEnvironmentError>()(
+export class ServesOtherEnvironmentError extends Schema.TaggedError<ServesOtherEnvironmentError>()(
   "ServesOtherEnvironmentError",
   { servePort: Schema.Number },
 ) {
@@ -113,7 +115,7 @@ export class ServesOtherEnvironmentError extends Schema.TaggedErrorClass<ServesO
   }
 }
 
-export class TailscaleServeFailedError extends Schema.TaggedErrorClass<TailscaleServeFailedError>()(
+export class TailscaleServeFailedError extends Schema.TaggedError<TailscaleServeFailedError>()(
   "TailscaleServeFailedError",
   { servePort: Schema.Number, cause: Schema.Defect() },
 ) {
@@ -122,7 +124,7 @@ export class TailscaleServeFailedError extends Schema.TaggedErrorClass<Tailscale
   }
 }
 
-export class ServePortOccupiedError extends Schema.TaggedErrorClass<ServePortOccupiedError>()(
+export class ServePortOccupiedError extends Schema.TaggedError<ServePortOccupiedError>()(
   "ServePortOccupiedError",
   { servePort: Schema.Number },
 ) {
@@ -135,7 +137,7 @@ export class ServePortOccupiedError extends Schema.TaggedErrorClass<ServePortOcc
 export const resolveDirectPairingBaseUrl = (state: PersistedServerRuntimeState): string =>
   state.devUrl ?? resolveHeadlessConnectionString(state.host, state.port);
 
-export class DevServerNotProxiableError extends Schema.TaggedErrorClass<DevServerNotProxiableError>()(
+export class DevServerNotProxiableError extends Schema.TaggedError<DevServerNotProxiableError>()(
   "DevServerNotProxiableError",
   { devUrl: Schema.String },
 ) {
@@ -173,7 +175,7 @@ export const resolveTailscaleLocalTarget = (
   return { localPort: state.port };
 };
 
-export const formatPairOutput = (input: {
+const formatPairOutput = (input: {
   readonly serverLabel: string;
   readonly origin: string;
   readonly pairingUrl: string;
@@ -251,7 +253,7 @@ const discoverPairTarget = Effect.fn("pair.discoverPairTarget")(function* (
     if (worktreeHome !== undefined) {
       bases.push(worktreeHome);
     }
-    const envHome = yield* Config.string("T3CODE_HOME").pipe(Config.option);
+    const envHome = yield* Config.String("T3CODE_HOME").pipe(Config.option);
     bases.push(yield* resolveBaseDir(Option.getOrUndefined(envHome)));
   }
 
@@ -320,7 +322,10 @@ const makePairServerConfig = Effect.fn(function* (input: {
     traceMaxFiles: 10,
     otlpTracesUrl: undefined,
     otlpMetricsUrl: undefined,
-    otlpExportIntervalMs: 10_000,
+    otlpLogsUrl: undefined,
+    otlpTracesExport: DEFAULT_SIGNAL_EXPORT,
+    otlpMetricsExport: DEFAULT_SIGNAL_EXPORT,
+    otlpLogsExport: DEFAULT_SIGNAL_EXPORT,
     otlpServiceName: "t3-server",
     mode: "web",
     port: state.port,
@@ -445,7 +450,7 @@ const mintPairingLink = Effect.fn("pair.mintPairingLink")(function* (input: {
   );
 });
 
-const ttlFlag = Flag.string("ttl").pipe(
+const ttlFlag = Flag.String("ttl").pipe(
   Flag.withSchema(DurationFromString),
   Flag.withDescription(
     "Token TTL, for example `5m`, `1h`, or `15 minutes`. Defaults to 5 minutes.",
@@ -453,19 +458,19 @@ const ttlFlag = Flag.string("ttl").pipe(
   Flag.optional,
 );
 
-const labelFlag = Flag.string("label").pipe(
+const labelFlag = Flag.String("label").pipe(
   Flag.withDescription("Optional label shown in the server's connections list."),
   Flag.optional,
 );
 
-const tailscaleFlag = Flag.boolean("tailscale").pipe(
+const tailscaleFlag = Flag.Boolean("tailscale").pipe(
   Flag.withDescription(
     "Publish the server over Tailscale Serve HTTPS and pair through the tailnet URL.",
   ),
   Flag.withDefault(false),
 );
 
-const tailscaleServePortFlag = Flag.integer("tailscale-serve-port").pipe(
+const tailscaleServePortFlag = Flag.Int("tailscale-serve-port").pipe(
   Flag.withSchema(PortSchema),
   Flag.withDescription("HTTPS port for Tailscale Serve when --tailscale is enabled."),
   Flag.withDefault(DEFAULT_TAILSCALE_SERVE_PORT),

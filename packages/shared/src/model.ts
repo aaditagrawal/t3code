@@ -10,8 +10,19 @@ import {
 } from "@t3tools/contracts";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import { copySorted } from "./Array.ts";
 
 const DEFAULT_PROVIDER_DRIVER_KIND = ProviderDriverKind.make("codex");
+
+/** Choose the command for a model change against the thread's current provider instance. */
+export function modelSelectionCommandType(
+  currentInstanceId: ProviderInstanceId,
+  selection: ModelSelection,
+) {
+  return currentInstanceId === selection.instanceId
+    ? ("thread.model-selection.set" as const)
+    : ("provider.switch" as const);
+}
 
 export interface SelectableModelOption {
   slug: string;
@@ -35,7 +46,7 @@ function getRawSelectionValueById(
   return selection?.value;
 }
 
-export function getProviderOptionSelectionValue(
+function getProviderOptionSelectionValue(
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
   id: string,
 ): string | boolean | undefined {
@@ -70,6 +81,44 @@ export function getModelSelectionBooleanOptionValue(
   id: string,
 ): boolean | undefined {
   return getProviderOptionBooleanSelectionValue(modelSelection?.options, id);
+}
+
+function canonicalModelSelectionOptions(
+  modelSelection: ModelSelection,
+): ReadonlyArray<readonly [id: string, value: string | boolean]> {
+  return copySorted(
+    (modelSelection.options ?? []).map(
+      (selection): readonly [id: string, value: string | boolean] => [
+        selection.id,
+        selection.value,
+      ],
+    ),
+    (
+      [leftId, leftValue]: readonly [id: string, value: string | boolean],
+      [rightId, rightValue]: readonly [id: string, value: string | boolean],
+    ) => {
+      const idOrder = leftId.localeCompare(rightId);
+      return idOrder !== 0 ? idOrder : String(leftValue).localeCompare(String(rightValue));
+    },
+  );
+}
+
+/**
+ * Compares the complete provider selection while treating option ordering and
+ * an omitted empty option list as presentation details.
+ */
+export function modelSelectionsEqual(left: ModelSelection, right: ModelSelection): boolean {
+  if (left.instanceId !== right.instanceId || left.model !== right.model) {
+    return false;
+  }
+  const leftOptions = canonicalModelSelectionOptions(left);
+  const rightOptions = canonicalModelSelectionOptions(right);
+  return (
+    leftOptions.length === rightOptions.length &&
+    leftOptions.every(
+      ([id, value], index) => id === rightOptions[index]?.[0] && value === rightOptions[index]?.[1],
+    )
+  );
 }
 
 function resolveDescriptorChoiceValue(
@@ -225,6 +274,31 @@ export function isClaudeUltrathinkPrompt(text: string | null | undefined): boole
   return typeof text === "string" && /\bultrathink\b/i.test(text);
 }
 
+/** Compare Codex model families without changing provider-owned dispatch identifiers. */
+export function codexModelFamily(slug: string): string {
+  return slug.startsWith("openai.gpt-") ? slug.slice("openai.".length) : slug;
+}
+
+export function formatCodexModelName(name: string): string {
+  return name.replace(/^gpt/i, "GPT").replace(/-([a-z])/g, (_, c) => "-" + c.toUpperCase());
+}
+
+export function formatModelSlugName(slug: string): string {
+  const separator = slug.lastIndexOf("/") + 1;
+  const prefix = slug.slice(0, separator);
+  const name = slug.slice(separator);
+  if (/^gpt-\d/i.test(name)) return prefix + formatCodexModelName(name);
+  if (!/^(claude-(opus|sonnet|haiku|fable)|gemini|grok|composer)-\d/i.test(name)) return slug;
+  return (
+    prefix +
+    name
+      .replace(/^(claude-[a-z]+-\d+)-(\d{1,2})(?=-|\[|$)/i, "$1.$2")
+      .split("-")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  );
+}
+
 export function normalizeModelSlug(
   model: string | null | undefined,
   provider: ProviderDriverKind = DEFAULT_PROVIDER_DRIVER_KIND,
@@ -298,11 +372,6 @@ export function readCustomModelEntries(value: unknown): CustomModelDefinition[] 
   return entries;
 }
 
-/** Slugs of a `customModels` setting, in stored order. */
-export function readCustomModelSlugs(value: unknown): string[] {
-  return readCustomModelEntries(value).map((entry) => entry.slug);
-}
-
 /**
  * Write a definition back to the compact stored shape: a bare slug when it
  * carries nothing custom, otherwise an entry with only the set fields.
@@ -361,7 +430,7 @@ export function resolveSelectableModel(
 }
 
 /** Trim a string, returning null for empty/missing values. */
-export function trimOrNull<T extends string>(value: T | null | undefined): T | null {
+function trimOrNull<T extends string>(value: T | null | undefined): T | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim() as T;
   return trimmed || null;

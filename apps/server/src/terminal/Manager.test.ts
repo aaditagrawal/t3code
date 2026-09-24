@@ -12,8 +12,9 @@ import {
   ServerSettingsError,
   TerminalProviderInstanceNotFoundError,
 } from "@t3tools/contracts";
-import { HostProcessPlatform } from "@t3tools/shared/hostProcess";
+import { HostProcessPlatform, HostProcessArchitecture } from "@t3tools/shared/hostProcess";
 import * as Data from "effect/Data";
+import * as Clock from "effect/Clock";
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -27,6 +28,7 @@ import * as PlatformError from "effect/PlatformError";
 import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
 import * as Schedule from "effect/Schedule";
+import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
@@ -40,6 +42,8 @@ import * as ProcessRunner from "../processRunner.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as TerminalManager from "./Manager.ts";
 import * as PtyAdapter from "./PtyAdapter.ts";
+
+const encodeUnknownJson = Schema.encodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 
 class WaitForConditionError extends Data.TaggedError("WaitForConditionError")<{
   readonly message: string;
@@ -220,6 +224,10 @@ interface CreateManagerOptions {
     readonly childCommand: string | null;
     readonly processIds: ReadonlyArray<number>;
   }>;
+  processTable?: Effect.Effect<
+    ReadonlyArray<{ readonly pid: number; readonly ppid: number; readonly name: string }>,
+    never
+  >;
   subprocessPollIntervalMs?: number;
   processKillGraceMs?: number;
   maxRetainedInactiveSessions?: number;
@@ -228,6 +236,8 @@ interface CreateManagerOptions {
   resolveProviderInstanceEnvironment?: Parameters<
     typeof TerminalManager.makeWithOptions
   >[0]["resolveProviderInstanceEnvironment"];
+  managedBinaryCacheDir?: string;
+  managedBinaryToolsDir?: string;
 }
 
 interface ManagerFixture {
@@ -265,6 +275,7 @@ const createManager = (
         ...(options.subprocessInspector !== undefined
           ? { subprocessInspector: options.subprocessInspector }
           : {}),
+        ...(options.processTable !== undefined ? { processTable: options.processTable } : {}),
         ...(options.subprocessPollIntervalMs !== undefined
           ? { subprocessPollIntervalMs: options.subprocessPollIntervalMs }
           : {}),
@@ -275,6 +286,12 @@ const createManager = (
         ...(options.resolveProviderInstanceEnvironment !== undefined
           ? { resolveProviderInstanceEnvironment: options.resolveProviderInstanceEnvironment }
           : {}),
+        ...(options.managedBinaryCacheDir === undefined
+          ? {}
+          : {
+              managedBinaryCacheDir: options.managedBinaryCacheDir,
+              managedBinaryToolsDir: options.managedBinaryToolsDir,
+            }),
       });
       const eventsRef = yield* Ref.make<ReadonlyArray<TerminalEvent>>([]);
       const unsubscribe = yield* manager.subscribe((event) =>
@@ -1192,6 +1209,96 @@ it.layer(
     }),
   );
 
+  it("calculates snapshot failure backoff and success reset delays", () => {
+    assert.equal(TerminalManager.subprocessSnapshotPollDelayMs(1_000, 0), 1_000);
+    assert.equal(TerminalManager.subprocessSnapshotPollDelayMs(1_000, 1), 2_000);
+    assert.equal(TerminalManager.subprocessSnapshotPollDelayMs(1_000, 2), 4_000);
+    assert.equal(TerminalManager.subprocessSnapshotPollDelayMs(1_000, 30), 60_000);
+  });
+
+  it.effect("uses process snapshots from the resource monitor", () =>
+    Effect.gen(function* () {
+      let snapshotCalls = 0;
+      const { manager, getEvents } = yield* createManager(5, {
+        subprocessPollIntervalMs: 20,
+        processTable: Effect.sync(() => {
+          snapshotCalls += 1;
+          return [{ pid: 100, ppid: 9000, name: "ping.exe" }];
+        }),
+      }).pipe(Effect.provide(withHostPlatform("win32")));
+
+      yield* manager.open(openInput());
+      yield* waitFor(
+        Effect.map(getEvents, (events) =>
+          events.some(
+            (event) =>
+              event.type === "activity" && event.hasRunningSubprocess && event.label === "ping",
+          ),
+        ),
+        "1200 millis",
+      );
+      expect(snapshotCalls).toBeGreaterThan(0);
+    }),
+  );
+
+  it.effect("backs off the spawned fallback when the resource monitor snapshot fails", () =>
+    Effect.gen(function* () {
+      const fallbackCalls: Array<number> = [];
+      const processRunner: ProcessRunner.ProcessRunner["Service"] = {
+        run: () =>
+          Clock.currentTimeMillis.pipe(
+            Effect.map((now) => {
+              fallbackCalls.push(now);
+              return {
+                stdout: "  100  9000 vim",
+                stderr: "",
+                code: ChildProcessSpawner.ExitCode(0),
+                timedOut: false,
+                stdoutTruncated: false,
+                stderrInvalidUtf8: false,
+                stdoutInvalidUtf8: false,
+                stderrTruncated: false,
+              };
+            }),
+          ),
+      };
+
+      const { manager, getEvents } = yield* createManager(5, {
+        subprocessPollIntervalMs: 20,
+        processTable: Effect.fail("sidecar unavailable").pipe(
+          Effect.mapError((cause) => cause as never),
+        ),
+      }).pipe(
+        Effect.provideService(ProcessRunner.ProcessRunner, processRunner),
+        Effect.provide(withHostPlatform("linux")),
+      );
+
+      yield* manager.open(openInput());
+      // The fallback data is still applied while the sidecar is down.
+      yield* waitFor(
+        Effect.map(getEvents, (events) =>
+          events.some(
+            (event) =>
+              event.type === "activity" &&
+              event.hasRunningSubprocess === true &&
+              event.label === "vim",
+          ),
+        ),
+        "1200 millis",
+      );
+
+      yield* waitFor(
+        Effect.sync(() => fallbackCalls.length >= 4),
+        "2000 millis",
+      );
+      // Four snapshots at the 20 ms base cadence would span ~60 ms. Backoff
+      // (40 + 80 + 160 ms) stretches the same four snapshots past 150 ms, so
+      // a stalled sidecar no longer hot-loops the spawned fallback.
+      const spanMs = fallbackCalls[3]! - fallbackCalls[0]!;
+      expect(spanMs).toBeGreaterThan(150);
+    }),
+  );
+
   it.effect("caps persisted history to configured line limit", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager(3);
@@ -1674,6 +1781,67 @@ it.layer(
     }),
   );
 
+  it.effect("preserves Windows Path casing when appending managed ACP binaries", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const cacheDir = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-terminal-acp-path-",
+      });
+      const installBin = path.join(
+        cacheDir,
+        "tools",
+        "example-agent",
+        "1.2.3",
+        "windows-x86_64",
+        "bin",
+      );
+      yield* fileSystem.makeDirectory(installBin, { recursive: true });
+      yield* fileSystem.makeDirectory(path.join(cacheDir, "acp-registry"), { recursive: true });
+      yield* fileSystem.writeFileString(
+        path.join(cacheDir, "acp-registry", "registry.json"),
+        encodeUnknownJson({
+          version: "1.0.0",
+          agents: [
+            {
+              id: "example-agent",
+              name: "Example Agent",
+              version: "1.2.3",
+              description: "ACP Registry test agent",
+              distribution: {
+                binary: {
+                  "windows-x86_64": {
+                    archive: "https://registry.test/example-agent.zip",
+                    cmd: "bin/example-agent.exe",
+                  },
+                },
+              },
+            },
+          ],
+        }),
+      );
+      const { manager, ptyAdapter } = yield* createManager(5, {
+        managedBinaryCacheDir: cacheDir,
+        managedBinaryToolsDir: path.join(cacheDir, "tools"),
+        env: {
+          ComSpec: "C:\\Windows\\System32\\cmd.exe",
+          Path: "C:\\Windows\\System32",
+          SystemRoot: "C:\\Windows",
+        },
+      }).pipe(
+        Effect.provide(
+          Layer.merge(withHostPlatform("win32"), Layer.succeed(HostProcessArchitecture, "x64")),
+        ),
+      );
+
+      yield* manager.open(openInput());
+
+      const spawnEnv = ptyAdapter.spawnInputs[0]?.env;
+      expect(spawnEnv?.PATH).toBeUndefined();
+      expect(spawnEnv?.Path).toBe(`C:\\Windows\\System32;${installBin}`);
+    }),
+  );
+
   it.effect("falls back to built-in PowerShell by absolute path on Windows", () =>
     Effect.gen(function* () {
       const ptyAdapter = new FakePtyAdapter();
@@ -1711,7 +1879,8 @@ it.layer(
           [undefined, undefined, "truecolor"],
           ["", undefined, "truecolor"],
           ["24bit", undefined, "24bit"],
-          ["24bit", "", "truecolor"],
+          ["24bit", "", ""],
+          [undefined, "", ""],
           ["24bit", "custom", "custom"],
         ] as const) {
           const env = Object.freeze({ COLORTERM: parentColor });
@@ -1863,13 +2032,15 @@ it.layer(
 
   it.effect("injects runtime env overrides into spawned terminals", () =>
     Effect.gen(function* () {
-      const { manager, ptyAdapter } = yield* createManager();
+      const { manager, ptyAdapter } = yield* createManager(5, { env: { FORCE_COLOR: "3" } });
       yield* manager.open(
         openInput({
           env: {
             T3CODE_PROJECT_ROOT: "/repo",
             T3CODE_WORKTREE_PATH: "/repo/worktree-a",
             CUSTOM_FLAG: "1",
+            NO_COLOR: "1",
+            FORCE_COLOR: "0",
           },
         }),
       );
@@ -1880,6 +2051,8 @@ it.layer(
       assert.equal(spawnInput.env.T3CODE_PROJECT_ROOT, "/repo");
       assert.equal(spawnInput.env.T3CODE_WORKTREE_PATH, "/repo/worktree-a");
       assert.equal(spawnInput.env.CUSTOM_FLAG, "1");
+      assert.equal(spawnInput.env.NO_COLOR, "1");
+      assert.equal(spawnInput.env.FORCE_COLOR, "0");
     }),
   );
 
@@ -1949,6 +2122,8 @@ it.layer(
         getSettings: Effect.fail(settingsError),
         updateSettings: () => Effect.fail(settingsError),
         updateSettingsWith: () => Effect.fail(settingsError),
+        updateProviderInstance: () => Effect.fail(settingsError),
+        withSettingsSnapshot: () => Effect.fail(settingsError),
         streamChanges: Stream.empty,
         subscribeChanges: Effect.succeed(Stream.empty),
       });

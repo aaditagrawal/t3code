@@ -26,6 +26,12 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
+import {
+  makeLegacyAdapterV2,
+  LEGACY_ADAPTER_V2_PROFILES,
+} from "../../orchestration-v2/Adapters/LegacyAdapterV2.ts";
+import type { IdAllocatorV2 } from "../../orchestration-v2/IdAllocator.ts";
+
 import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import { makeAmpTextGeneration } from "../../textGeneration/AmpTextGeneration.ts";
@@ -54,6 +60,7 @@ const MAINTENANCE_CAPABILITIES = makeManualOnlyProviderMaintenanceCapabilities({
 });
 
 export type AmpDriverEnv =
+  | IdAllocatorV2
   | BackgroundPolicy.BackgroundPolicy
   | ChildProcessSpawner.ChildProcessSpawner
   | FileSystem.FileSystem
@@ -136,6 +143,14 @@ export const AmpDriver: ProviderDriver<GenericProviderSettings, AmpDriverEnv> = 
         ),
       );
 
+      const orchestrationAdapter = yield* makeLegacyAdapterV2({
+        instanceId,
+        adapter,
+        profile: LEGACY_ADAPTER_V2_PROFILES["amp"],
+        cwd: (yield* ServerConfig).cwd,
+        onUsageLimits: (update) => snapshot.applyUsageLimits(update),
+      });
+
       return {
         instanceId,
         driverKind: DRIVER_KIND,
@@ -144,7 +159,7 @@ export const AmpDriver: ProviderDriver<GenericProviderSettings, AmpDriverEnv> = 
         accentColor,
         enabled,
         snapshot,
-        adapter,
+        orchestrationAdapter,
         textGeneration,
       } satisfies ProviderInstance;
     }),

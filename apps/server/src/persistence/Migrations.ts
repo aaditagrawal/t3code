@@ -1,3 +1,4 @@
+import { assertMigrationLineageCompatible } from "./MigrationLineage.ts";
 /**
  * Migration runner with an inline loader.
  *
@@ -10,6 +11,7 @@
 
 import * as Migrator from "effect/unstable/sql/Migrator";
 import * as Effect from "effect/Effect";
+import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 // Import all migrations statically
 import Migration0001 from "./Migrations/001_OrchestrationEvents.ts";
@@ -92,6 +94,14 @@ import Migration0051 from "./Migrations/051_RepairAutomaticSettlementTimestamps.
 // Upstream ProjectionProjectIcon was runtime ID 47. Append it after the fork's
 // already-deployed settlement-repair migration.
 import Migration0052 from "./Migrations/052_ProjectionProjectIcon.ts";
+import Migration0053 from "./Migrations/048_ProjectionThreadBranchPullRequest.ts";
+import Migration0054 from "./Migrations/049_ProjectionThreadsActiveOrderKey.ts";
+import Migration0055 from "./Migrations/050_ProjectionThreadPullRequests.ts";
+import Migration0056 from "./Migrations/051_ProjectionThreadMessageContext.ts";
+import Migration0057 from "./Migrations/052_ProjectionThreadTitleState.ts";
+import Migration0058 from "./Migrations/053_PullRequestFilesViewed.ts";
+import Migration0059 from "./Migrations/054_OrchestrationV2.ts";
+import Migration0060 from "./Migrations/055_RemoveRedundantProjectionIndexes.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -156,11 +166,19 @@ export const migrationEntries = [
   [50, "ProjectionProjectsAutoPull", Migration0050],
   [51, "RepairAutomaticSettlementTimestamps", Migration0051],
   [52, "ProjectionProjectIcon", Migration0052],
+  [53, "ProjectionThreadBranchPullRequest", Migration0053],
+  [54, "ProjectionThreadsActiveOrderKey", Migration0054],
+  [55, "ProjectionThreadPullRequests", Migration0055],
+  [56, "ProjectionThreadMessageContext", Migration0056],
+  [57, "ProjectionThreadTitleState", Migration0057],
+  [58, "PullRequestFilesViewed", Migration0058],
+  [59, "OrchestrationV2", Migration0059],
+  [60, "RemoveRedundantProjectionIndexes", Migration0060],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
 
-export const makeMigrationLoader = (throughId?: number) =>
+const makeMigrationLoader = (throughId?: number) =>
   Migrator.fromRecord(
     Object.fromEntries(
       migrationEntries
@@ -192,10 +210,37 @@ export interface RunMigrationsOptions {
 export const runMigrations = Effect.fn("runMigrations")(function* ({
   toMigrationInclusive,
 }: RunMigrationsOptions = {}) {
+  yield* assertMigrationLineageCompatible(migrationManifest);
+
   const executedMigrations = yield* run({ loader: makeMigrationLoader(toMigrationInclusive) });
   const migrations = executedMigrations.map(([id, name]) => `${id}_${name}`);
   yield* migrations.length === 0
     ? Effect.logDebug("Database schema is current")
     : Effect.log("Migrations ran successfully").pipe(Effect.annotateLogs({ migrations }));
+
+  // The migrator keys on migration_id: a database that recorded a different
+  // migration under a shared id (local or fork builds) keeps that id and
+  // silently skips this build's migration at it. Surface the divergence so the
+  // skipped schema change is diagnosable.
+  const sql = yield* SqlClient.SqlClient;
+  const recorded = yield* sql<{
+    readonly migration_id: number;
+    readonly name: string;
+  }>`SELECT migration_id, name FROM effect_sql_migrations`;
+  const manifestNames = new Map<number, string>(migrationEntries.map(([id, name]) => [id, name]));
+  const divergent = recorded.flatMap((row) => {
+    const expected = manifestNames.get(row.migration_id);
+    if (expected === undefined) {
+      return [`${row.migration_id}:${row.name} (unknown to this build)`];
+    }
+    return expected === row.name
+      ? []
+      : [`${row.migration_id}:${row.name} (this build: ${expected})`];
+  });
+  if (divergent.length > 0) {
+    yield* Effect.logWarning(
+      "Database migration history diverges from this build; recorded migration ids are skipped, not reconciled by name.",
+    ).pipe(Effect.annotateLogs({ divergent }));
+  }
   return executedMigrations;
 });

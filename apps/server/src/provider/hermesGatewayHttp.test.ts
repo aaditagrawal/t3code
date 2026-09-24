@@ -7,13 +7,17 @@ import {
   HermesGatewayDeliveryId,
   HermesGatewayRequestId,
   ProjectId,
+  ProviderThreadId,
+  RunId,
   ProviderInstanceId,
   ThreadId,
   TurnId,
   type HermesGatewayMediaDeliver,
   type HermesGatewayT3ToPluginMessage,
-  type OrchestrationCommand,
+  type OrchestrationV2Command as OrchestrationCommand,
+  type OrchestrationV2ThreadShell,
 } from "@t3tools/contracts";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -23,7 +27,11 @@ import * as Stream from "effect/Stream";
 
 import { ServerConfig } from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
-import { OrchestrationCommandInvariantError } from "../orchestration/Errors.ts";
+import {
+  OrchestratorCommandIdConflictError,
+  OrchestratorDispatchError,
+} from "../orchestration-v2/Orchestrator.ts";
+import { ThreadManagementService } from "../orchestration-v2/ThreadManagementService.ts";
 import * as OrchestrationEngine from "../orchestration/Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery.ts";
 import type { HermesGatewayConnectionRegistration } from "./Services/HermesGatewayBroker.ts";
@@ -34,6 +42,42 @@ const HOME_THREAD_ID = ThreadId.make("thread-home-media");
 const SESSION_THREAD_ID = ThreadId.make("thread-live-turn");
 const AGENT_PROJECT_ID = ProjectId.make("project-hermes-media");
 const CREATED_AT = "2026-07-27T09:00:00.000Z";
+
+const threadShell = (
+  id: ThreadId,
+  archivedAt?: string,
+  active = false,
+): OrchestrationV2ThreadShell => ({
+  id,
+  projectId: AGENT_PROJECT_ID,
+  title: "Hermes",
+  providerInstanceId: INSTANCE_ID,
+  modelSelection: { instanceId: INSTANCE_ID, model: "hermes" },
+  runtimeMode: "full-access",
+  interactionMode: "default",
+  branch: null,
+  worktreePath: null,
+  lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: id },
+  forkedFrom: null,
+  activeProviderThreadId: active ? ProviderThreadId.make("native-thread") : null,
+  latestRunId: active ? RunId.make("active-run") : null,
+  activeRunId: active ? RunId.make("active-run") : null,
+  status: active ? "running" : "idle",
+  pendingRuntimeRequest: null,
+  latestVisibleMessage: null,
+  latestUserMessageAt: null,
+  hasActionableProposedPlan: false,
+  itemCount: 0,
+  visibleItemCount: 0,
+  createdAt: DateTime.makeUnsafe(CREATED_AT),
+  updatedAt: DateTime.makeUnsafe(CREATED_AT),
+  archivedAt: archivedAt ? DateTime.makeUnsafe(archivedAt) : null,
+  settledOverride: null,
+  settledAt: null,
+  deletedAt: null,
+  createdBy: "agent",
+  creationSource: "provider",
+});
 
 const registration: HermesGatewayConnectionRegistration = {
   instanceId: INSTANCE_ID,
@@ -70,6 +114,7 @@ const mediaFrame = (
 
 const makeHarness = (options?: {
   readonly trackedThreadId?: ThreadId;
+  readonly trackedThreadActive?: boolean;
   readonly failDispatch?: boolean;
   /** Archive state of the designated home thread, as the projection sees it. */
   readonly homeThreadArchivedAt?: string;
@@ -80,62 +125,57 @@ const makeHarness = (options?: {
       prefix: "t3-hermes-media-attachments-",
     });
     const dispatched = yield* Ref.make<ReadonlyArray<OrchestrationCommand>>([]);
-    const receivedCommandIds = yield* Ref.make(new Set<string>());
+    const receivedCommandIds = yield* Ref.make(new Map<string, ThreadId>());
     const sent: Array<HermesGatewayT3ToPluginMessage> = [];
     const transport = {
       send: (frame: HermesGatewayT3ToPluginMessage) =>
         Effect.sync(() => sent.push(frame)).pipe(Effect.asVoid),
     };
 
-    const engineLayer = Layer.mock(OrchestrationEngine.OrchestrationEngineService)({
-      readEvents: () => Stream.empty,
-      dispatch: (command) =>
-        Ref.modify(receivedCommandIds, (seen) => {
-          if (seen.has(command.commandId)) return [false, seen] as const;
-          return [true, new Set([...seen, command.commandId])] as const;
-        }).pipe(
-          Effect.tap((isFirst) =>
-            isFirst ? Ref.update(dispatched, (commands) => [...commands, command]) : Effect.void,
-          ),
-          Effect.andThen(
-            options?.failDispatch
-              ? Effect.fail(
-                  new OrchestrationCommandInvariantError({
-                    commandType: "thread.notification.deliver",
-                    detail: "Simulated dispatch failure.",
-                  }),
-                )
-              : Effect.succeed({ sequence: 1 }),
-          ),
+    const engineLayer = Layer.mock(ThreadManagementService)({
+      getThreadShell: (threadId) =>
+        Effect.succeed(
+          threadId === HOME_THREAD_ID || threadId === options?.trackedThreadId
+            ? threadShell(
+                threadId,
+                threadId === HOME_THREAD_ID ? options?.homeThreadArchivedAt : undefined,
+                threadId === options?.trackedThreadId && options.trackedThreadActive !== false,
+              )
+            : null,
         ),
+      dispatch: (command) =>
+        Effect.gen(function* () {
+          const seen = yield* Ref.get(receivedCommandIds);
+          const receiptThreadId = seen.get(command.commandId);
+          const commandThreadId = "threadId" in command ? command.threadId : HOME_THREAD_ID;
+          if (receiptThreadId !== undefined && receiptThreadId !== commandThreadId) {
+            return yield* new OrchestratorCommandIdConflictError({
+              commandId: command.commandId,
+              commandType: command.type,
+              receiptThreadId,
+              commandThreadId,
+            });
+          }
+          if (options?.failDispatch) {
+            return yield* new OrchestratorDispatchError({
+              commandId: command.commandId,
+              commandType: command.type,
+              cause: "Simulated dispatch failure.",
+            });
+          }
+          if (receiptThreadId === undefined) {
+            yield* Ref.set(
+              receivedCommandIds,
+              new Map([...seen, [command.commandId, commandThreadId]]),
+            );
+            yield* Ref.update(dispatched, (commands) => [...commands, command]);
+          }
+          return { sequence: 1, storedEvents: [] };
+        }),
       streamDomainEvents: Stream.empty,
-      latestSequence: Effect.succeed(0),
     });
 
     const queryLayer = Layer.mock(ProjectionSnapshotQuery)({
-      // The home thread is designated in settings and exists, so home-thread
-      // resolution takes the fast path without dispatching a thread.create.
-      getThreadArchiveStateById: (threadId) =>
-        Effect.succeed(
-          threadId === HOME_THREAD_ID
-            ? Option.some({
-                projectId: AGENT_PROJECT_ID,
-                archivedAt: options?.homeThreadArchivedAt ?? null,
-              })
-            : Option.none(),
-        ),
-      getThreadShellById: (threadId) =>
-        Effect.succeed(
-          options?.trackedThreadId === threadId
-            ? Option.some({
-                id: threadId,
-                projectId: AGENT_PROJECT_ID,
-                modelSelection: { instanceId: INSTANCE_ID, model: "hermes" },
-                session: { status: "ready" },
-                archivedAt: null,
-              } as never)
-            : Option.none(),
-        ),
       getActiveProjectByWorkspaceRoot: () =>
         Effect.succeed(
           Option.some({
@@ -170,9 +210,15 @@ const makeHarness = (options?: {
 
     // Provided at invocation too: the handlers resolve the home thread at
     // delivery time, which pulls services from the runtime context.
-    const servicesLayer = Layer.mergeAll(engineLayer, queryLayer, settingsLayer, configLayer).pipe(
-      Layer.provideMerge(NodeServices.layer),
-    );
+    const servicesLayer = Layer.mergeAll(
+      engineLayer,
+      queryLayer,
+      settingsLayer,
+      configLayer,
+      Layer.mock(OrchestrationEngine.OrchestrationEngineService)({
+        dispatch: () => Effect.die("unexpected project creation"),
+      }),
+    ).pipe(Layer.provideMerge(NodeServices.layer));
 
     const handlers = yield* makeHermesDeliveryHandlers().pipe(Effect.provide(servicesLayer));
     const deliverMedia = (...args: Parameters<typeof handlers.deliverMedia>) =>
@@ -497,6 +543,20 @@ it.effect("routes turn-scoped media into the tracked thread and carries the turn
     // Non-image media takes the generic file variant.
     assert.equal(delivery.attachments?.[0]?.type, "file");
     assert.equal(harness.sent[0]?.type, "media.deliver.ack");
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+it.effect("acks a committed native-turn delivery after the turn has ended", () =>
+  Effect.gen(function* () {
+    const state = { trackedThreadId: SESSION_THREAD_ID, trackedThreadActive: true };
+    const harness = yield* makeHarness(state);
+    const frame = mediaFrame({ threadId: SESSION_THREAD_ID, turnId: TurnId.make("finished-turn") });
+    yield* harness.deliverMedia(registration, frame, harness.transport);
+    state.trackedThreadActive = false;
+    yield* harness.deliverMedia(registration, frame, harness.transport);
+    assert.equal(dispatchedDeliveries(yield* Ref.get(harness.dispatched)).length, 1);
+    assert.equal(harness.sent.length, 2);
+    assert.equal(harness.sent[1]?.type, "media.deliver.ack");
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 

@@ -2,17 +2,18 @@ import {
   EnvironmentId,
   EventId,
   MessageId,
-  ORCHESTRATION_WS_METHODS,
-  ProjectId,
-  ProviderInstanceId,
-  ThreadId,
-  type OrchestrationThread,
-  type OrchestrationThreadDetailSnapshot,
-  type OrchestrationThreadStreamItem,
+  ORCHESTRATION_V2_WS_METHODS,
+  TurnItemId,
+  type OrchestrationV2ThreadHistoryPage,
+  type OrchestrationV2ThreadProjection,
+  type OrchestrationV2ThreadDetailSnapshot,
+  type OrchestrationV2ThreadStreamItem,
 } from "@t3tools/contracts";
 import { afterEach, describe, expect, it, vi } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
@@ -27,7 +28,6 @@ import {
   PrimaryConnectionTarget,
   type NetworkStatus,
   type PreparedConnection,
-  type SupervisorConnectionState,
 } from "../connection/model.ts";
 import { EnvironmentSupervisor } from "../connection/supervisor.ts";
 import { EnvironmentCacheStore } from "../platform/persistence.ts";
@@ -35,10 +35,13 @@ import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
 import type { RpcSession } from "../rpc/session.ts";
 import { createEnvironmentThreadDetailAtoms } from "./threadDetail.ts";
 import { THREAD_SNAPSHOT_IDLE_TTL_MS } from "./threadRetention.ts";
-import type { ThreadSnapshotWindow } from "./threadSnapshotHttp.ts";
+import { v2Projection, v2ThreadId } from "./orchestrationV2TestFixtures.ts";
+import {
+  ThreadHistoryController,
+  threadHistoryControllerLayer,
+} from "./threadHistoryController.ts";
 import {
   createEnvironmentThreadStateAtoms,
-  requestOlderThreadTurns,
   ThreadSnapshotLoader,
   type EnvironmentThreadState,
 } from "./threads.ts";
@@ -49,52 +52,25 @@ const TARGET = new PrimaryConnectionTarget({
   httpBaseUrl: "https://environment.example.test",
   wsBaseUrl: "wss://environment.example.test",
 });
-const THREAD_ID = ThreadId.make("thread-1");
-const THREAD: OrchestrationThread = {
-  id: THREAD_ID,
-  projectId: ProjectId.make("project-1"),
-  title: "Cached thread",
-  modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
-  runtimeMode: "full-access",
-  interactionMode: "default",
-  branch: "main",
-  worktreePath: null,
-  latestTurn: null,
-  createdAt: "2026-04-01T00:00:00.000Z",
-  updatedAt: "2026-04-01T00:00:00.000Z",
-  archivedAt: null,
-  settledOverride: null,
-  settledAt: null,
-  deletedAt: null,
-  messages: [],
-  proposedPlans: [],
-  activities: [],
-  checkpoints: [],
-  session: null,
+const THREAD_ID = v2ThreadId;
+const THREAD: OrchestrationV2ThreadProjection = {
+  ...v2Projection,
+  thread: { ...v2Projection.thread, title: "Cached thread" },
 };
-const SNAPSHOT: OrchestrationThreadDetailSnapshot = { snapshotSequence: 7, thread: THREAD };
-
-const CONNECTED_STATE: SupervisorConnectionState = {
-  ...AVAILABLE_CONNECTION_STATE,
-  desired: true,
-  network: "online",
-  phase: "connected",
-  attempt: 1,
-  generation: 1,
-};
+const SNAPSHOT: OrchestrationV2ThreadDetailSnapshot = { snapshotSequence: 7, projection: THREAD };
 
 const makeHarness = Effect.fn("TestThreadAtoms.makeHarness")(function* (options?: {
-  readonly snapshot?: OrchestrationThreadDetailSnapshot;
-  readonly connected?: boolean;
+  readonly snapshot?: OrchestrationV2ThreadDetailSnapshot;
+  readonly snapshotUnavailable?: boolean;
 }) {
   const subscriptions = yield* Queue.unbounded<{
     readonly afterSequence: number | undefined;
-    readonly events: Queue.Queue<OrchestrationThreadStreamItem>;
+    readonly events: Queue.Queue<OrchestrationV2ThreadStreamItem>;
     readonly closed: Deferred.Deferred<void>;
   }>();
   const olderLoads = yield* Queue.unbounded<{
-    readonly window: ThreadSnapshotWindow;
-    readonly response: Deferred.Deferred<Option.Option<OrchestrationThreadDetailSnapshot>>;
+    readonly cursor: string | null;
+    readonly response: Deferred.Deferred<OrchestrationV2ThreadHistoryPage>;
     readonly closed: Deferred.Deferred<void>;
   }>();
   const snapshot = options?.snapshot ?? SNAPSHOT;
@@ -103,10 +79,10 @@ const makeHarness = Effect.fn("TestThreadAtoms.makeHarness")(function* (options?
   let opened = 0;
   let active = 0;
   const client = {
-    [ORCHESTRATION_WS_METHODS.subscribeThread]: (input: { readonly afterSequence?: number }) =>
+    [ORCHESTRATION_V2_WS_METHODS.subscribeThread]: (input: { readonly afterSequence?: number }) =>
       Stream.unwrap(
         Effect.gen(function* () {
-          const events = yield* Queue.unbounded<OrchestrationThreadStreamItem>();
+          const events = yield* Queue.unbounded<OrchestrationV2ThreadStreamItem>();
           const closed = yield* Deferred.make<void>();
           yield* Effect.acquireRelease(
             Effect.sync(() => {
@@ -134,14 +110,10 @@ const makeHarness = Effect.fn("TestThreadAtoms.makeHarness")(function* (options?
     probe: Effect.void,
     closed: Effect.never,
   };
-  const connectionState = yield* SubscriptionRef.make(
-    options?.connected ? CONNECTED_STATE : AVAILABLE_CONNECTION_STATE,
-  );
-  const sessionRef = yield* SubscriptionRef.make(Option.some(session));
   const supervisor = EnvironmentSupervisor.of({
     target: TARGET,
-    state: connectionState,
-    session: sessionRef,
+    state: yield* SubscriptionRef.make(AVAILABLE_CONNECTION_STATE),
+    session: yield* SubscriptionRef.make(Option.some(session)),
     prepared: yield* SubscriptionRef.make<Option.Option<PreparedConnection>>(
       Option.some({
         environmentId: TARGET.environmentId,
@@ -168,6 +140,8 @@ const makeHarness = Effect.fn("TestThreadAtoms.makeHarness")(function* (options?
     remove: () => Effect.die("Unexpected environment removal"),
     removeRelayEnvironments: () => Effect.die("Unexpected environment removal"),
     retryNow: () => Effect.void,
+    setEnabled: () => Effect.die("Unexpected environment toggle"),
+    setCompatibility: () => Effect.die("Unexpected compatibility update"),
     state: () => SubscriptionRef.get(supervisor.state),
     stateChanges: () => SubscriptionRef.changes(supervisor.state),
     run: (_environmentId, effect) =>
@@ -177,8 +151,23 @@ const makeHarness = Effect.fn("TestThreadAtoms.makeHarness")(function* (options?
     followStream: (_environmentId, stream) =>
       Stream.provideService(stream, EnvironmentSupervisor, supervisor),
   });
+  const historyController = yield* Effect.service(ThreadHistoryController).pipe(
+    Effect.provide(threadHistoryControllerLayer),
+  );
+  const historyHttpClient = HttpClient.make((request, url) =>
+    Effect.gen(function* () {
+      const response = yield* Deferred.make<OrchestrationV2ThreadHistoryPage>();
+      const closed = yield* Deferred.make<void>();
+      yield* Effect.addFinalizer(() => Deferred.succeed(closed, undefined));
+      yield* Queue.offer(olderLoads, { cursor: url.searchParams.get("cursor"), response, closed });
+      const page = yield* Deferred.await(response);
+      return HttpClientResponse.fromWeb(request, Response.json(page));
+    }).pipe(Effect.scoped),
+  );
   const runtime = Atom.runtime(
     Layer.mergeAll(
+      Layer.succeed(ThreadHistoryController, historyController),
+      Layer.succeed(HttpClient.HttpClient, historyHttpClient),
       Layer.succeed(EnvironmentRegistry, environmentRegistry),
       Layer.succeed(
         EnvironmentCacheStore,
@@ -204,22 +193,26 @@ const makeHarness = Effect.fn("TestThreadAtoms.makeHarness")(function* (options?
       Layer.succeed(
         ThreadSnapshotLoader,
         ThreadSnapshotLoader.of({
-          load: (_prepared, _threadId, window) => {
-            if (window?.beforeCursor === undefined) {
-              return Effect.sync(() => {
-                httpLoads += 1;
-                return Option.some(snapshot);
-              });
-            }
-            return Effect.gen(function* () {
-              const response =
-                yield* Deferred.make<Option.Option<OrchestrationThreadDetailSnapshot>>();
-              const closed = yield* Deferred.make<void>();
-              yield* Effect.addFinalizer(() => Deferred.succeed(closed, undefined));
-              yield* Queue.offer(olderLoads, { window, response, closed });
-              return yield* Deferred.await(response);
-            }).pipe(Effect.scoped);
-          },
+          load: () =>
+            Effect.sync(() => {
+              httpLoads += 1;
+              if (options?.snapshotUnavailable === true) {
+                return { _tag: "unavailable" as const };
+              }
+              return {
+                _tag: "present" as const,
+                snapshot,
+                ...(snapshot.historyCursor === undefined
+                  ? {}
+                  : {
+                      history: {
+                        historyCursor: snapshot.historyCursor,
+                        hasMoreHistory: snapshot.hasMoreHistory ?? false,
+                        latestLocalTurnOrdinal: snapshot.latestLocalTurnOrdinal ?? null,
+                      },
+                    }),
+              };
+            }),
         }),
       ),
     ),
@@ -243,9 +236,7 @@ const makeHarness = Effect.fn("TestThreadAtoms.makeHarness")(function* (options?
     ref,
     subscriptions,
     olderLoads,
-    connectionState,
-    session,
-    sessionRef,
+    loadEarlier: () => historyController.loadEarlier(TARGET.environmentId, THREAD_ID),
     counts: () => ({ httpLoads, diskLoads, opened, active }),
   };
 });
@@ -278,7 +269,7 @@ describe("createEnvironmentThreadStateAtoms", () => {
   it.effect("shares one live stream and closes it after the last detail consumer leaves", () =>
     Effect.gen(function* () {
       const h = yield* makeHarness();
-      const unmountMessages = h.registry.mount(h.details.messagesAtom(h.ref));
+      const unmountMessages = h.registry.mount(h.details.visibleTurnItemsAtom(h.ref));
       const first = yield* Queue.take(h.subscriptions);
       const unmountStatus = h.registry.mount(h.details.statusAtom(h.ref));
       expect(h.counts()).toEqual({ httpLoads: 1, diskLoads: 1, opened: 1, active: 1 });
@@ -299,27 +290,13 @@ describe("createEnvironmentThreadStateAtoms", () => {
       const first = yield* Queue.take(h.subscriptions);
       yield* Queue.offer(first.events, {
         kind: "event",
+        sequence: 8,
         event: {
-          type: "thread.message-sent",
-          sequence: 8,
-          eventId: EventId.make("message-1"),
-          aggregateKind: "thread",
-          aggregateId: THREAD_ID,
-          occurredAt: THREAD.createdAt,
-          commandId: null,
-          causationEventId: null,
-          correlationId: null,
-          metadata: {},
-          payload: {
-            threadId: THREAD_ID,
-            messageId: MessageId.make("message-1"),
-            role: "assistant",
-            text: "Retained text",
-            turnId: null,
-            streaming: true,
-            createdAt: THREAD.createdAt,
-            updatedAt: THREAD.createdAt,
-          },
+          id: EventId.make("metadata-1"),
+          type: "thread.metadata-updated",
+          threadId: THREAD_ID,
+          occurredAt: THREAD.thread.updatedAt,
+          payload: { ...THREAD.thread, title: "Retained title" },
         },
       });
       yield* Queue.offer(first.events, { kind: "synchronized" });
@@ -337,85 +314,17 @@ describe("createEnvironmentThreadStateAtoms", () => {
     }),
   );
 
-  it.effect.each([
-    { replayed: false, statuses: ["live"] },
-    { replayed: true, statuses: ["live", "synchronizing", "live"] },
-  ])(
-    "keeps a warm resume live until it replays events (replayed: $replayed)",
-    ({ replayed, statuses }) =>
-      Effect.gen(function* () {
-        const h = yield* makeHarness({ connected: true });
-        const unmount = h.registry.mount(h.stateAtom);
-        const first = yield* Queue.take(h.subscriptions);
-        yield* Queue.offer(first.events, { kind: "synchronized" });
-        yield* observeState(h.registry, h.stateAtom, (state) => state.status === "live");
-        unmount();
-        yield* Deferred.await(first.closed);
-
-        const observed: Array<EnvironmentThreadState["status"]> = [];
-        const stop = h.registry.subscribe(h.stateAtom, (state) => observed.push(state.status), {
-          immediate: true,
-        });
-        const remount = h.registry.mount(h.stateAtom);
-        const next = yield* Queue.take(h.subscriptions);
-        expect(next.afterSequence).toBe(7);
-        if (replayed) {
-          yield* Queue.offer(next.events, {
-            kind: "snapshot",
-            snapshot: { snapshotSequence: 9, thread: { ...THREAD, title: "Replayed" } },
-          });
-          yield* observeState(h.registry, h.stateAtom, (state) => state.status === "synchronizing");
-        }
-        yield* Queue.offer(next.events, { kind: "synchronized" });
-        yield* observeState(h.registry, h.stateAtom, (state) => state.status === "live");
-        expect(observed.filter((status, index) => observed[index - 1] !== status)).toEqual(
-          statuses,
-        );
-        stop();
-        remount();
-        yield* Deferred.await(next.closed);
-      }),
-  );
-
-  it.effect("downgrades a warm resume when the connection dropped while away", () =>
-    Effect.gen(function* () {
-      const h = yield* makeHarness({ connected: true });
-      const unmount = h.registry.mount(h.stateAtom);
-      const first = yield* Queue.take(h.subscriptions);
-      yield* Queue.offer(first.events, { kind: "synchronized" });
-      yield* observeState(h.registry, h.stateAtom, (state) => state.status === "live");
-      unmount();
-      yield* Deferred.await(first.closed);
-
-      yield* SubscriptionRef.set(h.sessionRef, Option.none());
-      yield* SubscriptionRef.set(h.connectionState, AVAILABLE_CONNECTION_STATE);
-      const remount = h.registry.mount(h.stateAtom);
-      yield* observeState(h.registry, h.stateAtom, (state) => state.status === "cached");
-      expect(currentThread(h.registry, h.stateAtom)).toBe(THREAD);
-      expect(h.counts().opened).toBe(1);
-
-      yield* SubscriptionRef.set(h.connectionState, CONNECTED_STATE);
-      yield* SubscriptionRef.set(h.sessionRef, Option.some(h.session));
-      const next = yield* Queue.take(h.subscriptions);
-      expect(next.afterSequence).toBe(7);
-      expect(h.registry.get(h.stateAtom).status).toBe("synchronizing");
-      yield* Queue.offer(next.events, { kind: "synchronized" });
-      yield* observeState(h.registry, h.stateAtom, (state) => state.status === "live");
-      remount();
-      yield* Deferred.await(next.closed);
-    }),
-  );
-
   it.effect("keeps warm data when the raw atom family's weak entry is collected", () =>
     Effect.gen(function* () {
       const h = yield* makeHarness();
       const oldRaw = h.rawAtoms.stateAtom(TARGET.environmentId, THREAD_ID);
       const unmount = h.registry.mount(h.stateAtom);
       const first = yield* Queue.take(h.subscriptions);
-      const latest = { ...THREAD, title: "Newer cached thread" };
+      const latest = { ...THREAD, thread: { ...THREAD.thread, title: "Newer cached thread" } };
       yield* Queue.offer(first.events, {
         kind: "snapshot",
-        snapshot: { snapshotSequence: 8, thread: latest },
+        snapshotSequence: 8,
+        projection: latest,
       });
       yield* Queue.offer(first.events, { kind: "synchronized" });
       yield* observeState(h.registry, h.stateAtom, (value) => value.status === "live");
@@ -477,27 +386,219 @@ describe("createEnvironmentThreadStateAtoms", () => {
       const h = yield* makeHarness({
         snapshot: {
           ...SNAPSHOT,
-          page: { beforeCursor: "older-1", hasMore: true, snapshotSequence: 7 },
+          historyCursor: "older-1",
+          hasMoreHistory: true,
         },
       });
       const unmount = h.registry.mount(h.stateAtom);
       const first = yield* Queue.take(h.subscriptions);
-      expect(requestOlderThreadTurns(TARGET.environmentId, THREAD_ID)).toBe(true);
+      const loading = yield* h.loadEarlier().pipe(Effect.forkScoped);
       const older = yield* Queue.take(h.olderLoads);
-      expect(Option.getOrThrow(h.registry.get(h.stateAtom).page).loadingOlder).toBe(true);
+      expect(h.registry.get(h.stateAtom).history.loading).toBe(true);
       unmount();
       yield* Deferred.await(first.closed);
       yield* Deferred.await(older.closed);
+      yield* Fiber.await(loading);
       const remount = h.registry.mount(h.stateAtom);
       const next = yield* Queue.take(h.subscriptions);
-      expect(Option.getOrThrow(h.registry.get(h.stateAtom).page).loadingOlder).toBe(false);
-      expect(requestOlderThreadTurns(TARGET.environmentId, THREAD_ID)).toBe(true);
+      expect(h.registry.get(h.stateAtom).history.loading).toBe(false);
+      const retrying = yield* h.loadEarlier().pipe(Effect.forkScoped);
       const retried = yield* Queue.take(h.olderLoads);
-      expect(retried.window.beforeCursor).toBe("older-1");
+      expect(retried.cursor).toBe("older-1");
       expect(h.counts().httpLoads).toBe(1);
       remount();
       yield* Deferred.await(next.closed);
       yield* Deferred.await(retried.closed);
+      yield* Fiber.await(retrying);
     }),
   );
+
+  it.effect(
+    "merges older history after an HTTP failure falls back to a bounded socket snapshot",
+    () =>
+      Effect.gen(function* () {
+        const h = yield* makeHarness({ snapshotUnavailable: true });
+        const unmount = h.registry.mount(h.stateAtom);
+        const subscription = yield* Queue.take(h.subscriptions);
+        expect(subscription.afterSequence).toBeUndefined();
+
+        yield* Queue.offer(subscription.events, {
+          kind: "snapshot",
+          snapshotSequence: 12,
+          projection: THREAD,
+          historyCursor: "socket-older-1",
+          hasMoreHistory: true,
+          latestLocalTurnOrdinal: 4,
+          payloadBudgetExceeded: false,
+        });
+        yield* Queue.offer(subscription.events, { kind: "synchronized" });
+        yield* observeState(
+          h.registry,
+          h.stateAtom,
+          (state) => state.status === "live" && state.history.historyCursor === "socket-older-1",
+        );
+
+        const loading = yield* h.loadEarlier().pipe(Effect.forkScoped);
+        const request = yield* Queue.take(h.olderLoads);
+        expect(request.cursor).toBe("socket-older-1");
+        const olderItem = {
+          id: TurnItemId.make("socket-fallback-older-item"),
+          type: "command_execution" as const,
+          threadId: THREAD_ID,
+          runId: null,
+          nodeId: null,
+          providerThreadId: null,
+          providerTurnId: null,
+          nativeItemRef: null,
+          parentItemId: null,
+          ordinal: 1,
+          status: "completed" as const,
+          title: "Earlier command",
+          input: "pwd",
+          output: "/workspace",
+          exitCode: 0,
+          startedAt: THREAD.thread.createdAt,
+          completedAt: THREAD.thread.createdAt,
+          updatedAt: THREAD.thread.createdAt,
+        };
+        yield* Deferred.succeed(request.response, {
+          snapshotSequence: 12,
+          items: [
+            {
+              position: 0,
+              visibility: "local",
+              sourceThreadId: THREAD_ID,
+              sourceItemId: olderItem.id,
+              item: olderItem,
+            },
+          ],
+          nextCursor: null,
+          hasMoreHistory: false,
+        });
+        expect(yield* Fiber.join(loading)).toEqual({ _tag: "loaded" });
+
+        const state = h.registry.get(h.stateAtom);
+        expect(
+          Option.getOrThrow(state.data).visibleTurnItems.map((row) => row.sourceItemId),
+        ).toEqual([olderItem.id]);
+        expect(state.history).toMatchObject({
+          historyCursor: null,
+          hasMoreHistory: false,
+          loading: false,
+          error: null,
+          expanded: true,
+          latestLocalTurnOrdinal: 4,
+        });
+        expect(h.counts().httpLoads).toBe(1);
+
+        unmount();
+        yield* Deferred.await(subscription.closed);
+      }),
+  );
 });
+
+it.effect.each([1, 16, 500])("publishes V2 message replay once per batch of %i", (batchSize) =>
+  Effect.gen(function* () {
+    const h = yield* makeHarness();
+    const unmount = h.registry.mount(h.stateAtom);
+    const first = yield* Queue.take(h.subscriptions);
+    let updates = 0;
+    const stop = h.registry.subscribe(
+      Atom.map(h.stateAtom, (state) => Option.getOrNull(state.data)?.messages),
+      () => updates++,
+      {
+        immediate: true,
+      },
+    );
+    updates = 0;
+    const events: OrchestrationV2ThreadStreamItem[] = Array.from({ length: 500 }, (_, index) => ({
+      kind: "event",
+      sequence: 8 + index,
+      event: {
+        id: EventId.make(`replay-${index}`),
+        type: "message.updated",
+        threadId: THREAD_ID,
+        occurredAt: THREAD.thread.createdAt,
+        payload: {
+          id: MessageId.make("replayed-message"),
+          threadId: THREAD_ID,
+          runId: null,
+          nodeId: null,
+          role: "assistant",
+          text: `${index},`,
+          streaming: true,
+          attachments: [],
+          createdBy: "agent",
+          creationSource: "provider",
+          createdAt: THREAD.thread.createdAt,
+          updatedAt: THREAD.thread.createdAt,
+        },
+      },
+    }));
+    for (let offset = 0; offset < events.length; offset += batchSize) {
+      yield* Queue.offerAll(first.events, events.slice(offset, offset + batchSize));
+      const last = Math.min(offset + batchSize, events.length) - 1;
+      yield* observeState(
+        h.registry,
+        h.stateAtom,
+        (state) => Option.getOrNull(state.data)?.messages[0]?.text === `${last},`,
+      );
+    }
+    yield* Queue.offerAll(first.events, [events[499]!, events[0]!, { kind: "synchronized" }]);
+    yield* observeState(h.registry, h.stateAtom, (state) => state.status === "live");
+    expect(currentThread(h.registry, h.stateAtom).messages[0]?.text).toBe("499,");
+    expect(updates).toBe(Math.ceil(500 / batchSize));
+    stop();
+    unmount();
+    yield* Deferred.await(first.closed);
+    const remount = h.registry.mount(h.stateAtom);
+    const next = yield* Queue.take(h.subscriptions);
+    expect(next.afterSequence).toBe(507);
+    remount();
+    yield* Deferred.await(next.closed);
+  }),
+);
+
+it.effect("keeps snapshot boundaries and completion markers ordered inside a replay batch", () =>
+  Effect.gen(function* () {
+    const h = yield* makeHarness();
+    const unmount = h.registry.mount(h.stateAtom);
+    const first = yield* Queue.take(h.subscriptions);
+    const title = (sequence: number, value: string): OrchestrationV2ThreadStreamItem => ({
+      kind: "event",
+      sequence,
+      event: {
+        id: EventId.make(`batch-title-${sequence}`),
+        type: "thread.metadata-updated",
+        threadId: THREAD_ID,
+        occurredAt: THREAD.thread.updatedAt,
+        payload: { ...THREAD.thread, title: value },
+      },
+    });
+    yield* Queue.offerAll(first.events, [
+      title(8, "Before snapshot"),
+      {
+        kind: "snapshot",
+        snapshotSequence: 20,
+        projection: THREAD,
+        historyCursor: "older-batch",
+        hasMoreHistory: true,
+        latestLocalTurnOrdinal: 10,
+      },
+      title(21, "After snapshot"),
+      title(19, "Stale replay"),
+      { kind: "synchronized" },
+    ]);
+    const state = yield* observeState(h.registry, h.stateAtom, (value) => value.status === "live");
+    expect(Option.getOrThrow(state.data).thread.title).toBe("After snapshot");
+    expect(state.history.historyCursor).toBe("older-batch");
+    expect(state.history.latestLocalTurnOrdinal).toBe(10);
+    unmount();
+    yield* Deferred.await(first.closed);
+    const remount = h.registry.mount(h.stateAtom);
+    const next = yield* Queue.take(h.subscriptions);
+    expect(next.afterSequence).toBe(21);
+    remount();
+    yield* Deferred.await(next.closed);
+  }),
+);

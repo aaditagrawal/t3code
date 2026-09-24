@@ -25,13 +25,9 @@ export function getLocalFileManagerName(platform: string): string {
     return "Finder";
   }
   if (isWindowsPlatform(platform)) {
-    return "Explorer";
+    return "File Explorer";
   }
   return "Files";
-}
-
-export function randomHex(byteLength: number): string {
-  return Encoding.encodeHex(globalThis.crypto.getRandomValues(new Uint8Array(byteLength)));
 }
 
 export function randomUUID(): string {

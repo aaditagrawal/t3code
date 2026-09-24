@@ -26,7 +26,7 @@ export function sessionErrorClass(
 /**
  * Returns a human-readable label for the Kilo error name.
  */
-export function sessionErrorLabel(errorName: string): string {
+function sessionErrorLabel(errorName: string): string {
   switch (errorName) {
     case "ProviderAuthError":
       return "Authentication failed";

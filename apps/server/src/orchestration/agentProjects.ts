@@ -27,12 +27,8 @@
  *
  * @module orchestration/agentProjects
  */
-import {
-  CommandId,
-  ProjectId,
-  type OrchestrationProject,
-  type ProviderInstanceId,
-} from "@t3tools/contracts";
+import { CommandId, ProjectId, type ProviderInstanceId } from "@t3tools/contracts";
+import type { OrchestrationProject } from "@t3tools/contracts/legacy-orchestration";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -45,7 +41,7 @@ import { OrchestrationEngineService } from "./Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "./Services/ProjectionSnapshotQuery.ts";
 
 /** Directory name under `<t3home>` holding one directory per agent instance. */
-export const AGENT_WORKSPACE_DIR = "agents";
+const AGENT_WORKSPACE_DIR = "agents";
 
 /**
  * Workspace root for one agent instance.
@@ -54,7 +50,7 @@ export const AGENT_WORKSPACE_DIR = "agents";
  * is a non-empty string that plenty of code will happily `stat`, and handing
  * it a path that cannot exist would turn a cosmetic problem into a crash.
  */
-export function agentWorkspaceRoot(input: {
+function agentWorkspaceRoot(input: {
   readonly baseDir: string;
   readonly instanceId: ProviderInstanceId;
   readonly join: (...parts: ReadonlyArray<string>) => string;

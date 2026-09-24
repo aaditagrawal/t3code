@@ -77,7 +77,7 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
         { sharedHome: sourceDir },
       );
 
-      assert.equal(result.databasePath, path.join(destDir, "userdata", "state.sqlite"));
+      assert.equal(result.databasePath, path.join(destDir, "userdata", "statev2.sqlite"));
       const kept = yield* withDatabase(
         result.databasePath,
         Effect.gen(function* () {
@@ -120,6 +120,9 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
         }),
       );
 
+      const destination = yield* createFixtureSource(destDir);
+      const sourceBefore = yield* fs.readFile(source);
+      const destinationBefore = yield* fs.readFile(destination);
       const error = yield* runMigrateDevDb(
         { baseDir: destDir, source, projects: 5, threadsPerProject: 10 },
         { sharedHome: sourceDir },
@@ -129,6 +132,8 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
         assert.equal(error.slot, 1);
         assert.equal(error.appliedName, "SomebodyElsesMigration");
       }
+      assert.deepStrictEqual(yield* fs.readFile(source), sourceBefore);
+      assert.deepStrictEqual(yield* fs.readFile(destination), destinationBefore);
     }),
   );
 
@@ -166,7 +171,7 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
       const destDir = yield* fs.makeTempDirectoryScoped({ prefix: "migrate-dev-db-overlap-dest-" });
       // A leftover snapshot from a prior failed run, passed as --source: it
       // must not be deleted before it is read.
-      const leftoverSnapshot = path.join(destDir, "userdata", "state.sqlite.migrate-dev-db-tmp");
+      const leftoverSnapshot = path.join(destDir, "userdata", "statev2.sqlite.migrate-dev-db-tmp");
       yield* fs.makeDirectory(path.dirname(leftoverSnapshot), { recursive: true });
       yield* fs.writeFileString(leftoverSnapshot, "not a real db");
 

@@ -6,6 +6,7 @@ import {
   HostProcessEnvironment,
   HostProcessPlatform,
 } from "@t3tools/shared/hostProcess";
+import { resolveNodeExecutable, nodeRuntimeUnavailableMessage } from "@t3tools/shared/nodeRuntime";
 import * as Clock from "effect/Clock";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
@@ -59,7 +60,7 @@ type InstalledRelease = typeof InstalledRelease.Type;
 const encodeActiveRelease = Schema.encodeEffect(Schema.fromJsonString(ActiveRelease));
 const encodeInstalledRelease = Schema.encodeEffect(Schema.fromJsonString(InstalledRelease));
 
-export class AntigravityInstallationError extends Schema.TaggedErrorClass<AntigravityInstallationError>()(
+export class AntigravityInstallationError extends Schema.TaggedError<AntigravityInstallationError>()(
   "AntigravityInstallationError",
   {
     operation: Schema.String,
@@ -491,7 +492,9 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
         if (
           initialized.agentInfo?.name !== "antigravity-acp" ||
           initialized.agentInfo.version !== expectedVersion ||
-          initialized.protocolVersion !== 1 ||
+          // Antigravity 1.1.1 can report 2 with the legacy ACP response shape.
+          // The ACP client chooses the session wire format from that shape.
+          (initialized.protocolVersion !== 1 && initialized.protocolVersion !== 2) ||
           initialized.agentCapabilities?.loadSession !== true ||
           !initialized.agentCapabilities.sessionCapabilities?.resume ||
           !initialized.agentCapabilities.auth?.logout ||
@@ -517,6 +520,14 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
 
   const install = Effect.fn("AntigravityInstallation.install")(
     function* (asset: AntigravityReleaseAsset) {
+      yield* resolveNodeExecutable("Antigravity", environment).pipe(
+        Effect.provideService(FileSystem.FileSystem, fs),
+        Effect.provideService(Path.Path, path),
+        Effect.provideService(HostProcessPlatform, platform),
+        Effect.mapError((cause) =>
+          installationError("verify", nodeRuntimeUnavailableMessage("Antigravity"), cause),
+        ),
+      );
       const report = (phase: ProviderInstallState["phase"], message: string | null) =>
         SubscriptionRef.update(state, (current) => ({ ...current, phase, message }));
       yield* fs.makeDirectory(versionsDirectory, { recursive: true });

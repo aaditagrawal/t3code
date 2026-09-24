@@ -3,6 +3,7 @@ import { expect, it } from "@effect/vitest";
 import {
   HostProcessArchitecture,
   HostProcessEnvironment,
+  HostProcessIsExecutable,
   HostProcessPlatform,
 } from "@t3tools/shared/hostProcess";
 import * as Deferred from "effect/Deferred";
@@ -30,6 +31,8 @@ import {
 } from "./AntigravityInstallation.ts";
 import { ANTIGRAVITY_AUTH_BROWSER_MARKER } from "./antigravityAuthSupport.ts";
 import type { AntigravityReleaseAsset } from "./antigravityRelease.ts";
+
+import antigravityInitialize from "../../../../packages/effect-acp/test/fixtures/antigravity-initialize.json" with { type: "json" };
 
 const serverContents = "antigravity runtime\n";
 const harnessContents = "local harness\n";
@@ -242,6 +245,19 @@ const expectPreviousRelease = Effect.fn("test.expectPreviousAntigravityRelease")
 });
 
 it.layer(NodeServices.layer)("Antigravity installation", (it) => {
+  it.effect("reports missing Node before downloading the standalone provider runtime", () =>
+    Effect.gen(function* () {
+      const { installation, requests, validations } = yield* makeHarness();
+      yield* installation.start;
+      expect(yield* terminalState(installation)).toMatchObject({
+        phase: "failed",
+        message: expect.stringContaining("Install Node.js"),
+      });
+      expect(requests).toEqual([]);
+      expect(validations).toEqual([]);
+    }).pipe(Effect.provideService(HostProcessIsExecutable, true)),
+  );
+
   it.effect("verifies both files before activating a streamed download", () =>
     Effect.gen(function* () {
       const enteredValidation = yield* Deferred.make<void>();
@@ -292,10 +308,25 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
 
   it.effect.each([
     {
-      name: "the expected release",
+      name: "the expected release with protocol 1",
+      protocolVersion: 1,
       agentName: "antigravity-acp",
       version: "fixture-new",
       valid: true,
+    },
+    {
+      name: "the expected release with protocol 2 and legacy fields",
+      protocolVersion: 2,
+      agentName: "antigravity-acp",
+      version: "fixture-new",
+      valid: true,
+    },
+    {
+      name: "an unsupported protocol version",
+      protocolVersion: 3,
+      agentName: "antigravity-acp",
+      version: "fixture-new",
+      valid: false,
     },
     { name: "a different agent", agentName: "other-agent", version: "fixture-new", valid: false },
     {
@@ -366,14 +397,9 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
                       ...(request.method === "initialize"
                         ? {
                             result: {
-                              protocolVersion: 1,
+                              ...antigravityInitialize,
+                              protocolVersion: testCase.protocolVersion ?? 2,
                               agentInfo: { name: testCase.agentName, version: testCase.version },
-                              agentCapabilities: {
-                                loadSession: true,
-                                sessionCapabilities: { resume: {} },
-                                auth: { logout: {} },
-                              },
-                              authMethods: [{ id: "oauth-personal", name: "Google" }],
                             },
                           }
                         : {
@@ -704,7 +730,9 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-agy-path-test-" });
+        const baseDir = yield* fs
+          .makeTempDirectoryScoped({ prefix: "t3-agy-path-test-" })
+          .pipe(Effect.flatMap((directory) => fs.realPath(directory)));
         const externalDirectory = path.join(baseDir, "external");
         const externalExecutable = path.join(externalDirectory, executableName);
         const externalHarness = path.join(externalDirectory, harnessName);

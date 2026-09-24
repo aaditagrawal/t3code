@@ -42,7 +42,7 @@ import * as DesktopWslEnvironment from "./DesktopWslEnvironment.ts";
 // module produces. Keeping it inline in two places risks silent
 // divergence if one ever gets renamed.
 export const WSL_INSTANCE_ID_PREFIX = "wsl:";
-export const WSL_DEFAULT_DISTRO_INSTANCE_ID = `${WSL_INSTANCE_ID_PREFIX}@default`;
+const WSL_DEFAULT_DISTRO_INSTANCE_ID = `${WSL_INSTANCE_ID_PREFIX}@default`;
 const MAX_TCP_PORT = 65_535;
 
 export class DesktopWslBackend extends Context.Service<
@@ -203,6 +203,7 @@ export const layer = Layer.effect(
 
     const reconcileBody = Effect.gen(function* () {
       const settings = yield* appSettings.get;
+      if (!settings.localEnvironmentEnabled) return;
       const available = yield* wslEnvironment.isAvailable;
       const existing = yield* findExistingWslInstance;
       const existingId = Option.map(existing, (instance) => instance.id);

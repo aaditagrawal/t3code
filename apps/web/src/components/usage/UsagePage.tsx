@@ -1,3 +1,5 @@
+import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
+import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { useAtomValue } from "@effect/atom-react";
 import {
   USAGE_CONTRACT_VERSION,
@@ -8,13 +10,14 @@ import {
   CircleAlertIcon,
   ChevronDownIcon,
   CircleDashedIcon,
-  RefreshCwIcon,
   SlidersHorizontalIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { refreshUsageLimits } from "@t3tools/client-runtime/state/usage";
 
 import {
   isCompatibleUsageContractVersion,
+  isModelCostUnknown,
   type DailyTotals,
   type HourlyTotals,
 } from "@t3tools/shared/usageMerge";
@@ -37,7 +40,7 @@ import {
   formatUsd,
   makeWindow,
 } from "@t3tools/shared/usageFormat";
-import { Button } from "../ui/button";
+import { Button, InlineButton } from "../ui/button";
 import {
   Menu,
   MenuCheckboxItem,
@@ -61,7 +64,13 @@ import { WorkspacePageHeader } from "../WorkspacePageHeader";
 import { UsageLimitsSection } from "./UsageLimits";
 import { UsagePriceOverrides } from "./UsagePriceOverrides";
 import { UsageProviderChart, type UsageChartMetric } from "./UsageProviderChart";
+import { sortModelsByTokens } from "./usageBreakdown";
 import { PROVIDER_ORDER, PROVIDER_PRESENTATION, providersWithUsage } from "./usageProviders";
+import {
+  readUsagePagePreferences,
+  saveUsagePagePreferences,
+  type UsagePagePreferences,
+} from "./usagePagePreferences";
 
 type UsageMetric = UsageChartMetric | "limits";
 const METRIC_OPTIONS = [
@@ -81,13 +90,25 @@ const WINDOW_OPTIONS = [
   { days: 90, label: "90 days" },
 ] as const;
 
+function isUsageWindowDays(value: number): value is UsagePagePreferences["windowDays"] {
+  return WINDOW_OPTIONS.some((option) => option.days === value);
+}
+
 export function UsagePage() {
+  const [preferences, setPreferences] = useState(readUsagePagePreferences);
   const [windowSelection, setWindowSelection] = useState(() => ({
-    days: 30,
-    window: makeWindow(30),
+    days: preferences.windowDays,
+    window: makeWindow(
+      preferences.windowDays,
+      undefined,
+      preferences.windowDays === 1 ? "hour" : "day",
+    ),
   }));
-  const [metric, setMetric] = useState<UsageMetric>("cost");
+  const metric = preferences.metric;
   const showingLimits = metric === "limits";
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [limitsNow, setLimitsNow] = useState(() => Date.now());
+  const refreshingRef = useRef(false);
   const [breakdown, setBreakdown] = useState<"model" | "time">("model");
   const [selectedEnvironmentIds, setSelectedEnvironmentIds] =
     useState<ReadonlySet<EnvironmentId> | null>(null);
@@ -122,9 +143,7 @@ export function UsagePage() {
   const breakdownModels = useMemo(
     () =>
       breakdown === "model" && metric === "tokens"
-        ? merged.models.toSorted(
-            (left, right) => right.totalTokens - left.totalTokens || right.costUsd - left.costUsd,
-          )
+        ? sortModelsByTokens(merged.models)
         : merged.models,
     [breakdown, merged.models, metric],
   );
@@ -132,33 +151,84 @@ export function UsagePage() {
   const timeValueColumnWidth = `${60 / (activeProviders.length + 2)}%`;
 
   const selectWindow = (days: number) => {
+    if (!isUsageWindowDays(days)) return;
+    const nextPreferences = { metric, windowDays: days };
+    setPreferences(nextPreferences);
+    saveUsagePagePreferences(nextPreferences);
     setWindowSelection({
       days,
       window: makeWindow(days, undefined, days === 1 ? "hour" : "day"),
     });
   };
+  const selectMetric = (nextMetric: UsageMetric) => {
+    if (nextMetric === "limits") setLimitsNow(Date.now());
+    const nextPreferences = { metric: nextMetric, windowDays };
+    setPreferences(nextPreferences);
+    saveUsagePagePreferences(nextPreferences);
+  };
+  const refreshLimits = async (automatic = false) => {
+    try {
+      await Promise.all(
+        Array.from(presentations, ([environmentId, presentation]) => {
+          if (selectedEnvironmentIds !== null && !selectedEnvironmentIds.has(environmentId)) return;
+          if (presentation.connection.phase === "connected" && presentation.serverConfig !== null) {
+            return refreshUsageLimits(
+              environmentId,
+              () => refreshProviders({ environmentId, input: {} }),
+              automatic,
+            );
+          }
+        }),
+      );
+    } finally {
+      setLimitsNow(Date.now());
+    }
+  };
   const refreshWindow = () => {
+    if (refreshingRef.current) return;
+
     if (showingLimits) {
-      for (const [environmentId, presentation] of presentations) {
-        if (selectedEnvironmentIds !== null && !selectedEnvironmentIds.has(environmentId)) continue;
-        if (presentation.connection.phase === "connected" && presentation.serverConfig !== null) {
-          void refreshProviders({ environmentId, input: {} });
-        }
-      }
+      refreshingRef.current = true;
+      setIsRefreshing(true);
+      void refreshLimits().finally(() => {
+        refreshingRef.current = false;
+        setIsRefreshing(false);
+      });
       return;
     }
     const nextWindow = makeWindow(windowDays, undefined, isPast24Hours ? "hour" : "day");
     if (
-      nextWindow.sinceDay === window.sinceDay &&
-      nextWindow.untilDay === window.untilDay &&
-      nextWindow.sinceTime === window.sinceTime &&
-      nextWindow.untilTime === window.untilTime
+      nextWindow.sinceDay !== window.sinceDay ||
+      nextWindow.untilDay !== window.untilDay ||
+      nextWindow.sinceTime !== window.sinceTime ||
+      nextWindow.untilTime !== window.untilTime
     ) {
-      refresh();
-    } else {
       setWindowSelection({ days: windowDays, window: nextWindow });
     }
+    refreshingRef.current = true;
+    setIsRefreshing(true);
+    void refresh(nextWindow).finally(() => {
+      refreshingRef.current = false;
+      setIsRefreshing(false);
+    });
   };
+  const connectedLimitsEnvironments = [...presentations]
+    .filter(
+      ([environmentId, presentation]) =>
+        presentation.connection.phase === "connected" &&
+        presentation.serverConfig !== null &&
+        (selectedEnvironmentIds === null || selectedEnvironmentIds.has(environmentId)),
+    )
+    .map(([environmentId]) => environmentId)
+    .sort()
+    .join(",");
+  const autoRefreshLimits = useEffectEvent(() => {
+    void refreshLimits(true);
+  });
+  useEffect(() => {
+    if (showingLimits && connectedLimitsEnvironments) autoRefreshLimits();
+  }, [showingLimits, connectedLimitsEnvironments]);
+
   const windowLabel =
     isPast24Hours && window.sinceTime !== undefined && window.untilTime !== undefined
       ? `${formatDateTimeShort(window.sinceTime, window.timeZone)} to ${formatDateTimeShort(window.untilTime, window.timeZone)}`
@@ -195,7 +265,7 @@ export function UsagePage() {
           value={[metric]}
           onValueChange={(next) => {
             const value = next[0];
-            if (isUsageMetric(value)) setMetric(value);
+            if (isUsageMetric(value)) selectMetric(value);
           }}
         >
           {METRIC_OPTIONS.map((option) => (
@@ -225,17 +295,19 @@ export function UsagePage() {
         <Button
           onClick={refreshWindow}
           aria-label={showingLimits ? "Refresh limits" : "Refresh usage"}
+          aria-busy={isRefreshing}
+          disabled={isRefreshing}
           size="icon-sm"
           variant="ghost"
         >
-          <RefreshCwIcon className="size-3.5" />
+          <RefreshIcon size="sm" refreshing={isRefreshing} />
         </Button>
       </div>
       <div className="col-span-2 ms-auto flex min-w-0 items-center justify-end gap-1 xl:hidden">
         <Select
           value={metric}
           onValueChange={(value) => {
-            if (isUsageMetric(value)) setMetric(value);
+            if (isUsageMetric(value)) selectMetric(value);
           }}
         >
           <SelectTrigger
@@ -282,17 +354,19 @@ export function UsagePage() {
         <Button
           onClick={refreshWindow}
           aria-label={showingLimits ? "Refresh limits" : "Refresh usage"}
+          aria-busy={isRefreshing}
+          disabled={isRefreshing}
           size="icon-sm"
           variant="ghost"
         >
-          <RefreshCwIcon className="size-3.5" />
+          <RefreshIcon size="sm" refreshing={isRefreshing} />
         </Button>
       </div>
     </div>
   );
 
   return (
-    <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none bg-background text-foreground isolate">
+    <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none isolate">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
         <WorkspacePageHeader electron={isElectron} className="h-auto">
           {topbarContent}
@@ -307,7 +381,7 @@ export function UsagePage() {
                   : `Select an environment to see ${showingLimits ? "limits" : "usage"}.`}
               </p>
             ) : showingLimits ? (
-              <UsageLimitsSection selectedEnvironmentIds={selectedEnvironmentIds} />
+              <UsageLimitsSection selectedEnvironmentIds={selectedEnvironmentIds} now={limitsNow} />
             ) : isPending ? (
               <UsageSkeleton />
             ) : (
@@ -321,9 +395,13 @@ export function UsagePage() {
                           : formatTokens(merged.totalTokens)}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {metric === "cost"
-                          ? `${formatCount(merged.sessions)} sessions · API estimate`
-                          : `${formatCount(merged.sessions)} sessions`}
+                        {metric !== "cost"
+                          ? `${formatCount(merged.sessions)} sessions`
+                          : merged.costQuality.unpricedShare > 0
+                            ? `${formatCount(merged.sessions)} sessions · API estimate excludes ${formatPercent(
+                                merged.costQuality.unpricedShare,
+                              )} unpriced records`
+                            : `${formatCount(merged.sessions)} sessions · API estimate`}
                       </span>
                     </div>
 
@@ -469,10 +547,14 @@ export function UsagePage() {
                                 </span>
                               </td>
                               <td className="py-2 text-right text-foreground tabular-nums">
-                                {formatUsd(model.costUsd)}
+                                {isModelCostUnknown(model) ? (
+                                  <span className="text-muted-foreground">Unpriced</span>
+                                ) : (
+                                  formatUsd(model.costUsd)
+                                )}
                               </td>
                               <td className="py-2 text-right text-muted-foreground tabular-nums">
-                                {formatPercent(model.costShare)}
+                                {isModelCostUnknown(model) ? "—" : formatPercent(model.costShare)}
                               </td>
                               <td className="py-2 text-right text-muted-foreground tabular-nums">
                                 {formatTokens(model.totalTokens)}
@@ -563,8 +645,14 @@ function ProviderMark({
   readonly provider: UsageProviderKind;
   readonly className: string;
 }) {
-  const Mark = PROVIDER_PRESENTATION[provider].mark;
-  return <Mark className={cn("shrink-0", className)} aria-hidden />;
+  const presentation = PROVIDER_PRESENTATION[provider];
+  return (
+    <ProviderInstanceIcon
+      driverKind={presentation.driverKind}
+      displayName={presentation.label}
+      iconClassName={className}
+    />
+  );
 }
 
 function Metric({ label, value }: { readonly label: string; readonly value: string }) {
@@ -655,7 +743,10 @@ function UsageEnvironmentFilter({
   return (
     <>
       <Menu>
-        <MenuTrigger className="group/usage-environment inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1 rounded-sm text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+        <MenuTrigger
+          render={<InlineButton />}
+          className="group/usage-environment min-w-0 max-w-full"
+        >
           <span className="min-w-0 truncate">{label}</span>
           <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground">
             {showUsageStatus && pendingCount > 0 ? (
@@ -680,7 +771,7 @@ function UsageEnvironmentFilter({
             )}
           </span>
         </MenuTrigger>
-        <MenuPopup align="start" className="w-80 max-w-[calc(100vw-2rem)]">
+        <MenuPopup align="start">
           <MenuCheckboxItem
             checked={allSelected}
             closeOnClick={false}
@@ -712,7 +803,6 @@ function UsageEnvironmentFilter({
                 key={environment.environmentId}
                 checked={checked}
                 closeOnClick={false}
-                className="grid-cols-[1rem_minmax(0,1fr)]"
                 onCheckedChange={(nextChecked) => {
                   const next = new Set(selectedEnvironments.map((entry) => entry.environmentId));
                   if (nextChecked) next.add(environment.environmentId);
@@ -787,8 +877,8 @@ function UsageSkeleton() {
             <div key={provider} className="flex flex-col gap-1">
               <div className="flex min-h-5 items-center justify-between gap-4">
                 <span className="flex items-center gap-2">
-                  <Skeleton className="size-2 shrink-0 rounded-full" />
-                  <Skeleton className="size-4 shrink-0 rounded-full" />
+                  <Skeleton shape="pill" className="size-2 shrink-0" />
+                  <Skeleton shape="pill" className="size-4 shrink-0" />
                   <Skeleton className="h-3.5 w-20" />
                 </span>
                 <Skeleton className="h-3.5 w-14" />
@@ -801,8 +891,8 @@ function UsageSkeleton() {
         <div className="flex flex-col gap-3">
           <Skeleton className="h-5 w-24" />
           <div className="flex flex-col gap-1">
-            <Skeleton className="ml-16 h-56 bg-muted-foreground/10" />
-            <Skeleton className="ml-16 h-4 bg-muted-foreground/10" />
+            <Skeleton className="ml-16 h-56" />
+            <Skeleton className="ml-16 h-4" />
           </div>
         </div>
       </section>
@@ -824,9 +914,9 @@ function UsageSkeleton() {
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-medium text-foreground">Breakdown</h2>
-          <Skeleton className="h-7 w-28 rounded-lg" />
+          <Skeleton shape="card" className="h-7 w-28" />
         </div>
-        <Skeleton className="h-44 bg-muted-foreground/10" />
+        <Skeleton className="h-44" />
       </section>
     </>
   );

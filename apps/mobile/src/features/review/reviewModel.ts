@@ -1,6 +1,8 @@
 import { parsePatchFiles } from "@pierre/diffs/utils/parsePatchFiles";
 import type { ChangeTypes, FileDiffMetadata } from "@pierre/diffs/types";
-import type { OrchestrationCheckpointSummary, ReviewDiffPreviewSource } from "@t3tools/contracts";
+import type { ThreadCheckpointSummary } from "@t3tools/client-runtime/state/thread-checkpoints";
+import type { ReviewDiffPreviewSource } from "@t3tools/contracts";
+import { unquoteGitPatchPath } from "@t3tools/shared/gitPatchPath";
 import * as Arr from "effect/Array";
 import { pipe } from "effect/Function";
 import * as Order from "effect/Order";
@@ -18,6 +20,9 @@ export interface ReviewSectionItem {
   readonly subtitle: string | null;
   readonly diff: string | null;
   readonly isLoading: boolean;
+  readonly files?: ReviewDiffPreviewSource["files"];
+  readonly truncated?: boolean;
+  readonly source?: ReviewDiffPreviewSource;
 }
 
 export interface ReviewRenderableHunkRow {
@@ -47,6 +52,7 @@ export type ReviewRenderableRow = ReviewRenderableHunkRow | ReviewRenderableLine
 export interface ReviewRenderableFile {
   readonly id: string;
   readonly cacheKey: string;
+  readonly notice?: string;
   readonly path: string;
   readonly previousPath: string | null;
   readonly changeType: ChangeTypes;
@@ -89,11 +95,11 @@ export type ReviewParsedDiff =
       readonly notice: string | null;
     };
 
-function checkpointTitle(checkpoint: OrchestrationCheckpointSummary): string {
+function checkpointTitle(checkpoint: ThreadCheckpointSummary): string {
   return `Turn ${checkpoint.checkpointTurnCount}`;
 }
 
-function checkpointSubtitle(checkpoint: OrchestrationCheckpointSummary): string {
+function checkpointSubtitle(checkpoint: ThreadCheckpointSummary): string {
   const fileCount = checkpoint.files.length;
   if (checkpoint.status !== "ready") {
     return `Diff ${checkpoint.status}`;
@@ -102,8 +108,8 @@ function checkpointSubtitle(checkpoint: OrchestrationCheckpointSummary): string 
 }
 
 function compareCheckpointTurnCountDescending(
-  left: OrchestrationCheckpointSummary,
-  right: OrchestrationCheckpointSummary,
+  left: ThreadCheckpointSummary,
+  right: ThreadCheckpointSummary,
 ): -1 | 0 | 1 {
   if (left.checkpointTurnCount === right.checkpointTurnCount) {
     return 0;
@@ -112,7 +118,7 @@ function compareCheckpointTurnCountDescending(
   return left.checkpointTurnCount > right.checkpointTurnCount ? -1 : 1;
 }
 
-const readyCheckpointOrder = Order.make<OrchestrationCheckpointSummary>(
+const readyCheckpointOrder = Order.make<ThreadCheckpointSummary>(
   compareCheckpointTurnCountDescending,
 );
 
@@ -124,16 +130,6 @@ function gitSubtitle(section: ReviewDiffPreviewSource): string | null {
     return `${section.baseRef} ... ${section.headRef ?? "HEAD"}`;
   }
   return "Base branch unavailable";
-}
-
-function stripGitPrefix(pathValue: string | undefined): string | null {
-  if (!pathValue) {
-    return null;
-  }
-  if (pathValue.startsWith("a/") || pathValue.startsWith("b/")) {
-    return pathValue.slice(2);
-  }
-  return pathValue;
 }
 
 function stripTrailingNewline(value: string): string {
@@ -378,8 +374,8 @@ function buildRenderableRows(file: FileDiffMetadata): ReadonlyArray<ReviewRender
 }
 
 function mapRenderableFile(file: FileDiffMetadata): ReviewRenderableFile {
-  const path = stripGitPrefix(file.name) ?? stripGitPrefix(file.prevName) ?? file.name;
-  const previousPath = stripGitPrefix(file.prevName);
+  const path = unquoteGitPatchPath(file.name || file.prevName || "");
+  const previousPath = file.prevName ? unquoteGitPatchPath(file.prevName) : null;
   const additions = file.hunks.reduce((total, hunk) => total + hunk.additionLines, 0);
   const deletions = file.hunks.reduce((total, hunk) => total + hunk.deletionLines, 0);
   const cacheKey = file.cacheKey ?? `${previousPath ?? "none"}:${path}:${file.type}`;
@@ -400,14 +396,14 @@ function mapRenderableFile(file: FileDiffMetadata): ReviewRenderableFile {
 }
 
 export function getReviewSectionIdForCheckpoint(
-  checkpoint: Pick<OrchestrationCheckpointSummary, "checkpointTurnCount">,
+  checkpoint: Pick<ThreadCheckpointSummary, "checkpointTurnCount">,
 ): string {
   return `turn:${checkpoint.checkpointTurnCount}`;
 }
 
 export function getReadyReviewCheckpoints(
-  checkpoints: ReadonlyArray<OrchestrationCheckpointSummary>,
-): ReadonlyArray<OrchestrationCheckpointSummary> {
+  checkpoints: ReadonlyArray<ThreadCheckpointSummary>,
+): ReadonlyArray<ThreadCheckpointSummary> {
   return pipe(
     checkpoints,
     Arr.filter((checkpoint) => checkpoint.status === "ready"),
@@ -416,7 +412,7 @@ export function getReadyReviewCheckpoints(
 }
 
 export function buildReviewSectionItems(input: {
-  readonly checkpoints: ReadonlyArray<OrchestrationCheckpointSummary>;
+  readonly checkpoints: ReadonlyArray<ThreadCheckpointSummary>;
   readonly gitSections: ReadonlyArray<ReviewDiffPreviewSource>;
   readonly turnDiffById: Readonly<Record<string, string | undefined>>;
   readonly loadingTurnIds: Readonly<Record<string, boolean | undefined>>;
@@ -442,6 +438,9 @@ export function buildReviewSectionItems(input: {
     title: section.title,
     subtitle: gitSubtitle(section),
     diff: section.diff,
+    source: section,
+    ...(section.files ? { files: section.files } : {}),
+    truncated: section.truncated,
     isLoading: false,
   }));
   const hasDirtyWorktreeItem = gitItems.some((item) => item.id === DIRTY_WORKTREE_SECTION_ID);
@@ -526,4 +525,28 @@ export function buildReviewParsedDiff(
       notice,
     };
   }
+}
+
+export function applyReviewDiffMetadata(
+  previewDiff: ReviewParsedDiff,
+  selectedSection: Pick<ReviewSectionItem, "files" | "truncated"> | null,
+): ReviewParsedDiff {
+  if (previewDiff.kind === "empty") return previewDiff;
+  const notice = selectedSection?.truncated
+    ? `This preview exceeds the size limit. Changes shown are incomplete.${selectedSection.files ? " Counts include all changes." : ""}`
+    : previewDiff.notice;
+  if (previewDiff.kind !== "files" || !selectedSection?.files) return { ...previewDiff, notice };
+  const totals = selectedSection.files.reduce(
+    (total, file) => ({
+      additions: total.additions + file.additions,
+      deletions: total.deletions + file.deletions,
+    }),
+    { additions: 0, deletions: 0 },
+  );
+  const stats = new Map(selectedSection.files.map((file) => [file.path, file]));
+  const files = previewDiff.files.map((file) => {
+    const stat = stats.get(file.path);
+    return stat ? { ...file, additions: stat.additions, deletions: stat.deletions } : file;
+  });
+  return { ...previewDiff, ...totals, files, fileCount: selectedSection.files.length, notice };
 }

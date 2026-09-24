@@ -4,6 +4,7 @@ import {
   URL_SCHEME,
   URL_SCHEME_DEV,
 } from "@t3tools/shared/branding";
+import * as NodePath from "@effect/platform-node/NodePath";
 import { assert, describe, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
@@ -57,6 +58,7 @@ const makeDesktopClerkLayer = (isDevelopment = true, events: string[] = []) => {
   return DesktopClerk.layer.pipe(
     Layer.provide(
       Layer.mergeAll(
+        NodePath.layerPosix,
         Layer.succeed(DesktopEnvironment.DesktopEnvironment, environment),
         Layer.succeed(ElectronApp.ElectronApp, electronApp),
         FileSystem.layerNoop({ exists: () => Effect.succeed(false) }),
@@ -69,17 +71,6 @@ describe("DesktopClerk", () => {
   beforeEach(() => {
     createClerkBridgeMock.mockReset();
     storageMock.mockReset();
-  });
-
-  it("derives the Clerk Frontend API hostname used by the desktop CSP", () => {
-    const publishableKey = `pk_test_${btoa("clerk.t3.codes$")}`;
-
-    assert.equal(
-      DesktopClerk.resolveDesktopClerkFrontendApiHostname(publishableKey),
-      "clerk.t3.codes",
-    );
-    assert.equal(DesktopClerk.resolveDesktopClerkFrontendApiHostname(""), undefined);
-    assert.equal(DesktopClerk.resolveDesktopClerkFrontendApiHostname("invalid"), undefined);
   });
 
   it.effect("acquires and releases the SDK bridge with the layer", () => {
@@ -220,26 +211,28 @@ describe("DesktopClerk", () => {
     );
   });
 
-  it.each([
+  it.effect.each([
     { isDevelopment: true, scheme: URL_SCHEME_DEV },
     { isDevelopment: false, scheme: URL_SCHEME },
-  ])("configures the SDK with the $scheme renderer origin", ({ isDevelopment, scheme }) => {
-    const bridge = { cleanup: vi.fn(), isPrimaryInstance: true };
-    storageMock.mockReturnValue(storageAdapter);
-    createClerkBridgeMock.mockReturnValue(bridge);
+  ])("configures the SDK with the $scheme renderer origin", ({ isDevelopment, scheme }) =>
+    Effect.gen(function* () {
+      const bridge = { cleanup: vi.fn(), isPrimaryInstance: true };
+      storageMock.mockReturnValue(storageAdapter);
+      createClerkBridgeMock.mockReturnValue(bridge);
 
-    assert.equal(DesktopClerk.createDesktopClerkBridge("/tmp/t3-state", isDevelopment), bridge);
-    assert.deepEqual(storageMock.mock.calls, [[{ path: "/tmp/t3-state" }]]);
-    assert.deepEqual(createClerkBridgeMock.mock.calls, [
-      [
-        {
-          storage: storageAdapter,
-          passkeys: true,
-          renderer: { scheme, host: "app" },
-        },
-      ],
-    ]);
-    storageMock.mockClear();
-    createClerkBridgeMock.mockClear();
-  });
+      yield* Effect.scoped(Layer.build(makeDesktopClerkLayer(isDevelopment)));
+      assert.deepEqual(storageMock.mock.calls, [[{ path: "/tmp/t3-state" }]]);
+      assert.deepEqual(createClerkBridgeMock.mock.calls, [
+        [
+          {
+            storage: storageAdapter,
+            passkeys: true,
+            renderer: { scheme, host: "app" },
+          },
+        ],
+      ]);
+      storageMock.mockClear();
+      createClerkBridgeMock.mockClear();
+    }),
+  );
 });

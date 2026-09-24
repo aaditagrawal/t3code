@@ -229,17 +229,13 @@ jobs:
               `${baseSha}...${resolvedHeadSha}`,
             ];
 
+            // Vendored repository refreshes can exceed Node's default 1 MiB buffer.
+            const diffOutputOptions = { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 };
             const totalChangedLines = sumNumstat(
-              execFileSync(
-                "git",
-                diffArgs,
-                { encoding: "utf8" },
-              ),
+              execFileSync("git", diffArgs, diffOutputOptions),
             );
             const nonTestChangedLines = sumNumstat(
-              execFileSync("git", [...diffArgs, "--", ".", ...testExcludePathspecs], {
-                encoding: "utf8",
-              }),
+              execFileSync("git", [...diffArgs, "--", ".", ...testExcludePathspecs], diffOutputOptions),
             );
             const testChangedLines = Math.max(0, totalChangedLines - nonTestChangedLines);
 

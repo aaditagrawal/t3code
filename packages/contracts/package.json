@@ -1,6 +1,6 @@
 {
   "name": "@t3tools/contracts",
-  "version": "0.0.41",
+  "version": "0.0.42",
   "private": true,
   "files": [
     "dist"
@@ -18,10 +18,14 @@
     "./relay": {
       "types": "./src/relay.ts",
       "import": "./src/relay.ts"
+    },
+    "./legacy-orchestration": {
+      "types": "./src/orchestration.ts",
+      "import": "./src/orchestration.ts"
     }
   },
   "scripts": {
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vp test run"
   },
   "dependencies": {

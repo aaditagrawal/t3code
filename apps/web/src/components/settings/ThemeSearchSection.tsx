@@ -1,10 +1,5 @@
-import {
-  ExternalLinkIcon,
-  PackagePlusIcon,
-  PaletteIcon,
-  RefreshCwIcon,
-  SearchIcon,
-} from "lucide-react";
+import { RefreshIcon } from "~/components/ui/refresh-icon";
+import { ExternalLinkIcon, PackagePlusIcon, PaletteIcon, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   importOpenVsxThemeExtension,
@@ -29,6 +24,7 @@ import {
   AlertDialogPopup,
   AlertDialogTitle,
 } from "../ui/alert-dialog";
+import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
@@ -348,12 +344,9 @@ export function ThemeSearchSection({
       </div>
 
       {error ? (
-        <div
-          aria-live="polite"
-          className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-sm"
-        >
-          {error}
-        </div>
+        <Alert variant="error" role="status" aria-live="polite">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
       {isSearching && results === null ? (
@@ -418,7 +411,7 @@ export function ThemeSearchSection({
                       {isInstalling ? (
                         <Spinner />
                       ) : isInstalled ? (
-                        <RefreshCwIcon />
+                        <RefreshIcon />
                       ) : (
                         <PackagePlusIcon />
                       )}

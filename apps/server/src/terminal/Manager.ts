@@ -6,6 +6,7 @@
  *
  * @module TerminalManager
  */
+import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
 import {
   DEFAULT_TERMINAL_ID,
   TerminalCwdError,
@@ -28,6 +29,7 @@ import {
   type TerminalMetadataStreamEvent,
   type TerminalOpenInput,
   type TerminalResizeInput,
+  type ResourceMonitorProcessTableEntry,
   type TerminalRestartInput,
   type TerminalSessionSnapshot,
   type TerminalSessionStatus,
@@ -38,7 +40,10 @@ import {
   ProviderInstanceId,
 } from "@t3tools/contracts";
 import { makeKeyedCoalescingWorker } from "@t3tools/shared/KeyedCoalescingWorker";
-import { HostProcessPlatform } from "@t3tools/shared/hostProcess";
+import { HostProcessArchitecture, HostProcessPlatform } from "@t3tools/shared/hostProcess";
+import { mergePathEntries } from "@t3tools/shared/shell";
+
+import { acpRegistryManagedBinaryDirectories } from "../provider/acp/AcpRegistrySupport.ts";
 import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
 import * as DateTime from "effect/DateTime";
 import * as Context from "effect/Context";
@@ -70,6 +75,7 @@ import {
 import { expandHomePath } from "../pathExpansion.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import * as PortScanner from "../preview/PortScanner.ts";
+import * as NativeTelemetryClient from "../resourceTelemetry/NativeTelemetryClient.ts";
 import * as PtyAdapter from "./PtyAdapter.ts";
 
 export {
@@ -92,6 +98,7 @@ const DEFAULT_HISTORY_BYTE_LIMIT = 8 * 1024 * 1024;
 const MAX_HISTORY_CHUNK_LENGTH = 16 * 1024;
 const DEFAULT_PERSIST_DEBOUNCE_MS = 40;
 const DEFAULT_SUBPROCESS_POLL_INTERVAL_MS = 1_000;
+const MAX_SUBPROCESS_POLL_INTERVAL_MS = 60_000;
 const DEFAULT_PROCESS_KILL_GRACE_MS = 1_000;
 const DEFAULT_MAX_RETAINED_INACTIVE_SESSIONS = 128;
 const DEFAULT_OPEN_COLS = 120;
@@ -102,11 +109,11 @@ const MAX_TERMINAL_LABEL_LENGTH = 128;
 const decodeClaudeSettings = Schema.decodeUnknownOption(ClaudeSettings);
 const decodeCodexSettings = Schema.decodeUnknownOption(CodexSettings);
 
-class TerminalSubprocessCheckError extends Schema.TaggedErrorClass<TerminalSubprocessCheckError>()(
+class TerminalSubprocessCheckError extends Schema.TaggedError<TerminalSubprocessCheckError>()(
   "TerminalSubprocessCheckError",
   {
     cause: Schema.optional(Schema.Defect()),
-    command: Schema.Literals(["powershell", "ps"]),
+    command: Schema.Literals(["powershell", "ps", "resource-monitor"]),
     exitCode: Schema.optional(Schema.NullOr(Schema.Number)),
     timedOut: Schema.optional(Schema.Boolean),
     stdoutTruncated: Schema.optional(Schema.Boolean),
@@ -124,7 +131,7 @@ class TerminalSubprocessCheckError extends Schema.TaggedErrorClass<TerminalSubpr
   }
 }
 
-class TerminalProcessSignalError extends Schema.TaggedErrorClass<TerminalProcessSignalError>()(
+class TerminalProcessSignalError extends Schema.TaggedError<TerminalProcessSignalError>()(
   "TerminalProcessSignalError",
   {
     cause: Schema.optional(Schema.Defect()),
@@ -641,6 +648,13 @@ interface TerminalProcessTableSnapshot {
   readonly commandById: ReadonlyMap<number, string>;
 }
 
+export function subprocessSnapshotPollDelayMs(
+  pollIntervalMs: number,
+  failureCount: number,
+): number {
+  return Math.min(pollIntervalMs * 2 ** failureCount, MAX_SUBPROCESS_POLL_INTERVAL_MS);
+}
+
 function parsePosixProcessTable(stdout: string): TerminalProcessTableSnapshot {
   const childrenByParent = new Map<number, number[]>();
   const commandById = new Map<number, string>();
@@ -660,15 +674,15 @@ function parsePosixProcessTable(stdout: string): TerminalProcessTableSnapshot {
   return { childrenByParent, commandById };
 }
 
-function parseWindowsProcessTable(stdout: string): TerminalProcessTableSnapshot {
+function processTableSnapshotFromProcesses(
+  processes: ReadonlyArray<ResourceMonitorProcessTableEntry>,
+): TerminalProcessTableSnapshot {
   const childrenByParent = new Map<number, number[]>();
   const commandById = new Map<number, string>();
-  for (const line of stdout.split(/\r?\n/g)) {
-    const [pidRaw, parentPidRaw, nameRaw] = line.trim().split("|", 3);
-    const pid = Number(pidRaw);
-    const parentPid = Number(parentPidRaw);
+  for (const process of processes) {
+    const { pid, ppid: parentPid, name } = process;
     if (!Number.isInteger(pid) || !Number.isInteger(parentPid)) continue;
-    commandById.set(pid, nameRaw?.trim() ?? "");
+    commandById.set(pid, name.trim());
     const children = childrenByParent.get(parentPid) ?? [];
     children.push(pid);
     childrenByParent.set(parentPid, children);
@@ -763,14 +777,11 @@ const windowsProcessTableSnapshot = Effect.fn("terminal.windowsProcessTableSnaps
     TerminalSubprocessCheckError,
     ProcessRunner.ProcessRunner
   > {
+    const processRunner = yield* ProcessRunner.ProcessRunner;
     const command =
       'Get-CimInstance Win32_Process -ErrorAction Stop | ForEach-Object { Write-Output "$($_.ProcessId)|$($_.ParentProcessId)|$($_.Name)" }';
-    const processRunner = yield* ProcessRunner.ProcessRunner;
     const result = yield* processRunner
       .run({
-        // powershell.exe is a real executable — never spawn it through cmd.exe
-        // shell mode, which would re-tokenize the `-Command` payload (pipes,
-        // semicolons) before PowerShell ever sees it.
         command: "powershell.exe",
         args: ["-NoProfile", "-NonInteractive", "-Command", command],
         timeout: "1500 millis",
@@ -780,16 +791,10 @@ const windowsProcessTableSnapshot = Effect.fn("terminal.windowsProcessTableSnaps
       })
       .pipe(
         Effect.mapError(
-          (cause) =>
-            new TerminalSubprocessCheckError({
-              cause,
-              command: "powershell",
-            }),
+          (cause) => new TerminalSubprocessCheckError({ cause, command: "powershell" }),
         ),
       );
     if (result.code !== 0 || result.timedOut || result.stdoutTruncated) {
-      // Not authoritative: an empty or partial table would mark every terminal
-      // idle and clear its registered process ids. Failing skips the tick.
       return yield* new TerminalSubprocessCheckError({
         command: "powershell",
         exitCode: result.code,
@@ -797,7 +802,15 @@ const windowsProcessTableSnapshot = Effect.fn("terminal.windowsProcessTableSnaps
         stdoutTruncated: result.stdoutTruncated,
       });
     }
-    return parseWindowsProcessTable(result.stdout);
+    const processes = result.stdout.split(/\r?\n/g).flatMap((line) => {
+      const [pidRaw, ppidRaw, name = ""] = line.trim().split("|", 3);
+      const pid = Number(pidRaw);
+      const ppid = Number(ppidRaw);
+      return Number.isInteger(pid) && pid > 0 && Number.isInteger(ppid)
+        ? [{ pid, ppid, name }]
+        : [];
+    });
+    return processTableSnapshotFromProcesses(processes);
   },
 );
 
@@ -1272,7 +1285,8 @@ function stripAppImageRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 
 function createTerminalSpawnEnv(
   baseEnv: NodeJS.ProcessEnv,
-  runtimeEnv?: Record<string, string> | null,
+  runtimeEnv: Record<string, string> | null | undefined,
+  platform: NodeJS.Platform,
 ): NodeJS.ProcessEnv {
   const spawnEnv: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(baseEnv)) {
@@ -1286,12 +1300,17 @@ function createTerminalSpawnEnv(
   const scrubbed = stripAppImageRuntimeEnv(spawnEnv);
   if (runtimeEnv) {
     for (const [key, value] of Object.entries(runtimeEnv)) {
-      scrubbed[key] =
+      const existingKey =
+        platform === "win32"
+          ? Object.keys(scrubbed).find((candidate) => candidate.toLowerCase() === key.toLowerCase())
+          : undefined;
+      scrubbed[existingKey ?? key] =
         key === "CODEX_HOME" || key === "CLAUDE_CONFIG_DIR" ? expandHomePath(value) : value;
     }
   }
-  // Both PTY backends feed truecolor-capable terminal clients.
-  if (scrubbed.COLORTERM === undefined || scrubbed.COLORTERM === "") {
+  // An explicit empty override opts out for terminals started without a client.
+  // Otherwise both PTY backends feed truecolor-capable terminal clients.
+  if (!scrubbed.COLORTERM && runtimeEnv?.COLORTERM === undefined) {
     scrubbed.COLORTERM = "truecolor";
   }
   return scrubbed;
@@ -1313,7 +1332,18 @@ interface TerminalManagerOptions {
   ptyAdapter: PtyAdapter.PtyAdapter["Service"];
   shellResolver?: () => string;
   env?: NodeJS.ProcessEnv;
+  /**
+   * Catalog cache and tool directories for managed ACP Registry installs. Their
+   * install directories are appended to the terminal PATH so users can run
+   * managed agents by name (e.g. `kimi login`).
+   */
+  managedBinaryCacheDir?: string;
+  managedBinaryToolsDir?: string;
   subprocessInspector?: TerminalSubprocessInspector;
+  processTable?: Effect.Effect<
+    ReadonlyArray<ResourceMonitorProcessTableEntry>,
+    TerminalSubprocessCheckError
+  >;
   subprocessPollIntervalMs?: number;
   processKillGraceMs?: number;
   maxRetainedInactiveSessions?: number;
@@ -1376,10 +1406,12 @@ export const resolveProviderInstanceTerminalEnvironment = Effect.fn(
   );
 });
 
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.fn("TerminalManager.make")(function* () {
-  const { terminalLogsDir } = yield* ServerConfig.ServerConfig;
+  const { terminalLogsDir, providerStatusCacheDir, baseDir } = yield* ServerConfig.ServerConfig;
   const ptyAdapter = yield* PtyAdapter.PtyAdapter;
   const portDiscovery = yield* PortScanner.PortDiscovery;
+  const nativeTelemetry = yield* NativeTelemetryClient.NativeTelemetryClient;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const path = yield* Path.Path;
   const resolveProviderInstanceEnvironment = Effect.fn(
@@ -1395,6 +1427,13 @@ export const make = Effect.fn("TerminalManager.make")(function* () {
   return yield* makeWithOptions({
     logsDir: terminalLogsDir,
     ptyAdapter,
+    processTable: nativeTelemetry.processTable.pipe(
+      Effect.mapError(
+        (cause) => new TerminalSubprocessCheckError({ cause, command: "resource-monitor" }),
+      ),
+    ),
+    managedBinaryCacheDir: providerStatusCacheDir,
+    managedBinaryToolsDir: path.join(baseDir, "tools"),
     registerTerminalProcesses: portDiscovery.registerTerminalProcesses,
     unregisterTerminal: portDiscovery.unregisterTerminal,
     resolveProviderInstanceEnvironment,
@@ -1413,6 +1452,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   const historyLineLimit = options.historyLineLimit ?? DEFAULT_HISTORY_LINE_LIMIT;
   const historyByteLimit = options.historyByteLimit ?? DEFAULT_HISTORY_BYTE_LIMIT;
   const platform = yield* HostProcessPlatform;
+  const architecture = yield* HostProcessArchitecture;
   // Terminals must inherit the user's full environment (minus the blocklist
   // applied in createTerminalSpawnEnv) — an allowlist here silently strips
   // things like PSModulePath, DISPLAY, proxies, and toolchain variables.
@@ -1441,23 +1481,60 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   // One process-table snapshot per poll tick, shared across every terminal.
   // Per-terminal `pgrep`/`ps` calls multiply spawn load by terminal count and
   // can exhaust the PID space on hosts with many sessions (#6332).
-  const fetchProcessTableSnapshot = (
+  const fallbackProcessTableSnapshot = (
     platform === "win32"
       ? windowsProcessTableSnapshot()
       : posixProcessTableSnapshot(yield* resolvePosixPsCommand())
   ).pipe(Effect.provideService(ProcessRunner.ProcessRunner, processRunner));
+  const fetchProcessTableSnapshot: Effect.Effect<
+    {
+      readonly snapshot: TerminalProcessTableSnapshot;
+      /**
+       * False when the sidecar snapshot failed and this table came from the
+       * spawned fallback. The data is still applied, but the tick counts as
+       * a failure so polling backs off instead of hot-looping the fallback.
+       */
+      readonly snapshotSucceeded: boolean;
+    },
+    TerminalSubprocessCheckError
+  > = options.processTable
+    ? options.processTable.pipe(
+        Effect.map((entries) => ({
+          snapshot: processTableSnapshotFromProcesses(entries),
+          snapshotSucceeded: true,
+        })),
+        Effect.catch(() =>
+          fallbackProcessTableSnapshot.pipe(
+            Effect.map((snapshot) => ({ snapshot, snapshotSucceeded: false })),
+          ),
+        ),
+      )
+    : fallbackProcessTableSnapshot.pipe(
+        Effect.map((snapshot) => ({ snapshot, snapshotSucceeded: true })),
+      );
   const customSubprocessInspector = options.subprocessInspector;
   const acquireSubprocessInspector: Effect.Effect<
-    TerminalSubprocessInspector,
+    {
+      readonly inspector: TerminalSubprocessInspector;
+      readonly snapshotSucceeded: boolean;
+    },
     TerminalSubprocessCheckError
   > =
     customSubprocessInspector !== undefined
-      ? Effect.succeed(customSubprocessInspector)
+      ? Effect.succeed({ inspector: customSubprocessInspector, snapshotSucceeded: true })
       : Effect.map(
           fetchProcessTableSnapshot,
-          (snapshot): TerminalSubprocessInspector =>
-            (terminalPid) =>
+          ({
+            snapshot,
+            snapshotSucceeded,
+          }): {
+            readonly inspector: TerminalSubprocessInspector;
+            readonly snapshotSucceeded: boolean;
+          } => ({
+            inspector: (terminalPid) =>
               Effect.succeed(deriveSubprocessInspectResult(snapshot, terminalPid, platform)),
+            snapshotSucceeded,
+          }),
         );
   const subprocessPollIntervalMs =
     options.subprocessPollIntervalMs ?? DEFAULT_SUBPROCESS_POLL_INTERVAL_MS;
@@ -2169,7 +2246,40 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         Effect.andThen(
           Effect.gen(function* () {
             const shellCandidates = resolveShellCandidates(shellResolver, platform, baseEnv);
-            const terminalEnv = createTerminalSpawnEnv(baseEnv, session.runtimeEnv);
+            const terminalEnv = createTerminalSpawnEnv(baseEnv, session.runtimeEnv, platform);
+            // Append (never prepend) managed ACP agent install directories so
+            // `kimi login` and friends resolve by name without shadowing any
+            // system or user tool of the same name.
+            if (
+              options.managedBinaryCacheDir !== undefined &&
+              options.managedBinaryToolsDir !== undefined
+            ) {
+              const managedDirectories = yield* acpRegistryManagedBinaryDirectories({
+                fileSystem,
+                path,
+                cacheDir: options.managedBinaryCacheDir,
+                toolsDir: options.managedBinaryToolsDir,
+                platform,
+                architecture,
+              });
+              if (managedDirectories.length > 0) {
+                const delimiter = platform === "win32" ? ";" : ":";
+                const pathKey =
+                  platform === "win32"
+                    ? (Object.keys(terminalEnv).find(
+                        (candidate) => candidate.toLowerCase() === "path",
+                      ) ?? "PATH")
+                    : "PATH";
+                const merged = mergePathEntries(
+                  terminalEnv[pathKey],
+                  managedDirectories.join(delimiter),
+                  platform,
+                );
+                if (merged !== undefined) {
+                  terminalEnv[pathKey] = merged;
+                }
+              }
+            }
             const spawnResult = yield* trySpawn(shellCandidates, terminalEnv, session);
             ptyProcess = spawnResult.process;
             startedShell = spawnResult.shellLabel;
@@ -2309,7 +2419,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     );
 
     if (runningSessions.length === 0) {
-      return;
+      return true;
     }
 
     const inspectorOption = yield* acquireSubprocessInspector.pipe(
@@ -2317,15 +2427,22 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       Effect.catch((reason) =>
         Effect.logWarning("failed to snapshot processes for terminal subprocess polling", {
           reason,
-        }).pipe(Effect.as(Option.none<TerminalSubprocessInspector>())),
+        }).pipe(
+          Effect.as(
+            Option.none<{
+              readonly inspector: TerminalSubprocessInspector;
+              readonly snapshotSucceeded: boolean;
+            }>(),
+          ),
+        ),
       ),
     );
 
     if (Option.isNone(inspectorOption)) {
-      return;
+      return false;
     }
 
-    const subprocessInspector = inspectorOption.value;
+    const { inspector: subprocessInspector, snapshotSucceeded } = inspectorOption.value;
 
     const checkSubprocessActivity = Effect.fn("terminal.checkSubprocessActivity")(function* (
       session: TerminalSessionState & { pid: number },
@@ -2394,6 +2511,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       concurrency: "unbounded",
       discard: true,
     });
+    return snapshotSucceeded;
   });
 
   const hasRunningSessions = readManagerState.pipe(
@@ -2402,14 +2520,26 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     ),
   );
 
+  let subprocessSnapshotFailureCount = 0;
   yield* Effect.forever(
     hasRunningSessions.pipe(
       Effect.flatMap((active) =>
         active
           ? pollSubprocessActivity().pipe(
-              Effect.flatMap(() => Effect.sleep(subprocessPollIntervalMs)),
+              Effect.flatMap((snapshotSucceeded) => {
+                subprocessSnapshotFailureCount = snapshotSucceeded
+                  ? 0
+                  : Math.min(subprocessSnapshotFailureCount + 1, 30);
+                const delayMs = subprocessSnapshotPollDelayMs(
+                  subprocessPollIntervalMs,
+                  subprocessSnapshotFailureCount,
+                );
+                return Effect.sleep(delayMs);
+              }),
             )
-          : Effect.sleep(subprocessPollIntervalMs),
+          : Effect.sync(() => {
+              subprocessSnapshotFailureCount = 0;
+            }).pipe(Effect.flatMap(() => Effect.sleep(subprocessPollIntervalMs))),
       ),
     ),
   ).pipe(Effect.forkIn(workerScope));
@@ -2443,7 +2573,9 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     }).pipe(Effect.ignoreCause({ log: true })),
   );
 
-  const openLocked = Effect.fn("terminal.openLocked")(function* (input: TerminalOpenInput) {
+  const openWithWorkspaceLease = Effect.fn("terminal.openLocked")(function* (
+    input: TerminalOpenInput,
+  ) {
     const terminalId = input.terminalId;
     yield* assertValidCwd(input.cwd);
 
@@ -2565,6 +2697,12 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
 
     return snapshot(liveSession);
   });
+
+  const openLocked = (input: TerminalOpenInput) =>
+    withWorkspaceLease(
+      path.resolve(input.worktreePath ?? input.cwd),
+      openWithWorkspaceLease(input),
+    );
 
   const open: TerminalManager["Service"]["open"] = (input) =>
     withThreadLock(
@@ -2937,7 +3075,14 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   const restart: TerminalManager["Service"]["restart"] = (input) =>
     withThreadLock(
       input.threadId,
-      resolveLaunchInputEnvironment(input).pipe(Effect.flatMap(restartResolved)),
+      resolveLaunchInputEnvironment(input).pipe(
+        Effect.flatMap((resolved) =>
+          withWorkspaceLease(
+            path.resolve(resolved.worktreePath ?? resolved.cwd),
+            restartResolved(resolved),
+          ),
+        ),
+      ),
     );
 
   const close: TerminalManager["Service"]["close"] = (input) =>

@@ -12,10 +12,10 @@ import {
   AgentSessionImportSource,
   IsoDateTime,
   ProviderInstanceId,
-  ProviderSessionRuntimeStatus,
   RuntimeMode,
   ThreadId,
 } from "@t3tools/contracts";
+import { ProviderSessionRuntimeStatus } from "@t3tools/contracts/legacy-orchestration";
 
 import {
   PersistenceDecodeError,
@@ -165,6 +165,7 @@ function toPersistenceSqlOrDecodeError(
         });
 }
 
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 

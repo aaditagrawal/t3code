@@ -11,10 +11,8 @@ import {
 import { type VcsRefTarget } from "@t3tools/client-runtime/state/vcs";
 import type {
   EnvironmentId,
-  OrchestrationThread,
   ProjectContentMatch,
   ProjectEntryKind,
-  ThreadId,
   VcsListRefsResult,
   VcsRef,
 } from "@t3tools/contracts";
@@ -28,7 +26,6 @@ import { orchestrationEnvironment } from "./orchestration";
 import { isPaginatedBranchesNextPagePending } from "./paginatedBranches";
 import { projectContentSearch, projectEnvironment } from "./projects";
 import { useEnvironmentQuery } from "./query";
-import { useEnvironmentThread } from "./threads";
 import { vcsEnvironment } from "./vcs";
 
 const PROJECT_PATH_SEARCH_DEBOUNCE_MS = 120;
@@ -55,14 +52,6 @@ const threadSearchResultsAtom = createThreadSearchResultsAtomFamily({
   labelPrefix: "web:thread-search",
 });
 
-export interface ThreadDetailView {
-  readonly data: OrchestrationThread | null;
-  readonly error: string | null;
-  readonly isPending: boolean;
-  readonly isDeleted: boolean;
-}
-
-/** Shared with the pull requests page, which debounces its search the same way. */
 export function useDebouncedValue<A>(value: A, delayMs: number): A {
   const [debounced, setDebounced] = useState(value);
 
@@ -101,35 +90,6 @@ export function useThreadSearch(
     matches: isDebouncing ? EMPTY_THREAD_SEARCH_MATCHES : result.matches,
     isPending: canSearch && (isDebouncing || result.isLoading),
   };
-}
-
-export function useThreadDetail(
-  environmentId: EnvironmentId | null,
-  threadId: ThreadId | null,
-): ThreadDetailView {
-  const state = useEnvironmentThread(environmentId, threadId);
-  return {
-    data: Option.getOrNull(state.data),
-    error: Option.getOrNull(state.error),
-    isPending: state.status === "synchronizing",
-    isDeleted: state.status === "deleted",
-  };
-}
-
-export function useBranches(target: VcsRefTarget) {
-  const query = target.query?.trim() ?? "";
-  return useEnvironmentQuery(
-    target.environmentId !== null && target.cwd !== null
-      ? vcsEnvironment.listRefs({
-          environmentId: target.environmentId,
-          input: {
-            cwd: target.cwd,
-            ...(query.length > 0 ? { query } : {}),
-            limit: VCS_REF_LIST_LIMIT,
-          },
-        })
-      : null,
-  );
 }
 
 export function usePaginatedBranches(target: VcsRefTarget) {
@@ -294,6 +254,7 @@ export function useProjectPathSearch(
     isPending:
       !areProjectPathSearchTargetsEqual(normalizedTarget, debouncedTarget) || result.isPending,
     searchedQuery: debouncedTarget.query ?? "",
+    truncated: result.data?.truncated ?? false,
     refresh: result.refresh,
   };
 }

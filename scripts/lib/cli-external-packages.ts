@@ -1,15 +1,16 @@
 /**
- * The single source of truth for packages the server CLI bundle must NOT inline.
+ * The server CLI's native bundle boundary and disk-backed runtime dependencies.
  *
- * Two consumers derive from this list, and they must never disagree:
+ * Two consumers derive their related boundaries from this module:
  *
  * - apps/server/vite.config.ts decides what stays external to the bundle.
  * - scripts/build-desktop-artifact.ts selects the runtime dependency roots for
  *   the Windows server sidecar.
  *
  * A runtime package that is external but absent from the sidecar fails as soon
- * as Node resolves it from the emitted bundle. Keeping both consumers on one
- * list prevents packaging from drifting away from the bundle boundary.
+ * as Node resolves it from the emitted bundle. Pure JavaScript dependencies of
+ * disk-backed SDKs can also be bundled for other consumers without removing
+ * them from the SDK's installed dependency tree.
  *
  * Entries are matched as prefixes (`id.startsWith(prefix)`), so they also cover
  * a package's platform-specific siblings — `node-gyp-build` covers
@@ -21,23 +22,20 @@
  * Native addons (.node), the JS wrappers that dlopen them by real path, and —
  * critically — the ordinary JS packages those wrappers require. An external
  * package is loaded from the real filesystem, so its own `require` also
- * resolves from the real filesystem; a dependency that was bundled away exists
- * only inside the emitted bundle and is unreachable there. This closure is
- * enforced by a test, not by inspection.
+ * resolves from the real filesystem; its dependencies must remain in that
+ * installed tree even when another consumer also bundles them. This closure
+ * is enforced by a test, not by inspection.
  */
 export const CLI_RUNTIME_EXTERNAL_PREFIXES = [
+  // Cursor ships computed Webpack imports and platform helper packages.
+  "@cursor/sdk",
   "node-pty",
   "ffi-rs",
   "@yuuang/",
   "@ff-labs/",
   "@clerk/electron-passkeys",
-  "@msgpackr-extract/",
-  "msgpackr-extract",
   "node-gyp-build",
   "node-addon-api",
-  // Required by node-gyp-build-optional-packages. Not native, but in the
-  // closure: without it, WSL gets MODULE_NOT_FOUND while Windows is fine.
-  "detect-libc",
   // ws's optional accelerators. Nothing in this repo declares them, so they are
   // not in the staged production install and the packaged app does not ship
   // them either way -- ws wraps the require in try/catch and falls back to its
@@ -50,26 +48,25 @@ export const CLI_RUNTIME_EXTERNAL_PREFIXES = [
   "utf-8-validate",
 ] as const;
 
-/**
- * External only so the bundler never has to resolve them.
- *
- * These are reached through a runtime-conditional dynamic import that Node
- * never takes, and they resolve `bun:*` specifiers that do not exist when
- * bundling for Node. Because Node never loads them, their dependency closure
- * does not need to be external — only the entry point must stay unbundled.
- */
-export const CLI_BUILD_ONLY_EXTERNAL_PREFIXES = [
-  "@effect/platform-bun",
-  "@effect/sql-sqlite-bun",
-] as const;
-
-export const CLI_EXTERNAL_PACKAGE_PREFIXES = [
-  ...CLI_RUNTIME_EXTERNAL_PREFIXES,
-  ...CLI_BUILD_ONLY_EXTERNAL_PREFIXES,
+// These are Cursor's disk-backed dependency closure. Match package boundaries
+// so "zod" does not also externalize unrelated packages such as zod-to-json-schema.
+const CURSOR_RUNTIME_DEPENDENCIES = [
+  "@bufbuild/protobuf",
+  "@connectrpc/connect",
+  "@connectrpc/connect-node",
+  "@connectrpc/connect-web",
+  "@statsig/js-client",
+  "@statsig/client-core",
+  "zod",
+  "undici",
+  "@fastify/busboy",
 ] as const;
 
 export function isRuntimeExternalCliDependency(id: string): boolean {
-  return CLI_RUNTIME_EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix));
+  return (
+    CLI_RUNTIME_EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix)) ||
+    CURSOR_RUNTIME_DEPENDENCIES.some((name) => id === name || id.startsWith(`${name}/`))
+  );
 }
 
 /**
@@ -78,12 +75,15 @@ export function isRuntimeExternalCliDependency(id: string): boolean {
  * This has to be wired to the bundler's `neverBundle`, not just to
  * `alwaysBundle`. `alwaysBundle` only forces packages IN — returning false from
  * it means "no opinion", and the default then applies: a declared dependency
- * stays external, but a transitive one gets bundled. That is how
- * msgpackr-extract, node-gyp-build-optional-packages and detect-libc ended up
- * inlined while node-pty (a declared dependency) stayed external.
+ * stays external, but a transitive one gets bundled. That is how a native
+ * loader such as node-gyp-build ended up inlined while node-pty (a declared
+ * dependency) stayed external.
  */
 export function isExternalCliDependency(id: string): boolean {
-  return CLI_EXTERNAL_PACKAGE_PREFIXES.some((prefix) => id.startsWith(prefix));
+  // Cursor retains its installed JS dependency closure, but other bundled SDKs
+  // also import packages such as zod (including different major versions).
+  // Inline those imports rather than leaving file-backed ESM imports in a SEA.
+  return CLI_RUNTIME_EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix));
 }
 
 /** True when the CLI bundle should inline `id` rather than leave it external. */
@@ -107,9 +107,10 @@ export function selectCliRuntimeExternalDependencies(
  * Configuring the bundler is not the same as checking what it produced. The
  * `alwaysBundle` predicate only forces packages IN; returning false from it
  * means "no opinion", so a transitive dependency still gets bundled by default.
- * msgpackr-extract, node-gyp-build-optional-packages and detect-libc were
- * inlined that way while every list-based test passed, which is why this reads
- * the artifact instead.
+ * A native loader and its helper (node-gyp-build-optional-packages and
+ * detect-libc, when msgpackr-extract was still a dependency) were inlined that
+ * way while every list-based test passed, which is why this reads the artifact
+ * instead.
  *
  * `regionCount` is reported so the caller can tell "nothing was inlined" apart
  * from "the marker format changed and this scan no longer sees anything".

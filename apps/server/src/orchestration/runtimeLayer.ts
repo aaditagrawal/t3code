@@ -13,7 +13,7 @@ export const OrchestrationEventInfrastructureLayerLive = Layer.mergeAll(
   OrchestrationCommandReceiptRepositoryLive,
 );
 
-export const OrchestrationProjectionPipelineLayerLive = OrchestrationProjectionPipelineLive.pipe(
+const OrchestrationProjectionPipelineLayerLive = OrchestrationProjectionPipelineLive.pipe(
   Layer.provide(OrchestrationEventStoreLive),
 );
 

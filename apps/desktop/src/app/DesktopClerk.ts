@@ -11,12 +11,12 @@ import { clerkFrontendApiHostnameFromPublishableKey } from "@t3tools/shared/rela
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronProtocol from "../electron/ElectronProtocol.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
-import * as DesktopAppIdentity from "./DesktopAppIdentity.ts";
+import * as DesktopUserData from "./DesktopUserData.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 
 declare const __T3CODE_BUILD_CLERK_PUBLISHABLE_KEY__: string | undefined;
 
-export class DesktopClerkBridgeInitializationError extends Schema.TaggedErrorClass<DesktopClerkBridgeInitializationError>()(
+export class DesktopClerkBridgeInitializationError extends Schema.TaggedError<DesktopClerkBridgeInitializationError>()(
   "DesktopClerkBridgeInitializationError",
   {
     stateDir: Schema.String,
@@ -29,7 +29,7 @@ export class DesktopClerkBridgeInitializationError extends Schema.TaggedErrorCla
   }
 }
 
-export class DesktopClerkBridgeCleanupError extends Schema.TaggedErrorClass<DesktopClerkBridgeCleanupError>()(
+export class DesktopClerkBridgeCleanupError extends Schema.TaggedError<DesktopClerkBridgeCleanupError>()(
   "DesktopClerkBridgeCleanupError",
   {
     stateDir: Schema.String,
@@ -53,7 +53,7 @@ export class DesktopClerk extends Context.Service<
   }
 >()("@t3tools/desktop/app/DesktopClerk") {}
 
-export function resolveDesktopClerkFrontendApiHostname(
+function resolveDesktopClerkFrontendApiHostname(
   publishableKey: string | undefined,
 ): string | undefined {
   const normalizedKey = publishableKey?.trim();
@@ -72,7 +72,7 @@ export const desktopClerkFrontendApiHostname = resolveDesktopClerkFrontendApiHos
     : __T3CODE_BUILD_CLERK_PUBLISHABLE_KEY__,
 );
 
-export function createDesktopClerkBridge(stateDir: string, isDevelopment: boolean) {
+function createDesktopClerkBridge(stateDir: string, isDevelopment: boolean) {
   return createClerkBridge({
     storage: storage({ path: stateDir }),
     passkeys: true,
@@ -83,17 +83,13 @@ export function createDesktopClerkBridge(stateDir: string, isDevelopment: boolea
   });
 }
 
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const electronApp = yield* ElectronApp.ElectronApp;
 
-  // Electron scopes the single-instance lock to the userData directory and
-  // creates that directory when the lock is acquired. The SDK bridge takes
-  // the lock at creation, so userData must already point at the real
-  // directory here — under the default productName-derived path, acquiring
-  // the lock would create the productName-derived directory and make the
-  // legacy-install detection in resolveUserDataPath match on fresh installs.
-  const userDataPath = yield* DesktopAppIdentity.resolveUserDataPath;
+  // The SDK bridge acquires Electron's profile-scoped single-instance lock.
+  const userDataPath = yield* DesktopUserData.resolveUserDataPath(environment);
   yield* electronApp.setPath("userData", userDataPath);
 
   const bridge = yield* Effect.acquireRelease(

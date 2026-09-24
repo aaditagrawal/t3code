@@ -5,6 +5,9 @@ import {
   type ModelSelection,
   type ProviderApprovalDecision,
   type ProviderRuntimeEvent,
+  type ProviderRuntimeTaskStartedEvent,
+  type ProviderRuntimeTaskProgressEvent,
+  type ProviderRuntimeTaskCompletedEvent,
   type ProviderSession,
   type ProviderUserInputAnswers,
   ProviderDriverKind,
@@ -36,12 +39,11 @@ import * as SynchronizedRef from "effect/SynchronizedRef";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
 import * as NodeURL from "node:url";
 import * as EffectAcpErrors from "effect-acp/errors";
-import { ElicitationRequest as ElicitationRequestSchema } from "effect-acp/schema";
-import type * as EffectAcpSchema from "effect-acp/schema";
+import type * as EffectAcpSchema from "effect-acp/compat";
 
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { HostProcessEnvironment, HostProcessPlatform } from "@t3tools/shared/hostProcess";
-import { stableStringify } from "@t3tools/shared/relaySigning";
+import { standardAcpSessionApprovalKey } from "../acp/AcpSessionApprovals.ts";
 import { ServerConfig } from "../../config.ts";
 import { buildRuntimeInstructions } from "../RuntimeInstructions.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
@@ -54,6 +56,7 @@ import {
 } from "../Errors.ts";
 import { mapAcpToAdapterError } from "../acp/AcpAdapterSupport.ts";
 import {
+  StandardAcpFormRequest,
   extractStandardAcpFormQuestions,
   makeStandardAcpFormAcceptedResponse,
   makeStandardAcpFormCancelledResponse,
@@ -68,18 +71,18 @@ import {
   makeAcpRequestResolvedEvent,
   makeAcpToolCallEvent,
 } from "../acp/AcpCoreRuntimeEvents.ts";
-import { parsePermissionRequest } from "../acp/AcpRuntimeModel.ts";
 import {
-  acpNotificationSessionId,
-  acpUsageUpdateToTokenUsageSnapshot,
-  acpUsageUpdateToUsageLimits,
-} from "../acp/AcpUsageUpdates.ts";
+  parsePermissionRequest,
+  type AcpToolCallState,
+  type AcpPlanUpdate,
+} from "../acp/AcpRuntimeModel.ts";
+import { acpNotificationSessionId, acpUsageUpdateToUsageLimits } from "../acp/AcpUsageUpdates.ts";
 import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging.ts";
 import type { ProviderAdapterShape } from "../Services/ProviderAdapter.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 
 const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
-const decodeElicitationRequest = Schema.decodeUnknownEffect(ElicitationRequestSchema);
+const decodeElicitationRequest = Schema.decodeUnknownEffect(StandardAcpFormRequest);
 
 const STANDARD_ACP_RESUME_VERSION = 1 as const;
 const NANOS_PER_MILLI = 1_000_000n;
@@ -132,7 +135,7 @@ export interface StandardAcpProposedPlanRegistration<Params, Encoded> {
     active: boolean,
     toolCall: {
       readonly title?: string;
-      readonly status?: "pending" | "inProgress" | "completed" | "failed";
+      readonly status?: "pending" | "inProgress" | "completed" | "failed" | "requiresAction";
       readonly data: Record<string, unknown>;
     },
   ) => boolean;
@@ -142,6 +145,16 @@ export interface StandardAcpProposedPlanRegistration<Params, Encoded> {
   ) => string | undefined;
   readonly source: `acp.${string}.extension`;
 }
+
+type StandardAcpTaskEvent =
+  | Pick<ProviderRuntimeTaskStartedEvent, "type" | "payload" | "turnId">
+  | Pick<ProviderRuntimeTaskProgressEvent, "type" | "payload" | "turnId">
+  | Pick<ProviderRuntimeTaskCompletedEvent, "type" | "payload" | "turnId">;
+
+type StandardAcpTaskEventMapper = (input: {
+  readonly toolCall: AcpToolCallState;
+  readonly turnId: TurnId | undefined;
+}) => ReadonlyArray<StandardAcpTaskEvent>;
 
 export interface StandardAcpAdapterConfig<UserInputParams = never, UserInputEncoded = never> {
   readonly provider: ProviderDriverKind;
@@ -191,6 +204,8 @@ export interface StandardAcpAdapterConfig<UserInputParams = never, UserInputEnco
     readonly mapError: (cause: EffectAcpErrors.AcpError) => E;
   }) => Effect.Effect<string | undefined, E>;
   readonly modelSelectionMethod?: string;
+  readonly validatePrompt?: (text: string | undefined) => string | undefined;
+  readonly makeTaskEventMapper?: () => StandardAcpTaskEventMapper;
   readonly promptStopReason?: (
     response: EffectAcpSchema.PromptResponse,
   ) => EffectAcpSchema.StopReason | null;
@@ -221,6 +236,7 @@ interface StandardAcpSessionContext {
   readonly scope: Scope.Closeable;
   readonly acp: AcpSessionRuntime.AcpSessionRuntime["Service"];
   notificationFiber: Fiber.Fiber<void, never> | undefined;
+  readonly mapTaskEvents: StandardAcpTaskEventMapper | undefined;
   readonly pendingApprovals: Map<ApprovalRequestId, PendingApproval>;
   readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
   turns: Array<{ id: TurnId; items: Array<unknown> }>;
@@ -272,9 +288,11 @@ function settlePendingUserInputsAsCancelled(
 
 function promptWithRuntimeInstructions(
   promptParts: ReadonlyArray<EffectAcpSchema.ContentBlock>,
-  runtimeInstructions: string,
+  runtimeInstructions: string | undefined,
 ): Array<EffectAcpSchema.ContentBlock> {
-  return [...promptParts, { type: "text", text: runtimeInstructions }];
+  return runtimeInstructions === undefined
+    ? [...promptParts]
+    : [...promptParts, { type: "text", text: runtimeInstructions }];
 }
 
 function appendPromptResultToTurn(
@@ -348,22 +366,6 @@ function selectAutoApprovedPermissionOption(
   );
 }
 
-function permissionApprovalKey(
-  request: EffectAcpSchema.RequestPermissionRequest,
-): string | undefined {
-  const parsed = parsePermissionRequest(request);
-  const command = parsed.toolCall?.command;
-  const { kind, title, rawInput, locations } = request.toolCall;
-  let operationInput = rawInput;
-  if (isRecord(rawInput) && rawInput.variant === "Bash") {
-    const { description: _description, ...shellInput } = rawInput;
-    operationInput = shellInput;
-  }
-  return command || (isRecord(rawInput) && Object.keys(rawInput).length > 0)
-    ? stableStringify({ kind, title, command, input: operationInput, locations })
-    : undefined;
-}
-
 function completedStopReasonFromPromptResponse(
   response: EffectAcpSchema.PromptResponse | undefined,
   resolveStopReason?: StandardAcpAdapterConfig<unknown, unknown>["promptStopReason"],
@@ -374,7 +376,7 @@ function completedStopReasonFromPromptResponse(
   return resolveStopReason ? resolveStopReason(response) : response.stopReason;
 }
 
-export function standardAcpPromptSettlementBelongsToContext(input: {
+function standardAcpPromptSettlementBelongsToContext(input: {
   readonly liveAcpSessionId: string;
   readonly expectedAcpSessionId: string;
   readonly liveActiveTurnId: TurnId | undefined;
@@ -803,13 +805,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
       ctx: StandardAcpSessionContext,
       turnId: TurnId | undefined,
       stamp: { readonly eventId: EventId; readonly createdAt: string },
-      payload: {
-        readonly explanation?: string | null;
-        readonly plan: ReadonlyArray<{
-          readonly step: string;
-          readonly status: "pending" | "inProgress" | "completed";
-        }>;
-      },
+      payload: AcpPlanUpdate,
       rawPayload: unknown,
       method: string,
     ) =>
@@ -1052,7 +1048,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
             }
             if (config.formElicitation) {
               const handleFormElicitation = (
-                params: EffectAcpSchema.ElicitationRequest,
+                params: StandardAcpFormRequest,
                 method: "elicitation/create" | "session/elicitation",
                 rawParams: unknown = params,
               ) =>
@@ -1113,7 +1109,19 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                   }),
                 );
               yield* acp.handleElicitation((params) =>
-                handleFormElicitation(params, "session/elicitation"),
+                params.mode === "form"
+                  ? decodeElicitationRequest(params).pipe(
+                      Effect.mapError((cause) =>
+                        EffectAcpErrors.AcpRequestError.invalidExtensionPayload(
+                          "session/elicitation",
+                          cause,
+                        ),
+                      ),
+                      Effect.flatMap((request) =>
+                        handleFormElicitation(request, "session/elicitation", params),
+                      ),
+                    )
+                  : Effect.succeed(makeStandardAcpFormDeclinedResponse()),
               );
               // OhMyPi implements the original unstable ACP spelling and flat
               // response action. Keep both spellings behind the same opt-in.
@@ -1128,7 +1136,6 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                   Effect.flatMap((params) =>
                     handleFormElicitation(params, "elicitation/create", rawParams),
                   ),
-                  Effect.map((response) => response.action),
                 ),
               );
             }
@@ -1188,7 +1195,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                   }
                   const permissionRequest = parsePermissionRequest(params);
                   const approvalKey = config.rememberSessionApprovals
-                    ? permissionApprovalKey(params)
+                    ? standardAcpSessionApprovalKey(params)
                     : undefined;
                   if (approvalKey && sessionApprovedOperations.has(approvalKey)) {
                     const approvedOptionId = selectPermissionOptionId(params, "accept");
@@ -1312,6 +1319,7 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
             scope: sessionScope,
             acp,
             notificationFiber: undefined,
+            mapTaskEvents: config.makeTaskEventMapper?.(),
             pendingApprovals,
             pendingUserInputs,
             turns: [],
@@ -1370,9 +1378,22 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
                 }
 
                 const notificationTurnId = resolveNotificationTurnId(ctx);
+                if (event._tag === "ToolCallUpdated" && !ctx.stopped && ctx.mapTaskEvents) {
+                  for (const taskEvent of ctx.mapTaskEvents({
+                    toolCall: event.toolCall,
+                    turnId: notificationTurnId,
+                  })) {
+                    yield* offerRuntimeEvent({
+                      ...taskEvent,
+                      ...(yield* makeEventStamp()),
+                      provider: PROVIDER,
+                      threadId: ctx.threadId,
+                    });
+                  }
+                }
                 const stamp = yield* makeEventStamp();
                 if (event._tag === "UsageUpdated") {
-                  const usage = acpUsageUpdateToTokenUsageSnapshot(event);
+                  const usage = event.usage;
                   if (usage) {
                     yield* offerRuntimeEvent({
                       type: "thread.token-usage.updated",
@@ -1557,6 +1578,14 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
 
     const sendTurn: StandardAcpAdapterShape["sendTurn"] = (input) =>
       Effect.gen(function* () {
+        const invalidPrompt = config.validatePrompt?.(input.input);
+        if (invalidPrompt !== undefined) {
+          return yield* new ProviderAdapterRequestError({
+            provider: PROVIDER,
+            method: "session/prompt",
+            detail: invalidPrompt,
+          });
+        }
         const prepared = yield* withThreadLock(
           input.threadId,
           Effect.gen(function* () {
@@ -1664,11 +1693,14 @@ export function makeStandardAcpAdapter<UserInputParams = never, UserInputEncoded
               const displayModel = currentModelId
                 ? config.normalizeModel(currentModelId)
                 : undefined;
-              const runtimeInstructions = buildRuntimeInstructions({
-                harness: config.label,
-                model: displayModel,
-                reasoningEffort: ctx.currentModelOptions.reasoningEffort,
-              });
+              const runtimeInstructions =
+                text && /^\/[^\s/]+(?:\s|$)/.test(text)
+                  ? undefined
+                  : buildRuntimeInstructions({
+                      harness: config.label,
+                      model: displayModel,
+                      reasoningEffort: ctx.currentModelOptions.reasoningEffort,
+                    });
               for (
                 let yieldAttempt = 0;
                 yieldAttempt < SETTLEMENT_YIELD_ATTEMPTS;

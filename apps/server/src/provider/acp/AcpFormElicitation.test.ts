@@ -1,15 +1,15 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Schema from "effect/Schema";
-import { ElicitationRequest as ElicitationRequestSchema } from "effect-acp/schema";
 
 import {
+  StandardAcpFormRequest,
   extractStandardAcpFormQuestions,
   makeStandardAcpFormAcceptedResponse,
   makeStandardAcpFormCancelledResponse,
   makeStandardAcpFormDeclinedResponse,
 } from "./AcpFormElicitation.ts";
 
-const decodeElicitationRequest = Schema.decodeUnknownSync(ElicitationRequestSchema);
+const decodeElicitationRequest = Schema.decodeUnknownSync(StandardAcpFormRequest);
 const rawAskRequest = {
   mode: "form",
   sessionId: "omp-session",
@@ -69,21 +69,20 @@ describe("standard ACP form elicitation", () => {
         confirmed: "Yes",
       }),
     ).toEqual({
-      action: {
-        action: "accept",
-        content: { q0__other: "custom approach", confirmed: true },
-      },
+      action: "accept",
+      content: { q0__other: "custom approach", confirmed: true },
     });
     expect(
       makeStandardAcpFormAcceptedResponse(askRequest, { q0: "Safe", confirmed: "No" }),
     ).toEqual({
-      action: { action: "accept", content: { q0: "safe", confirmed: false } },
+      action: "accept",
+      content: { q0: "safe", confirmed: false },
     });
   });
 
   it("keeps cancellation and decline as distinct ACP actions", () => {
-    expect(makeStandardAcpFormCancelledResponse()).toEqual({ action: { action: "cancel" } });
-    expect(makeStandardAcpFormDeclinedResponse()).toEqual({ action: { action: "decline" } });
+    expect(makeStandardAcpFormCancelledResponse()).toEqual({ action: "cancel" });
+    expect(makeStandardAcpFormDeclinedResponse()).toEqual({ action: "decline" });
   });
 
   it("declines URL forms by exposing no T3 questions", () => {

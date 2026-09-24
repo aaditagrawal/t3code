@@ -24,17 +24,21 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 import { makeOpenCodeTextGeneration } from "../../textGeneration/OpenCodeTextGeneration.ts";
 import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
 import { ServerConfig } from "../../config.ts";
+import {
+  OpenCodeAdapterV2Driver,
+  type OpenCodeAdapterV2DriverEnv,
+} from "../../orchestration-v2/Adapters/OpenCodeAdapterV2.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import { ProviderDriverError } from "../Errors.ts";
-import { makeOpenCodeAdapter } from "../Layers/OpenCodeAdapter.ts";
+import { readOpenCodeGoUsageLimits } from "../Layers/openCodeUsageLimits.ts";
 import {
   checkOpenCodeProviderStatus,
   makePendingOpenCodeProvider,
   openCodeSkillsToServerProviderSkills,
+  openCodeCommandsToServerProviderSlashCommands,
 } from "../Layers/OpenCodeProvider.ts";
-import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
-import { OpenCodeRuntime } from "../opencodeRuntime.ts";
+import { OpenCodeRuntime, loadOpenCodeCommands } from "../opencodeRuntime.ts";
 import * as OpenCodeServerOwner from "../OpenCodeServerOwner.ts";
 import {
   defaultProviderContinuationIdentity,
@@ -77,6 +81,7 @@ const UPDATE = makePackageManagedProviderMaintenanceResolver({
 });
 
 export type OpenCodeDriverEnv =
+  | OpenCodeAdapterV2DriverEnv
   | BackgroundPolicy.BackgroundPolicy
   | ChildProcessSpawner.ChildProcessSpawner
   | Crypto.Crypto
@@ -84,7 +89,6 @@ export type OpenCodeDriverEnv =
   | HttpClient.HttpClient
   | OpenCodeRuntime
   | Path.Path
-  | ProviderEventLoggers
   | ServerConfig
   | ServerSettingsService;
 
@@ -105,7 +109,6 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
       const serverConfig = yield* ServerConfig;
       const httpClient = yield* HttpClient.HttpClient;
       const serverSettings = yield* ServerSettingsService;
-      const eventLoggers = yield* ProviderEventLoggers;
       const processEnv = mergeProviderInstanceEnvironment(environment);
       const continuationIdentity = defaultProviderContinuationIdentity({
         driverKind: DRIVER_KIND,
@@ -130,11 +133,24 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         ),
       );
 
-      const adapter = yield* makeOpenCodeAdapter(effectiveConfig, {
+      const orchestrationAdapter = yield* OpenCodeAdapterV2Driver.create({
         instanceId,
-        environment: processEnv,
-        ...(eventLoggers.native ? { nativeEventLogger: eventLoggers.native } : {}),
-      });
+        displayName,
+        accentColor,
+        environment,
+        enabled,
+        config,
+      }).pipe(
+        Effect.mapError(
+          (cause) =>
+            new ProviderDriverError({
+              driver: DRIVER_KIND,
+              instanceId,
+              detail: "Failed to build OpenCode orchestration adapter.",
+              cause,
+            }),
+        ),
+      );
       const serverOwner = yield* OpenCodeServerOwner.make({
         binaryPath: effectiveConfig.binaryPath,
         directory: serverConfig.cwd,
@@ -147,12 +163,22 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         Effect.provideService(OpenCodeServerOwner.OpenCodeServerOwner, serverOwner),
       );
 
-      const checkProvider = checkOpenCodeProviderStatus(
-        effectiveConfig,
-        serverConfig.cwd,
-        processEnv,
+      const checkProvider = Effect.all(
+        {
+          provider: checkOpenCodeProviderStatus(effectiveConfig, serverConfig.cwd, processEnv),
+          usageLimits: readOpenCodeGoUsageLimits({
+            enabled: effectiveConfig.enabled,
+            serverUrl: effectiveConfig.serverUrl,
+            environment: processEnv,
+          }),
+        },
+        { concurrency: "unbounded" },
       ).pipe(
+        Effect.map(({ provider, usageLimits }) => ({ ...provider, usageLimits })),
         Effect.map(stampIdentity),
+        Effect.provideService(FileSystem.FileSystem, fileSystem),
+        Effect.provideService(Path.Path, pathService),
+        Effect.provideService(HttpClient.HttpClient, httpClient),
         Effect.provideService(OpenCodeServerOwner.OpenCodeServerOwner, serverOwner),
         Effect.provideService(OpenCodeRuntime, openCodeRuntime),
       );
@@ -164,7 +190,18 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
       // empty skill list and poisons the workspace snapshot the `$` picker
       // reads. The SDK `app.skills` endpoint honors the per-request directory
       // and returns complete results regardless of size.
-      const loadSkillsForCwd = (cwd: string) =>
+      const loadWorkspaceInventory = (client: Parameters<typeof loadOpenCodeCommands>[0]) =>
+        Effect.all(
+          {
+            skills: openCodeRuntime.loadOpenCodeSkills(client),
+            commands: loadOpenCodeCommands(client).pipe(
+              Effect.timeout("10 seconds"),
+              Effect.orElseSucceed(() => []),
+            ),
+          },
+          { concurrency: "unbounded" },
+        );
+      const loadWorkspaceForCwd = (cwd: string) =>
         effectiveConfig.serverUrl.trim().length > 0
           ? Effect.scoped(
               Effect.gen(function* () {
@@ -184,11 +221,11 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
                     ? { serverPassword: effectiveConfig.serverPassword }
                     : {}),
                 });
-                return yield* openCodeRuntime.loadOpenCodeSkills(client);
+                return yield* loadWorkspaceInventory(client);
               }),
             )
           : serverOwner.withServer((server) =>
-              openCodeRuntime.loadOpenCodeSkills(
+              loadWorkspaceInventory(
                 openCodeRuntime.createOpenCodeSdkClient({
                   baseUrl: server.url,
                   directory: cwd,
@@ -247,23 +284,24 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
             ? snapshot.getSnapshot
             : Effect.all([
                 snapshot.getSnapshot,
-                loadSkillsForCwd(cwd).pipe(Effect.timeout("20 seconds")),
+                loadWorkspaceForCwd(cwd).pipe(Effect.timeout("20 seconds")),
               ]).pipe(
-                Effect.map(([machineSnapshot, skills]) => ({
+                Effect.map(([machineSnapshot, { skills, commands }]) => ({
                   ...machineSnapshot,
                   skills: openCodeSkillsToServerProviderSkills(skills),
+                  slashCommands: openCodeCommandsToServerProviderSlashCommands(commands),
                 })),
                 Effect.mapError(
                   (cause) =>
                     new ProviderDriverError({
                       driver: DRIVER_KIND,
                       instanceId,
-                      detail: `Failed to probe OpenCode skills for '${cwd}'`,
+                      detail: `Failed to probe OpenCode commands and skills for '${cwd}'`,
                       cause,
                     }),
                 ),
               ),
-        adapter,
+        orchestrationAdapter,
         textGeneration,
       } satisfies ProviderInstance;
     }),
