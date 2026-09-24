@@ -273,7 +273,7 @@ jobs:
     name: Release tests
     needs: [preflight]
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -298,9 +298,7 @@ jobs:
       - uses: ./.github/actions/setup-apt-mirrors
 
       - name: Install browser secret helper build libraries
-        run: |
-          sudo sed -i 's|http://|https://|g' /etc/apt/blacksmith-ubuntu-mirrors.txt /etc/apt/sources.list.d/ubuntu.sources
-          sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config build-essential
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config build-essential
 
       - name: Test
         run: vp run --parallel --concurrency-limit 4 --filter '!t3' --filter '!@t3tools/monorepo' test
@@ -309,7 +307,7 @@ jobs:
     name: Release server tests ${{ matrix.shard }}
     needs: [preflight]
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false
