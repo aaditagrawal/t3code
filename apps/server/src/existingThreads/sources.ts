@@ -6,6 +6,7 @@ import type {
   ExistingThread,
   ProviderInstanceId,
 } from "@t3tools/contracts";
+import { stateDatabaseCandidates } from "../persistence/stateDatabaseLineage.ts";
 import { parseTranscript, record, stableId, string, type Transcript } from "./transcripts.ts";
 
 const MAX_FILES = 5_000;
@@ -80,13 +81,57 @@ interface OfficialThread {
   readonly title: string;
   readonly busy: boolean;
 }
+export async function officialStateDatabase(home: string): Promise<string | undefined> {
+  const directory = NodePath.join(home, "userdata");
+  for (const filename of stateDatabaseCandidates()) {
+    const candidate = NodePath.join(directory, filename);
+    if (await exists(candidate)) return candidate;
+  }
+  return undefined;
+}
+
+function sessionIdFromOfficialRow(
+  provider: SourceInput["provider"],
+  value: unknown,
+): string | undefined {
+  const row = record(value);
+  const direct = string(row.provider_session_id) || string(row.native_id);
+  if (SESSION_ID.test(direct)) return direct;
+  let cursor: Record<string, unknown> | undefined;
+  try {
+    if (typeof row.resume_cursor_json === "string") {
+      cursor = record(JSON.parse(row.resume_cursor_json));
+    }
+  } catch {
+    cursor = undefined;
+  }
+  const id =
+    provider === "codex"
+      ? string(cursor?.threadId)
+      : string(cursor?.resume) || string(cursor?.sessionId);
+  return SESSION_ID.test(id) ? id : undefined;
+}
+
+function rememberOfficialThread(
+  result: Map<string, OfficialThread>,
+  id: string,
+  title: string,
+  busy: boolean,
+) {
+  const previous = result.get(id);
+  result.set(id, {
+    title: previous?.title || title,
+    busy: previous?.busy === true || busy,
+  });
+}
+
 async function officialThreads(
   home: string,
   provider: SourceInput["provider"],
 ): Promise<Map<string, OfficialThread>> {
   const result = new Map<string, OfficialThread>();
-  const database = NodePath.join(home, "userdata", "state.sqlite");
-  if (!(await exists(database))) return result;
+  const database = await officialStateDatabase(home);
+  if (database === undefined) return result;
   let serverAlive = false;
   const runtimePath = NodePath.join(home, "userdata", "server-runtime.json");
   if (await exists(runtimePath)) {
@@ -112,30 +157,49 @@ async function officialThreads(
   const db = new DatabaseSync(database, { readOnly: true });
   try {
     db.exec("PRAGMA query_only = ON; PRAGMA busy_timeout = 1000;");
-    const rows = db
-      .prepare(`SELECT t.title, r.resume_cursor_json, r.status
-      FROM projection_threads t JOIN provider_session_runtime r ON r.thread_id = t.thread_id
-      WHERE t.deleted_at IS NULL AND r.provider_name = ? ORDER BY t.updated_at DESC LIMIT 5000`)
-      .all(provider);
-    for (const row of rows) {
-      let cursor;
-      try {
-        cursor = record(JSON.parse(string(row.resume_cursor_json)));
-      } catch {
-        continue;
+    const table = (name: string) =>
+      db.prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = ?").all(name)
+        .length > 0;
+    if (table("orchestration_v2_projection_provider_threads")) {
+      const driver = provider === "codex" ? "codex" : "claude";
+      const rows = db
+        .prepare(
+          `SELECT t.title AS title, pt.status AS status, pt.provider_session_id AS provider_session_id,
+            json_extract(pt.payload_json, '$.nativeThreadRef.nativeId') AS native_id
+          FROM orchestration_v2_projection_threads t
+          JOIN orchestration_v2_projection_provider_threads pt ON pt.thread_id = t.thread_id
+          WHERE t.deleted_at IS NULL AND (pt.driver = ? OR pt.driver = ?)
+          ORDER BY t.updated_at DESC LIMIT 5000`,
+        )
+        .all(driver, provider);
+      for (const row of rows) {
+        const id = sessionIdFromOfficialRow(provider, row);
+        if (id === undefined) continue;
+        rememberOfficialThread(
+          result,
+          id,
+          string(row.title),
+          serverAlive && !["error", "closed", "archived"].includes(string(row.status)),
+        );
       }
-      const id =
-        provider === "codex"
-          ? string(cursor.threadId)
-          : string(cursor.resume) || string(cursor.sessionId);
-      if (!SESSION_ID.test(id)) continue;
-      const previous = result.get(id);
-      result.set(id, {
-        title: string(row.title),
-        busy:
-          previous?.busy === true ||
-          (serverAlive && !["stopped", "error"].includes(string(row.status))),
-      });
+    }
+    if (table("projection_threads") && table("provider_session_runtime")) {
+      const rows = db
+        .prepare(`SELECT t.title, r.resume_cursor_json, r.status
+        FROM projection_threads t JOIN provider_session_runtime r ON r.thread_id = t.thread_id
+        WHERE t.deleted_at IS NULL AND r.provider_name = ? ORDER BY t.updated_at DESC LIMIT 5000`)
+        .all(provider);
+      for (const row of rows) {
+        const id = sessionIdFromOfficialRow(provider, row);
+        if (id === undefined) continue;
+        if (result.has(id)) continue;
+        rememberOfficialThread(
+          result,
+          id,
+          string(row.title),
+          serverAlive && !["stopped", "error"].includes(string(row.status)),
+        );
+      }
     }
   } finally {
     db.close();
@@ -148,11 +212,11 @@ export async function discoverThreads(
   const notices: string[] = [];
   let official = new Map<string, OfficialThread>();
   let officialReadFailed = false;
-  const officialDatabase = NodePath.join(input.officialHome, "userdata", "state.sqlite");
+  const officialDatabase = await officialStateDatabase(input.officialHome);
   try {
     official = await officialThreads(input.officialHome, input.provider);
   } catch {
-    if (await exists(officialDatabase)) {
+    if (officialDatabase !== undefined) {
       officialReadFailed = true;
       notices.push(
         "Official T3 history could not be read, so import is blocked until that check succeeds.",

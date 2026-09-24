@@ -1,5 +1,5 @@
 import * as NetService from "@t3tools/shared/Net";
-import { HOME_DIR_NAME, LEGACY_HOME_DIR_NAME } from "@t3tools/shared/branding";
+import { HOME_DIR_NAME, PREVIOUS_HOME_DIR_NAMES } from "@t3tools/shared/branding";
 import * as NodeOS from "node:os";
 import {
   OtlpHeadersFromString,
@@ -335,7 +335,8 @@ export const resolveServerConfig = (
       baseDir,
       stateDir: derivedPaths.stateDir,
       defaultBaseDir: path.join(home, HOME_DIR_NAME),
-      legacyBaseDir: path.join(home, LEGACY_HOME_DIR_NAME),
+      legacyBaseDir: path.join(home, PREVIOUS_HOME_DIR_NAMES[0] ?? HOME_DIR_NAME),
+      legacyBaseDirs: PREVIOUS_HOME_DIR_NAMES.map((name) => path.join(home, name)),
     });
     yield* ServerConfig.ensureServerDirectories(derivedPaths);
     const persistedObservabilitySettings = yield* loadPersistedObservabilitySettings(

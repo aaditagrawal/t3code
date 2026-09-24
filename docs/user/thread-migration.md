@@ -37,14 +37,16 @@ handoff is also a good choice when the old conversation contains conflicting ins
 ## Keeping a recovery copy
 
 T3 Code does not currently have a whole-thread export command. Before a major server update, stop
-the server and copy its `userdata` directory to a safe location. The default is
-`~/.t3/userdata`; a server started with `--home-dir <path>` uses `<path>/userdata`.
+the server and copy its `userdata` directory to a safe location. T3 Code Fork stores that
+directory at `~/.t3code-fork/userdata`. The live database is `statev2.sqlite`. `state.sqlite` is
+the earlier file, kept when it was the source of the first V2 launch. A server started with
+`--home-dir <path>` uses `<path>/userdata`. Official T3 still uses `~/.t3/userdata`.
 
 If a migrated transcript is missing from the app, keep that copy unchanged. You can inspect the
 old transcript without starting a server against it:
 
 ```sh
-sqlite3 -readonly /path/to/recovery-copy/state.sqlite
+sqlite3 -readonly /path/to/recovery-copy/statev2.sqlite
 ```
 
 At the SQLite prompt, list recent legacy threads:

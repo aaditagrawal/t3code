@@ -6,6 +6,11 @@ export const APP_BASE_NAME = "T3 Code Fork";
 export const HOME_DIR_NAME = ".t3code-fork";
 /** Historical home used only to locate existing fork state for import. */
 export const LEGACY_HOME_DIR_NAME = ".t3";
+/**
+ * Older default homes, newest first. When `HOME_DIR_NAME` changes, prepend the
+ * previous name so the next update still imports the last home.
+ */
+export const PREVIOUS_HOME_DIR_NAMES = [LEGACY_HOME_DIR_NAME] as const;
 
 export const DEFAULT_SERVER_PORT = 3873;
 export const DEV_BASE_SERVER_PORT = 13873;

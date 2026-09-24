@@ -1,6 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off - Discovery reads the user's real home directory.
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
+import { LEGACY_HOME_DIR_NAME } from "@t3tools/shared/branding";
 import {
   CommandId,
   ClaudeSettings,
@@ -96,7 +97,7 @@ export const makeExistingThreads = Effect.gen(function* () {
       provider,
       instanceId: input.instanceId,
       providerHome,
-      officialHome: NodePath.join(NodeOS.homedir(), ".t3"),
+      officialHome: NodePath.join(NodeOS.homedir(), LEGACY_HOME_DIR_NAME),
     } satisfies SourceInput;
   });
   const discover = Effect.fn("existingThreads.discover")(function* (

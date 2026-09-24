@@ -144,6 +144,53 @@ describe("existing session discovery", () => {
     expect(result.threads[0]!.summary.unavailableReason).toContain("Stop this session");
     expect(await NodeFSP.readFile(filename)).toEqual(before);
   });
+  it("reads the current official database ahead of the older snapshot", async () => {
+    const { input } = await fixture();
+    const dir = NodePath.join(input.officialHome, "userdata");
+    await NodeFSP.mkdir(dir, { recursive: true });
+    const older = NodePath.join(dir, "state.sqlite");
+    const current = NodePath.join(dir, "statev2.sqlite");
+    for (const [filename, title] of [
+      [older, "Stale title"],
+      [current, "Current title"],
+    ] as const) {
+      const db = new NodeSqlite.DatabaseSync(filename);
+      db.exec(
+        "CREATE TABLE projection_threads(thread_id TEXT, title TEXT, deleted_at TEXT, updated_at TEXT); CREATE TABLE provider_session_runtime(thread_id TEXT, provider_name TEXT, resume_cursor_json TEXT, status TEXT);",
+      );
+      db.prepare("INSERT INTO projection_threads VALUES (?, ?, NULL, ?)").run(
+        "t3-id",
+        title,
+        stamp,
+      );
+      db.prepare("INSERT INTO provider_session_runtime VALUES (?, ?, ?, ?)").run(
+        "t3-id",
+        "codex",
+        JSON.stringify({ threadId: sessionId }),
+        "ready",
+      );
+      if (filename === current) {
+        db.exec(
+          "CREATE TABLE orchestration_v2_projection_threads(thread_id TEXT, title TEXT, deleted_at TEXT, updated_at TEXT); CREATE TABLE orchestration_v2_projection_provider_threads(thread_id TEXT, driver TEXT, status TEXT, provider_session_id TEXT, payload_json TEXT, updated_at TEXT);",
+        );
+        db.prepare("INSERT INTO orchestration_v2_projection_threads VALUES (?, ?, NULL, ?)").run(
+          "v2-id",
+          "Current title",
+          stamp,
+        );
+        db.prepare(
+          "INSERT INTO orchestration_v2_projection_provider_threads VALUES (?, ?, ?, ?, ?, ?)",
+        ).run("v2-id", "codex", "active", sessionId, "{}", stamp);
+      }
+      db.close();
+    }
+    const result = await discoverThreads(input);
+    expect(result.threads[0]!.summary).toMatchObject({
+      title: "Current title",
+      source: "official-t3",
+    });
+    expect(result.threads[0]!.summary.unavailableReason).toBeNull();
+  });
   it("treats an unreadable official database as a reason to block import", async () => {
     const { input } = await fixture();
     const dir = NodePath.join(input.officialHome, "userdata");

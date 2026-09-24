@@ -681,6 +681,98 @@ describe("importLegacyStateIfNeeded", () => {
     ),
   );
 
+  it.effect("prefers the current database over an older snapshot in the same home", () =>
+    withServices(
+      Effect.gen(function* () {
+        const fixture = makeFixture();
+        yield* seedForkDatabase(fixture.legacyDbPath);
+        const currentPath = NodePath.join(fixture.legacyBaseDir, "userdata", "statev2.sqlite");
+        yield* seedForkDatabase(currentPath);
+        const current = new NodeSqlite.DatabaseSync(currentPath);
+        current.exec("UPDATE legacy_probe SET value = 'from-current-database'");
+        current.close();
+
+        const outcome = yield* runImport(fixture);
+        assert.equal(outcome._tag, "Imported");
+        const imported = NodePath.join(fixture.baseDir, "userdata", "statev2.sqlite");
+        assert.deepEqual(readTable(imported, "SELECT value FROM legacy_probe"), [
+          { value: "from-current-database" },
+        ]);
+        assert.equal(NodeFS.existsSync(fixture.newDbPath), false);
+        assert.equal(NodeFS.existsSync(fixture.legacyDbPath), true);
+        assert.equal(NodeFS.existsSync(currentPath), true);
+      }),
+    ),
+  );
+
+  it.effect("prefers a newer previous home over an older one", () =>
+    withServices(
+      Effect.gen(function* () {
+        const fixture = makeFixture();
+        yield* seedForkDatabase(fixture.legacyDbPath);
+        const newerHome = NodePath.join(fixture.root, ".t3code-fork-previous");
+        const newerDb = NodePath.join(newerHome, "userdata", "statev2.sqlite");
+        yield* seedForkDatabase(newerDb);
+        const current = new NodeSqlite.DatabaseSync(newerDb);
+        current.exec("UPDATE legacy_probe SET value = 'from-newer-home'");
+        current.close();
+
+        const outcome = yield* importLegacyStateIfNeeded({
+          baseDir: fixture.baseDir,
+          defaultBaseDir: fixture.baseDir,
+          legacyBaseDir: fixture.legacyBaseDir,
+          legacyBaseDirs: [newerHome, fixture.legacyBaseDir],
+          stateDir: fixture.stateDir,
+        });
+        assert.equal(outcome._tag, "Imported");
+        assert.deepEqual(
+          readTable(
+            NodePath.join(fixture.baseDir, "userdata", "statev2.sqlite"),
+            "SELECT value FROM legacy_probe",
+          ),
+          [{ value: "from-newer-home" }],
+        );
+        assert.equal(NodeFS.existsSync(fixture.newDbPath), false);
+      }),
+    ),
+  );
+
+  it.effect("replaces an empty live database and keeps one that already has projects", () =>
+    withServices(
+      Effect.gen(function* () {
+        const fixture = makeFixture();
+        yield* seedForkDatabase(fixture.legacyDbPath);
+        const emptyLive = NodePath.join(fixture.baseDir, "userdata", "statev2.sqlite");
+        writeMigrationsOnlyDatabase(emptyLive, [[1, "OrchestrationEvents"]]);
+
+        assert.equal((yield* runImport(fixture))._tag, "Imported");
+        assert.equal(NodeFS.existsSync(emptyLive), false);
+        assert.deepEqual(readTable(fixture.newDbPath, "SELECT value FROM legacy_probe"), [
+          { value: "carried-over" },
+        ]);
+
+        const kept = NodePath.join(fixture.root, "kept-home");
+        const keptDb = NodePath.join(kept, "userdata", "statev2.sqlite");
+        yield* seedForkDatabase(keptDb);
+        const db = new NodeSqlite.DatabaseSync(keptDb);
+        db.exec(
+          "INSERT INTO projection_projects (project_id, title, workspace_root, scripts_json, created_at, updated_at) VALUES ('p', 'Kept', '/tmp/kept', '[]', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')",
+        );
+        db.close();
+        const keptLegacy = NodePath.join(fixture.root, "kept-legacy");
+        yield* seedForkDatabase(NodePath.join(keptLegacy, "userdata", "state.sqlite"));
+        const outcome = yield* importLegacyStateIfNeeded({
+          baseDir: kept,
+          defaultBaseDir: kept,
+          legacyBaseDir: keptLegacy,
+          stateDir: NodePath.join(kept, "userdata"),
+        });
+        assert.deepEqual(outcome, { _tag: "Skipped", reason: "new-home-in-use" });
+        assert.equal(readTable(keptDb, "SELECT title FROM projection_projects")[0]?.title, "Kept");
+      }),
+    ),
+  );
+
   it.effect("rejects a corrupt database and removes its staging directory", () =>
     withServices(
       Effect.gen(function* () {
