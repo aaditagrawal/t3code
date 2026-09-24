@@ -81,7 +81,7 @@ interface OfficialThread {
   readonly title: string;
   readonly busy: boolean;
 }
-export async function officialStateDatabase(home: string): Promise<string | undefined> {
+async function officialStateDatabase(home: string): Promise<string | undefined> {
   const directory = NodePath.join(home, "userdata");
   for (const filename of stateDatabaseCandidates()) {
     const candidate = NodePath.join(directory, filename);
