@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> This fork is no longer maintained. [Upstream T3 Code](https://github.com/pingdotgg/t3code) now ships everything this fork added, through its ACP (Agent Client Protocol) integration, so please use upstream instead. Install from the [upstream instructions](https://github.com/pingdotgg/t3code#installation), and open issues and pull requests on the [upstream repository](https://github.com/pingdotgg/t3code).
+
 # T3 Code
 
 T3 Code is a minimal web GUI for coding agents made by [Pingdotgg](https://github.com/pingdotgg). This project is a downstream fork of the original [T3 Code](https://github.com/pingdotgg/t3code), maintained in [aaditagrawal/t3code](https://github.com/aaditagrawal/t3code).
